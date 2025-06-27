@@ -37,7 +37,10 @@ export default function Cashier() {
   const showConfirm = (message, onConfirm) => {
     setConfirm({ open: true, message, onConfirm });
   };
-  const { items, addOrUpdateItem, deleteItem, clearCart, total, setItems } = useCart(showToast, showConfirm);
+  const { items, addOrUpdateItem, deleteItem, clearCart, total, setItems } = useCart((msg, type) => {
+    console.log('[Toast]', msg, type);
+    setToast({ msg, type });
+  }, showConfirm);
   const admin = useAdmin(navigate);
   // Defensive: always use array for products
   const products = Array.isArray(admin.products) ? admin.products : [];
@@ -110,31 +113,41 @@ export default function Cashier() {
 
   const handleCompleteSale = async () => {
     if (!items.length) return;
+    if (total < 0) {
+      showToast('Cannot complete sale with negative total', 'error');
+      return;
+    }
     if (isDebt && !customerName.trim()) {
       showToast(t.enterCustomerName || 'Please enter customer name for debt sale', 'error');
       return;
     }
     showConfirm(
       isDebt
-        ? t.confirmDebtSale || 'ئایا دڵنیایت کە ئەم فرۆشتنە بە قەرز تۆمار بکەیت؟'
-        : t.confirmSale || 'ئایا دڵنیایت کە ئەم فرۆشتنە تەواو بکەیت؟',
+        ? t.confirmDebtSale || 'Are you sure you want to record this sale as debt?'
+        : t.confirmSale || 'Are you sure you want to complete this sale?',
       async () => {
         setConfirm({ open: false, message: '', onConfirm: null });
-        // Prevent debt sale without customer name
         if (isDebt && !customerName.trim()) {
           showToast(t.customerNameRequired || 'Customer name is required for debt sales.', 'error');
           setLoading(l => ({ ...l, sale: false }));
           return;
         }
         setLoading(l => ({ ...l, sale: true }));
+        const saleItems = items.map(item => {
+          const { id, ...rest } = item;
+          return {
+            ...rest,
+            product_id: item.product_id || item.id,
+          };
+        });
+        /*
+          BACKEND/IPC HANDLER NOTE:
+          - Do NOT aggregate or sum quantities again.
+          - For each sale item: decrease stock by item.quantity.
+          - For benefit: benefit += (item.price - item.buying_price) * item.quantity (if not a return)
+        */
         const sale = {
-          items: items.map(item => ({
-            product_id: item.id || item.product_id,
-            quantity: 1,
-            price: item.price,
-            isReturn: item.isReturn || false,
-            buying_price: item.buying_price
-          })),
+          items: saleItems,
           total,
           created_at: new Date().toISOString(),
           is_debt: isDebt ? 1 : 0,
@@ -143,23 +156,17 @@ export default function Cashier() {
           const res = await window.api.saveSale(sale);
           if (res.success && isDebt) {
             await window.api.addDebt({ sale_id: res.id || res.lastInsertRowid, customer_name: customerName });
-            // Refresh debts and debt sales in Admin after a debt sale
             if (admin.fetchDebts) await admin.fetchDebts();
             if (admin.fetchDebtSales) await admin.fetchDebtSales();
           }
           setLoading(l => ({ ...l, sale: false }));
           if (res.success) {
-            // Decrease stock for each sold product
-            for (const item of items) {
-              if (!item.isReturn && window.api?.editProduct) {
-                // Only update stock, do not overwrite buying_price or other fields
-                await window.api.editProduct({ id: item.id || item.product_id, stock: (item.stock ?? 0) - (item.quantity || 1) });
-              }
-            }
             setItems([]);
             setSearch('');
             setIsDebt(false);
             setCustomerName("");
+            if (admin.fetchProducts) await admin.fetchProducts();
+            if (admin.fetchSales) await admin.fetchSales();
             showToast(isDebt ? (t.debtSaleSuccess || 'Debt sale recorded!') : (t.saleSuccess || 'Complete sale successful!'));
           } else {
             showToast(res.message || t.saleFailed || 'Sale failed', 'error');
@@ -205,6 +212,7 @@ export default function Cashier() {
   }, []);
 
   const handleSuggestionClick = (product) => {
+    console.debug('[Cart] addOrUpdateItem (suggestion click):', { product, isReturn, quantity });
     addOrUpdateItem(product, isReturn, quantity);
     setSearch('');
     setQuantity(1);
@@ -237,35 +245,47 @@ export default function Cashier() {
               <div className="text-xs text-gray-700 dark:text-gray-300 mb-2">{clock.toLocaleTimeString()} | {clock.toLocaleDateString()}</div>
               <div className="mb-6">
                 <span className="block text-gray-700 dark:text-gray-200 font-semibold text-lg mb-1">{t.total}:</span>
-                <span className="text-4xl font-black text-[#0e7490] dark:text-blue-300 drop-shadow">${total}</span>
+                <span className={`text-4xl font-black drop-shadow ${total < 0 ? 'text-red-600 dark:text-red-400' : 'text-[#0e7490] dark:text-blue-300'}`}>
+                  ${total.toFixed(2)}
+                </span>
               </div>
               <div className="mb-6 text-gray-600 dark:text-gray-300 text-base">{items.length} {t.items || 'items'}</div>
               <button
                 className="w-full bg-gradient-to-r from-emerald-500 to-green-600 text-white py-4 rounded-xl font-extrabold text-xl shadow-xl hover:scale-105 hover:from-green-600 hover:to-emerald-500 transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-green-300 disabled:opacity-60"
-                disabled={items.length === 0 || loading.sale}
+                disabled={items.length === 0 || loading.sale || total < 0}
                 onClick={handleCompleteSale}
+                title={total < 0 ? 'Cannot complete sale with negative total' : ''}
               >
-                <span>{loading.sale ? t.processing || 'Processing...' : t.completeSale || 'Complete Sale'}</span>
+                <span>{loading.sale ? t.processing || 'Processing...' : (total < 0 ? 'Negative Total!' : t.completeSale || 'Complete Sale')}</span>
               </button>
             </div>
             {/* Receipt Preview */}
             <div className="bg-white/60 dark:bg-gray-800/80 rounded-2xl p-5 mt-8 shadow-xl border border-white/20">
-              <div className="font-bold mb-2 text-gray-800 dark:text-gray-100 text-base">{t.receiptPreview || 'Receipt Preview'}</div>
+              <div className="font-bold mb-3 text-gray-800 dark:text-gray-100 text-lg flex items-center gap-2">
+                <span>🧾</span>
+                {t.receiptPreview || 'Receipt Preview'}
+              </div>
               {items.length === 0 ? (
-                <div className="text-gray-500 dark:text-gray-400">{t.noItems}</div>
+                <div className="text-gray-500 dark:text-gray-400 text-center py-4 italic">{t.noItems}</div>
               ) : (
                 <ul className="divide-y divide-gray-200 dark:divide-gray-700">
                   {items.map((item, idx) => (
-                    <li key={item.id + '-' + item.isReturn} className="flex justify-between py-1 text-sm">
-                      <span className="text-gray-900 dark:text-gray-100">{item.name} <span className="text-xs text-gray-400">x{item.quantity}</span></span>
-                      <span className={`font-bold ${item.isReturn ? 'text-red-600' : 'text-green-700'} dark:text-green-400`}>{item.isReturn ? '-' : ''}${Math.abs(item.price * item.quantity)}</span>
+                    <li key={item.id + '-' + item.isReturn} className="flex justify-between py-2 text-sm">
+                      <span className="text-gray-900 dark:text-gray-100 flex-1">
+                        {item.name} 
+                        <span className="text-xs text-gray-400 ml-1">×{item.quantity}</span>
+                        {item.isReturn && <span className="text-red-500 text-xs ml-1">(Return)</span>}
+                      </span>
+                      <span className={`font-bold ${item.isReturn ? 'text-red-600' : 'text-green-700'} dark:text-green-400 ml-2`}>
+                        {item.isReturn ? '-' : ''}${Math.abs(item.price * item.quantity).toFixed(2)}
+                      </span>
                     </li>
                   ))}
                 </ul>
               )}
-              <div className="mt-3 flex justify-between font-bold text-lg text-gray-800 dark:text-gray-100">
+              <div className="mt-4 pt-3 border-t border-gray-300 dark:border-gray-600 flex justify-between font-bold text-lg text-gray-800 dark:text-gray-100">
                 <span>{t.total}:</span>
-                <span>${total}</span>
+                <span className={total < 0 ? 'text-red-600' : 'text-green-600'}>${total.toFixed(2)}</span>
               </div>
             </div>
           </aside>
@@ -380,6 +400,7 @@ export default function Cashier() {
                     <th className="px-6 py-4 text-white text-lg font-bold">{t.model}</th>
                     <th className="px-6 py-4 text-white text-lg font-bold">{t.ram}</th>
                     <th className="px-6 py-4 text-white text-lg font-bold">{t.storage}</th>
+                    <th className="px-6 py-4 text-white text-lg font-bold">{t.quantity || 'Qty'}</th>
                     <th className="px-6 py-4 text-white text-lg font-bold">{t.sellingPrice || 'Selling Price'}</th>
                     {/* Removed buying price column */}
                     <th className="px-6 py-4 text-white text-lg font-bold">{t.action}</th>
@@ -388,30 +409,79 @@ export default function Cashier() {
                 <tbody>
                   {items.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="text-center text-gray-400 py-10 text-xl font-semibold">{t.noItems}</td>
+                      <td colSpan={8} className="text-center text-gray-400 py-10 text-xl font-semibold">{t.noItems}</td>
                     </tr>
                   ) : (
                     items.map((item, idx) => (
                       <tr
                         key={item.id ? item.id + '-' + item.isReturn : idx}
-                        className="border-b last:border-b-0 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-blue-900 transition-colors group"
+                        className={`border-b last:border-b-0 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-blue-900 transition-colors group ${
+                          item.isReturn ? 'bg-red-50 dark:bg-red-900/20' : ''
+                        }`}
                       >
                         <td className="px-6 py-4 text-gray-900 dark:text-gray-100 font-bold">{idx + 1}</td>
-                        <td className="px-6 py-4 text-gray-900 dark:text-gray-100 font-semibold">{item.name} <span className="text-xs text-gray-400">x{item.quantity}</span></td>
-                        <td className="px-6 py-4 text-gray-900 dark:text-gray-100">{item.model}</td>
-                        <td className="px-6 py-4 text-purple-700 dark:text-purple-300">{item.ram}</td>
-                        <td className="px-6 py-4 text-green-700 dark:text-green-300">{item.storage}</td>
+                        <td className="px-6 py-4 text-gray-900 dark:text-gray-100 font-semibold">
+                          {item.name}
+                          {item.isReturn && <span className="ml-2 px-2 py-1 bg-red-500 text-white text-xs rounded-full">Return</span>}
+                        </td>
+                        <td className="px-6 py-4 text-gray-900 dark:text-gray-100">{item.model || '-'}</td>
+                        <td className="px-6 py-4 text-purple-700 dark:text-purple-300">{item.ram || '-'}</td>
+                        <td className="px-6 py-4 text-green-700 dark:text-green-300">{item.storage || '-'}</td>
                         <td className="px-6 py-4">
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={item.price}
-                            onChange={e => {
-                              const val = parseFloat(e.target.value) || 0;
-                              setItems(items => items.map((it, i) => i === idx ? { ...it, price: val } : it));
-                            }}
-                            className="border rounded px-2 py-1 w-24 dark:bg-gray-700 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400"
-                          />
+                          <div className="relative">
+                            <input
+                              type="number"
+                              min="1"
+                              max={item.stock || 999}
+                              value={item.quantity || 1}
+                              onChange={e => {
+                                const val = parseInt(e.target.value) || 1;
+                                const maxStock = item.stock || 999;
+                                if (!item.isReturn && val > maxStock) {
+                                  showToast(`Cannot exceed available stock (${maxStock})`, 'error');
+                                  return;
+                                }
+                                setItems(items => items.map((it, i) => (i === idx ? { ...it, quantity: Math.min(val, maxStock) } : it)));
+                              }}
+                              className="border rounded px-2 py-1 w-16 dark:bg-gray-700 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                              title={`Available stock: ${item.stock || 'Unknown'}`}
+                            />
+                            {!item.isReturn && (
+                              <div className="text-xs text-gray-500 mt-1">
+                                Stock: {item.stock || '?'}
+                              </div>
+                            )}
+                            {!item.isReturn && item.quantity >= (item.stock || 999) && (
+                              <div className="text-orange-500 text-xs mt-1 font-semibold">
+                                Max stock reached!
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div>
+                            <input
+                              type="number"
+                              step="1"
+                              min="0"
+                              value={item.price}
+                              onChange={e => {
+                                const val = parseFloat(e.target.value) || 0;
+                                if (val < (item.buying_price || 0)) {
+                                  showToast(t.belowBuyingPrice || 'Warning: Selling below buying price!', 'warning');
+                                }
+                                setItems(items => items.map((it, i) => i === idx ? { ...it, price: val } : it));
+                              }}
+                              className={`border rounded px-2 py-1 w-24 dark:bg-gray-700 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400 ${
+                                item.price < (item.buying_price || 0) ? 'border-red-500 bg-red-50 dark:bg-red-900/20' : ''
+                              }`}
+                            />
+                            {item.price < (item.buying_price || 0) && (
+                              <div className="text-red-500 text-xs mt-1 font-semibold animate-pulse">
+                                {t.belowBuyingPrice || 'Below buying price!'}
+                              </div>
+                            )}
+                          </div>
                         </td>
                         {/* Removed buying price cell */}
                         <td className="px-6 py-4 text-center">

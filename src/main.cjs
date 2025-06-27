@@ -200,37 +200,7 @@ ipcMain.handle('checkAdminPassword', async (event, password) => {
 // IPC handler for saving sale (use db.saveSale)
 ipcMain.handle('saveSale', async (event, sale) => {
   try {
-    // Decrement stock for each product by its quantity
-    if (Array.isArray(sale.items)) {
-      for (const item of sale.items) {
-        const qty = Number(item.quantity) || 1;
-        if (!item.isReturn) {
-          // Get current stock
-          let prod = null;
-          if (db.getProductById) {
-            prod = db.getProductById(item.product_id);
-          } else {
-            prod = db.db.prepare('SELECT * FROM products WHERE id = ?').get(item.product_id);
-          }
-          if (prod && typeof prod.stock === 'number') {
-            const newStock = prod.stock - qty;
-            db.updateProduct({ ...prod, stock: newStock });
-          }
-        } else {
-          // If return, increase stock
-          let prod = null;
-          if (db.getProductById) {
-            prod = db.getProductById(item.product_id);
-          } else {
-            prod = db.db.prepare('SELECT * FROM products WHERE id = ?').get(item.product_id);
-          }
-          if (prod && typeof prod.stock === 'number') {
-            const newStock = prod.stock + qty;
-            db.updateProduct({ ...prod, stock: newStock });
-          }
-        }
-      }
-    }
+    // Only call db.saveSale, which now handles all stock logic atomically
     const saleId = db.saveSale(sale);
     return { success: true, id: saleId, lastInsertRowid: saleId };
   } catch (e) {

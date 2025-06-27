@@ -78,8 +78,13 @@ export default function Admin() {
 
   // Calculate total profit (fixed calculation)
   const totalProfit = admin.sales.reduce((sum, sale) => {
+    // Only count sales that are not returns and not debts (if debt info is available)
     if (!sale.items) return sum;
+    // If sale is a debt and not paid, skip it (if debt info is available)
+    if (sale.isDebt && !sale.paid) return sum;
     return sum + sale.items.reduce((itemSum, item) => {
+      // Only count if not a return
+      if (item.isReturn) return itemSum;
       const profit = (item.price - (item.buying_price || 0)) * (item.quantity || 1);
       return itemSum + profit;
     }, 0);
@@ -227,7 +232,10 @@ export default function Admin() {
               <SalesHistoryTable
                 sales={admin.sales}
                 t={t}
-                onView={admin.handleViewSale}
+                onView={saleId => {
+                  const sale = admin.sales.find(s => s.id === saleId);
+                  if (sale) admin.setViewSale(sale);
+                }}
               />
             )}
             {section === 'debts' && (
@@ -297,6 +305,7 @@ export default function Admin() {
                                 <th className="px-4 py-2">{t.items || 'Items'}</th>
                                 <th className="px-4 py-2">{t.sellingPrice || 'Selling Price'}</th>
                                 <th className="px-4 py-2">{t.buyingPrice || 'Buying Price'}</th>
+                                <th className="px-4 py-2">{t.quantity || 'Quantity'}</th>
                                 <th className="px-4 py-2">{t.amount || 'Amount'}</th>
                               </tr>
                             </thead>
@@ -306,7 +315,8 @@ export default function Admin() {
                                   <td className="px-4 py-2">{item.name}</td>
                                   <td className="px-4 py-2">${item.price}</td>
                                   <td className="px-4 py-2">${item.buying_price || 0}</td>
-                                  <td className="px-4 py-2">${item.price * item.quantity}</td>
+                                  <td className="px-4 py-2">{item.quantity || 1}</td>
+                                  <td className="px-4 py-2">${item.price * (item.quantity || 1)}</td>
                                 </tr>
                               ))}
                             </tbody>

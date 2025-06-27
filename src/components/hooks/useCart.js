@@ -43,8 +43,8 @@ export default function useCart(showToast, showConfirm) {
           {
             ...product,
             id: product.id,
-            // Default selling price: buying_price + $20 if price is not set
-            price: isReturn ? -Math.abs(product.price ?? ((product.buying_price ?? 0) + 20)) : (product.price ?? ((product.buying_price ?? 0) + 20)),
+            // Default selling price: 110% of buying_price if price is not set
+            price: product.price ?? ((product.buying_price ?? 0) * 1.1),
             buying_price: product.buying_price,
             isReturn,
             quantity: quantity,
@@ -60,7 +60,10 @@ export default function useCart(showToast, showConfirm) {
 
   const clearCart = () => setItems([]);
 
-  const total = items.reduce((sum, item) => sum + (item.price * (item.quantity || 1)), 0);
+  const total = items.reduce((sum, item) => {
+    const itemTotal = item.price * (item.quantity || 1);
+    return sum + (item.isReturn ? -itemTotal : itemTotal);
+  }, 0);
 
   return { items, addOrUpdateItem, deleteItem, clearCart, total, setItems };
 }

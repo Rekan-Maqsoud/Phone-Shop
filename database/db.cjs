@@ -177,26 +177,38 @@ function saveSale({ items, total, created_at, is_debt }) {
   const saleTotal = typeof total === 'number' ? total : items.reduce((sum, i) => sum + i.price * i.quantity, 0);
   const saleCreatedAt = created_at || new Date().toISOString();
   const saleIsDebt = is_debt ? 1 : 0;
-  const sale = db.prepare('INSERT INTO sales (total, created_at, is_debt) VALUES (?, ?, ?)').run(saleTotal, saleCreatedAt, saleIsDebt);
-  const saleId = sale.lastInsertRowid;
-  const insertItem = db.prepare('INSERT INTO sale_items (sale_id, product_id, quantity, price, buying_price) VALUES (?, ?, ?, ?, ?)');
-  for (const item of items) {
-    // Check if product exists and is not deleted
-    const productExists = db.prepare('SELECT id FROM products WHERE id = ?').get(item.product_id);
-    if (!item.product_id || typeof item.product_id !== 'number' || !productExists) {
-      console.warn('Skipping sale item with invalid or missing product_id:', item);
-      continue;
+  const transaction = db.transaction(() => {
+    // --- STOCK CHECK & UPDATE ENFORCEMENT ---
+    for (const item of items) {
+      if (!item.isReturn && !saleIsDebt) {
+        const product = db.prepare('SELECT stock, name FROM products WHERE id = ?').get(item.product_id);
+        const qty = Number(item.quantity) || 1;
+        if (!product || product.stock < qty) {
+          throw new Error(`Insufficient stock for product: ${product ? product.name : item.product_id}`);
+        }
+        // Decrement stock
+        db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(qty, item.product_id);
+      } else if (item.isReturn && !saleIsDebt) {
+        // If return, increase stock
+        const qty = Number(item.quantity) || 1;
+        db.prepare('UPDATE products SET stock = stock + ? WHERE id = ?').run(qty, item.product_id);
+      }
     }
-    const qty = Number(item.quantity) || 1;
-    insertItem.run(saleId, item.product_id, qty, item.price, item.buying_price);
-    if (!item.isReturn) {
-      db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(qty, item.product_id);
-    } else {
-      // If return, increase stock
-      db.prepare('UPDATE products SET stock = stock + ? WHERE id = ?').run(qty, item.product_id);
+    // --- END STOCK CHECK & UPDATE ---
+    const sale = db.prepare('INSERT INTO sales (total, created_at, is_debt) VALUES (?, ?, ?)').run(saleTotal, saleCreatedAt, saleIsDebt);
+    const saleId = sale.lastInsertRowid;
+    const insertItem = db.prepare('INSERT INTO sale_items (sale_id, product_id, quantity, price, buying_price) VALUES (?, ?, ?, ?, ?)');
+    for (const item of items) {
+      const productExists = db.prepare('SELECT id, stock FROM products WHERE id = ?').get(item.product_id);
+      if (!item.product_id || typeof item.product_id !== 'number' || !productExists) {
+        continue;
+      }
+      const qty = Number(item.quantity) || 1;
+      insertItem.run(saleId, item.product_id, qty, item.price, item.buying_price);
     }
-  }
-  return saleId;
+    return saleId;
+  });
+  return transaction();
 }
 function getSales() {
   // Return only non-debt sales with their items and product info
