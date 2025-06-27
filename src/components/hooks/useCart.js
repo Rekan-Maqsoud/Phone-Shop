@@ -21,20 +21,26 @@ export default function useCart(showToast, showConfirm) {
         // Calculate new total if we add this quantity
         const newTotal = (existing.quantity || 1) + quantity;
         if (!isReturn && newTotal > availableStock) {
-          showToast('Cannot add more than available stock!', 'error');
+          showToast(`Cannot add more than available stock! Available: ${availableStock}`, 'error');
           return prevItems;
         }
         // Increase quantity by specified amount
         return prevItems.map(item =>
           item.id === product.id && item.isReturn === isReturn
-            ? { ...item, quantity: newTotal }
+            ? { 
+                ...item, 
+                quantity: newTotal,
+                // Ensure selling_price is set if not already
+                selling_price: item.selling_price || Math.round(product.price * 1.1),
+                buying_price: item.buying_price || product.price
+              }
             : item
         );
       } else {
         // Calculate total quantity in cart for this product (all non-return items)
         const totalInCart = prevItems.filter(item => item.id === product.id && !item.isReturn).reduce((sum, item) => sum + (item.quantity || 1), 0);
         if (!isReturn && (totalInCart + quantity) > availableStock) {
-          showToast('Cannot add more than available stock!', 'error');
+          showToast(`Cannot add more than available stock! Available: ${availableStock}, In cart: ${totalInCart}`, 'error');
           return prevItems;
         }
         // Add new item with specified quantity
@@ -43,9 +49,10 @@ export default function useCart(showToast, showConfirm) {
           {
             ...product,
             id: product.id,
-            // Default selling price: 110% of buying_price if price is not set
-            price: product.price ?? ((product.buying_price ?? 0) * 1.1),
-            buying_price: product.buying_price,
+            product_id: product.id,
+            buying_price: product.price, // Store buying price
+            price: Math.round(product.price * 1.1), // Default selling price = 110% of buying price
+            selling_price: Math.round(product.price * 1.1), // Default selling price = 110% of buying price
             isReturn,
             quantity: quantity,
           },
@@ -61,7 +68,8 @@ export default function useCart(showToast, showConfirm) {
   const clearCart = () => setItems([]);
 
   const total = items.reduce((sum, item) => {
-    const itemTotal = item.price * (item.quantity || 1);
+    const sellingPrice = item.selling_price || item.price;
+    const itemTotal = sellingPrice * (item.quantity || 1);
     return sum + (item.isReturn ? -itemTotal : itemTotal);
   }, 0);
 

@@ -33,6 +33,8 @@ export default function ProductTable({
           <tr>
             <th className="px-4 py-2 text-white">#</th>
             <th className="px-4 py-2 text-white">{t.name}</th>
+            <th className="px-4 py-2 text-white">{t.ram || 'RAM'}</th>
+            <th className="px-4 py-2 text-white">{t.storage || 'Storage'}</th>
             <th className="px-4 py-2 text-white">{t.price}</th>
             <th className="px-4 py-2 text-white">{t.stock}</th>
             <th className="px-4 py-2 text-white">{t.action}</th>
@@ -40,7 +42,7 @@ export default function ProductTable({
         </thead>
         <tbody>
           {filtered.length === 0 ? (
-            <tr><td colSpan={5} className="text-center text-gray-400 py-4">{isArchived ? 'No archived products' : 'No products'}</td></tr>
+            <tr><td colSpan={7} className="text-center text-gray-400 py-4">{isArchived ? 'No archived products' : 'No products'}</td></tr>
           ) : filtered.map((p, idx) => (
             <tr key={p.id} className={`border-b last:border-b-0 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-gray-700 transition group`}>
               <td className="px-4 py-2">{idx + 1}</td>
@@ -50,6 +52,8 @@ export default function ProductTable({
                   <span className="ml-2 px-2 py-0.5 bg-red-500 text-white text-xs rounded-full animate-pulse">Low</span>
                 )}
               </td>
+              <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">{p.ram || '-'}</td>
+              <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">{p.storage || '-'}</td>
               <td className="px-4 py-2">${p.price}</td>
               <td className={`px-4 py-2 ${!isArchived && p.stock < lowStockThreshold ? 'text-red-600 font-bold' : ''}`}>{p.stock}</td>
               <td className="px-4 py-2 flex gap-2">

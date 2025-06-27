@@ -80,7 +80,10 @@ try {
   db.exec('ALTER TABLE products ADD COLUMN storage TEXT');
 } catch (e) { /* Column already exists */ }
 try {
-  db.exec('ALTER TABLE products ADD COLUMN model TEXT');
+  db.exec('ALTER TABLE sale_items ADD COLUMN buying_price INTEGER DEFAULT 0');
+} catch (e) { /* Column already exists */ }
+try {
+  db.exec('ALTER TABLE sale_items ADD COLUMN profit INTEGER DEFAULT 0');
 } catch (e) { /* Column already exists */ }
 
 // Always initialize 3 sample products if table is empty (or after reset)
@@ -88,20 +91,20 @@ function initializeSampleData() {
   const productCount = db.prepare('SELECT COUNT(*) as count FROM products').get().count;
   if (productCount === 0) {
     const sampleProducts = [
-      { name: 'iPhone 15 Pro', price: 120000, stock: 5, buying_price: 110000, ram: '8GB', storage: '256GB', model: 'A17 Pro' },
-      { name: 'Samsung Galaxy S24', price: 95000, stock: 8, buying_price: 85000, ram: '8GB', storage: '128GB', model: 'Snapdragon 8 Gen 3' },
-      { name: 'Xiaomi Redmi Note 13', price: 25000, stock: 20, buying_price: 22000, ram: '4GB', storage: '128GB', model: 'Snapdragon 685' }
+      { name: 'iPhone 15 Pro', price: 110000, stock: 5, ram: '8GB', storage: '256GB', model: 'A17 Pro' },
+      { name: 'Samsung Galaxy S24', price: 85000, stock: 8, ram: '8GB', storage: '128GB', model: 'Snapdragon 8 Gen 3' },
+      { name: 'Xiaomi Redmi Note 13', price: 22000, stock: 20, ram: '4GB', storage: '128GB', model: 'Snapdragon 685' }
     ];
     const insertProduct = db.prepare(`
-      INSERT INTO products (name, price, stock, buying_price, ram, storage, model) 
+      INSERT INTO products (name, price, buying_price, stock, ram, storage, model) 
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `);
     sampleProducts.forEach(product => {
       insertProduct.run(
         product.name,
-        product.price,
+        product.price, // buying price
+        product.price, // buying price (duplicate for backward compatibility)
         product.stock,
-        product.buying_price,
         product.ram,
         product.storage,
         product.model
@@ -153,16 +156,19 @@ function getProducts() {
   return db.prepare('SELECT * FROM products').all();
 }
 function addProduct({ name, buying_price, price, stock, archived = 0, ram, storage, model }) {
-  return db.prepare('INSERT INTO products (name, buying_price, price, stock, archived, ram, storage, model) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-    .run(name, buying_price, price, stock, archived, ram || null, storage || null, model || null);
+  // For clarity: price is the buying price (what admin enters)
+  // buying_price column is kept for backward compatibility but we use price as buying price
+  return db.prepare('INSERT INTO products (name, price, buying_price, stock, archived, ram, storage, model) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+    .run(name, price || buying_price, price || buying_price, stock, archived, ram || null, storage || null, model || null);
 }
 function updateProduct({ id, name, buying_price, price, stock, archived = 0, ram, storage, model }) {
-  return db.prepare('UPDATE products SET name=?, buying_price=?, price=?, stock=?, archived=?, ram=?, storage=?, model=? WHERE id=?')
-    .run(name, buying_price, price, stock, archived, ram || null, storage || null, model || null, id);
+  // For clarity: price is the buying price (what admin enters)
+  return db.prepare('UPDATE products SET name=?, price=?, buying_price=?, stock=?, archived=?, ram=?, storage=?, model=? WHERE id=?')
+    .run(name, price || buying_price, price || buying_price, stock, archived, ram || null, storage || null, model || null, id);
 }
 function updateProductNoArchive({ id, name, price, stock, ram, storage }) {
-  return db.prepare('UPDATE products SET name=?, price=?, stock=?, ram=?, storage=? WHERE id=?')
-    .run(name, price, stock, ram || null, storage || null, id);
+  return db.prepare('UPDATE products SET name=?, price=?, buying_price=?, stock=?, ram=?, storage=? WHERE id=?')
+    .run(name, price, price, stock, ram || null, storage || null, id);
 }
 function addStock(id, amount) {
   return db.prepare('UPDATE products SET stock = stock + ? WHERE id = ?').run(amount, id);
@@ -177,44 +183,59 @@ function saveSale({ items, total, created_at, is_debt }) {
   const saleTotal = typeof total === 'number' ? total : items.reduce((sum, i) => sum + i.price * i.quantity, 0);
   const saleCreatedAt = created_at || new Date().toISOString();
   const saleIsDebt = is_debt ? 1 : 0;
+
   const transaction = db.transaction(() => {
-    // --- STOCK CHECK & UPDATE ENFORCEMENT ---
+    // --- STOCK CHECK & UPDATE FOR ALL SALES (INCLUDING DEBT) ---
     for (const item of items) {
-      if (!item.isReturn && !saleIsDebt) {
-        const product = db.prepare('SELECT stock, name FROM products WHERE id = ?').get(item.product_id);
+      if (!item.isReturn) {
+        // For all non-return sales (including debt sales), check and deduct stock
+        const product = db.prepare('SELECT stock, name, buying_price FROM products WHERE id = ?').get(item.product_id);
         const qty = Number(item.quantity) || 1;
         if (!product || product.stock < qty) {
           throw new Error(`Insufficient stock for product: ${product ? product.name : item.product_id}`);
         }
-        // Decrement stock
+        // Decrement stock for all sales (normal and debt)
         db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(qty, item.product_id);
-      } else if (item.isReturn && !saleIsDebt) {
-        // If return, increase stock
+      } else if (item.isReturn) {
+        // If return, increase stock (regardless of debt status)
         const qty = Number(item.quantity) || 1;
         db.prepare('UPDATE products SET stock = stock + ? WHERE id = ?').run(qty, item.product_id);
       }
     }
     // --- END STOCK CHECK & UPDATE ---
+
+    // Create the sale record
     const sale = db.prepare('INSERT INTO sales (total, created_at, is_debt) VALUES (?, ?, ?)').run(saleTotal, saleCreatedAt, saleIsDebt);
     const saleId = sale.lastInsertRowid;
-    const insertItem = db.prepare('INSERT INTO sale_items (sale_id, product_id, quantity, price, buying_price) VALUES (?, ?, ?, ?, ?)');
+    // Insert sale items
+    const insertItem = db.prepare('INSERT INTO sale_items (sale_id, product_id, quantity, price, buying_price, profit) VALUES (?, ?, ?, ?, ?, ?)');
     for (const item of items) {
-      const productExists = db.prepare('SELECT id, stock FROM products WHERE id = ?').get(item.product_id);
-      if (!item.product_id || typeof item.product_id !== 'number' || !productExists) {
+      // Fetch product buying price
+      const product = db.prepare('SELECT id, price FROM products WHERE id = ?').get(item.product_id);
+      if (!item.product_id || typeof item.product_id !== 'number' || !product) {
         continue;
       }
       const qty = Number(item.quantity) || 1;
-      insertItem.run(saleId, item.product_id, qty, item.price, item.buying_price);
+      const buyingPrice = Number(product.price) || 0; // products.price is the buying price
+      const sellingPrice = typeof item.selling_price === 'number' ? item.selling_price : (typeof item.price === 'number' ? item.price : 0); // selling price from cart
+      const profit = (sellingPrice - buyingPrice) * qty;
+      // Store selling price in price column, buying price in buying_price column
+      insertItem.run(saleId, item.product_id, qty, sellingPrice, buyingPrice, profit);
     }
     return saleId;
   });
   return transaction();
 }
+
 function getSales() {
   // Return only non-debt sales with their items and product info
   const sales = db.prepare('SELECT * FROM sales WHERE is_debt = 0 ORDER BY created_at DESC').all();
   const saleItemsStmt = db.prepare(`
-    SELECT si.id, si.quantity, si.price, si.buying_price, p.name
+    SELECT si.id, si.quantity,
+      si.price AS selling_price,
+      si.buying_price,
+      si.profit,
+      p.name
     FROM sale_items si
     JOIN products p ON si.product_id = p.id
     WHERE si.sale_id = ?
@@ -224,11 +245,16 @@ function getSales() {
     items: saleItemsStmt.all(sale.id)
   }));
 }
+
 function getDebtSales() {
   // Return only debt sales with their items and product info
   const sales = db.prepare('SELECT * FROM sales WHERE is_debt = 1 ORDER BY created_at DESC').all();
   const saleItemsStmt = db.prepare(`
-    SELECT si.id, si.quantity, si.price, si.buying_price, p.name
+    SELECT si.id, si.quantity,
+      si.price AS selling_price,
+      si.buying_price,
+      si.profit,
+      p.name
     FROM sale_items si
     JOIN products p ON si.product_id = p.id
     WHERE si.sale_id = ?
@@ -310,20 +336,39 @@ CREATE TABLE IF NOT EXISTS debts (
 db.exec(debtInitSQL);
 
 function resetAllData() {
-  // Disable foreign key constraints temporarily
-  db.prepare('PRAGMA foreign_keys = OFF').run();
-  // Delete data in the correct order to avoid foreign key issues
-  db.prepare('DELETE FROM sale_items').run();
-  db.prepare('DELETE FROM debts').run();
-  db.prepare('DELETE FROM sales').run();
-  db.prepare('DELETE FROM products').run();
-  db.prepare('DELETE FROM backups').run();
-  // Reset auto-increment sequences
-  db.prepare('DELETE FROM sqlite_sequence WHERE name IN ("products", "sales", "sale_items", "debts", "backups")').run();
-  // Re-enable foreign key constraints
-  db.prepare('PRAGMA foreign_keys = ON').run();
-  // Always re-initialize 3 sample products after reset
-  initializeSampleData();
+  try {
+    // Disable foreign key constraints temporarily
+    db.prepare('PRAGMA foreign_keys = OFF').run();
+    
+    // Delete data in the correct order to avoid foreign key issues
+    try { db.prepare('DELETE FROM sale_items').run(); } catch (e) { console.log('No sale_items table:', e.message); }
+    try { db.prepare('DELETE FROM debts').run(); } catch (e) { console.log('No debts table:', e.message); }
+    try { db.prepare('DELETE FROM sales').run(); } catch (e) { console.log('No sales table:', e.message); }
+    try { db.prepare('DELETE FROM products').run(); } catch (e) { console.log('No products table:', e.message); }
+    try { db.prepare('DELETE FROM backups').run(); } catch (e) { console.log('No backups table:', e.message); }
+    
+    // Reset auto-increment sequences
+    try { 
+      db.prepare('DELETE FROM sqlite_sequence WHERE name IN ("products", "sales", "sale_items", "debts", "backups")').run(); 
+    } catch (e) { 
+      console.log('No sqlite_sequence table:', e.message); 
+    }
+    
+    // Re-enable foreign key constraints
+    db.prepare('PRAGMA foreign_keys = ON').run();
+    
+    // Recreate tables to ensure they exist
+    db.exec(initSQL);
+    db.exec(debtInitSQL);
+    
+    // Always re-initialize 3 sample products after reset
+    initializeSampleData();
+    
+    return { success: true, message: 'All data reset successfully' };
+  } catch (error) {
+    console.error('Reset error:', error);
+    return { success: false, message: `Reset failed: ${error.message}` };
+  }
 }
 
 // --- Debt functions ---

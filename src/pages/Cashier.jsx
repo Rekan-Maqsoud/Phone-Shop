@@ -441,7 +441,7 @@ export default function Cashier() {
                                   showToast(`Cannot exceed available stock (${maxStock})`, 'error');
                                   return;
                                 }
-                                setItems(items => items.map((it, i) => (i === idx ? { ...it, quantity: Math.min(val, maxStock) } : it)));
+                                setItems(items => items.map((it, i) => (i === idx ? { ...it, quantity: val <= maxStock ? val : maxStock } : it)));
                               }}
                               className="border rounded px-2 py-1 w-16 dark:bg-gray-700 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400"
                               title={`Available stock: ${item.stock || 'Unknown'}`}
@@ -464,19 +464,19 @@ export default function Cashier() {
                               type="number"
                               step="1"
                               min="0"
-                              value={item.price}
+                              value={item.selling_price || item.price}
                               onChange={e => {
                                 const val = parseFloat(e.target.value) || 0;
                                 if (val < (item.buying_price || 0)) {
                                   showToast(t.belowBuyingPrice || 'Warning: Selling below buying price!', 'warning');
                                 }
-                                setItems(items => items.map((it, i) => i === idx ? { ...it, price: val } : it));
+                                setItems(items => items.map((it, i) => i === idx ? { ...it, selling_price: val, price: val } : it));
                               }}
                               className={`border rounded px-2 py-1 w-24 dark:bg-gray-700 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400 ${
-                                item.price < (item.buying_price || 0) ? 'border-red-500 bg-red-50 dark:bg-red-900/20' : ''
+                                (item.selling_price || item.price) < (item.buying_price || 0) ? 'border-red-500 bg-red-50 dark:bg-red-900/20' : ''
                               }`}
                             />
-                            {item.price < (item.buying_price || 0) && (
+                            {(item.selling_price || item.price) < (item.buying_price || 0) && (
                               <div className="text-red-500 text-xs mt-1 font-semibold animate-pulse">
                                 {t.belowBuyingPrice || 'Below buying price!'}
                               </div>

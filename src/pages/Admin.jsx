@@ -40,7 +40,7 @@ export default function Admin() {
   const admin = useAdmin();
   const { t, lang, isRTL, notoFont } = useLocale();
   const navigate = useNavigate();
-  const [section, setSection] = useState('active');
+  const [section, setSection] = useState('dashboard');
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'system');
   const [language, setLanguage] = useState(() => localStorage.getItem('lang') || lang || 'en');
@@ -78,20 +78,73 @@ export default function Admin() {
 
   // Calculate total profit (fixed calculation)
   const totalProfit = admin.sales.reduce((sum, sale) => {
-    // Only count sales that are not returns and not debts (if debt info is available)
     if (!sale.items) return sum;
-    // If sale is a debt and not paid, skip it (if debt info is available)
-    if (sale.isDebt && !sale.paid) return sum;
-    return sum + sale.items.reduce((itemSum, item) => {
-      // Only count if not a return
-      if (item.isReturn) return itemSum;
-      const profit = (item.price - (item.buying_price || 0)) * (item.quantity || 1);
-      return itemSum + profit;
+    // For debt sales, check if the debt is paid by looking up in debts array
+    if (sale.is_debt) {
+      const debt = admin.debts?.find(d => d.sale_id === sale.id);
+      if (!debt || !debt.paid) return sum; // Skip unpaid debts
+    }
+    return sum + sale.items.reduce((itemSum,item) => {
+      return item.profit;
     }, 0);
   }, 0);
 
+  // Enhanced calculations for better admin insights
+  const currentDate = new Date();
+  const currentMonth = currentDate.getMonth();
+  const currentYear = currentDate.getFullYear();
+  
+  // Today's sales
+  const todaysSales = admin.sales.filter(sale => {
+    const saleDate = new Date(sale.created_at);
+    return saleDate.toDateString() === currentDate.toDateString();
+  });
+  
+  const todaysRevenue = todaysSales.reduce((sum, sale) => sum + (sale.total || 0), 0);
+  const todaysProfit = todaysSales.reduce((sum, sale) => {
+    if (!sale.items) return sum;
+    return sum + sale.items.reduce((itemSum, item) => {
+      return item.profit;
+    }, 0);
+  }, 0);
+
+  // Low stock products (critical alerts)
+  const criticalStockProducts = admin.products.filter(p => p.stock <= 2 && !p.archived);
+  const lowStockProducts = admin.products.filter(p => p.stock > 2 && p.stock < admin.lowStockThreshold && !p.archived);
+  
+  // Top selling products (by quantity sold)
+  const productSalesMap = {};
+  admin.sales.forEach(sale => {
+    if (sale.items) {
+      sale.items.forEach(item => {
+        if (!productSalesMap[item.name]) {
+          productSalesMap[item.name] = { quantity: 0, revenue: 0, profit: 0 };
+        }
+        productSalesMap[item.name].quantity += item.quantity || 1;
+        productSalesMap[item.name].revenue += (item.price || 0) * (item.quantity || 1);
+        productSalesMap[item.name].profit += ((item.price || 0) - (item.buying_price || 0)) * (item.quantity || 1);
+      });
+    }
+  });
+  
+  const topSellingProducts = Object.entries(productSalesMap)
+    .sort(([,a], [,b]) => b.quantity - a.quantity)
+    .slice(0, 5);
+
+  // Recent activity (last 5 sales)
+  const recentSales = admin.sales.slice(0, 5);
+
+  // Debt summary
+  const totalDebtAmount = admin.debts ? admin.debts.filter(d => !d.paid).reduce((sum, debt) => sum + (debt.total || 0), 0) : 0;
+  const paidDebtsToday = admin.debts ? admin.debts.filter(d => {
+    if (!d.paid || !d.paid_at) return false;
+    const paidDate = new Date(d.paid_at);
+    return paidDate.toDateString() === currentDate.toDateString();
+  }).length : 0;
+
   // Memoize nav items for performance
   const navItems = useMemo(() => [
+    { key: 'dashboard', label: t.dashboard || 'Dashboard', icon: '📊', accent: 'bg-blue-600' },
     { key: 'active', label: t.products, icon: '📦', accent: 'bg-purple-600' },
     { key: 'archived', label: t.archivedProducts || 'Archived', icon: '🗃️' },
     { key: 'history', label: t.salesHistory || 'Sales', icon: '📈' },
@@ -154,20 +207,100 @@ export default function Admin() {
             <span className="inline-block w-3 h-3 rounded-full bg-purple-400 animate-pulse"></span>
             <span className="font-extrabold text-3xl text-[#a21caf] dark:text-purple-200 tracking-tight drop-shadow">{t.adminDashboard}</span>
           </div>
-          {/* Stats */}
-          <div className="space-y-4 mb-8 shrink-0">
-            <div className="bg-white/60 dark:bg-gray-800/80 rounded-2xl shadow p-4 flex flex-col items-center md:items-start border border-white/20">
-              <span className="text-lg text-gray-700 dark:text-gray-300">{t.monthlySales || 'This Month Sales'}</span>
-              <span className="text-2xl font-bold text-blue-500 dark:text-blue-300">${admin.monthlySales}</span>
+          {/* Enhanced Stats */}
+          <div className="space-y-3 mb-8 shrink-0">
+            {/* Today's Performance */}
+            <div className="bg-gradient-to-r from-blue-500/20 to-cyan-500/20 dark:from-blue-900/40 dark:to-cyan-900/40 rounded-2xl shadow p-4 border border-blue-200/30 dark:border-blue-700/30">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-lg">📈</span>
+                <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Today's Performance</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div>
+                  <span className="text-gray-600 dark:text-gray-400">Sales: </span>
+                  <span className="font-bold text-blue-600 dark:text-blue-400">{todaysSales.length}</span>
+                </div>
+                <div>
+                  <span className="text-gray-600 dark:text-gray-400">Revenue: </span>
+                  <span className="font-bold text-green-600 dark:text-green-400">${todaysRevenue}</span>
+                </div>
+                <div className="col-span-2">
+                  <span className="text-gray-600 dark:text-gray-400">Profit: </span>
+                  <span className="font-bold text-emerald-600 dark:text-emerald-400">${todaysProfit.toFixed(2)}</span>
+                </div>
+              </div>
             </div>
-            <div className="bg-white/60 dark:bg-gray-800/80 rounded-2xl shadow p-4 flex flex-col items-center md:items-start border border-white/20">
-              <span className="text-lg text-gray-700 dark:text-gray-300">{t.totalProfit || 'Total Profit'}</span>
-              <span className="text-2xl font-bold text-green-500 dark:text-green-300">${totalProfit.toFixed(2)}</span>
+
+            {/* Monthly Overview */}
+            <div className="bg-white/60 dark:bg-gray-800/80 rounded-2xl shadow p-4 flex flex-col border border-white/20">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-lg">🏪</span>
+                <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">This Month</span>
+              </div>
+              <span className="text-xl font-bold text-blue-500 dark:text-blue-300">${admin.monthlySales}</span>
             </div>
-            <div className="bg-white/60 dark:bg-gray-800/80 rounded-2xl shadow p-4 flex flex-col items-center md:items-start border border-white/20">
-              <span className="text-lg text-gray-700 dark:text-gray-300">{t.inventoryValue}</span>
-              <span className="text-2xl font-bold text-purple-500 dark:text-purple-300">${admin.inventoryValue}</span>
+
+            {/* Total Profit */}
+            <div className="bg-white/60 dark:bg-gray-800/80 rounded-2xl shadow p-4 flex flex-col border border-white/20">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-lg">💰</span>
+                <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">{t.totalProfit || 'Total Profit'}</span>
+              </div>
+              <span className="text-xl font-bold text-green-500 dark:text-green-300">${totalProfit.toFixed(2)}</span>
             </div>
+
+            {/* Inventory Value */}
+            <div className="bg-white/60 dark:bg-gray-800/80 rounded-2xl shadow p-4 flex flex-col border border-white/20">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-lg">📦</span>
+                <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">{t.inventoryValue}</span>
+              </div>
+              <span className="text-xl font-bold text-purple-500 dark:text-purple-300">${admin.inventoryValue}</span>
+            </div>
+
+            {/* Stock Alerts */}
+            {(criticalStockProducts.length > 0 || lowStockProducts.length > 0) && (
+              <div className="bg-gradient-to-r from-red-500/20 to-orange-500/20 dark:from-red-900/40 dark:to-orange-900/40 rounded-2xl shadow p-4 border border-red-200/30 dark:border-red-700/30">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-lg">⚠️</span>
+                  <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Stock Alerts</span>
+                </div>
+                <div className="space-y-1 text-xs">
+                  {criticalStockProducts.length > 0 && (
+                    <div className="text-red-600 dark:text-red-400 font-semibold">
+                      🚨 Critical: {criticalStockProducts.length} items
+                    </div>
+                  )}
+                  {lowStockProducts.length > 0 && (
+                    <div className="text-orange-600 dark:text-orange-400">
+                      ⚡ Low: {lowStockProducts.length} items
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Debt Summary */}
+            {admin.debts && admin.debts.length > 0 && (
+              <div className="bg-gradient-to-r from-yellow-500/20 to-amber-500/20 dark:from-yellow-900/40 dark:to-amber-900/40 rounded-2xl shadow p-4 border border-yellow-200/30 dark:border-yellow-700/30">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-lg">💸</span>
+                  <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Debts</span>
+                </div>
+                <div className="space-y-1 text-xs">
+                  <div>
+                    <span className="text-gray-600 dark:text-gray-400">Outstanding: </span>
+                    <span className="font-bold text-red-600 dark:text-red-400">${totalDebtAmount}</span>
+                  </div>
+                  {paidDebtsToday > 0 && (
+                    <div>
+                      <span className="text-gray-600 dark:text-gray-400">Paid today: </span>
+                      <span className="font-bold text-green-600 dark:text-green-400">{paidDebtsToday}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
           {/* Navigation buttons - move down, let whole sidebar scroll */}
           <nav className="flex flex-col gap-4 mt-16" aria-label="Section navigation">
@@ -199,25 +332,148 @@ export default function Admin() {
       <main className="flex-1 flex flex-col gap-6 w-full min-w-0 h-full max-w-full mx-0 p-8 overflow-auto items-center justify-start bg-transparent relative z-0">
         {/* Section content in glassy card */}
         <div className="w-full max-w-6xl mx-auto bg-white/80 dark:bg-gray-800/80 rounded-3xl shadow-2xl border border-white/20 p-8 flex flex-col gap-8">
-          {/* Quick Add Product and Actions */}
-          {section === 'active' && (
-            <div className="flex flex-col gap-4 mb-4">
-              <QuickAddProduct t={t} onAdd={admin.handleAddProduct} loading={loading} />
-            </div>
-          )}
           {/* Section content */}
           <div className="flex-1 min-h-0">
-            {section === 'active' && (
-              <ProductTable
-                title={t.products}
-                products={admin.products.filter(p => p && ((typeof p.archived === 'undefined' ? 0 : p.archived) === 0))}
-                t={t}
-                lowStockThreshold={admin.lowStockThreshold}
-                onEdit={admin.setEditProduct}
-                onArchive={p => handleArchiveToggle(p, true)}
-                isArchived={false}
-              />
+            {/* Dashboard Section */}
+            {section === 'dashboard' && (
+              <div className="space-y-6">
+                <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-6">📊 Business Overview</h2>
+                
+                {/* Business Analytics Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {/* Top Selling Products */}
+                  <div className="bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl p-6 border border-blue-200/50 dark:border-blue-700/30">
+                    <div className="flex items-center gap-3 mb-4">
+                      <span className="text-2xl">🏆</span>
+                      <h3 className="text-lg font-bold text-gray-800 dark:text-gray-200">Top Products</h3>
+                    </div>
+                    <div className="space-y-3">
+                      {topSellingProducts.length > 0 ? topSellingProducts.slice(0, 3).map(([name, data], idx) => (
+                        <div key={name} className="flex justify-between items-center">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-semibold text-blue-600 dark:text-blue-400">#{idx + 1}</span>
+                            <span className="text-sm text-gray-700 dark:text-gray-300 truncate max-w-[120px]">{name}</span>
+                          </div>
+                          <span className="text-xs font-bold text-green-600 dark:text-green-400">{data.quantity} sold</span>
+                        </div>
+                      )) : (
+                        <p className="text-sm text-gray-500 dark:text-gray-400">No sales data yet</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Recent Activity */}
+                  <div className="bg-gradient-to-br from-green-50 to-emerald-100 dark:from-green-900/20 dark:to-emerald-900/20 rounded-xl p-6 border border-green-200/50 dark:border-green-700/30">
+                    <div className="flex items-center gap-3 mb-4">
+                      <span className="text-2xl">📋</span>
+                      <h3 className="text-lg font-bold text-gray-800 dark:text-gray-200">Recent Sales</h3>
+                    </div>
+                    <div className="space-y-3">
+                      {recentSales.length > 0 ? recentSales.slice(0, 3).map((sale, idx) => (
+                        <div key={sale.id} className="flex justify-between items-center">
+                          <div>
+                            <span className="text-xs text-gray-600 dark:text-gray-400">
+                              {new Date(sale.created_at).toLocaleDateString()}
+                            </span>
+                            <div className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                              ${sale.total} {sale.is_debt ? '(Debt)' : ''}
+                            </div>
+                          </div>
+                          <span className="text-xs text-gray-500 dark:text-gray-400">
+                            {sale.items?.length || 0} items
+                          </span>
+                        </div>
+                      )) : (
+                        <p className="text-sm text-gray-500 dark:text-gray-400">No recent sales</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Critical Stock Items */}
+                  <div className="bg-gradient-to-br from-orange-50 to-red-100 dark:from-orange-900/20 dark:to-red-900/20 rounded-xl p-6 border border-orange-200/50 dark:border-orange-700/30">
+                    <div className="flex items-center gap-3 mb-4">
+                      <span className="text-2xl">⚠️</span>
+                      <h3 className="text-lg font-bold text-gray-800 dark:text-gray-200">Stock Alerts</h3>
+                    </div>
+                    <div className="space-y-3">
+                      {criticalStockProducts.length > 0 ? criticalStockProducts.slice(0, 3).map((product) => (
+                        <div key={product.id} className="flex justify-between items-center">
+                          <span className="text-sm text-gray-700 dark:text-gray-300 truncate max-w-[120px]">{product.name}</span>
+                          <span className="text-xs font-bold text-red-600 dark:text-red-400">
+                            {product.stock} left
+                          </span>
+                        </div>
+                      )) : lowStockProducts.length > 0 ? lowStockProducts.slice(0, 3).map((product) => (
+                        <div key={product.id} className="flex justify-between items-center">
+                          <span className="text-sm text-gray-700 dark:text-gray-300 truncate max-w-[120px]">{product.name}</span>
+                          <span className="text-xs font-bold text-orange-600 dark:text-orange-400">
+                            {product.stock} left
+                          </span>
+                        </div>
+                      )) : (
+                        <p className="text-sm text-green-600 dark:text-green-400">All stocks healthy</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quick Actions */}
+                <div className="bg-gradient-to-r from-purple-50 to-pink-100 dark:from-purple-900/20 dark:to-pink-900/20 rounded-xl p-6 border border-purple-200/50 dark:border-purple-700/30">
+                  <div className="flex items-center gap-3 mb-4">
+                    <span className="text-2xl">⚡</span>
+                    <h3 className="text-lg font-bold text-gray-800 dark:text-gray-200">Quick Actions</h3>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <button
+                      onClick={() => setSection('active')}
+                      className="flex flex-col items-center gap-2 p-3 bg-white/60 dark:bg-gray-800/60 rounded-lg border border-white/30 hover:bg-purple-100 dark:hover:bg-purple-900/40 transition-all"
+                    >
+                      <span className="text-lg">�</span>
+                      <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">Products</span>
+                    </button>
+                    <button
+                      onClick={() => setSection('history')}
+                      className="flex flex-col items-center gap-2 p-3 bg-white/60 dark:bg-gray-800/60 rounded-lg border border-white/30 hover:bg-purple-100 dark:hover:bg-purple-900/40 transition-all"
+                    >
+                      <span className="text-lg">�</span>
+                      <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">Sales History</span>
+                    </button>
+                    <button
+                      onClick={() => setSection('debts')}
+                      className="flex flex-col items-center gap-2 p-3 bg-white/60 dark:bg-gray-800/60 rounded-lg border border-white/30 hover:bg-purple-100 dark:hover:bg-purple-900/40 transition-all"
+                    >
+                      <span className="text-lg">�</span>
+                      <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">Manage Debts</span>
+                    </button>
+                    <button
+                      onClick={() => setSection('archived')}
+                      className="flex flex-col items-center gap-2 p-3 bg-white/60 dark:bg-gray-800/60 rounded-lg border border-white/30 hover:bg-purple-100 dark:hover:bg-purple-900/40 transition-all"
+                    >
+                      <span className="text-lg">🗃️</span>
+                      <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">Archived</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
             )}
+
+            {/* Products Section */}
+            {section === 'active' && (
+              <div className="space-y-6">
+                <QuickAddProduct t={t} onAdd={admin.handleAddProduct} loading={loading} />
+                <ProductTable
+                  title={t.products}
+                  products={admin.products.filter(p => p && ((typeof p.archived === 'undefined' ? 0 : p.archived) === 0))}
+                  t={t}
+                  lowStockThreshold={admin.lowStockThreshold}
+                  onEdit={admin.setEditProduct}
+                  onArchive={p => handleArchiveToggle(p, true)}
+                  isArchived={false}
+                />
+              </div>
+            )}
+
+            {/* Archived Products Section */}
             {section === 'archived' && (
               <ProductTable
                 title={t.archivedProducts || 'Archived Products'}
@@ -303,6 +559,8 @@ export default function Admin() {
                             <thead className="bg-gradient-to-r from-purple-700 to-pink-500 text-white">
                               <tr>
                                 <th className="px-4 py-2">{t.items || 'Items'}</th>
+                                <th className="px-4 py-2">{t.ram || 'RAM'}</th>
+                                <th className="px-4 py-2">{t.storage || 'Storage'}</th>
                                 <th className="px-4 py-2">{t.sellingPrice || 'Selling Price'}</th>
                                 <th className="px-4 py-2">{t.buyingPrice || 'Buying Price'}</th>
                                 <th className="px-4 py-2">{t.quantity || 'Quantity'}</th>
@@ -313,17 +571,19 @@ export default function Admin() {
                               {sale.items.map((item, idx) => (
                                 <tr key={item.id || idx} className="border-b last:border-b-0 hover:bg-purple-50 dark:hover:bg-purple-900 transition-colors">
                                   <td className="px-4 py-2">{item.name}</td>
-                                  <td className="px-4 py-2">${item.price}</td>
+                                  <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">{item.ram || '-'}</td>
+                                  <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">{item.storage || '-'}</td>
+                                  <td className="px-4 py-2">${item.selling_price || item.price || 0}</td>
                                   <td className="px-4 py-2">${item.buying_price || 0}</td>
                                   <td className="px-4 py-2">{item.quantity || 1}</td>
-                                  <td className="px-4 py-2">${item.price * (item.quantity || 1)}</td>
+                                  <td className="px-4 py-2">${(item.selling_price || item.price || 0) * (item.quantity || 1)}</td>
                                 </tr>
                               ))}
                             </tbody>
                           </table>
                           <div className="flex items-center gap-4 flex-wrap">
                             <span className="font-bold text-lg text-blue-700 dark:text-blue-300">{t.total}: ${sale.total}</span>
-                            <span className="font-bold text-lg text-green-700 dark:text-green-300">{t.profit || 'Profit'}: ${sale.items.reduce((sum, item) => sum + ((item.price - (item.buying_price || 0)) * item.quantity), 0).toFixed(2)}</span>
+                            <span className="font-bold text-lg text-green-700 dark:text-green-300">{t.profit || 'Profit'}: ${sale.items.reduce((sum, item) => sum + (((item.selling_price || item.price || 0) - (item.buying_price || 0)) * (item.quantity || 1)), 0).toFixed(2)}</span>
                             <span className="font-bold text-lg text-gray-700 dark:text-gray-200">{t.paid || 'Paid'}: {debt?.paid ? t.yes || 'Yes' : t.no || 'No'}</span>
                             {debt?.paid && debt?.paid_at && (
                               <span className="text-sm text-gray-600 dark:text-gray-400">{t.paidAt || 'Paid at'}: {new Date(debt.paid_at).toLocaleString()}</span>

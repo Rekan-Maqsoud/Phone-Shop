@@ -153,7 +153,11 @@ export default function useAdmin() {
         const res = await window.api.restoreBackup(filePath);
         setToast(res.success ? 'Restore successful!' : res.message || 'Restore failed.');
         if (res.success) {
+          // Refetch all data after successful restore
           fetchProducts();
+          fetchSales();
+          fetchDebts();
+          fetchDebtSales();
         }
       }
     } catch (e) {
@@ -170,8 +174,16 @@ export default function useAdmin() {
           const res = await window.api.resetAllData();
           setToast(res.success ? 'All data reset successful!' : res.message || 'Reset failed.');
           if (res.success) {
+            // Clear all state data
             setProducts([]);
             setSales([]);
+            setDebts([]);
+            setDebtSales([]);
+            // Refetch all data to ensure UI is updated
+            fetchProducts();
+            fetchSales();
+            fetchDebts();
+            fetchDebtSales();
           }
         }
       } catch (e) {
