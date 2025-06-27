@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 
 export default function ProductTable({
   title,
@@ -11,11 +11,6 @@ export default function ProductTable({
   isArchived
 }) {
   const [search, setSearch] = useState("");
-
-  // Debug: log products array to console
-  useEffect(() => {
-    console.log('[ProductTable] products:', products);
-  }, [products]);
 
   const filtered = products.filter(p =>
     p.name && p.name.toLowerCase().includes(search.toLowerCase())
@@ -61,7 +56,9 @@ export default function ProductTable({
                 {!isArchived ? (
                   <>
                     <button onClick={() => onEdit(p)} className="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-400 transition">{t.edit || 'Edit'}</button>
-                    <button onClick={() => onArchive(p)} className="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-yellow-400 transition">{t.archive || 'Archive'}</button>
+                    <button disabled={false} onClick={() => { onArchive(p); }} className="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-yellow-400 transition">
+                      {t.archive || 'Archive'} 
+                    </button>
                   </>
                 ) : (
                   <button onClick={() => onUnarchive(p)} className="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-400 transition">{t.unarchive || 'Unarchive'}</button>

@@ -4,13 +4,14 @@ import './index.css'
 import App from './App.jsx'
 import { ThemeProvider } from './contexts/ThemeContext';
 import { LocaleProvider } from './contexts/LocaleContext';
-
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <ThemeProvider>
-      <LocaleProvider>
-        <App />
-      </LocaleProvider>
-    </ThemeProvider>
+    
+      <ThemeProvider>
+        <LocaleProvider>
+          <App />
+        </LocaleProvider>
+      </ThemeProvider>
+
   </StrictMode>,
 )

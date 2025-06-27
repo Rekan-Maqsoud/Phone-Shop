@@ -10,9 +10,9 @@ export default function ProductModal({
 }) {
   const isEdit = !!initialProduct;
   const [image, setImage] = useState(null);
-  const barcodeRef = useRef();
+  const nameRef = useRef();
   useEffect(() => {
-    if (show && barcodeRef.current) barcodeRef.current.focus();
+    if (show && nameRef.current) nameRef.current.focus();
   }, [show]);
   if (!show) return null;
   return (
@@ -26,7 +26,7 @@ export default function ProductModal({
           const form = e.target;
           const product = {
             name: form.name.value,
-            barcode: form.barcode.value,
+            buying_price: parseFloat(form.buying_price.value),
             price: parseFloat(form.price.value),
             stock: parseInt(form.stock.value, 10),
             ram: form.ram.value || undefined,
@@ -35,11 +35,8 @@ export default function ProductModal({
           };
           await onSubmit(product);
         }} className="flex flex-col gap-2">
-          <input name="name" type="text" placeholder={t.name} defaultValue={initialProduct?.name || ''} className="border rounded px-2 py-1 dark:bg-gray-700 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400" required />
-          <div className="flex gap-2">
-            <input name="barcode" type="text" placeholder={t.barcode} defaultValue={initialProduct?.barcode || ''} className="border rounded px-2 py-1 dark:bg-gray-700 dark:text-gray-100 flex-1 focus:outline-none focus:ring-2 focus:ring-blue-400" required ref={barcodeRef} />
-            <button type="button" className="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-400" onClick={() => barcodeRef.current && barcodeRef.current.focus()}>Scan</button>
-          </div>
+          <input name="name" type="text" placeholder={t.name} defaultValue={initialProduct?.name || ''} className="border rounded px-2 py-1 dark:bg-gray-700 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400" required ref={nameRef} />
+          <input name="buying_price" type="number" step="0.01" placeholder={t.buyingPrice || 'Buying Price'} defaultValue={initialProduct?.buying_price || ''} className="border rounded px-2 py-1 dark:bg-gray-700 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400" required />
           <input name="price" type="number" step="0.01" placeholder={t.price} defaultValue={initialProduct?.price || ''} className="border rounded px-2 py-1 dark:bg-gray-700 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400" required />
           <input name="stock" type="number" placeholder={t.stock} defaultValue={initialProduct?.stock || ''} className="border rounded px-2 py-1 dark:bg-gray-700 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400" required />
           <div className="flex gap-2">

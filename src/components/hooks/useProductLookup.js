@@ -7,14 +7,7 @@ const mockProducts = {
 };
 
 export default function useProductLookup() {
-  // Replace with real IPC calls in production
-  const fetchProductByBarcode = async (barcode) => {
-    if (window.api?.getProductByBarcode) {
-      return await window.api.getProductByBarcode(barcode);
-    }
-    return mockProducts[barcode] || null;
-  };
-
+  // Remove barcode lookup, only use name-based lookup
   const fetchProductsByName = async (name) => {
     if (window.api?.getProductsByName) {
       // Filter out stock 0 products from real API results
@@ -26,5 +19,5 @@ export default function useProductLookup() {
     return Object.values(mockProducts).filter(p => p.name.toLowerCase().includes(lower) && (typeof p.stock === 'undefined' || p.stock > 0));
   };
 
-  return { fetchProductByBarcode, fetchProductsByName };
+  return { fetchProductsByName };
 }

@@ -42,9 +42,10 @@ export default function useCart(showToast, showConfirm) {
           ...prevItems,
           {
             ...product,
-            barcode: product.barcode,
             id: product.id,
-            price: isReturn ? -Math.abs(product.price) : product.price,
+            // Default selling price: buying_price + $20 if price is not set
+            price: isReturn ? -Math.abs(product.price ?? ((product.buying_price ?? 0) + 20)) : (product.price ?? ((product.buying_price ?? 0) + 20)),
+            buying_price: product.buying_price,
             isReturn,
             quantity: quantity,
           },

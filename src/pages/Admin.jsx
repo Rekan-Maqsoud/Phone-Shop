@@ -1,12 +1,14 @@
-import React, { useEffect, useState, useLayoutEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import Toast from '../components/Toast';
+import React, { useEffect, useState, useLayoutEffect, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import ToastUnified from '../components/ToastUnified';
 import SettingsModal from '../components/SettingsModal';
 import ProductTable from '../components/ProductTable';
 import SalesHistoryTable from '../components/SalesHistoryTable';
 import SaleDetailsModal from '../components/SaleDetailsModal';
 import ProductModal from '../components/ProductModal';
 import QuickAddProduct from '../components/QuickAddProduct';
+import BackupManager from '../components/BackupManager';
+import CloudBackupManager from '../components/CloudBackupManager';
 import { useLocale } from '../contexts/LocaleContext';
 import useAdmin from '../components/useAdmin';
 
@@ -20,7 +22,6 @@ function setAppTheme(theme) {
     document.documentElement.classList.remove('dark');
     document.documentElement.setAttribute('data-theme', 'light');
   } else {
-    // system
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     if (prefersDark) {
       document.documentElement.classList.add('dark');
@@ -30,7 +31,6 @@ function setAppTheme(theme) {
       document.documentElement.setAttribute('data-theme', 'light');
     }
   }
-  // Force reflow (for Electron)
   document.body.style.display = 'none';
   void document.body.offsetHeight;
   document.body.style.display = '';
@@ -40,11 +40,15 @@ export default function Admin() {
   const admin = useAdmin();
   const { t, lang, isRTL, notoFont } = useLocale();
   const navigate = useNavigate();
-  const location = useLocation();
   const [section, setSection] = useState('active');
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'system');
   const [language, setLanguage] = useState(() => localStorage.getItem('lang') || lang || 'en');
+  const [loading, setLoading] = useState(false);
+  const [debtSearch, setDebtSearch] = useState('');
+  const [paymentModal, setPaymentModal] = useState({ show: false, debtId: null, defaultTime: '' });
+  const [showBackupManager, setShowBackupManager] = useState(false);
+  const [showCloudBackupManager, setShowCloudBackupManager] = useState(false);
 
   // Ensure theme is set before first paint
   useLayoutEffect(() => {
@@ -61,37 +65,73 @@ export default function Admin() {
   useEffect(() => {
     if (admin.fetchProducts) admin.fetchProducts();
   }, []);
-
-  // Debug: log products
-  useEffect(() => {
-    console.log('[Admin] admin.products:', admin.products);
-  }, [admin.products]);
-
+  
   // Low stock notification
   useEffect(() => {
     if (admin.notificationsEnabled && admin.products.length) {
       const lowStock = admin.products.filter(p => p.stock < admin.lowStockThreshold);
       if (lowStock.length) {
-        showToast(`Low stock alert: ${lowStock.map(p => p.name).join(', ')}`);
+        admin.setToast(`Low stock alert: ${lowStock.map(p => p.name).join(', ')}`);
       }
     }
   }, [admin.products, admin.notificationsEnabled, admin.lowStockThreshold]);
 
-  // Helper to show toast
-  const showToast = msg => {
-    admin.setToast(msg);
-  };
+  // Calculate total profit (fixed calculation)
+  const totalProfit = admin.sales.reduce((sum, sale) => {
+    if (!sale.items) return sum;
+    return sum + sale.items.reduce((itemSum, item) => {
+      const profit = (item.price - (item.buying_price || 0)) * (item.quantity || 1);
+      return itemSum + profit;
+    }, 0);
+  }, 0);
 
-  // Redesigned nav items for glassy sidebar
-  const navItems = [
+  // Memoize nav items for performance
+  const navItems = useMemo(() => [
     { key: 'active', label: t.products, icon: '📦', accent: 'bg-purple-600' },
     { key: 'archived', label: t.archivedProducts || 'Archived', icon: '🗃️' },
     { key: 'history', label: t.salesHistory || 'Sales', icon: '📈' },
     { key: 'debts', label: t.debts || 'Debts', icon: '💸' },
+    { key: 'backup', label: t.backupManager || 'Local Backup', icon: '🗄️', action: () => setShowBackupManager(true) },
+    { key: 'cloudBackup', label: t.cloudBackupManager || 'Cloud Backup', icon: '☁️', action: () => setShowCloudBackupManager(true) },
     { key: 'settings', label: t.settings, icon: '⚙️' },
-    { key: 'backup', label: t.backupNow, icon: '🗄️', action: () => {}, disabled: true },
     { key: 'logout', label: t.logout || 'Log out', icon: '🚪', action: () => navigate('/cashier'), accent: 'bg-red-600 text-white hover:bg-red-700', isLogout: true },
-  ];
+  ], [t, navigate]);
+
+  // UseCallback for nav click handler
+  const handleNavClick = useCallback((item) => {
+    if (item.key === 'settings') {
+      setShowSettingsModal(true);
+    } else if (item.action) {
+      item.action();
+    } else {
+      setSection(item.key);
+    }
+  }, [setShowSettingsModal, setSection]);
+
+  // Unified archive/unarchive handler
+  const handleArchiveToggle = useCallback(async (product, archive) => {
+    admin.setToast(archive ? `Archiving: ${product.name}` : `Unarchiving: ${product.name}`);
+    setLoading(true);
+    try {
+      const updated = {
+        ...product,
+        archived: archive ? 1 : 0,
+        stock: archive ? 0 : product.stock
+      };
+      const res = await window.api?.editProduct?.(updated); 
+      if (!res || !res.success) {
+        admin.setToast(res?.message || 'Archive/unarchive failed (no response).');
+      } else {
+        admin.setToast(archive ? (t.productArchived || 'Product archived!') : (t.productUnarchived || 'Product unarchived!'));
+        admin.fetchProducts();
+      }
+    } catch (e) {
+      admin.setToast(archive ? (t.archiveFailed || 'Archive failed.') : (t.unarchiveFailed || 'Unarchive failed.'));
+      
+    } finally {
+      setLoading(false);
+    }
+  }, [admin, t]);
 
   // --- Redesigned UI ---
   return (
@@ -99,10 +139,10 @@ export default function Admin() {
       className={`w-screen h-screen min-h-screen min-w-0 flex flex-row gap-0 justify-center items-stretch p-0 overflow-hidden bg-gradient-to-br from-[#f8fafc] via-[#e0e7ef] to-[#c7d2fe] dark:from-[#1e293b] dark:via-[#0f172a] dark:to-[#0e7490] ${isRTL ? 'rtl' : ''}`}
       dir={isRTL ? 'rtl' : 'ltr'}
       style={notoFont}
-      {...(admin.loading ? { 'aria-busy': true } : {})}
+      {...(loading ? { 'aria-busy': true } : {})}
     >
       {/* Glassy Sidebar */}
-      <aside className="w-full md:w-[370px] h-full flex flex-col justify-between p-8 bg-white/30 dark:bg-gray-900/60 backdrop-blur-xl shadow-2xl border-r border-white/10 relative z-10 overflow-y-auto">
+      <aside className="w-full md:w-[370px] h-full flex flex-col justify-between p-8 bg-white/30 dark:bg-gray-900/60 backdrop-blur-xl shadow-2xl border-r border-white/10 relative z-10 overflow-y-auto" aria-label="Admin navigation">
         <div className="flex flex-col h-full min-h-0">
           {/* Admin Dashboard label moved to top of sidebar */}
           <div className="flex items-center gap-2 mb-6 shrink-0">
@@ -116,8 +156,8 @@ export default function Admin() {
               <span className="text-2xl font-bold text-blue-500 dark:text-blue-300">${admin.monthlySales}</span>
             </div>
             <div className="bg-white/60 dark:bg-gray-800/80 rounded-2xl shadow p-4 flex flex-col items-center md:items-start border border-white/20">
-              <span className="text-lg text-gray-700 dark:text-gray-300">{t.totalRevenue}</span>
-              <span className="text-2xl font-bold text-green-500 dark:text-green-300">${admin.totalRevenue}</span>
+              <span className="text-lg text-gray-700 dark:text-gray-300">{t.totalProfit || 'Total Profit'}</span>
+              <span className="text-2xl font-bold text-green-500 dark:text-green-300">${totalProfit.toFixed(2)}</span>
             </div>
             <div className="bg-white/60 dark:bg-gray-800/80 rounded-2xl shadow p-4 flex flex-col items-center md:items-start border border-white/20">
               <span className="text-lg text-gray-700 dark:text-gray-300">{t.inventoryValue}</span>
@@ -125,31 +165,23 @@ export default function Admin() {
             </div>
           </div>
           {/* Navigation buttons - move down, let whole sidebar scroll */}
-          <nav className="flex flex-col gap-4 mt-16">
+          <nav className="flex flex-col gap-4 mt-16" aria-label="Section navigation">
             {navItems.map(item => (
               <button
                 key={item.key}
-                onClick={() => {
-                  if (item.key === 'settings') {
-                    setShowSettingsModal(true);
-                  } else if (item.action) {
-                    item.action();
-                  } else {
-                    setSection(item.key);
-                  }
-                }}
+                onClick={() => handleNavClick(item)}
                 disabled={item.disabled}
                 className={`flex items-center gap-3 px-4 py-4 rounded-xl font-semibold text-lg transition shadow-md
                   ${item.isLogout
                     ? 'bg-red-600 text-white hover:bg-red-700'
-                    : section === item.key && item.key !== 'settings' && !item.action
+                    : section === item.key && item.key !== 'settings' && item.key !== 'backup' && !item.action
                       ? 'bg-gradient-to-r from-purple-600 to-pink-500 text-white shadow-xl scale-105'
-                      : item.key === 'backup' ? 'bg-yellow-500 text-gray-900 opacity-70 cursor-not-allowed' :
-                        'bg-white/60 dark:bg-gray-800/80 text-gray-800 dark:text-gray-200 hover:bg-purple-100 dark:hover:bg-purple-900'}
+                      : 'bg-white/60 dark:bg-gray-800/80 text-gray-800 dark:text-gray-200 hover:bg-purple-100 dark:hover:bg-purple-900'}
                   ${item.disabled ? 'opacity-60 cursor-not-allowed' : ''}
                 `}
                 aria-current={section === item.key ? 'page' : undefined}
                 title={item.disabled ? 'No backup method configured' : ''}
+                aria-label={item.label}
               >
                 <span className="text-2xl">{item.icon}</span>
                 {item.label}
@@ -165,7 +197,7 @@ export default function Admin() {
           {/* Quick Add Product and Actions */}
           {section === 'active' && (
             <div className="flex flex-col gap-4 mb-4">
-              <QuickAddProduct t={t} onAdd={admin.handleAddProduct} loading={admin.loading} />
+              <QuickAddProduct t={t} onAdd={admin.handleAddProduct} loading={loading} />
             </div>
           )}
           {/* Section content */}
@@ -177,23 +209,7 @@ export default function Admin() {
                 t={t}
                 lowStockThreshold={admin.lowStockThreshold}
                 onEdit={admin.setEditProduct}
-                onArchive={async (p) => {
-                  admin.setLoading(true);
-                  try {
-                    const updated = {
-                      ...p,
-                      archived: 1,
-                      stock: 0
-                    };
-                    const res = await window.api.editProduct(updated);
-                    showToast(res.success ? t.productArchived || 'Product archived!' : res.message || t.archiveFailed || 'Archive failed.');
-                    if (res.success) admin.fetchProducts();
-                  } catch (e) {
-                    showToast(t.archiveFailed || 'Archive failed.');
-                  } finally {
-                    admin.setLoading(false);
-                  }
-                }}
+                onArchive={p => handleArchiveToggle(p, true)}
                 isArchived={false}
               />
             )}
@@ -203,25 +219,7 @@ export default function Admin() {
                 products={admin.products.filter(p => p && ((typeof p.archived === 'undefined' ? 0 : p.archived) === 1))}
                 t={t}
                 lowStockThreshold={admin.lowStockThreshold}
-                onUnarchive={async (p) => {
-                  admin.setLoading(true);
-                  try {
-                    const updated = {
-                      id: p.id,
-                      name: p.name,
-                      price: p.price,
-                      stock: p.stock,
-                      archived: 0
-                    };
-                    const res = await window.api.editProduct(updated);
-                    showToast(res.success ? t.productUnarchived || 'Product unarchived!' : res.message || t.unarchiveFailed || 'Unarchive failed.');
-                    if (res.success) admin.fetchProducts();
-                  } catch (e) {
-                    showToast(t.unarchiveFailed || 'Unarchive failed.');
-                  } finally {
-                    admin.setLoading(false);
-                  }
-                }}
+                onUnarchive={p => handleArchiveToggle(p, false)}
                 isArchived={true}
               />
             )}
@@ -233,34 +231,113 @@ export default function Admin() {
               />
             )}
             {section === 'debts' && (
-              <div className="space-y-4">
-                <h2 className="text-xl font-bold mb-2 text-gray-800 dark:text-gray-100">{t.debts || 'Debts'}</h2>
-                <table className="min-w-full text-left border rounded-lg text-gray-800 dark:text-gray-100 bg-white/90 dark:bg-gray-900/80">
-                  <thead className="bg-gradient-to-r from-purple-700 to-pink-500 text-white">
-                    <tr>
-                      <th className="px-4 py-2">{t.customerName || 'Customer'}</th>
-                      <th className="px-4 py-2">{t.amount || 'Amount'}</th>
-                      <th className="px-4 py-2">{t.date || 'Date'}</th>
-                      <th className="px-4 py-2">{t.paid || 'Paid'}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {admin.debts.length === 0 ? (
-                      <tr><td colSpan={4} className="text-center text-gray-400 py-6">{t.noDebts || 'No debts'}</td></tr>
-                    ) : (
-                      admin.debts.map(debt => (
-                        <tr key={debt.id} className="border-b last:border-b-0 hover:bg-purple-50 dark:hover:bg-purple-900 transition-colors">
-                          <td className="px-4 py-2">{debt.customer_name}</td>
-                          <td className="px-4 py-2">${debt.total}</td>
-                          <td className="px-4 py-2">{new Date(debt.created_at).toLocaleString()}</td>
-                          <td className="px-4 py-2">
-                            <input type="checkbox" checked={!!debt.paid} onChange={() => admin.handleMarkDebtPaid(debt.id)} disabled={!!debt.paid} />
-                          </td>
-                        </tr>
-                      ))
+              <div className="space-y-6">
+                <div className="flex flex-col md:flex-row gap-4 items-center justify-between mb-6">
+                  <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100">{t.debts || 'Debts'}</h2>
+                  <div className="flex gap-2 items-center">
+                    <input
+                      type="text"
+                      placeholder={t.searchCustomer || 'Search by customer name...'}
+                      value={debtSearch}
+                      onChange={(e) => setDebtSearch(e.target.value)}
+                      className="border rounded-xl px-4 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-400 dark:focus:ring-purple-600 transition"
+                    />
+                    {debtSearch && (
+                      <button
+                        onClick={() => setDebtSearch('')}
+                        className="px-3 py-2 bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-xl hover:bg-gray-400 dark:hover:bg-gray-500 transition"
+                      >
+                        ✕
+                      </button>
                     )}
-                  </tbody>
-                </table>
+                  </div>
+                </div>
+
+                {(() => {
+                  const debtMap = {};
+                  (admin.debts || []).forEach(d => { debtMap[d.sale_id] = d; });
+                  // Group debt sales by customer name (from debt record if present)
+                  const grouped = {};
+                  (admin.debtSales || []).forEach(sale => {
+                    const debt = debtMap[sale.id];
+                    const customer = debt?.customer_name || 'Unknown';
+                    if (!grouped[customer]) grouped[customer] = [];
+                    grouped[customer].push({ sale, debt });
+                  });
+
+                  // Filter by search term
+                  const filteredGroups = Object.entries(grouped).filter(([customer, sales]) => 
+                    !debtSearch || customer.toLowerCase().includes(debtSearch.toLowerCase())
+                  );
+
+                  if (admin.debtSales.length === 0) {
+                    return <div className="text-center text-gray-400 py-6">{t.noDebts || 'No debts'}</div>;
+                  }
+
+                  if (filteredGroups.length === 0) {
+                    return <div className="text-center text-gray-400 py-6">{t.noDebtsFound || 'No debts found for this search'}</div>;
+                  }
+
+                  return filteredGroups.map(([customer, sales]) => (
+                    <div key={customer} className="bg-white/90 dark:bg-gray-900/80 rounded-2xl shadow p-6 border border-purple-200 dark:border-purple-700">
+                      <h3 className="text-lg font-bold text-purple-700 dark:text-purple-300 mb-2 flex items-center gap-2">
+                        <span className="inline-block w-2 h-2 rounded-full bg-purple-400"></span>
+                        {customer}
+                      </h3>
+                      {sales.map(({ sale, debt }) => (
+                        <div key={sale.id} className="mb-6">
+                          {/* Debug warning if debt record is missing */}
+                          {!debt && (
+                            <div className="text-sm text-red-500 mb-2">⚠️ {t.debtRecordMissing || 'Debt record missing for this sale.'}</div>
+                          )}
+                          <div className="font-semibold text-gray-700 dark:text-gray-200 mb-1">{t.date || 'Date'}: {new Date(sale.created_at).toLocaleString()}</div>
+                          <table className="min-w-full text-left border rounded-lg text-gray-800 dark:text-gray-100 bg-white/90 dark:bg-gray-900/80 mb-2">
+                            <thead className="bg-gradient-to-r from-purple-700 to-pink-500 text-white">
+                              <tr>
+                                <th className="px-4 py-2">{t.items || 'Items'}</th>
+                                <th className="px-4 py-2">{t.sellingPrice || 'Selling Price'}</th>
+                                <th className="px-4 py-2">{t.buyingPrice || 'Buying Price'}</th>
+                                <th className="px-4 py-2">{t.amount || 'Amount'}</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {sale.items.map((item, idx) => (
+                                <tr key={item.id || idx} className="border-b last:border-b-0 hover:bg-purple-50 dark:hover:bg-purple-900 transition-colors">
+                                  <td className="px-4 py-2">{item.name}</td>
+                                  <td className="px-4 py-2">${item.price}</td>
+                                  <td className="px-4 py-2">${item.buying_price || 0}</td>
+                                  <td className="px-4 py-2">${item.price * item.quantity}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                          <div className="flex items-center gap-4 flex-wrap">
+                            <span className="font-bold text-lg text-blue-700 dark:text-blue-300">{t.total}: ${sale.total}</span>
+                            <span className="font-bold text-lg text-green-700 dark:text-green-300">{t.profit || 'Profit'}: ${sale.items.reduce((sum, item) => sum + ((item.price - (item.buying_price || 0)) * item.quantity), 0).toFixed(2)}</span>
+                            <span className="font-bold text-lg text-gray-700 dark:text-gray-200">{t.paid || 'Paid'}: {debt?.paid ? t.yes || 'Yes' : t.no || 'No'}</span>
+                            {debt?.paid && debt?.paid_at && (
+                              <span className="text-sm text-gray-600 dark:text-gray-400">{t.paidAt || 'Paid at'}: {new Date(debt.paid_at).toLocaleString()}</span>
+                            )}
+                            {!debt?.paid && debt && (
+                              <button
+                                className="ml-2 bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 transition"
+                                onClick={() => {
+                                  setPaymentModal({
+                                    show: true,
+                                    debtId: debt.id,
+                                    defaultTime: new Date().toISOString().slice(0, 16)
+                                  });
+                                }}
+                              >
+                                {t.markAsPaid || 'Mark as Paid'}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ));
+                })()}
               </div>
             )}
           </div>
@@ -345,7 +422,67 @@ export default function Admin() {
           </div>
         </div>
       )}
-      <Toast message={admin.toast} onClose={() => admin.setToast("")} />
+      {/* Payment Modal */}
+      {paymentModal.show && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50" role="dialog" aria-modal="true">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 w-full max-w-md" tabIndex="-1">
+            <h2 className="text-xl font-bold mb-4 text-gray-800 dark:text-gray-100">{t.markAsPaid || 'Mark as Paid'}</h2>
+            <form onSubmit={async e => {
+              e.preventDefault();
+              const form = e.target;
+              const paidAt = form.paidAt.value ? new Date(form.paidAt.value).toISOString() : new Date().toISOString();
+              
+              if (window.confirm(t.confirmMarkPaid || 'Mark this purchase as paid? This cannot be undone.')) {
+                await admin.handleMarkDebtPaid(paymentModal.debtId, paidAt);
+                setPaymentModal({ show: false, debtId: null, defaultTime: '' });
+                admin.setToast(t.debtMarkedPaid || 'Debt marked as paid and moved to sales history!');
+              }
+            }} className="flex flex-col gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  {t.paymentTime || 'Payment Time'}
+                </label>
+                <input 
+                  name="paidAt" 
+                  type="datetime-local" 
+                  defaultValue={paymentModal.defaultTime}
+                  className="w-full border rounded px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-400 dark:focus:ring-purple-600 transition" 
+                />
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  {t.paymentTimeHelp || 'Leave empty to use current time'}
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <button type="submit" className="flex-1 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition">
+                  {t.confirm || 'Confirm'}
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => setPaymentModal({ show: false, debtId: null, defaultTime: '' })}
+                  className="flex-1 bg-gray-300 dark:bg-gray-600 text-gray-800 dark:text-gray-100 px-4 py-2 rounded hover:bg-gray-400 dark:hover:bg-gray-500 transition"
+                >
+                  {t.cancel || 'Cancel'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* Backup Manager Modal */}
+      {showBackupManager && (
+        <BackupManager
+          t={t}
+          onClose={() => setShowBackupManager(false)}
+        />
+      )}
+      {/* Cloud Backup Manager Modal */}
+      {showCloudBackupManager && (
+        <CloudBackupManager
+          t={t}
+          onClose={() => setShowCloudBackupManager(false)}
+        />
+      )}
+      <ToastUnified message={admin.toast} type="success" onClose={() => admin.setToast("")} />
     </div>
   );
 }

@@ -1,11 +1,10 @@
 // Electron main process
-const { app, BrowserWindow, ipcMain } = require('electron');
-const path = require('path');
-const db = require('../database/db.cjs');
-const fs = require('fs');
-const { dialog } = require('electron');
-const bcrypt = require('bcryptjs');
 
+const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const path = require('path');
+const fs = require('fs');
+const db = require('../database/db.cjs');
+const bcrypt = require('bcryptjs');
 function createWindow() {
   const win = new BrowserWindow({
     fullscreen: true, // Launch in fullscreen
@@ -15,11 +14,30 @@ function createWindow() {
       nodeIntegration: false,
     },
   });
-  win.loadURL(
-    app.isPackaged
-      ? `file://${path.join(__dirname, '../dist/index.html')}`
-      : 'http://localhost:5173/'
-  );
+  const urlToLoad = app.isPackaged
+    ? `file://${path.join(__dirname, '../dist/index.html')}`
+    : 'http://localhost:5173/';
+  win.loadURL(urlToLoad);
+  // Set a secure Content Security Policy
+  win.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+    const isDev = !app.isPackaged;
+    let headers = { ...details.responseHeaders };
+    // Remove any existing CSP header from Vite dev server in dev mode
+    if (isDev) {
+      delete headers['content-security-policy'];
+      delete headers['Content-Security-Policy'];
+    }
+    callback({
+      responseHeaders: {
+        ...headers,
+        'Content-Security-Policy': [
+          isDev
+            ? "default-src 'self' http://localhost:5173 ws://localhost:5173; script-src 'self' 'unsafe-inline' http://localhost:5173; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src *;"
+            : "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src https://cloud.appwrite.io https://cloud.appwrite.io/v1 https:;"
+        ]
+      }
+    });
+  });
 }
 
 app.whenReady().then(createWindow);
@@ -89,12 +107,12 @@ ipcMain.handle('getSetting', async (event, key) => {
 });
 // Danger zone: reset all data
 ipcMain.handle('resetAllData', async () => {
-  console.log('RESET HANDLER LOADED');
-  db.db.prepare('DELETE FROM sale_items;').run();
-  db.db.prepare('DELETE FROM sales;').run();
-  db.db.prepare('DELETE FROM products;').run();
-  // Removed: Insert 50 sample phones
-  return { success: true };
+  try {
+    db.resetAllData();
+    return { success: true, message: 'All data reset successfully.' };
+  } catch (e) {
+    return { success: false, message: e.message };
+  }
 });
 ipcMain.handle('exportSalesCSV', async () => {
   const sales = db.getSales();
@@ -152,7 +170,6 @@ ipcMain.handle('getSales', async () => {
     const sales = db.getSales();
     return sales;
   } catch (e) {
-    console.error('DEBUG: getSales error', e);
     return [];
   }
 });
@@ -215,7 +232,7 @@ ipcMain.handle('saveSale', async (event, sale) => {
       }
     }
     const saleId = db.saveSale(sale);
-    return { success: true, saleId };
+    return { success: true, id: saleId, lastInsertRowid: saleId };
   } catch (e) {
     return { success: false, message: e.message };
   }
@@ -227,6 +244,250 @@ ipcMain.handle('addDebt', async (event, { sale_id, customer_name }) => {
 ipcMain.handle('getDebts', async () => {
   return db.getDebts();
 });
-ipcMain.handle('markDebtPaid', async (event, id) => {
-  return db.markDebtPaid(id);
+ipcMain.handle('markDebtPaid', async (event, id, paid_at) => {
+  return db.markDebtPaid(id, paid_at);
+});
+ipcMain.handle('getDebtSales', async () => {
+  try {
+    const sales = db.getDebtSales();
+    return sales;
+  } catch (e) {
+    return [];
+  }
+});
+// Backup functionality
+ipcMain.handle('createBackup', async () => {
+  try {
+    const os = require('os');
+    
+    // Get default Documents folder
+    const documentsPath = path.join(os.homedir(), 'Documents');
+    const backupDir = path.join(documentsPath, 'Phone Shop Backups');
+    
+    // Create backup directory if it doesn't exist
+    if (!fs.existsSync(backupDir)) {
+      fs.mkdirSync(backupDir, { recursive: true });
+    }
+    
+    // Create backup filename with timestamp
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const backupFileName = `phone-shop-backup-${timestamp}.sqlite`;
+    const backupPath = path.join(backupDir, backupFileName);
+    
+    // Copy database file
+    const dbPath = path.join(__dirname, '../database/shop.sqlite');
+    fs.copyFileSync(dbPath, backupPath);
+    
+    // Log backup in database
+    db.logBackup({
+      file_name: backupFileName,
+      encrypted: false,
+      log: `Backup created at ${backupPath}`
+    });
+    
+    return { 
+      success: true, 
+      message: 'Backup created successfully', 
+      path: backupPath,
+      fileName: backupFileName
+    };
+  } catch (e) {
+    return { success: false, message: e.message };
+  }
+});
+
+ipcMain.handle('getBackupHistory', async () => {
+  try {
+    const backups = db.getBackups();
+    return backups;
+  } catch (e) {
+    return [];
+  }
+});
+
+ipcMain.handle('restoreBackup', async (event, filePath) => {
+  try {
+    if (!fs.existsSync(filePath)) {
+      return { success: false, message: 'Backup file not found' };
+    }
+    
+    // Copy backup file to current database location
+    const dbPath = path.join(__dirname, '../database/shop.sqlite');
+    fs.copyFileSync(filePath, dbPath);
+    
+    return { success: true, message: 'Database restored successfully' };
+  } catch (e) {
+    return { success: false, message: e.message };
+  }
+});
+
+ipcMain.handle('selectBackupFile', async () => {
+  try {
+    const result = await dialog.showOpenDialog({
+      properties: ['openFile'],
+      filters: [
+        { name: 'SQLite Database', extensions: ['sqlite', 'db'] }
+      ]
+    });
+    
+    if (result.canceled) {
+      return { success: false, message: 'User canceled' };
+    }
+    
+    return { success: true, filePath: result.filePaths[0] };
+  } catch (e) {
+    return { success: false, message: e.message };
+  }
+});
+
+// Auto backup functionality
+let autoBackupInterval = null;
+
+ipcMain.handle('setAutoBackup', async (event, enabled) => {
+  try {
+    if (enabled) {
+      // Clear existing interval
+      if (autoBackupInterval) {
+        clearInterval(autoBackupInterval);
+      }
+      
+      // Set up daily backup (24 hours = 24 * 60 * 60 * 1000 ms)
+      autoBackupInterval = setInterval(async () => {
+        try {
+          const os = require('os');
+          const documentsPath = path.join(os.homedir(), 'Documents');
+          const backupDir = path.join(documentsPath, 'Phone Shop Backups', 'Auto');
+          
+          if (!fs.existsSync(backupDir)) {
+            fs.mkdirSync(backupDir, { recursive: true });
+          }
+          
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+          const backupFileName = `auto-backup-${timestamp}.sqlite`;
+          const backupPath = path.join(backupDir, backupFileName);
+          
+          const dbPath = path.join(__dirname, '../database/shop.sqlite');
+          fs.copyFileSync(dbPath, backupPath);
+          
+          db.logBackup({
+            file_name: backupFileName,
+            encrypted: false,
+            log: `Auto backup created at ${backupPath}`
+          });
+          
+          // Silent auto backup success
+        } catch (error) {
+          console.error('Auto backup failed:', error);
+        }
+      }, 24 * 60 * 60 * 1000); // 24 hours
+      
+      return { success: true, message: 'Auto backup enabled' };
+    } else {
+      // Disable auto backup
+      if (autoBackupInterval) {
+        clearInterval(autoBackupInterval);
+        autoBackupInterval = null;
+      }
+      return { success: true, message: 'Auto backup disabled' };
+    }
+  } catch (e) {
+    return { success: false, message: e.message };
+  }
+});
+// Cloud backup functionality
+ipcMain.handle('readBackupFile', async (event, filePath) => {
+  try {
+    if (!fs.existsSync(filePath)) {
+      throw new Error('Backup file not found');
+    }
+    
+    const fileBuffer = fs.readFileSync(filePath);
+    return fileBuffer;
+  } catch (e) {
+    console.error('Failed to read backup file:', e);
+    return null;
+  }
+});
+
+ipcMain.handle('saveCloudBackup', async (event, backupData, fileName) => {
+  try {
+    const os = require('os');
+    const documentsPath = path.join(os.homedir(), 'Documents');
+    const restoreDir = path.join(documentsPath, 'Phone Shop Backups', 'Downloaded');
+    
+    // Create restore directory if it doesn't exist
+    if (!fs.existsSync(restoreDir)) {
+      fs.mkdirSync(restoreDir, { recursive: true });
+    }
+    
+    const restorePath = path.join(restoreDir, fileName);
+    fs.writeFileSync(restorePath, backupData);
+    
+    return { 
+      success: true, 
+      message: 'Cloud backup downloaded successfully', 
+      path: restorePath 
+    };
+  } catch (e) {
+    return { success: false, message: e.message };
+  }
+});
+
+ipcMain.handle('restoreFromCloudBackup', async (event, filePath) => {
+  try {
+    if (!fs.existsSync(filePath)) {
+      throw new Error('Backup file not found');
+    }
+    
+    // Close database connection
+    db.db.close();
+    
+    // Create backup of current database
+    const dbPath = path.join(__dirname, '../database/shop.sqlite');
+    const backupCurrentPath = dbPath + '.bak';
+    
+    if (fs.existsSync(dbPath)) {
+      fs.copyFileSync(dbPath, backupCurrentPath);
+    }
+    
+    // Restore from backup
+    fs.copyFileSync(filePath, dbPath);
+    
+    // Reinitialize database connection
+    const dbModule = require('../database/db.cjs');
+    Object.assign(db, dbModule);
+    
+    // Log the restore
+    db.logBackup({
+      file_name: path.basename(filePath),
+      encrypted: false,
+      log: `Database restored from cloud backup: ${filePath}`
+    });
+    
+    return { 
+      success: true, 
+      message: 'Database restored successfully from cloud backup',
+      requiresRestart: true
+    };
+  } catch (e) {
+    console.error('Restore failed:', e);
+    
+    // Try to restore the backup if restoration failed
+    try {
+      const dbPath = path.join(__dirname, '../database/shop.sqlite');
+      const backupCurrentPath = dbPath + '.bak';
+      
+      if (fs.existsSync(backupCurrentPath)) {
+        fs.copyFileSync(backupCurrentPath, dbPath);
+        
+        // Reinitialize database connection
+        const dbModule = require('../database/db.cjs');
+        Object.assign(db, dbModule);
+      }
+    } catch (restoreError) {
+      console.error('Failed to restore backup:', restoreError);
+    }
+    
+    return { success: false, message: e.message };
+  }
 });

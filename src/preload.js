@@ -22,5 +22,17 @@ contextBridge.exposeInMainWorld('api', {
   checkAdminPassword: (password) => ipcRenderer.invoke('checkAdminPassword', password),
   getDebts: () => ipcRenderer.invoke('getDebts'),
   addDebt: (debt) => ipcRenderer.invoke('addDebt', debt),
-  markDebtPaid: (id) => ipcRenderer.invoke('markDebtPaid', id),
+  markDebtPaid: (id, paid_at) => ipcRenderer.invoke('markDebtPaid', id, paid_at),
+  getDebtSales: () => ipcRenderer.invoke('getDebtSales'),
+  // Backup functionality
+  createBackup: () => ipcRenderer.invoke('createBackup'),
+  getBackupHistory: () => ipcRenderer.invoke('getBackupHistory'),
+  restoreBackup: (filePath) => ipcRenderer.invoke('restoreBackup', filePath),
+  selectBackupFile: () => ipcRenderer.invoke('selectBackupFile'),
+  setAutoBackup: (enabled) => ipcRenderer.invoke('setAutoBackup', enabled),
+  
+  // Cloud backup functionality
+  readBackupFile: (filePath) => ipcRenderer.invoke('readBackupFile', filePath),
+  saveCloudBackup: (backupData, fileName) => ipcRenderer.invoke('saveCloudBackup', backupData, fileName),
+  restoreFromCloudBackup: (filePath) => ipcRenderer.invoke('restoreFromCloudBackup', filePath),
 });

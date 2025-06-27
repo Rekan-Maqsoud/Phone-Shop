@@ -87,7 +87,7 @@ export default function SettingsModal({
             name="confirmPassword"
             type="password"
             className="w-full border rounded px-3 py-2 mb-2 dark:bg-gray-800 dark:text-gray-100"
-            placeholder={t.confirmPassword || 'Confirm New Password'}
+            placeholder={t.confirmNewPassword || 'Confirm New Password'}
             required
           />
           <button
