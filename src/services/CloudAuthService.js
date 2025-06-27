@@ -109,6 +109,10 @@ class CloudAuthService {
         backupFile
       );
 
+      // Get next version and ensure it's a string and not too long
+      let version = await this.getNextBackupVersion();
+      version = String(version).slice(0, 255); // Appwrite string limit
+
       // Create backup record in database
       const backupRecord = await this.databases.createDocument(
         this.DATABASE_ID,
@@ -121,7 +125,7 @@ class CloudAuthService {
           fileId: fileUpload.$id,
           fileSize: fileUpload.sizeOriginal,
           uploadDate: new Date().toISOString(),
-          version: await this.getNextBackupVersion()
+          version // always a string, max 255 chars
         }
       );
 

@@ -434,60 +434,68 @@ ipcMain.handle('saveCloudBackup', async (event, backupData, fileName) => {
 });
 
 ipcMain.handle('restoreFromCloudBackup', async (event, filePath) => {
+  let dbPath = path.join(__dirname, '../database/shop.sqlite');
+  let backupCurrentPath = dbPath + '.bak';
   try {
     if (!fs.existsSync(filePath)) {
+      console.error('[Restore] Backup file not found:', filePath);
       throw new Error('Backup file not found');
     }
-    
     // Close database connection
-    db.db.close();
-    
+    try {
+      db.db.close();
+      console.log('[Restore] Closed DB connection');
+    } catch (e) {
+      console.warn('[Restore] DB close failed (may already be closed):', e.message);
+    }
     // Create backup of current database
-    const dbPath = path.join(__dirname, '../database/shop.sqlite');
-    const backupCurrentPath = dbPath + '.bak';
-    
     if (fs.existsSync(dbPath)) {
       fs.copyFileSync(dbPath, backupCurrentPath);
+      console.log('[Restore] Backed up current DB to', backupCurrentPath);
     }
-    
     // Restore from backup
     fs.copyFileSync(filePath, dbPath);
-    
+    console.log('[Restore] Copied backup file to DB path:', dbPath);
     // Reinitialize database connection
-    const dbModule = require('../database/db.cjs');
-    Object.assign(db, dbModule);
-    
+    let dbModule;
+    try {
+      // Clear require cache for db.cjs to force reload
+      delete require.cache[require.resolve('../database/db.cjs')];
+      dbModule = require('../database/db.cjs');
+      Object.assign(db, dbModule);
+      // Test connection by running a simple query
+      db.getProducts();
+      console.log('[Restore] DB connection re-initialized and test query succeeded');
+    } catch (e) {
+      console.error('[Restore] DB re-initialization or test query failed:', e);
+      // Rollback if DB cannot be opened
+      if (fs.existsSync(backupCurrentPath)) {
+        fs.copyFileSync(backupCurrentPath, dbPath);
+        delete require.cache[require.resolve('../database/db.cjs')];
+        dbModule = require('../database/db.cjs');
+        Object.assign(db, dbModule);
+        console.log('[Restore] Rolled back to previous DB');
+      }
+      throw new Error('Restored DB is invalid or corrupt. Rolled back to previous database.');
+    }
     // Log the restore
     db.logBackup({
       file_name: path.basename(filePath),
       encrypted: false,
       log: `Database restored from cloud backup: ${filePath}`
     });
-    
-    return { 
-      success: true, 
-      message: 'Database restored successfully from cloud backup',
+    // Force restart the app to ensure all DB connections are fresh
+    setTimeout(() => {
+      app.relaunch();
+      app.exit(0);
+    }, 500);
+    return {
+      success: true,
+      message: 'Database restored successfully from cloud backup. The app will now restart.',
       requiresRestart: true
     };
   } catch (e) {
-    console.error('Restore failed:', e);
-    
-    // Try to restore the backup if restoration failed
-    try {
-      const dbPath = path.join(__dirname, '../database/shop.sqlite');
-      const backupCurrentPath = dbPath + '.bak';
-      
-      if (fs.existsSync(backupCurrentPath)) {
-        fs.copyFileSync(backupCurrentPath, dbPath);
-        
-        // Reinitialize database connection
-        const dbModule = require('../database/db.cjs');
-        Object.assign(db, dbModule);
-      }
-    } catch (restoreError) {
-      console.error('Failed to restore backup:', restoreError);
-    }
-    
+    console.error('[Restore] Restore failed:', e);
     return { success: false, message: e.message };
   }
 });

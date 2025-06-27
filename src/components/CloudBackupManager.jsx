@@ -160,28 +160,24 @@ export default function CloudBackupManager({ onClose, t }) {
       // Create local backup first
       if (window.api?.createBackup) {
         const localBackup = await window.api.createBackup();
-        if (!localBackup.success) {
-          showToast('Failed to create local backup', 'error');
+        if (!localBackup.success || !localBackup.path) {
+          showToast(localBackup.message || 'Failed to create local backup', 'error');
           setLoading(false);
           return;
         }
-        
         // Read the backup file
-        const backupPath = localBackup.filePath;
+        const backupPath = localBackup.path || localBackup.filePath;
         const backupFile = await window.api.readBackupFile(backupPath);
-        
-        if (backupFile) {
+        if (backupFile && backupFile.length > 0) {
           // Convert to File object for Appwrite
           const file = new File([backupFile], backupForm.name || localBackup.fileName, {
             type: 'application/octet-stream'
           });
-          
           const result = await cloudAuthService.uploadBackup(
             file,
             backupForm.name || localBackup.fileName,
             backupForm.description
           );
-          
           if (result.success) {
             showToast('Backup uploaded successfully!');
             setShowBackupForm(false);
@@ -192,7 +188,7 @@ export default function CloudBackupManager({ onClose, t }) {
             showToast(result.error || 'Failed to upload backup', 'error');
           }
         } else {
-          showToast('Failed to read backup file', 'error');
+          showToast('Failed to read backup file or file is empty', 'error');
         }
       } else {
         showToast('Backup API not available', 'error');
@@ -206,7 +202,6 @@ export default function CloudBackupManager({ onClose, t }) {
 
   const handleDownloadBackup = async (backup) => {
     setLoading(true);
-    
     try {
       const result = await cloudAuthService.downloadBackup(backup.$id);
       if (result.success) {
@@ -214,12 +209,18 @@ export default function CloudBackupManager({ onClose, t }) {
         const response = await fetch(result.downloadUrl);
         const arrayBuffer = await response.arrayBuffer();
         const backupData = new Uint8Array(arrayBuffer);
-        
+
         // Save the backup locally
         const saveResult = await window.api.saveCloudBackup(backupData, backup.fileName);
-        if (saveResult.success) {
+        if (saveResult.success && saveResult.path) {
+          // Extra: Check file exists and is not empty
+          const fileCheck = await window.api.readBackupFile(saveResult.path);
+          if (!fileCheck || fileCheck.length === 0) {
+            showToast('Downloaded backup file is empty or unreadable. Please try again.', 'error');
+            setLoading(false);
+            return;
+          }
           showToast('Backup downloaded successfully! You can now restore it.');
-          
           // Ask if user wants to restore immediately
           if (confirm(`Backup downloaded to ${saveResult.path}. Do you want to restore it now?`)) {
             await handleRestoreBackup(saveResult.path);
@@ -231,9 +232,8 @@ export default function CloudBackupManager({ onClose, t }) {
         showToast(result.error || 'Failed to download backup', 'error');
       }
     } catch (error) {
-      showToast('Failed to download backup', 'error');
+      showToast('Failed to download backup: ' + (error?.message || error), 'error');
     }
-    
     setLoading(false);
   };
 
@@ -431,7 +431,11 @@ export default function CloudBackupManager({ onClose, t }) {
                             <div className="text-xs text-gray-500 mt-2">
                               <span>Version {backup.version} • </span>
                               <span>{formatDate(backup.uploadDate)} • </span>
-                              <span>{cloudAuthService.formatFileSize(backup.fileSize)}</span>
+                              <span>
+                                {typeof backup.fileSize === 'number' && backup.fileSize > 0
+                                  ? cloudAuthService.formatFileSize(backup.fileSize)
+                                  : 'Unknown size'}
+                              </span>
                             </div>
                           </div>
                           <div className="flex gap-2 ml-4">
