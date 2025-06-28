@@ -428,29 +428,29 @@ export default function Admin() {
                       onClick={() => setSection('active')}
                       className="flex flex-col items-center gap-2 p-3 bg-white/60 dark:bg-gray-800/60 rounded-lg border border-white/30 hover:bg-purple-100 dark:hover:bg-purple-900/40 transition-all"
                     >
-                      <span className="text-lg">�</span>
-                      <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">Products</span>
+                      <span className="text-lg">📦</span>
+                      <span className="text-xs font-semibold text-gray-900 dark:text-white">Products</span>
                     </button>
                     <button
                       onClick={() => setSection('history')}
                       className="flex flex-col items-center gap-2 p-3 bg-white/60 dark:bg-gray-800/60 rounded-lg border border-white/30 hover:bg-purple-100 dark:hover:bg-purple-900/40 transition-all"
                     >
-                      <span className="text-lg">�</span>
-                      <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">Sales History</span>
+                      <span className="text-lg">📈</span>
+                      <span className="text-xs font-semibold text-gray-900 dark:text-white">Sales History</span>
                     </button>
                     <button
                       onClick={() => setSection('debts')}
                       className="flex flex-col items-center gap-2 p-3 bg-white/60 dark:bg-gray-800/60 rounded-lg border border-white/30 hover:bg-purple-100 dark:hover:bg-purple-900/40 transition-all"
                     >
-                      <span className="text-lg">�</span>
-                      <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">Manage Debts</span>
+                      <span className="text-lg">💸</span>
+                      <span className="text-xs font-semibold text-gray-900 dark:text-white">Manage Debts</span>
                     </button>
                     <button
                       onClick={() => setSection('archived')}
                       className="flex flex-col items-center gap-2 p-3 bg-white/60 dark:bg-gray-800/60 rounded-lg border border-white/30 hover:bg-purple-100 dark:hover:bg-purple-900/40 transition-all"
                     >
                       <span className="text-lg">🗃️</span>
-                      <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">Archived</span>
+                      <span className="text-xs font-semibold text-gray-900 dark:text-white">Archived</span>
                     </button>
                   </div>
                 </div>
