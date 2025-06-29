@@ -8,12 +8,17 @@ export default function useAdmin() {
 
   // Core state
   const [products, setProducts] = useState([]);
+  const [accessories, setAccessories] = useState([]);
   const [sales, setSales] = useState([]);
   const [showProductModal, setShowProductModal] = useState(false);
+  const [showAccessoryModal, setShowAccessoryModal] = useState(false);
   const [editProduct, setEditProduct] = useState(null);
+  const [editAccessory, setEditAccessory] = useState(null);
   const [viewSale, setViewSale] = useState(null);
   const [debts, setDebts] = useState([]);
   const [debtSales, setDebtSales] = useState([]);
+  const [companyDebts, setCompanyDebts] = useState([]);
+  const [monthlyReports, setMonthlyReports] = useState([]);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState("");
   const [notificationsEnabled, setNotificationsEnabled] = useState(() => localStorage.getItem('notificationsEnabled') === 'true');
@@ -27,34 +32,13 @@ export default function useAdmin() {
   const [adminError, setAdminError] = useState("");
 
   function openAdminModal() {
-    setAdminModal(true);
-    setAdminPassword("");
-    setAdminError("");
+    // Direct navigation to admin panel - no password required
+    navigate("/admin");
   }
 
-  const handleAdminAccess = async (e) => {
+  const handleAdminAccess = (e) => {
     e.preventDefault();
-    setLoading(true);
-    setAdminError("");
-    try {
-      if (window.api?.checkAdminPassword) {
-        const res = await window.api.checkAdminPassword(adminPassword);
-        if (res.success) {
-          setAdminModal(false);
-          setAdminPassword("");
-          setAdminError("");
-          navigate("/admin");
-        } else {
-          setAdminError(res.message || t.invalidPassword || "Invalid password");
-        }
-      } else {
-        setAdminError(t.apiUnavailable || "API unavailable");
-      }
-    } catch (err) {
-      setAdminError(t.error || "Error");
-    } finally {
-      setLoading(false);
-    }
+    navigate("/admin");
   };
 
   // Fetchers
@@ -62,6 +46,13 @@ export default function useAdmin() {
     if (window.api?.getProducts) {
       const data = await window.api.getProducts();
       setProducts(data || []);
+    }
+  }, []);
+
+  const fetchAccessories = useCallback(async () => {
+    if (window.api?.getAllAccessories) {
+      const data = await window.api.getAllAccessories();
+      setAccessories(data || []);
     }
   }, []);
 
@@ -84,6 +75,21 @@ export default function useAdmin() {
       setDebtSales(data || []);
     }
   }, []);
+
+  const fetchCompanyDebts = useCallback(async () => {
+    if (window.api?.getCompanyDebts) {
+      const data = await window.api.getCompanyDebts();
+      setCompanyDebts(data || []);
+    }
+  }, []);
+
+  const fetchMonthlyReports = useCallback(async () => {
+    if (window.api?.getMonthlyReports) {
+      const data = await window.api.getMonthlyReports();
+      setMonthlyReports(data || []);
+    }
+  }, []);
+
   const handleMarkDebtPaid = async (id, paid_at) => {
     setLoading(true);
     try {
@@ -115,6 +121,24 @@ export default function useAdmin() {
       setLoading(false);
     }
   };
+
+  const handleAddAccessory = async (accessory) => {
+    setLoading(true);
+    try {
+      if (window.api?.addAccessory) {
+        const res = await window.api.addAccessory(accessory);
+        if (res.success) {
+          setToast(`${t.accessoryAdded || 'Accessory added'}: ${accessory.name}`);
+          await fetchAccessories();
+        } else {
+          setToast(res.message || 'Add accessory failed.');
+        }
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleEditProduct = async (product) => {
     setLoading(true);
     try {
@@ -124,7 +148,7 @@ export default function useAdmin() {
           setToast(`${t.productUpdated} ${product.name}`);
           await fetchProducts();
         } else {
-          setToast(res.message || t.editProductFailed || 'Edit product failed.');
+          setToast(res.message || t.updateProductFailed || 'Update product failed.');
         }
       }
     } finally {
@@ -132,20 +156,25 @@ export default function useAdmin() {
     }
   };
 
-  // Admin actions
-  const handleChangeAdminPassword = async (oldPassword, newPassword) => {
+  const handleEditAccessory = async (accessory) => {
     setLoading(true);
     try {
-      if (window.api?.changeAdminPassword) {
-        const res = await window.api.changeAdminPassword(oldPassword, newPassword);
-        setToast(res.success ? 'Password changed!' : res.message || 'Change password failed.');
+      if (window.api?.editAccessory) {
+        const res = await window.api.editAccessory(accessory);
+        if (res.success) {
+          setToast(`${t.accessoryUpdated || 'Accessory updated'}: ${accessory.name}`);
+          await fetchAccessories();
+        } else {
+          setToast(res.message || 'Update accessory failed.');
+        }
       }
-    } catch (e) {
-      setToast('Change password failed.');
     } finally {
       setLoading(false);
     }
   };
+
+  // Removed admin password functionality - direct access granted
+
   const handleRestoreBackup = async (filePath) => {
     setLoading(true);
     try {
@@ -258,16 +287,28 @@ export default function useAdmin() {
 
   return {
     products, setProducts,
+    accessories, setAccessories,
     sales, setSales,
     showProductModal, setShowProductModal,
+    showAccessoryModal, setShowAccessoryModal,
     editProduct, setEditProduct,
+    editAccessory, setEditAccessory,
     viewSale, setViewSale,
     debts,
     debtSales,
+    companyDebts,
+    monthlyReports,
     fetchProducts,
+    fetchAccessories,
+    fetchSales,
+    fetchDebts,
+    fetchDebtSales,
+    fetchCompanyDebts,
+    fetchMonthlyReports,
     handleAddProduct,
+    handleAddAccessory,
     handleEditProduct,
-    handleChangeAdminPassword,
+    handleEditAccessory,
     handleRestoreBackup,
     handleResetAllData,
     handleExportSales,

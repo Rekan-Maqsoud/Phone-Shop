@@ -6,14 +6,10 @@ export default function SettingsModal({
   setTheme,
   lang,
   setLang,
-  autoBackup,
-  setAutoBackup,
   notificationsEnabled,
   setNotificationsEnabled,
   lowStockThreshold,
   setLowStockThreshold,
-  handleChangeAdminPassword,
-  handleRestoreBackup,
   handleExportSales,
   handleExportInventory,
   handleTestPrint,
@@ -59,44 +55,18 @@ export default function SettingsModal({
             <option value="ku">کوردی</option>
           </select>
         </div>
-        {/* Change Password */}
-        <form className="mb-4" onSubmit={async e => {
-          e.preventDefault();
-          const form = e.target;
-          const current = form.currentPassword.value;
-          const next = form.newPassword.value;
-          const confirm = form.confirmPassword.value;
-          await handleChangeAdminPassword(current, next, confirm);
-        }}>
-          <label className="block text-gray-700 dark:text-gray-200 mb-1 font-semibold">{t.changePassword || 'Change Password'}</label>
+        {/* Low Stock Threshold */}
+        <div className="mb-4">
+          <label className="block text-gray-700 dark:text-gray-200 mb-1 font-semibold">{t.lowStockThreshold || 'Low Stock Threshold'}</label>
           <input
-            name="currentPassword"
-            type="password"
-            className="w-full border rounded px-3 py-2 mb-2 dark:bg-gray-800 dark:text-gray-100"
-            placeholder={t.currentPassword || 'Current Password'}
-            required
+            type="number"
+            min="1"
+            max="100"
+            value={lowStockThreshold}
+            onChange={e => setLowStockThreshold(Number(e.target.value))}
+            className="w-full border rounded px-3 py-2 dark:bg-gray-800 dark:text-gray-100"
           />
-          <input
-            name="newPassword"
-            type="password"
-            className="w-full border rounded px-3 py-2 mb-2 dark:bg-gray-800 dark:text-gray-100"
-            placeholder={t.newPassword || 'New Password'}
-            required
-          />
-          <input
-            name="confirmPassword"
-            type="password"
-            className="w-full border rounded px-3 py-2 mb-2 dark:bg-gray-800 dark:text-gray-100"
-            placeholder={t.confirmNewPassword || 'Confirm New Password'}
-            required
-          />
-          <button
-            type="submit"
-            className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition font-semibold"
-          >
-            {t.save || 'Save'}
-          </button>
-        </form>
+        </div>
         {/* Export Buttons */}
         <div className="flex flex-col gap-2 mb-4">
           <button

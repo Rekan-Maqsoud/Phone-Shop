@@ -5,6 +5,8 @@ const path = require('path');
 const fs = require('fs');
 const db = require('../database/db.cjs');
 const bcrypt = require('bcryptjs');
+const settings = require('electron-settings');
+const mainCloudBackup = require('./services/mainCloudBackup.cjs');
 function createWindow() {
   const win = new BrowserWindow({
     fullscreen: true, // Launch in fullscreen
@@ -33,14 +35,19 @@ function createWindow() {
         'Content-Security-Policy': [
           isDev
             ? "default-src 'self' http://localhost:5173 ws://localhost:5173; script-src 'self' 'unsafe-inline' http://localhost:5173; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src *;"
-            : "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src https://cloud.appwrite.io https://cloud.appwrite.io/v1 https:;"
+            : "default-src 'self' file: data: blob:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob:; connect-src https://cloud.appwrite.io https://appwrite.io https://*.appwrite.io https:; media-src 'self' data: blob:;"
         ]
       }
     });
   });
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  createWindow();
+  
+  // Check if we need to perform monthly reset on app startup
+  checkAndPerformMonthlyReset();
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
@@ -52,6 +59,36 @@ function toCSV(rows, headers) {
   return [headers.join(','), ...rows.map(r => headers.map(h => escape(r[h])).join(','))].join('\n');
 }
 
+// Check and perform monthly reset if needed
+function checkAndPerformMonthlyReset() {
+  try {
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1; // 1-12
+    const currentYear = now.getFullYear();
+    
+    // Check if app has been opened in a new month by storing last check date
+    const lastResetDate = settings.getSync('lastMonthlyResetDate');
+    
+    if (!lastResetDate) {
+      // First time running, just store current date
+      settings.setSync('lastMonthlyResetDate', `${currentYear}-${currentMonth}`);
+      return;
+    }
+    
+    const [lastYear, lastMonth] = lastResetDate.split('-').map(Number);
+    
+    // If we're in a new month, perform reset
+    if (currentYear > lastYear || (currentYear === lastYear && currentMonth > lastMonth)) {
+      console.log('Performing monthly reset...');
+      db.resetMonthlySalesAndProfit();
+      settings.setSync('lastMonthlyResetDate', `${currentYear}-${currentMonth}`);
+      console.log('Monthly reset completed.');
+    }
+  } catch (error) {
+    console.error('Error during monthly reset check:', error);
+  }
+}
+
 // IPC handlers
 // Product CRUD
 ipcMain.handle('getProducts', async () => {
@@ -60,6 +97,7 @@ ipcMain.handle('getProducts', async () => {
 ipcMain.handle('addProduct', async (event, product) => {
   try {
     db.addProduct(product);
+    await updateCurrentBackup();
     return { success: true };
   } catch (e) {
     return { success: false, message: e.message };
@@ -68,6 +106,7 @@ ipcMain.handle('addProduct', async (event, product) => {
 ipcMain.handle('editProduct', async (event, product) => {
   try {
     db.updateProduct(product);
+    await updateCurrentBackup();
     return { success: true };
   } catch (e) {
     return { success: false, message: e.message };
@@ -76,6 +115,41 @@ ipcMain.handle('editProduct', async (event, product) => {
 ipcMain.handle('deleteProduct', async (event, id) => {
   try {
     db.deleteProduct(id);
+    await updateCurrentBackup();
+    return { success: true };
+  } catch (e) {
+    return { success: false, message: e.message };
+  }
+});
+// Accessory CRUD
+ipcMain.handle('getAccessories', async () => {
+  return db.getAccessories();
+});
+ipcMain.handle('getAllAccessories', async () => {
+  return db.getAllAccessories();
+});
+ipcMain.handle('addAccessory', async (event, accessory) => {
+  try {
+    db.addAccessory(accessory);
+    await updateCurrentBackup();
+    return { success: true };
+  } catch (e) {
+    return { success: false, message: e.message };
+  }
+});
+ipcMain.handle('editAccessory', async (event, accessory) => {
+  try {
+    db.updateAccessory(accessory);
+    await updateCurrentBackup();
+    return { success: true };
+  } catch (e) {
+    return { success: false, message: e.message };
+  }
+});
+ipcMain.handle('deleteAccessory', async (event, id) => {
+  try {
+    db.deleteAccessory(id);
+    await updateCurrentBackup();
     return { success: true };
   } catch (e) {
     return { success: false, message: e.message };
@@ -153,12 +227,26 @@ ipcMain.handle('getSaleDetails', async (event, saleId) => {
   try {
     const sale = db.db.prepare('SELECT * FROM sales WHERE id = ?').get(saleId);
     if (!sale) return { success: false, message: 'Sale not found.' };
+    // Fetch all sale items, joining with products or accessories as needed
     const items = db.db.prepare(`
-      SELECT si.id, si.quantity, si.price, p.name, p.barcode
+      SELECT 
+        si.id, si.quantity, si.price, si.buying_price, si.profit, si.is_accessory, si.name as item_name, 
+        p.name as product_name, p.barcode as product_barcode, 
+        a.name as accessory_name, a.barcode as accessory_barcode
       FROM sale_items si
-      JOIN products p ON si.product_id = p.id
+      LEFT JOIN products p ON si.product_id = p.id AND si.is_accessory = 0
+      LEFT JOIN accessories a ON si.product_id = a.id AND si.is_accessory = 1
       WHERE si.sale_id = ?
-    `).all(saleId);
+    `).all(saleId).map(item => ({
+      id: item.id,
+      quantity: item.quantity,
+      price: item.price,
+      buying_price: item.buying_price,
+      profit: item.profit,
+      is_accessory: !!item.is_accessory,
+      name: item.is_accessory ? (item.accessory_name || item.item_name) : (item.product_name || item.item_name),
+      barcode: item.is_accessory ? item.accessory_barcode : item.product_barcode
+    }));
     return { success: true, sale: { id: sale.id, date: sale.created_at, total: sale.total, items } };
   } catch (e) {
     return { success: false, message: e.message };
@@ -202,21 +290,109 @@ ipcMain.handle('saveSale', async (event, sale) => {
   try {
     // Only call db.saveSale, which now handles all stock logic atomically
     const saleId = db.saveSale(sale);
+    
+    // Update backup after sale
+    await updateCurrentBackup();
+    
     return { success: true, id: saleId, lastInsertRowid: saleId };
   } catch (e) {
     return { success: false, message: e.message };
   }
 });
-// Debt handlers
+
+// Auto backup after sale (instant backup)
+ipcMain.handle('autoBackupAfterSale', async () => {
+  try {
+    await updateCurrentBackup();
+    // Also trigger cloud auto backup if enabled
+    try {
+      const autoCloudBackup = settings.getSync('autoCloudBackup');
+      if (autoCloudBackup === 'true') {
+        // Find the latest backup file path
+        const backupDir = path.join(__dirname, '../database');
+        const files = fs.readdirSync(backupDir)
+          .filter(f => f.endsWith('.sqlite'))
+          .map(f => ({ name: f, time: fs.statSync(path.join(backupDir, f)).mtime.getTime() }))
+          .sort((a, b) => b.time - a.time);
+        if (files.length > 0) {
+          const latestBackupPath = path.join(backupDir, files[0].name);
+          try {
+            await mainCloudBackup.uploadBackupToCloud(latestBackupPath);
+            console.log('Cloud auto backup completed after sale.');
+          } catch (cloudErr) {
+            console.warn('Cloud auto backup failed:', cloudErr);
+          }
+        }
+      }
+    } catch (cloudError) {
+      console.warn('Cloud auto backup check failed:', cloudError);
+    }
+    return { success: true };
+  } catch (e) {
+    return { success: false, message: e.message };
+  }
+});
+
+// Debt handlers (backward compatibility)
 ipcMain.handle('addDebt', async (event, { sale_id, customer_name }) => {
-  return db.addDebt({ sale_id, customer_name });
+  const result = db.addDebt({ sale_id, customer_name });
+  await updateCurrentBackup();
+  return result;
 });
 ipcMain.handle('getDebts', async () => {
   return db.getDebts();
 });
 ipcMain.handle('markDebtPaid', async (event, id, paid_at) => {
-  return db.markDebtPaid(id, paid_at);
+  const result = db.markDebtPaid(id, paid_at);
+  await updateCurrentBackup();
+  return result;
 });
+
+// Customer debt handlers
+ipcMain.handle('addCustomerDebt', async (event, { sale_id, customer_name }) => {
+  const result = db.addCustomerDebt({ sale_id, customer_name });
+  await updateCurrentBackup();
+  return result;
+});
+ipcMain.handle('getCustomerDebts', async () => {
+  return db.getCustomerDebts();
+});
+ipcMain.handle('markCustomerDebtPaid', async (event, id, paid_at) => {
+  const result = db.markCustomerDebtPaid(id, paid_at);
+  await updateCurrentBackup();
+  return result;
+});
+
+// Company debt handlers
+ipcMain.handle('addCompanyDebt', async (event, { company_name, amount, description }) => {
+  const result = db.addCompanyDebt({ company_name, amount, description });
+  await updateCurrentBackup();
+  return result;
+});
+ipcMain.handle('getCompanyDebts', async () => {
+  return db.getCompanyDebts();
+});
+ipcMain.handle('markCompanyDebtPaid', async (event, id, paid_at) => {
+  const result = db.markCompanyDebtPaid(id, paid_at);
+  await updateCurrentBackup();
+  return result;
+});
+
+// Monthly reports handlers
+ipcMain.handle('createMonthlyReport', async (event, month, year) => {
+  const result = db.createMonthlyReport(month, year);
+  await updateCurrentBackup();
+  return result;
+});
+ipcMain.handle('getMonthlyReports', async () => {
+  return db.getMonthlyReports();
+});
+ipcMain.handle('resetMonthlySalesAndProfit', async () => {
+  const result = db.resetMonthlySalesAndProfit();
+  await updateCurrentBackup();
+  return result;
+});
+
 ipcMain.handle('getDebtSales', async () => {
   try {
     const sales = db.getDebtSales();
@@ -226,11 +402,13 @@ ipcMain.handle('getDebtSales', async () => {
   }
 });
 // Backup functionality
-ipcMain.handle('createBackup', async () => {
+// New instant backup system - updates current backup after every change
+let currentBackupPath = null;
+
+// Initialize or get current backup file
+const initializeCurrentBackup = () => {
   try {
     const os = require('os');
-    
-    // Get default Documents folder
     const documentsPath = path.join(os.homedir(), 'Documents');
     const backupDir = path.join(documentsPath, 'Phone Shop Backups');
     
@@ -239,9 +417,59 @@ ipcMain.handle('createBackup', async () => {
       fs.mkdirSync(backupDir, { recursive: true });
     }
     
-    // Create backup filename with timestamp
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-    const backupFileName = `phone-shop-backup-${timestamp}.sqlite`;
+    // Use a fixed filename for current backup
+    const currentBackupFileName = 'phone-shop-current-backup.sqlite';
+    const backupPath = path.join(backupDir, currentBackupFileName);
+    
+    // Copy database file to current backup
+    const dbPath = path.join(__dirname, '../database/shop.sqlite');
+    fs.copyFileSync(dbPath, backupPath);
+    
+    currentBackupPath = backupPath;
+    return backupPath;
+  } catch (e) {
+    console.error('Failed to initialize current backup:', e);
+    return null;
+  }
+};
+
+// Update current backup after any change
+const updateCurrentBackup = async () => {
+  try {
+    if (!currentBackupPath) {
+      initializeCurrentBackup();
+      return;
+    }
+    
+    const dbPath = path.join(__dirname, '../database/shop.sqlite');
+    fs.copyFileSync(dbPath, currentBackupPath);
+    
+    // Update backup log
+    db.logBackup({
+      file_name: 'phone-shop-current-backup.sqlite',
+      encrypted: false,
+      log: `Current backup updated at ${new Date().toISOString()}`
+    });
+  } catch (e) {
+    console.error('Failed to update current backup:', e);
+  }
+};
+
+// Manual backup - creates a new backup file with timestamp
+ipcMain.handle('createBackup', async () => {
+  try {
+    const os = require('os');
+    // Get default Documents folder
+    const documentsPath = path.join(os.homedir(), 'Documents');
+    const backupDir = path.join(documentsPath, 'Phone Shop Backups');
+    if (!fs.existsSync(backupDir)) {
+      fs.mkdirSync(backupDir, { recursive: true });
+    }
+    
+    // Create backup filename with timestamp - always backup regardless of prefix
+    const now = new Date();
+    const nowPrefix = now.toISOString().slice(0, 19).replace(/:/g, '-'); // e.g., '2025-06-28T14-30-45'
+    const backupFileName = `phone-shop-backup-${nowPrefix}.sqlite`;
     const backupPath = path.join(backupDir, backupFileName);
     
     // Copy database file
@@ -252,12 +480,12 @@ ipcMain.handle('createBackup', async () => {
     db.logBackup({
       file_name: backupFileName,
       encrypted: false,
-      log: `Backup created at ${backupPath}`
+      log: `Manual backup created at ${backupPath}`
     });
     
-    return { 
-      success: true, 
-      message: 'Backup created successfully', 
+    return {
+      success: true,
+      message: 'Backup created successfully',
       path: backupPath,
       fileName: backupFileName
     };
@@ -265,6 +493,9 @@ ipcMain.handle('createBackup', async () => {
     return { success: false, message: e.message };
   }
 });
+
+// Initialize current backup on startup
+initializeCurrentBackup();
 
 ipcMain.handle('getBackupHistory', async () => {
   try {
@@ -310,60 +541,7 @@ ipcMain.handle('selectBackupFile', async () => {
   }
 });
 
-// Auto backup functionality
-let autoBackupInterval = null;
-
-ipcMain.handle('setAutoBackup', async (event, enabled) => {
-  try {
-    if (enabled) {
-      // Clear existing interval
-      if (autoBackupInterval) {
-        clearInterval(autoBackupInterval);
-      }
-      
-      // Set up daily backup (24 hours = 24 * 60 * 60 * 1000 ms)
-      autoBackupInterval = setInterval(async () => {
-        try {
-          const os = require('os');
-          const documentsPath = path.join(os.homedir(), 'Documents');
-          const backupDir = path.join(documentsPath, 'Phone Shop Backups', 'Auto');
-          
-          if (!fs.existsSync(backupDir)) {
-            fs.mkdirSync(backupDir, { recursive: true });
-          }
-          
-          const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-          const backupFileName = `auto-backup-${timestamp}.sqlite`;
-          const backupPath = path.join(backupDir, backupFileName);
-          
-          const dbPath = path.join(__dirname, '../database/shop.sqlite');
-          fs.copyFileSync(dbPath, backupPath);
-          
-          db.logBackup({
-            file_name: backupFileName,
-            encrypted: false,
-            log: `Auto backup created at ${backupPath}`
-          });
-          
-          // Silent auto backup success
-        } catch (error) {
-          console.error('Auto backup failed:', error);
-        }
-      }, 24 * 60 * 60 * 1000); // 24 hours
-      
-      return { success: true, message: 'Auto backup enabled' };
-    } else {
-      // Disable auto backup
-      if (autoBackupInterval) {
-        clearInterval(autoBackupInterval);
-        autoBackupInterval = null;
-      }
-      return { success: true, message: 'Auto backup disabled' };
-    }
-  } catch (e) {
-    return { success: false, message: e.message };
-  }
-});
+// Removed auto backup functionality - replaced with instant backup on every change
 // Cloud backup functionality
 ipcMain.handle('readBackupFile', async (event, filePath) => {
   try {
@@ -468,4 +646,35 @@ ipcMain.handle('restoreFromCloudBackup', async (event, filePath) => {
     console.error('[Restore] Restore failed:', e);
     return { success: false, message: e.message };
   }
+});
+
+// Return handlers
+ipcMain.handle('returnSale', async (event, saleId) => {
+  try {
+    const result = db.returnSale(saleId);
+    await updateCurrentBackup();
+    return { success: true };
+  } catch (e) {
+    return { success: false, message: e.message };
+  }
+});
+
+ipcMain.handle('returnSaleItem', async (event, saleId, itemId) => {
+  try {
+    const result = db.returnSaleItem(saleId, itemId);
+    await updateCurrentBackup();
+    return { success: true };
+  } catch (e) {
+    return { success: false, message: e.message };
+  }
+});
+
+// Cloud backup trigger handler
+ipcMain.on('trigger-cloud-auto-backup', (event) => {
+  console.debug('[Main] Received trigger-cloud-auto-backup event');
+  // Send message to all renderer processes to handle cloud backup
+  const allWindows = BrowserWindow.getAllWindows();
+  allWindows.forEach(window => {
+    window.webContents.send('trigger-cloud-auto-backup');
+  });
 });

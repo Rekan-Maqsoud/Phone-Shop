@@ -9,6 +9,8 @@ export default function useCart(showToast, showConfirm) {
     setItems(prevItems => {
       const existing = prevItems.find(item => item.id === product.id && item.isReturn === isReturn);
       const availableStock = product.stock ?? 1;
+      
+      // For returns, we don't check stock availability
       if (!isReturn && availableStock === 0) {
         showConfirm('Stock is empty. Do you want to increment the stock by 1?', () => {
           window.api?.editProduct && window.api.editProduct({ ...product, stock: 1 }).then(res => {
@@ -17,13 +19,17 @@ export default function useCart(showToast, showConfirm) {
         });
         return prevItems;
       }
+      
       if (existing) {
         // Calculate new total if we add this quantity
         const newTotal = (existing.quantity || 1) + quantity;
+        
+        // For returns, we don't limit by stock
         if (!isReturn && newTotal > availableStock) {
           showToast(`Cannot add more than available stock! Available: ${availableStock}`, 'error');
           return prevItems;
         }
+        
         // Increase quantity by specified amount
         return prevItems.map(item =>
           item.id === product.id && item.isReturn === isReturn
@@ -37,12 +43,15 @@ export default function useCart(showToast, showConfirm) {
             : item
         );
       } else {
-        // Calculate total quantity in cart for this product (all non-return items)
-        const totalInCart = prevItems.filter(item => item.id === product.id && !item.isReturn).reduce((sum, item) => sum + (item.quantity || 1), 0);
-        if (!isReturn && (totalInCart + quantity) > availableStock) {
-          showToast(`Cannot add more than available stock! Available: ${availableStock}, In cart: ${totalInCart}`, 'error');
-          return prevItems;
+        // For new items, check stock only for non-returns
+        if (!isReturn) {
+          const totalInCart = prevItems.filter(item => item.id === product.id && !item.isReturn).reduce((sum, item) => sum + (item.quantity || 1), 0);
+          if ((totalInCart + quantity) > availableStock) {
+            showToast(`Cannot add more than available stock! Available: ${availableStock}, In cart: ${totalInCart}`, 'error');
+            return prevItems;
+          }
         }
+        
         // Add new item with specified quantity
         return [
           ...prevItems,

@@ -1,5 +1,5 @@
 {
-  "name": "RK-system",
+  "name": "mobile-roma",
   "private": true,
   "version": "0.1.0",
   "main": "src/main.cjs",
@@ -20,6 +20,7 @@
     "bcryptjs": "^3.0.2",
     "better-sqlite3": "^9.6.0",
     "dotenv": "^16.6.0",
+    "electron-settings": "^4.0.4",
     "react": "^18.0.0",
     "react-dom": "^18.0.0",
     "react-router-dom": "^6.30.1"
@@ -42,5 +43,39 @@
     "tailwindcss": "^3.4.17",
     "vite": "^7.0.0",
     "wait-on": "^7.2.0"
+  },
+  "build": {
+    "appId": "com.mobilerema.phoneShop",
+    "productName": "Mobile Roma",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "src/**/*",
+      "database/**/*",
+      "node_modules/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "database/",
+        "to": "database/"
+      }
+    ],
+    "linux": {
+      "target": "AppImage",
+      "category": "Office"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "mac": {
+      "target": "dmg"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
   }
 }

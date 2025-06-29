@@ -1,0 +1,42 @@
+"You are tasked with updating an application based on the requirements in the provided .txt file.
+
+Key directives for this task:
+
+    Modify existing files, do not rewrite them. You must apply changes by editing the current code, not by deleting files and creating them from scratch. This is to ensure all existing logic is preserved.
+
+    The entire application is AI-generated. You are responsible for implementing all requirements completely. Do not leave any placeholders, comments, or tasks for a human to finish. The implementation must be fully autonomous and final."
+
+
+
+
+
+......................................................................
+
+next upadte :
+
+1- paid debt isnt shown when clicked on the show paid and the paid checkbox doesnt have a confirmation
+
+2- cloud auto backup didnt trigger after a sale 
+(error : Third-party cookie will be blocked. Learn more in the Issues tab.
+
+Reading cookie in cross-site context will be blocked in future Chrome versions
+Cookies with the SameSite=None; Secure and not Partitioned attributes that operate in cross-site contexts are third-party cookies. In future Chrome versions, reading third-party cookies will be blocked. This behavior protects user data from cross-site tracking.
+Please refer to the article linked to learn more about preparing your site to avoid potential breakage.
+1 cookie
+Name	Domain & Path
+a_session_685ddcd00006c06a72f0	.fra.cloud.appwrite.io/
+4 requests
+
+ account
+
+ account
+
+ documents?queries%5B0%5D=%7B%22method%22%3A%22equal%22%2C%22attribute%22%3A%22userId%22%2C%22values%22%3A%5B%22685df3730008d3e90f3f%22%5D%7D&queries%5B1%5D=%7B%22method%22%3A%22orderDesc%22%2C%22attribute%22%3A%22uploadDate%22%7D&queries%5B2%5D=%7B%22method%22%3A%22limit%22%2C%22values%22%3A%5B50%5D%7D
+
+ documents?queries%5B0%5D=%7B%22method%22%3A%22equal%22%2C%22attribute%22%3A%22userId%22%2C%22values%22%3A%5B%22685df3730008d3e90f3f%22%5D%7D&queries%5B1%5D=%7B%22method%22%3A%22orderDesc%22%2C%22attribute%22%3A%22uploadDate%22%7D&queries%5B2%5D=%7B%22method%22%3A%22limit%22%2C%22values%22%3A%5B50%5D%7D
+Learn more: Prepare for phasing out third-party cookies)
+
+
+3- add a seperate section as Buying History , and when a company debt is marked as paid , add it to here and then in the today's performence use it logically to be counted as money spent and decreace from the money recivied 
+
+4- there are migration errors make sure we are using the latest method and we wont face any problems during packaging and building (last time i got a blank screen with poilicy errors and some path related errors )

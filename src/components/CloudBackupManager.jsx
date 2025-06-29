@@ -50,10 +50,41 @@ export default function CloudBackupManager({ onClose, t }) {
   };
 
   useEffect(() => {
-    checkAuthStatus();
-    loadAutoBackupSettings();
-    validateConfiguration();
-  }, []);
+    // Wait a bit to allow Appwrite session restoration
+    const timer = setTimeout(() => {
+      checkAuthStatus();
+      loadAutoBackupSettings();
+      validateConfiguration();
+    }, 100); // 400ms delay
+
+    // Listen for auto backup trigger from main process
+    const handleAutoBackup = async () => {
+      if (!isAuthenticated) {
+        showToast('You must be signed in to use cloud backup. Please sign in first.', 'error');
+        setShowAuthForm(true);
+        return;
+      }
+      if (autoBackupSettings.enabled) {
+        try {
+          // Trigger auto backup
+          await performAutoBackup();
+        } catch (error) {
+          console.error('Auto backup failed:', error);
+        }
+      }
+    };
+    // Add event listener for auto backup trigger
+    if (window.api?.on) {
+      window.api.on('trigger-cloud-auto-backup', handleAutoBackup);
+    }
+    return () => {
+      clearTimeout(timer);
+      // Cleanup listener
+      if (window.api?.off) {
+        window.api.off('trigger-cloud-auto-backup', handleAutoBackup);
+      }
+    };
+  }, [isAuthenticated, autoBackupSettings.enabled]);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -284,12 +315,61 @@ export default function CloudBackupManager({ onClose, t }) {
   };
 
   const handleAutoBackupToggle = async (enabled) => {
+    // Update Electron main process setting for autoCloudBackup
+    if (window.api?.setAutoBackup) {
+      try {
+        await window.api.setAutoBackup(enabled);
+      } catch (e) {
+        // Optionally log or toast error
+      }
+    }
+    // Also update Appwrite/cloud settings as before
     const result = await cloudAuthService.updateAutoBackupSettings(enabled, autoBackupSettings.frequency);
     if (result.success) {
       setAutoBackupSettings(prev => ({ ...prev, enabled }));
       showToast(`Auto backup ${enabled ? 'enabled' : 'disabled'}`);
     } else {
       showToast('Failed to update auto backup settings', 'error');
+    }
+  };
+
+  const performAutoBackup = async () => {
+    try {
+      // Create local backup first
+      if (window.api?.createBackup) {
+        const localBackup = await window.api.createBackup();
+        if (localBackup.success && localBackup.path) {
+          // Read the backup file
+          const backupFile = await window.api.readBackupFile(localBackup.path);
+          if (backupFile && backupFile.length > 0) {
+            // Create auto backup name with timestamp
+            const now = new Date();
+            const timestamp = now.toISOString().slice(0, 19).replace(/:/g, '-');
+            const autoBackupName = `auto-backup-${timestamp}.sqlite`;
+            
+            // Convert to File object for Appwrite
+            const file = new File([backupFile], autoBackupName, {
+              type: 'application/octet-stream'
+            });
+            
+            const result = await cloudAuthService.uploadBackup(
+              file,
+              autoBackupName,
+              `Automatic backup created on ${now.toLocaleString()}`
+            );
+            
+            if (result.success) {
+              console.log('Auto backup completed successfully');
+              loadBackups();
+              loadStorageUsage();
+            } else {
+              console.error('Auto backup upload failed:', result.error);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Auto backup failed:', error);
     }
   };
 
@@ -304,19 +384,19 @@ export default function CloudBackupManager({ onClose, t }) {
           {/* Authentication Section */}
           {!isAuthenticated ? (
             <div className="text-center">
-              <h3 className="text-lg font-semibold mb-4">Cloud Backup Service</h3>
-              <p className="text-gray-600 mb-6">
+              <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">Cloud Backup Service</h3>
+              <p className="text-gray-600 dark:text-gray-400 mb-6">
                 Sign in to backup and restore your data securely in the cloud
               </p>
               
               {/* Configuration Warning */}
               {configValid && !configValid.isValid && (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
-                  <p className="text-sm text-yellow-800">
+                <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg p-3 mb-4">
+                  <p className="text-sm text-yellow-800 dark:text-yellow-200">
                     ⚠️ Cloud backup configuration incomplete. 
                     <button
                       onClick={() => setShowConfigTest(true)}
-                      className="ml-1 text-yellow-600 hover:text-yellow-800 underline"
+                      className="ml-1 text-yellow-600 dark:text-yellow-300 hover:text-yellow-800 dark:hover:text-yellow-100 underline"
                     >
                       Click here to test configuration
                     </button>
@@ -333,7 +413,7 @@ export default function CloudBackupManager({ onClose, t }) {
               </button>
               
               {configValid && !configValid.isValid && (
-                <p className="text-xs text-gray-500 mt-2">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
                   Please fix configuration issues before signing in
                 </p>
               )}
@@ -341,11 +421,11 @@ export default function CloudBackupManager({ onClose, t }) {
           ) : (
             <>
               {/* User Info & Storage Usage */}
-              <div className="bg-gray-50 p-4 rounded-lg">
+              <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
                 <div className="flex justify-between items-center mb-2">
                   <div>
-                    <h3 className="font-semibold">{user?.name}</h3>
-                    <p className="text-sm text-gray-600">{user?.email}</p>
+                    <h3 className="font-semibold text-gray-900 dark:text-gray-100">{user?.name}</h3>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">{user?.email}</p>
                   </div>
                   <button
                     onClick={handleLogout}
@@ -355,21 +435,21 @@ export default function CloudBackupManager({ onClose, t }) {
                   </button>
                 </div>
                 {storageUsage && (
-                  <div className="text-sm text-gray-600">
+                  <div className="text-sm text-gray-600 dark:text-gray-400">
                     Storage Used: {storageUsage.formattedSize} ({storageUsage.count} backups)
                   </div>
                 )}
               </div>
 
               {/* Auto Backup Settings */}
-              <div className="border p-4 rounded-lg">
-                <h4 className="font-semibold mb-3">Auto Backup Settings</h4>
+              <div className="border dark:border-gray-600 p-4 rounded-lg">
+                <h4 className="font-semibold mb-3 text-gray-900 dark:text-gray-100">Auto Backup Settings</h4>
                 <div className="flex items-center justify-between">
-                  <span>Enable automatic cloud backup</span>
+                  <span className="text-gray-800 dark:text-gray-200">Enable automatic cloud backup</span>
                   <button
                     onClick={() => handleAutoBackupToggle(!autoBackupSettings.enabled)}
                     className={`w-12 h-6 rounded-full transition-colors ${
-                      autoBackupSettings.enabled ? 'bg-blue-500' : 'bg-gray-300'
+                      autoBackupSettings.enabled ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'
                     }`}
                   >
                     <div
@@ -408,27 +488,27 @@ export default function CloudBackupManager({ onClose, t }) {
 
               {/* Backups List */}
               <div>
-                <h4 className="font-semibold mb-3">Cloud Backups</h4>
+                <h4 className="font-semibold mb-3 text-gray-900 dark:text-gray-100">Cloud Backups</h4>
                 {loading ? (
                   <div className="text-center py-8">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
-                    <p className="mt-2 text-gray-600">Loading...</p>
+                    <p className="mt-2 text-gray-600 dark:text-gray-400">Loading...</p>
                   </div>
                 ) : backups.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
+                  <div className="text-center py-8 text-gray-500 dark:text-gray-400">
                     No cloud backups found
                   </div>
                 ) : (
                   <div className="space-y-2 max-h-64 overflow-y-auto">
                     {backups.map((backup) => (
-                      <div key={backup.$id} className="border p-3 rounded-lg">
+                      <div key={backup.$id} className="border dark:border-gray-600 p-3 rounded-lg bg-white dark:bg-gray-800">
                         <div className="flex justify-between items-start">
                           <div className="flex-1">
-                            <h5 className="font-medium">{backup.fileName}</h5>
+                            <h5 className="font-medium text-gray-900 dark:text-gray-100">{backup.fileName}</h5>
                             {backup.description && (
-                              <p className="text-sm text-gray-600 mt-1">{backup.description}</p>
+                              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{backup.description}</p>
                             )}
-                            <div className="text-xs text-gray-500 mt-2">
+                            <div className="text-xs text-gray-500 dark:text-gray-400 mt-2">
                               <span>Version {backup.version} • </span>
                               <span>{formatDate(backup.uploadDate)} • </span>
                               <span>
@@ -460,7 +540,7 @@ export default function CloudBackupManager({ onClose, t }) {
                             <button
                               onClick={() => handleDeleteBackup(backup)}
                               className="text-red-500 hover:text-red-700 text-sm"
-                              title="Delete backup"
+                              title={t.deleteBackup}
                             >
                               Delete
                             </button>
@@ -486,35 +566,35 @@ export default function CloudBackupManager({ onClose, t }) {
           <form onSubmit={handleAuth} className="space-y-4">
             {!isLogin && (
               <div>
-                <label className="block text-sm font-medium mb-1">Full Name</label>
+                <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Full Name</label>
                 <input
                   type="text"
                   value={authForm.name}
                   onChange={(e) => setAuthForm(prev => ({ ...prev, name: e.target.value }))}
-                  className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                   required={!isLogin}
                 />
               </div>
             )}
             
             <div>
-              <label className="block text-sm font-medium mb-1">Email</label>
+              <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Email</label>
               <input
                 type="email"
                 value={authForm.email}
                 onChange={(e) => setAuthForm(prev => ({ ...prev, email: e.target.value }))}
-                className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                 required
               />
             </div>
             
             <div>
-              <label className="block text-sm font-medium mb-1">Password</label>
+              <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Password</label>
               <input
                 type="password"
                 value={authForm.password}
                 onChange={(e) => setAuthForm(prev => ({ ...prev, password: e.target.value }))}
-                className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                 required
                 minLength="8"
               />
@@ -522,12 +602,12 @@ export default function CloudBackupManager({ onClose, t }) {
             
             {!isLogin && (
               <div>
-                <label className="block text-sm font-medium mb-1">Confirm Password</label>
+                <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Confirm Password</label>
                 <input
                   type="password"
                   value={authForm.confirmPassword}
                   onChange={(e) => setAuthForm(prev => ({ ...prev, confirmPassword: e.target.value }))}
-                  className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                   required={!isLogin}
                   minLength="8"
                 />
@@ -563,24 +643,24 @@ export default function CloudBackupManager({ onClose, t }) {
         >
           <form onSubmit={handleCreateBackup} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Backup Name</label>
+              <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Backup Name</label>
               <input
                 type="text"
                 value={backupForm.name}
                 onChange={(e) => setBackupForm(prev => ({ ...prev, name: e.target.value }))}
-                className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                 placeholder="Leave empty for auto-generated name"
               />
             </div>
             
             <div>
-              <label className="block text-sm font-medium mb-1">Description (Optional)</label>
+              <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Description (Optional)</label>
               <textarea
                 value={backupForm.description}
                 onChange={(e) => setBackupForm(prev => ({ ...prev, description: e.target.value }))}
-                className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                 rows="3"
-                placeholder="Add a description for this backup..."
+                placeholder={t.backupDescriptionPlaceholder}
               />
             </div>
             
@@ -595,7 +675,7 @@ export default function CloudBackupManager({ onClose, t }) {
               <button
                 type="button"
                 onClick={() => setShowBackupForm(false)}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
               >
                 Cancel
               </button>

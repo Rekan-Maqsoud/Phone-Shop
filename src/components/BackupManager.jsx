@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
 
-export default function BackupManager({ t, onClose }) {
+export default function BackupManager({ show, t, onClose, onRestore }) {
+  if (!show) return null;
+  
   const [backupHistory, setBackupHistory] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [autoBackupEnabled, setAutoBackupEnabled] = useState(() => 
-    localStorage.getItem('autoBackupEnabled') === 'true'
-  );
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState('success');
 
@@ -76,30 +75,7 @@ export default function BackupManager({ t, onClose }) {
     }
   };
 
-  const handleAutoBackupToggle = async (enabled) => {
-    setLoading(true);
-    try {
-      if (window.api?.setAutoBackup) {
-        const result = await window.api.setAutoBackup(enabled);
-        if (result.success) {
-          setAutoBackupEnabled(enabled);
-          localStorage.setItem('autoBackupEnabled', enabled.toString());
-          showMessage(
-            enabled 
-              ? t.autoBackupSystemEnabled || 'Auto backup enabled - Database will be backed up every 24 hours'
-              : t.autoBackupSystemDisabled || 'Auto backup disabled',
-            'success'
-          );
-        } else {
-          showMessage(result.message || t.autoBackupFailed || 'Failed to toggle auto backup', 'error');
-        }
-      }
-    } catch (e) {
-      showMessage(t.autoBackupFailed || 'Failed to toggle auto backup', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Removed auto backup functionality - replaced with instant backup
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleString();
@@ -116,8 +92,11 @@ export default function BackupManager({ t, onClose }) {
             <button
               onClick={onClose}
               className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 text-2xl"
+              aria-label="Close Backup Manager"
+              tabIndex={0}
+              autoFocus
             >
-              ✕
+              ×
             </button>
           </div>
 
@@ -151,33 +130,20 @@ export default function BackupManager({ t, onClose }) {
               </button>
             </div>
 
-            {/* Auto Backup */}
-            <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-6">
+            {/* Instant Backup Status */}
+            <div className="bg-green-50 dark:bg-green-900/30 rounded-lg p-6">
               <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">
-                {t.autoBackupSystem || 'Auto Backup'}
+                {t.instantBackup || 'Instant Backup'}
               </h3>
               <p className="text-gray-600 dark:text-gray-300 mb-4">
-                {t.autoBackupDesc || 'Automatically backup your database every 24 hours'}
+                {t.instantBackupDesc || 'Your database is automatically backed up after every change (sale, product modification, etc.)'}
               </p>
-              <label className="flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={autoBackupEnabled}
-                  onChange={(e) => handleAutoBackupToggle(e.target.checked)}
-                  disabled={loading}
-                  className="form-checkbox h-5 w-5 text-blue-600 rounded focus:ring-blue-500 focus:ring-2"
-                />
-                <span className="ml-3 text-gray-700 dark:text-gray-300">
-                  {t.enableAutoBackup || 'Enable automatic daily backup'}
+              <div className="flex items-center gap-3 p-3 bg-green-100 dark:bg-green-900/50 rounded-lg">
+                <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                <span className="text-green-700 dark:text-green-200 font-medium">
+                  {t.instantBackupActive || 'Instant backup active'}
                 </span>
-              </label>
-              {autoBackupEnabled && (
-                <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900 rounded-lg">
-                  <p className="text-sm text-blue-700 dark:text-blue-100">
-                    {t.autoBackupActive || 'Auto backup is active. Next backup will be created in approximately 24 hours.'}
-                  </p>
-                </div>
-              )}
+              </div>
             </div>
           </div>
 
@@ -237,11 +203,11 @@ export default function BackupManager({ t, onClose }) {
                         </td>
                         <td className="px-4 py-3">
                           <span className={`inline-block px-2 py-1 rounded text-xs font-semibold ${
-                            backup.file_name.includes('auto-backup') 
+                            backup.file_name === 'phone-shop-current-backup.sqlite'
                               ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100'
                               : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100'
                           }`}>
-                            {backup.file_name.includes('auto-backup') ? 'Auto' : 'Manual'}
+                            {backup.file_name === 'phone-shop-current-backup.sqlite' ? (t.instantBackup || 'Instant') : (t.manual || 'Manual')}
                           </span>
                         </td>
                         <td className="px-4 py-3">

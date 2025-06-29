@@ -23,6 +23,9 @@ export const phoneBrands = [
       'Galaxy S21 FE', 'Galaxy S20 FE',
       // Others
       'Galaxy Xcover 7', 'Galaxy Xcover 5', 'Galaxy Xcover Pro',
+      // Galaxy Tab Series (Tablets/iPads)
+      'Galaxy Tab S9 Ultra', 'Galaxy Tab S9+', 'Galaxy Tab S9', 'Galaxy Tab S8 Ultra', 'Galaxy Tab S8+', 'Galaxy Tab S8', 'Galaxy Tab S7 FE', 'Galaxy Tab S7+', 'Galaxy Tab S7', 'Galaxy Tab S6 Lite', 'Galaxy Tab S6', 'Galaxy Tab S5e', 'Galaxy Tab S4', 'Galaxy Tab S3', 'Galaxy Tab S2',
+      'Galaxy Tab A9+', 'Galaxy Tab A9', 'Galaxy Tab A8', 'Galaxy Tab A7', 'Galaxy Tab A 10.1', 'Galaxy Tab A 8.0', 'Galaxy Tab A7 Lite', 'Galaxy Tab Active3', 'Galaxy Tab Active2',
     ]
   },
   {
@@ -46,6 +49,11 @@ export const phoneBrands = [
       'iPhone 8 Plus', 'iPhone 8', 'iPhone 7 Plus', 'iPhone 7', 'iPhone 6s Plus', 'iPhone 6s', 'iPhone 6 Plus', 'iPhone 6', 'iPhone 5s', 'iPhone 5c', 'iPhone 5', 'iPhone 4s', 'iPhone 4',
       // iPhone 3GS/3G/2G
       'iPhone 3GS', 'iPhone 3G', 'iPhone',
+      // iPad Series
+      'iPad Pro 12.9-inch (6th generation)', 'iPad Pro 11-inch (4th generation)', 'iPad Pro 12.9-inch (5th generation)', 'iPad Pro 11-inch (3rd generation)', 'iPad Pro 12.9-inch (4th generation)', 'iPad Pro 11-inch (2nd generation)', 'iPad Pro 12.9-inch (3rd generation)', 'iPad Pro 11-inch (1st generation)', 'iPad Pro 12.9-inch (2nd generation)', 'iPad Pro 10.5-inch', 'iPad Pro 9.7-inch', 'iPad Pro 12.9-inch (1st generation)',
+      'iPad Air (5th generation)', 'iPad Air (4th generation)', 'iPad Air (3rd generation)', 'iPad Air 2', 'iPad Air',
+      'iPad (10th generation)', 'iPad (9th generation)', 'iPad (8th generation)', 'iPad (7th generation)', 'iPad (6th generation)', 'iPad (5th generation)', 'iPad (4th generation)', 'iPad (3rd generation)', 'iPad 2', 'iPad',
+      'iPad mini (6th generation)', 'iPad mini (5th generation)', 'iPad mini 4', 'iPad mini 3', 'iPad mini 2', 'iPad mini',
     ]
   },
   {
