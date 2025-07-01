@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import cloudAuthService from '../services/CloudAuthService';
-import appwriteValidator from '../services/AppwriteConfigValidator';
 import ModalBase from './ModalBase';
 import ToastUnified from './ToastUnified';
 
@@ -21,26 +20,9 @@ export default function CloudBackupManager({ onClose, t }) {
     confirmPassword: ''
   });
   
-  // Backup form states
-  const [showBackupForm, setShowBackupForm] = useState(false);
-  const [backupForm, setBackupForm] = useState({
-    name: '',
-    description: ''
-  });
-  
-  // Auto backup settings
-  const [autoBackupSettings, setAutoBackupSettings] = useState({
-    enabled: false,
-    frequency: 'daily'
-  });
-  
   // Toast state
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
   
-  // Configuration state
-  const [configValid, setConfigValid] = useState(null);
-  const [showConfigTest, setShowConfigTest] = useState(false);
-
   const showToast = (message, type = 'success') => {
     setToast({ show: true, message, type });
   };
@@ -49,42 +31,78 @@ export default function CloudBackupManager({ onClose, t }) {
     setToast({ show: false, message: '', type: 'success' });
   };
 
+  // Replace loadBackups to use window.api
+  const loadBackups = useCallback(async () => {
+    setLoading(true);
+    let result;
+    if (window.api?.getCloudBackups) {
+      result = await window.api.getCloudBackups();
+    } else {
+      result = await cloudAuthService.getBackups();
+    }
+    if (result.success) {
+      setBackups(result.backups);
+    } else {
+      showToast(result.error || (t.failedToLoadBackups || 'Failed to load backups'), 'error');
+    }
+    setLoading(false);
+  }, []);
+
+  // Replace loadStorageUsage to use window.api
+  const loadStorageUsage = useCallback(async () => {
+    let result;
+    if (window.api?.getCloudStorageUsage) {
+      result = await window.api.getCloudStorageUsage();
+    } else {
+      result = await cloudAuthService.getStorageUsage();
+    }
+    if (result.success) {
+      setStorageUsage(result);
+    }
+  }, []);
+
+  // Unified auto backup function - called by the unified backup system
+  const performUnifiedAutoBackup = useCallback(async () => {
+    if (!isAuthenticated) return;
+    
+    try {
+      const result = await cloudAuthService.performAutoBackup();
+      if (result.success) {
+  
+        loadBackups();
+        loadStorageUsage();
+      } else {
+        console.warn('Unified cloud auto backup failed:', result.error);
+      }
+    } catch (error) {
+      console.warn('Unified cloud auto backup error:', error);
+    }
+  }, [isAuthenticated, loadBackups, loadStorageUsage]);
+
   useEffect(() => {
     // Wait a bit to allow Appwrite session restoration
     const timer = setTimeout(() => {
       checkAuthStatus();
-      loadAutoBackupSettings();
-      validateConfiguration();
-    }, 100); // 400ms delay
+    }, 100);
 
-    // Listen for auto backup trigger from main process
-    const handleAutoBackup = async () => {
-      if (!isAuthenticated) {
-        showToast('You must be signed in to use cloud backup. Please sign in first.', 'error');
-        setShowAuthForm(true);
-        return;
-      }
-      if (autoBackupSettings.enabled) {
-        try {
-          // Trigger auto backup
-          await performAutoBackup();
-        } catch (error) {
-          console.error('Auto backup failed:', error);
-        }
+    // Listen for unified auto backup trigger
+    const handleUnifiedAutoBackup = () => {
+      if (isAuthenticated) {
+        performUnifiedAutoBackup();
       }
     };
-    // Add event listener for auto backup trigger
+
     if (window.api?.on) {
-      window.api.on('trigger-cloud-auto-backup', handleAutoBackup);
+      window.api.on('trigger-unified-auto-backup', handleUnifiedAutoBackup);
     }
+
     return () => {
       clearTimeout(timer);
-      // Cleanup listener
       if (window.api?.off) {
-        window.api.off('trigger-cloud-auto-backup', handleAutoBackup);
+        window.api.off('trigger-unified-auto-backup', handleUnifiedAutoBackup);
       }
     };
-  }, [isAuthenticated, autoBackupSettings.enabled]);
+  }, [isAuthenticated, performUnifiedAutoBackup]); // Added performUnifiedAutoBackup to dependencies
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -94,45 +112,33 @@ export default function CloudBackupManager({ onClose, t }) {
   }, [isAuthenticated]);
 
   const checkAuthStatus = async () => {
-    const result = await cloudAuthService.getCurrentUser();
-    if (result.success) {
-      setIsAuthenticated(true);
-      setUser(result.user);
-    } else {
+    setLoading(true);
+    try {
+      // First check if we have a valid session
+      const authCheck = await cloudAuthService.checkAuth();
+      
+      if (authCheck) {
+        const userResult = await cloudAuthService.getCurrentUser();
+        if (userResult.success && userResult.user) {
+          setIsAuthenticated(true);
+          setUser(userResult.user);
+          console.log('CloudBackupManager: User authenticated:', userResult.user.email);
+        } else {
+          setIsAuthenticated(false);
+          setUser(null);
+          console.log('CloudBackupManager: User not authenticated:', userResult.error);
+        }
+      } else {
+        setIsAuthenticated(false);
+        setUser(null);
+        console.log('CloudBackupManager: No valid session found');
+      }
+    } catch (error) {
+      console.error('CloudBackupManager: Error checking auth status:', error);
       setIsAuthenticated(false);
       setUser(null);
-    }
-  };
-
-  const loadBackups = async () => {
-    setLoading(true);
-    const result = await cloudAuthService.getBackups();
-    if (result.success) {
-      setBackups(result.backups);
-    } else {
-      showToast(result.error || 'Failed to load backups', 'error');
-    }
-    setLoading(false);
-  };
-
-  const loadStorageUsage = async () => {
-    const result = await cloudAuthService.getStorageUsage();
-    if (result.success) {
-      setStorageUsage(result);
-    }
-  };
-
-  const loadAutoBackupSettings = async () => {
-    const settings = await cloudAuthService.getAutoBackupSettings();
-    setAutoBackupSettings(settings);
-  };
-
-  const validateConfiguration = async () => {
-    const validation = await appwriteValidator.validate();
-    setConfigValid(validation);
-    
-    if (!validation.isValid && validation.errors.length > 0) {
-      showToast('Cloud backup configuration incomplete. Click "Test Configuration" for details.', 'warning');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -147,24 +153,31 @@ export default function CloudBackupManager({ onClose, t }) {
         result = await cloudAuthService.login(authForm.email, authForm.password);
       } else {
         if (authForm.password !== authForm.confirmPassword) {
-          showToast('Passwords do not match', 'error');
+          showToast(t.passwordsDoNotMatch || 'Passwords do not match', 'error');
           setLoading(false);
           return;
         }
         result = await cloudAuthService.createAccount(authForm.email, authForm.password, authForm.name);
       }
       
-      if (result.success) {
+      if (result && result.success) {
         setIsAuthenticated(true);
         setUser(result.user);
         setShowAuthForm(false);
         setAuthForm({ email: '', password: '', name: '', confirmPassword: '' });
-        showToast(isLogin ? 'Logged in successfully!' : 'Account created successfully!');
+        showToast(isLogin ? (t.loggedInSuccessfully || 'Logged in successfully!') : (t.accountCreatedSuccessfully || 'Account created successfully!'));
+        
+        // Load backups and storage usage after successful auth
+        await loadBackups();
+        await loadStorageUsage();
       } else {
-        showToast(result.error || 'Authentication failed', 'error');
+        const errorMsg = result?.error || (t.authenticationFailed || 'Authentication failed');
+        console.error('CloudBackupManager: Auth failed:', errorMsg);
+        showToast(errorMsg, 'error');
       }
     } catch (error) {
-      showToast('Authentication failed', 'error');
+      console.error('CloudBackupManager: Auth error:', error);
+      showToast((t.authenticationFailed || 'Authentication failed') + ': ' + error.message, 'error');
     }
     
     setLoading(false);
@@ -177,117 +190,99 @@ export default function CloudBackupManager({ onClose, t }) {
       setUser(null);
       setBackups([]);
       setStorageUsage(null);
-      showToast('Logged out successfully');
+      showToast(t.loggedOutSuccessfully || 'Logged out successfully');
     } else {
-      showToast(result.error || 'Logout failed', 'error');
+      showToast(result.error || (t.logoutFailed || 'Logout failed'), 'error');
     }
   };
 
-  const handleCreateBackup = async (e) => {
-    e.preventDefault();
+  // Manual backup creation - separate from auto backups
+  const handleCreateBackup = async () => {
     setLoading(true);
-    
     try {
-      // Create local backup first
       if (window.api?.createBackup) {
         const localBackup = await window.api.createBackup();
         if (!localBackup.success || !localBackup.path) {
-          showToast(localBackup.message || 'Failed to create local backup', 'error');
+          showToast(localBackup.message || (t.failedToCreateLocalBackup || 'Failed to create local backup'), 'error');
           setLoading(false);
           return;
         }
-        // Read the backup file
         const backupPath = localBackup.path || localBackup.filePath;
         const backupFile = await window.api.readBackupFile(backupPath);
         if (backupFile && backupFile.length > 0) {
-          // Convert to File object for Appwrite
-          const file = new File([backupFile], backupForm.name || localBackup.fileName, {
+          const now = new Date();
+          const backupName = `manual-backup-${now.toISOString().replace(/[:.]/g, '-')}.sqlite`;
+          const file = new File([backupFile], backupName, {
             type: 'application/octet-stream'
           });
-          const result = await cloudAuthService.uploadBackup(
-            file,
-            backupForm.name || localBackup.fileName,
-            backupForm.description
-          );
+          const result = await cloudAuthService.uploadBackup(file, backupName, 'Manual backup');
           if (result.success) {
-            showToast('Backup uploaded successfully!');
-            setShowBackupForm(false);
-            setBackupForm({ name: '', description: '' });
+            showToast(t.manualBackupUploadedSuccessfully || 'Manual backup uploaded successfully!');
             loadBackups();
             loadStorageUsage();
           } else {
-            showToast(result.error || 'Failed to upload backup', 'error');
+            showToast(result.error || (t.failedToUploadManualBackup || 'Failed to upload manual backup'), 'error');
           }
         } else {
-          showToast('Failed to read backup file or file is empty', 'error');
+          showToast(t.failedToReadBackupFile || 'Failed to read backup file or file is empty', 'error');
         }
       } else {
-        showToast('Backup API not available', 'error');
+        showToast(t.backupApiNotAvailable || 'Backup API not available', 'error');
       }
     } catch (error) {
-      showToast('Failed to create backup', 'error');
+      showToast(t.failedToCreateManualBackup || 'Failed to create manual backup', 'error');
     }
-    
     setLoading(false);
   };
 
+  // Replace handleDownloadBackup to use window.api.downloadCloudBackup
   const handleDownloadBackup = async (backup) => {
     setLoading(true);
     try {
-      const result = await cloudAuthService.downloadBackup(backup.$id);
-      if (result.success) {
-        // Download the file and save it locally
-        const response = await fetch(result.downloadUrl);
-        const arrayBuffer = await response.arrayBuffer();
-        const backupData = new Uint8Array(arrayBuffer);
-
-        // Save the backup locally
-        const saveResult = await window.api.saveCloudBackup(backupData, backup.fileName);
-        if (saveResult.success && saveResult.path) {
+      if (window.api?.downloadCloudBackup) {
+        const result = await window.api.downloadCloudBackup(backup.$id, backup.fileName);
+        if (result.success && result.path) {
           // Extra: Check file exists and is not empty
-          const fileCheck = await window.api.readBackupFile(saveResult.path);
+          const fileCheck = await window.api.readBackupFile(result.path);
           if (!fileCheck || fileCheck.length === 0) {
-            showToast('Downloaded backup file is empty or unreadable. Please try again.', 'error');
+            showToast(t.downloadedBackupIsEmpty || 'Downloaded backup file is empty or unreadable. Please try again.', 'error');
             setLoading(false);
             return;
           }
-          showToast('Backup downloaded successfully! You can now restore it.');
-          // Ask if user wants to restore immediately
-          if (confirm(`Backup downloaded to ${saveResult.path}. Do you want to restore it now?`)) {
-            await handleRestoreBackup(saveResult.path);
+          showToast(t.backupDownloadedSuccessfully || 'Backup downloaded successfully! You can now restore it.');
+          if (confirm((t.confirmDownloadRestore || 'Backup downloaded to {path}. Do you want to restore it now?').replace('{path}', result.path))) {
+            await handleRestoreBackup(result.path);
           }
         } else {
-          showToast(saveResult.message || 'Failed to save backup locally', 'error');
+          showToast(result.message || (t.failedToDownloadBackup || 'Failed to download backup'), 'error');
         }
       } else {
-        showToast(result.error || 'Failed to download backup', 'error');
+        showToast(t.cloudDownloadApiNotAvailable || 'Cloud download API not available', 'error');
       }
     } catch (error) {
-      showToast('Failed to download backup: ' + (error?.message || error), 'error');
+      showToast((t.failedToDownloadBackup || 'Failed to download backup') + ': ' + (error?.message || error), 'error');
     }
     setLoading(false);
   };
 
+  // Restore handleDeleteBackup to use cloudAuthService directly
   const handleDeleteBackup = async (backup) => {
-    if (!confirm(`Are you sure you want to delete "${backup.fileName}"?`)) {
+    if (!confirm((t.confirmDeleteBackup || 'Are you sure you want to delete "{fileName}"?').replace('{fileName}', backup.fileName))) {
       return;
     }
-    
     setLoading(true);
-    
     try {
       const result = await cloudAuthService.deleteBackup(backup.$id);
       if (result.success) {
-        showToast('Backup deleted successfully');
+        showToast(t.backupDeletedSuccessfully || 'Backup deleted successfully');
         loadBackups();
         loadStorageUsage();
       } else {
-        showToast(result.error || 'Failed to delete backup', 'error');
+        showToast(result.error || (t.failedToDeleteBackup || 'Failed to delete backup'), 'error');
       }
     } catch (error) {
-      showToast('Failed to delete backup', 'error');
+      showToast(t.failedToDeleteBackup || 'Failed to delete backup', 'error');
     }
-    
     setLoading(false);
   };
 
@@ -297,80 +292,21 @@ export default function CloudBackupManager({ onClose, t }) {
     try {
       const result = await window.api.restoreFromCloudBackup(filePath);
       if (result.success) {
-        showToast(result.message || 'Database restored successfully!');
+        showToast(result.message || (t.databaseRestoredSuccessfully || 'Database restored successfully!'));
         
         if (result.requiresRestart) {
-          if (confirm('Database restored successfully! The application needs to restart to apply changes. Restart now?')) {
+          if (confirm(t.databaseRestoredRestartRequired || 'Database restored successfully! The application needs to restart to apply changes. Restart now?')) {
             window.location.reload();
           }
         }
       } else {
-        showToast(result.message || 'Failed to restore backup', 'error');
+        showToast(result.message || (t.failedToRestoreBackup || 'Failed to restore backup'), 'error');
       }
     } catch (error) {
-      showToast('Failed to restore backup', 'error');
+      showToast(t.failedToRestoreBackup || 'Failed to restore backup', 'error');
     }
     
     setLoading(false);
-  };
-
-  const handleAutoBackupToggle = async (enabled) => {
-    // Update Electron main process setting for autoCloudBackup
-    if (window.api?.setAutoBackup) {
-      try {
-        await window.api.setAutoBackup(enabled);
-      } catch (e) {
-        // Optionally log or toast error
-      }
-    }
-    // Also update Appwrite/cloud settings as before
-    const result = await cloudAuthService.updateAutoBackupSettings(enabled, autoBackupSettings.frequency);
-    if (result.success) {
-      setAutoBackupSettings(prev => ({ ...prev, enabled }));
-      showToast(`Auto backup ${enabled ? 'enabled' : 'disabled'}`);
-    } else {
-      showToast('Failed to update auto backup settings', 'error');
-    }
-  };
-
-  const performAutoBackup = async () => {
-    try {
-      // Create local backup first
-      if (window.api?.createBackup) {
-        const localBackup = await window.api.createBackup();
-        if (localBackup.success && localBackup.path) {
-          // Read the backup file
-          const backupFile = await window.api.readBackupFile(localBackup.path);
-          if (backupFile && backupFile.length > 0) {
-            // Create auto backup name with timestamp
-            const now = new Date();
-            const timestamp = now.toISOString().slice(0, 19).replace(/:/g, '-');
-            const autoBackupName = `auto-backup-${timestamp}.sqlite`;
-            
-            // Convert to File object for Appwrite
-            const file = new File([backupFile], autoBackupName, {
-              type: 'application/octet-stream'
-            });
-            
-            const result = await cloudAuthService.uploadBackup(
-              file,
-              autoBackupName,
-              `Automatic backup created on ${now.toLocaleString()}`
-            );
-            
-            if (result.success) {
-              console.log('Auto backup completed successfully');
-              loadBackups();
-              loadStorageUsage();
-            } else {
-              console.error('Auto backup upload failed:', result.error);
-            }
-          }
-        }
-      }
-    } catch (error) {
-      console.error('Auto backup failed:', error);
-    }
   };
 
   const formatDate = (dateString) => {
@@ -379,48 +315,26 @@ export default function CloudBackupManager({ onClose, t }) {
 
   return (
     <>
-      <ModalBase open={true} title="Cloud Backup Manager" onClose={onClose}>
+      <ModalBase open={true} title={t.cloudBackupManager || 'Cloud Backup Manager'} onClose={onClose}>
         <div className="space-y-6">
           {/* Authentication Section */}
           {!isAuthenticated ? (
             <div className="text-center">
-              <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">Cloud Backup Service</h3>
+              <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">{t.cloudBackupService || 'Cloud Backup Service'}</h3>
               <p className="text-gray-600 dark:text-gray-400 mb-6">
-                Sign in to backup and restore your data securely in the cloud
+                {t.signInToEnable || 'Sign in to enable automatic cloud backup after every data change, plus manual backup and restore capabilities'}
               </p>
-              
-              {/* Configuration Warning */}
-              {configValid && !configValid.isValid && (
-                <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg p-3 mb-4">
-                  <p className="text-sm text-yellow-800 dark:text-yellow-200">
-                    ⚠️ Cloud backup configuration incomplete. 
-                    <button
-                      onClick={() => setShowConfigTest(true)}
-                      className="ml-1 text-yellow-600 dark:text-yellow-300 hover:text-yellow-800 dark:hover:text-yellow-100 underline"
-                    >
-                      Click here to test configuration
-                    </button>
-                  </p>
-                </div>
-              )}
               
               <button
                 onClick={() => setShowAuthForm(true)}
-                disabled={configValid && !configValid.isValid}
-                className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg transition-colors"
               >
-                Sign In / Sign Up
+                {t.signInSignUp || 'Sign In / Sign Up'}
               </button>
-              
-              {configValid && !configValid.isValid && (
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                  Please fix configuration issues before signing in
-                </p>
-              )}
             </div>
           ) : (
             <>
-              {/* User Info & Storage Usage */}
+              {/* User Info, Storage Usage & Auto Backup Status */}
               <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
                 <div className="flex justify-between items-center mb-2">
                   <div>
@@ -431,72 +345,51 @@ export default function CloudBackupManager({ onClose, t }) {
                     onClick={handleLogout}
                     className="text-red-500 hover:text-red-700 text-sm"
                   >
-                    Sign Out
+                    {t.signOut || 'Sign Out'}
                   </button>
                 </div>
                 {storageUsage && (
-                  <div className="text-sm text-gray-600 dark:text-gray-400">
-                    Storage Used: {storageUsage.formattedSize} ({storageUsage.count} backups)
+                  <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                    {t.storageUsed || 'Storage Used'}: {storageUsage.formattedSize} ({storageUsage.count} {t.backups || 'backups'})
                   </div>
                 )}
-              </div>
-
-              {/* Auto Backup Settings */}
-              <div className="border dark:border-gray-600 p-4 rounded-lg">
-                <h4 className="font-semibold mb-3 text-gray-900 dark:text-gray-100">Auto Backup Settings</h4>
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-800 dark:text-gray-200">Enable automatic cloud backup</span>
-                  <button
-                    onClick={() => handleAutoBackupToggle(!autoBackupSettings.enabled)}
-                    className={`w-12 h-6 rounded-full transition-colors ${
-                      autoBackupSettings.enabled ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'
-                    }`}
-                  >
-                    <div
-                      className={`w-5 h-5 bg-white rounded-full transition-transform ${
-                        autoBackupSettings.enabled ? 'translate-x-6' : 'translate-x-1'
-                      }`}
-                    />
-                  </button>
+                <div className="flex items-center gap-2 p-2 bg-green-100 dark:bg-green-900/50 rounded-lg">
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                  <span className="text-sm text-green-700 dark:text-green-200 font-medium">
+                    {t.autoCloudBackupActive || 'Auto Cloud Backup Active (Updates after every change)'}
+                  </span>
                 </div>
               </div>
 
-              {/* Actions */}
+              {/* Manual Actions */}
               <div className="flex gap-3">
                 <button
-                  onClick={() => setShowBackupForm(true)}
+                  onClick={handleCreateBackup}
                   disabled={loading}
                   className="flex-1 bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded-lg transition-colors disabled:opacity-50"
                 >
-                  {loading ? 'Creating...' : 'Create Backup'}
+                  {loading ? (t.creating || 'Creating...') : (t.createManualBackup || 'Create Manual Backup')}
                 </button>
                 <button
                   onClick={loadBackups}
                   disabled={loading}
                   className="bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-lg transition-colors disabled:opacity-50"
                 >
-                  Refresh
-                </button>
-                <button
-                  onClick={() => setShowConfigTest(true)}
-                  className="bg-gray-500 hover:bg-gray-600 text-white py-2 px-4 rounded-lg transition-colors"
-                  title="Test Appwrite configuration"
-                >
-                  Test Config
+                  {t.refresh || 'Refresh'}
                 </button>
               </div>
 
               {/* Backups List */}
               <div>
-                <h4 className="font-semibold mb-3 text-gray-900 dark:text-gray-100">Cloud Backups</h4>
+                <h4 className="font-semibold mb-3 text-gray-900 dark:text-gray-100">{t.cloudBackups || 'Cloud Backups'}</h4>
                 {loading ? (
                   <div className="text-center py-8">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
-                    <p className="mt-2 text-gray-600 dark:text-gray-400">Loading...</p>
+                    <p className="mt-2 text-gray-600 dark:text-gray-400">{t.loading || 'Loading...'}</p>
                   </div>
                 ) : backups.length === 0 ? (
                   <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                    No cloud backups found
+                    {t.noCloudBackupsFound || 'No cloud backups found'}
                   </div>
                 ) : (
                   <div className="space-y-2 max-h-64 overflow-y-auto">
@@ -505,16 +398,13 @@ export default function CloudBackupManager({ onClose, t }) {
                         <div className="flex justify-between items-start">
                           <div className="flex-1">
                             <h5 className="font-medium text-gray-900 dark:text-gray-100">{backup.fileName}</h5>
-                            {backup.description && (
-                              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{backup.description}</p>
-                            )}
                             <div className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                              <span>Version {backup.version} • </span>
+                              <span>{t.version || 'Version'} {backup.version} • </span>
                               <span>{formatDate(backup.uploadDate)} • </span>
                               <span>
                                 {typeof backup.fileSize === 'number' && backup.fileSize > 0
                                   ? cloudAuthService.formatFileSize(backup.fileSize)
-                                  : 'Unknown size'}
+                                  : (t.unknownSize || 'Unknown size')}
                               </span>
                             </div>
                           </div>
@@ -522,27 +412,27 @@ export default function CloudBackupManager({ onClose, t }) {
                             <button
                               onClick={() => handleDownloadBackup(backup)}
                               className="text-blue-500 hover:text-blue-700 text-sm"
-                              title="Download backup"
+                              title={t.download || 'Download backup'}
                             >
-                              Download
+                              {t.download || 'Download'}
                             </button>
                             <button
                               onClick={() => {
-                                if (confirm(`Are you sure you want to restore from "${backup.fileName}"? This will replace all current data!`)) {
+                                if (confirm((t.confirmRestoreFromBackup || 'Are you sure you want to restore from "{fileName}"? This will replace all current data!').replace('{fileName}', backup.fileName))) {
                                   handleDownloadBackup(backup);
                                 }
                               }}
                               className="text-green-500 hover:text-green-700 text-sm"
-                              title="Download and restore backup"
+                              title={t.restore || 'Download and restore backup'}
                             >
-                              Restore
+                              {t.restore || 'Restore'}
                             </button>
                             <button
                               onClick={() => handleDeleteBackup(backup)}
                               className="text-red-500 hover:text-red-700 text-sm"
-                              title={t.deleteBackup}
+                              title={t.delete || 'Delete'}
                             >
-                              Delete
+                              {t.delete || 'Delete'}
                             </button>
                           </div>
                         </div>
@@ -560,13 +450,13 @@ export default function CloudBackupManager({ onClose, t }) {
       {showAuthForm && (
         <ModalBase
           open={true}
-          title={isLogin ? 'Sign In' : 'Create Account'}
+          title={isLogin ? (t.signIn || 'Sign In') : (t.createAccount || 'Create Account')}
           onClose={() => setShowAuthForm(false)}
         >
           <form onSubmit={handleAuth} className="space-y-4">
             {!isLogin && (
               <div>
-                <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Full Name</label>
+                <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">{t.fullName || 'Full Name'}</label>
                 <input
                   type="text"
                   value={authForm.name}
@@ -578,7 +468,7 @@ export default function CloudBackupManager({ onClose, t }) {
             )}
             
             <div>
-              <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Email</label>
+              <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">{t.email || 'Email'}</label>
               <input
                 type="email"
                 value={authForm.email}
@@ -589,7 +479,7 @@ export default function CloudBackupManager({ onClose, t }) {
             </div>
             
             <div>
-              <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Password</label>
+              <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">{t.password || 'Password'}</label>
               <input
                 type="password"
                 value={authForm.password}
@@ -602,7 +492,7 @@ export default function CloudBackupManager({ onClose, t }) {
             
             {!isLogin && (
               <div>
-                <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Confirm Password</label>
+                <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">{t.confirmPassword || 'Confirm Password'}</label>
                 <input
                   type="password"
                   value={authForm.confirmPassword}
@@ -620,147 +510,17 @@ export default function CloudBackupManager({ onClose, t }) {
                 disabled={loading}
                 className="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-lg transition-colors disabled:opacity-50"
               >
-                {loading ? 'Processing...' : (isLogin ? 'Sign In' : 'Create Account')}
+                {loading ? (t.processing || 'Processing...') : (isLogin ? (t.signIn || 'Sign In') : (t.createAccount || 'Create Account'))}
               </button>
               <button
                 type="button"
                 onClick={() => setIsLogin(!isLogin)}
                 className="text-blue-500 hover:text-blue-700 px-4"
               >
-                {isLogin ? 'Need an account?' : 'Already have an account?'}
+                {isLogin ? (t.needAnAccount || 'Need an account?') : (t.alreadyHaveAccount || 'Already have an account?')}
               </button>
             </div>
           </form>
-        </ModalBase>
-      )}
-
-      {/* Backup Form Modal */}
-      {showBackupForm && (
-        <ModalBase
-          open={true}
-          title="Create Cloud Backup"
-          onClose={() => setShowBackupForm(false)}
-        >
-          <form onSubmit={handleCreateBackup} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Backup Name</label>
-              <input
-                type="text"
-                value={backupForm.name}
-                onChange={(e) => setBackupForm(prev => ({ ...prev, name: e.target.value }))}
-                className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                placeholder="Leave empty for auto-generated name"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Description (Optional)</label>
-              <textarea
-                value={backupForm.description}
-                onChange={(e) => setBackupForm(prev => ({ ...prev, description: e.target.value }))}
-                className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                rows="3"
-                placeholder={t.backupDescriptionPlaceholder}
-              />
-            </div>
-            
-            <div className="flex gap-3">
-              <button
-                type="submit"
-                disabled={loading}
-                className="flex-1 bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded-lg transition-colors disabled:opacity-50"
-              >
-                {loading ? 'Creating...' : 'Create Backup'}
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowBackupForm(false)}
-                className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
-              >
-                Cancel
-              </button>
-            </div>
-          </form>
-        </ModalBase>
-      )}
-
-      {/* Configuration Test Modal */}
-      {showConfigTest && (
-        <ModalBase
-          open={true}
-          title="Appwrite Configuration Test"
-          onClose={() => setShowConfigTest(false)}
-        >
-          <div className="space-y-4">
-            {configValid && (
-              <>
-                <div className="space-y-2">
-                  <h4 className="font-semibold">Configuration Status</h4>
-                  
-                  {configValid.errors.length > 0 && (
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                      <h5 className="font-medium text-red-800 mb-2">Errors:</h5>
-                      <ul className="text-sm text-red-700 space-y-1">
-                        {configValid.errors.map((error, index) => (
-                          <li key={index}>• {error}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  
-                  {configValid.warnings.length > 0 && (
-                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-                      <h5 className="font-medium text-yellow-800 mb-2">Warnings:</h5>
-                      <ul className="text-sm text-yellow-700 space-y-1">
-                        {configValid.warnings.map((warning, index) => (
-                          <li key={index}>• {warning}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  
-                  {configValid.isValid && (
-                    <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                      <p className="text-sm text-green-700">✅ Configuration is valid!</p>
-                    </div>
-                  )}
-                </div>
-                
-                {!configValid.isValid && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                    <h5 className="font-medium text-blue-800 mb-2">Setup Instructions:</h5>
-                    <ol className="text-sm text-blue-700 space-y-1 ml-4">
-                      <li>1. Create an Appwrite account at https://appwrite.io</li>
-                      <li>2. Create a new project</li>
-                      <li>3. Set up Authentication (enable Email/Password)</li>
-                      <li>4. Create a database and collection for backups</li>
-                      <li>5. Create a storage bucket for backup files</li>
-                      <li>6. Update your .env file with the configuration</li>
-                      <li>7. Restart the application</li>
-                    </ol>
-                    <p className="text-sm text-blue-600 mt-2">
-                      See CLOUD_BACKUP_SETUP.md for detailed instructions
-                    </p>
-                  </div>
-                )}
-              </>
-            )}
-            
-            <div className="flex gap-3">
-              <button
-                onClick={() => validateConfiguration()}
-                className="bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-lg transition-colors"
-              >
-                Retest Configuration
-              </button>
-              <button
-                onClick={() => setShowConfigTest(false)}
-                className="bg-gray-300 hover:bg-gray-400 text-gray-800 py-2 px-4 rounded-lg transition-colors"
-              >
-                Close
-              </button>
-            </div>
-          </div>
         </ModalBase>
       )}
 

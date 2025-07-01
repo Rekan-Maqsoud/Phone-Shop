@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLocale } from '../contexts/LocaleContext';
 
@@ -18,9 +18,15 @@ export default function useAdmin() {
   const [debts, setDebts] = useState([]);
   const [debtSales, setDebtSales] = useState([]);
   const [companyDebts, setCompanyDebts] = useState([]);
+  const [buyingHistory, setBuyingHistory] = useState([]);
   const [monthlyReports, setMonthlyReports] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [toast, setToast] = useState("");
+  // Toast state
+  const [toast, setToastState] = useState(null);
+  // Add a wrapper for toast to match expected API
+  const setToast = (msg, type = 'info', duration = 3000) => {
+    setToastState({ msg, type, duration });
+  };
   const [notificationsEnabled, setNotificationsEnabled] = useState(() => localStorage.getItem('notificationsEnabled') === 'true');
   const [autoBackup, setAutoBackup] = useState(() => localStorage.getItem('autoBackup') === 'true');
   const [lowStockThreshold, setLowStockThreshold] = useState(() => Number(localStorage.getItem('lowStockThreshold')) || 5);
@@ -80,6 +86,13 @@ export default function useAdmin() {
     if (window.api?.getCompanyDebts) {
       const data = await window.api.getCompanyDebts();
       setCompanyDebts(data || []);
+    }
+  }, []);
+
+  const fetchBuyingHistory = useCallback(async () => {
+    if (window.api?.getBuyingHistoryWithItems) {
+      const data = await window.api.getBuyingHistoryWithItems();
+      setBuyingHistory(data || []);
     }
   }, []);
 
@@ -203,16 +216,30 @@ export default function useAdmin() {
           const res = await window.api.resetAllData();
           setToast(res.success ? 'All data reset successful!' : res.message || 'Reset failed.');
           if (res.success) {
-            // Clear all state data
+            // Clear all state data immediately to ensure UI reflects reset
             setProducts([]);
+            setAccessories([]);
             setSales([]);
             setDebts([]);
             setDebtSales([]);
-            // Refetch all data to ensure UI is updated
-            fetchProducts();
-            fetchSales();
-            fetchDebts();
-            fetchDebtSales();
+            setCompanyDebts([]);
+            setBuyingHistory([]);
+            setMonthlyReports([]);
+            
+            // Wait a moment for state to clear, then refetch all data
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
+            // Refetch all data to ensure UI is updated with fresh data
+            await Promise.all([
+              fetchProducts(),
+              fetchAccessories(),
+              fetchSales(),
+              fetchDebts(),
+              fetchDebtSales(),
+              fetchCompanyDebts(),
+              fetchBuyingHistory(),
+              fetchMonthlyReports()
+            ]);
           }
         }
       } catch (e) {
@@ -262,6 +289,45 @@ export default function useAdmin() {
     }
   };
 
+  // Add company debt with items
+  const handleAddCompanyDebtWithItems = async ({ company_name, description, items }) => {
+    setLoading(true);
+    try {
+      if (window.api?.addCompanyDebtWithItems) {
+        const res = await window.api.addCompanyDebtWithItems({ company_name, description, items });
+        if (res && res.success) {
+          setToast(t.companyDebtAdded || 'Company debt with items added!');
+          fetchCompanyDebts();
+          fetchBuyingHistory();
+          fetchProducts();
+          fetchAccessories();
+        } else {
+          setToast(res?.message || 'Failed to add company debt with items.');
+        }
+      }
+    } catch (e) {
+      setToast('Failed to add company debt with items.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Company Debt: Mark as Paid
+  const handleMarkCompanyDebtPaid = async (id, paid_at) => {
+    setLoading(true);
+    try {
+      if (window.api?.markCompanyDebtPaid) {
+        await window.api.markCompanyDebtPaid(id, paid_at);
+        fetchCompanyDebts();
+        fetchBuyingHistory();
+        fetchProducts();
+        fetchAccessories && fetchAccessories();
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Stats
   const now = new Date();
   const thisMonth = now.toISOString().slice(0, 7);
@@ -273,7 +339,7 @@ export default function useAdmin() {
     return sum + p.price * p.stock;
   }, 0);
 
-  // Fetch sales and debts on mount
+  // Fetch sales and debts on mount - only run once
   useEffect(() => {
     fetchSales();
     fetchDebts();
@@ -283,27 +349,43 @@ export default function useAdmin() {
     if (autoBackupEnabled && window.api?.setAutoBackup) {
       window.api.setAutoBackup(true);
     }
-  }, [fetchSales, fetchDebts, fetchDebtSales, autoBackupEnabled]);
+  }, []); // Empty dependency array to run only once
 
-  return {
-    products, setProducts,
-    accessories, setAccessories,
-    sales, setSales,
-    showProductModal, setShowProductModal,
-    showAccessoryModal, setShowAccessoryModal,
-    editProduct, setEditProduct,
-    editAccessory, setEditAccessory,
-    viewSale, setViewSale,
+  // Memoize the admin object to ensure stability across renders
+  const adminObject = useMemo(() => ({
+    products,
+    setProducts,
+    accessories,
+    setAccessories,
+    sales,
+    setSales,
+    showProductModal,
+    setShowProductModal,
+    showAccessoryModal,
+    setShowAccessoryModal,
+    editProduct,
+    setEditProduct,
+    editAccessory,
+    setEditAccessory,
+    viewSale,
+    setViewSale,
     debts,
+    setDebts,
     debtSales,
+    setDebtSales,
     companyDebts,
+    setCompanyDebts,
+    buyingHistory,
+    setBuyingHistory,
     monthlyReports,
+    setMonthlyReports,
     fetchProducts,
     fetchAccessories,
     fetchSales,
     fetchDebts,
     fetchDebtSales,
     fetchCompanyDebts,
+    fetchBuyingHistory,
     fetchMonthlyReports,
     handleAddProduct,
     handleAddAccessory,
@@ -315,6 +397,8 @@ export default function useAdmin() {
     handleExportInventory,
     handleTestPrint,
     handleMarkDebtPaid,
+    handleAddCompanyDebtWithItems,
+    handleMarkCompanyDebtPaid,
     setToast, toast,
     loading,
     monthlySales, totalRevenue, inventoryValue,
@@ -322,7 +406,12 @@ export default function useAdmin() {
     autoBackup, setAutoBackup,
     autoBackupEnabled, setAutoBackupEnabled,
     lowStockThreshold, setLowStockThreshold,
-    // Admin modal for Cashier
     adminModal, setAdminModal, openAdminModal, adminPassword, setAdminPassword, adminError, handleAdminAccess,
-  };
+  }), [
+    products, accessories, sales, showProductModal, showAccessoryModal, editProduct, editAccessory, viewSale, debts, debtSales, companyDebts, buyingHistory, monthlyReports,
+    fetchProducts, fetchAccessories, fetchSales, fetchDebts, fetchDebtSales, fetchCompanyDebts, fetchBuyingHistory, fetchMonthlyReports,
+    handleAddProduct, handleAddAccessory, handleEditProduct, handleEditAccessory, handleRestoreBackup, handleResetAllData, handleExportSales, handleExportInventory, handleTestPrint, handleMarkDebtPaid, handleAddCompanyDebtWithItems, handleMarkCompanyDebtPaid,
+    setToast, toast, loading, monthlySales, totalRevenue, inventoryValue, notificationsEnabled, setNotificationsEnabled, autoBackup, setAutoBackup, autoBackupEnabled, setAutoBackupEnabled, lowStockThreshold, setLowStockThreshold, adminModal, setAdminModal, openAdminModal, adminPassword, setAdminPassword, adminError, handleAdminAccess
+  ]);
+  return adminObject;
 }

@@ -7,15 +7,22 @@ export default function useCart(showToast, showConfirm) {
   // Accepts quantity (default 1)
   const addOrUpdateItem = (product, isReturn = false, quantity = 1) => {
     setItems(prevItems => {
-      const existing = prevItems.find(item => item.id === product.id && item.isReturn === isReturn);
+      const uniqueId = product.uniqueId || `${product.itemType || 'product'}_${product.id}`;
+      const existing = prevItems.find(item => item.uniqueId === uniqueId && item.isReturn === isReturn);
       const availableStock = product.stock ?? 1;
       
       // For returns, we don't check stock availability
       if (!isReturn && availableStock === 0) {
         showConfirm('Stock is empty. Do you want to increment the stock by 1?', () => {
-          window.api?.editProduct && window.api.editProduct({ ...product, stock: 1 }).then(res => {
-            if (res.success) showToast('Stock incremented by 1.');
-          });
+          if (product.itemType === 'accessory') {
+            window.api?.editAccessory && window.api.editAccessory({ ...product, stock: 1 }).then(res => {
+              if (res.success) showToast('Stock incremented by 1.');
+            });
+          } else {
+            window.api?.editProduct && window.api.editProduct({ ...product, stock: 1 }).then(res => {
+              if (res.success) showToast('Stock incremented by 1.');
+            });
+          }
         });
         return prevItems;
       }
@@ -32,20 +39,20 @@ export default function useCart(showToast, showConfirm) {
         
         // Increase quantity by specified amount
         return prevItems.map(item =>
-          item.id === product.id && item.isReturn === isReturn
+          item.uniqueId === uniqueId && item.isReturn === isReturn
             ? { 
                 ...item, 
                 quantity: newTotal,
                 // Ensure selling_price is set if not already
-                selling_price: item.selling_price || Math.round(product.price * 1.1),
-                buying_price: item.buying_price || product.price
+                selling_price: item.selling_price || product.price, // Use original price, not 110%
+                buying_price: item.buying_price || product.buying_price || product.price
               }
             : item
         );
       } else {
         // For new items, check stock only for non-returns
         if (!isReturn) {
-          const totalInCart = prevItems.filter(item => item.id === product.id && !item.isReturn).reduce((sum, item) => sum + (item.quantity || 1), 0);
+          const totalInCart = prevItems.filter(item => item.uniqueId === uniqueId && !item.isReturn).reduce((sum, item) => sum + (item.quantity || 1), 0);
           if ((totalInCart + quantity) > availableStock) {
             showToast(`Cannot add more than available stock! Available: ${availableStock}, In cart: ${totalInCart}`, 'error');
             return prevItems;
@@ -58,10 +65,12 @@ export default function useCart(showToast, showConfirm) {
           {
             ...product,
             id: product.id,
+            uniqueId,
             product_id: product.id,
-            buying_price: product.price, // Store buying price
-            price: Math.round(product.price * 1.1), // Default selling price = 110% of buying price
-            selling_price: Math.round(product.price * 1.1), // Default selling price = 110% of buying price
+            itemType: product.itemType || 'product',
+            buying_price: product.buying_price || product.price, // Use actual buying price, fallback to price
+            price: product.price, // Store original product price
+            selling_price: product.price, // Default selling price = original price (not 110%)
             isReturn,
             quantity: quantity,
           },
@@ -70,8 +79,8 @@ export default function useCart(showToast, showConfirm) {
     });
   };
 
-  const deleteItem = (id) => {
-    setItems(items => items.filter(item => item.id !== id));
+  const deleteItem = (uniqueId) => {
+    setItems(items => items.filter(item => item.uniqueId !== uniqueId));
   };
 
   const clearCart = () => setItems([]);

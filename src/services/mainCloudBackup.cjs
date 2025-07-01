@@ -24,16 +24,22 @@ async function loginAppwrite(client) {
 }
 
 async function uploadBackupToCloud(localBackupPath) {
+  if (!localBackupPath || !fs.existsSync(localBackupPath)) {
+    throw new Error('Local backup file does not exist.');
+  }
   const client = getAppwriteClient();
   await loginAppwrite(client);
   const storage = new Storage(client);
-  const now = new Date();
-  const timestamp = now.toISOString().slice(0, 19).replace(/:/g, '-');
-  const autoBackupName = `auto-backup-${timestamp}.sqlite`;
+  
+  // Use a consistent filename for auto backups to avoid creating multiple files
+  const autoBackupName = 'auto-backup-latest.sqlite';
   const fileBuffer = fs.readFileSync(localBackupPath);
+  
+  // Try to use a consistent file ID for auto backups
+  // This will prevent creating multiple backup files for the same user
   const result = await storage.createFile(
     APPWRITE_BACKUP_BUCKET_ID,
-    ID.unique(),
+    'auto-backup-latest', // Use a consistent ID instead of ID.unique()
     fileBuffer,
     autoBackupName
   );

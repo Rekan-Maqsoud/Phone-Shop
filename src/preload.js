@@ -36,7 +36,17 @@ contextBridge.exposeInMainWorld('api', {
   // Company debt functionality
   getCompanyDebts: () => ipcRenderer.invoke('getCompanyDebts'),
   addCompanyDebt: (debt) => ipcRenderer.invoke('addCompanyDebt', debt),
+  addCompanyDebtWithItems: (data) => ipcRenderer.invoke('addCompanyDebtWithItems', data),
+  getCompanyDebtItems: (debtId) => ipcRenderer.invoke('getCompanyDebtItems', debtId),
   markCompanyDebtPaid: (id, paid_at) => ipcRenderer.invoke('markCompanyDebtPaid', id, paid_at),
+  
+  // Buying history functionality
+  getBuyingHistory: () => ipcRenderer.invoke('getBuyingHistory'),
+  getBuyingHistoryWithItems: () => ipcRenderer.invoke('getBuyingHistoryWithItems'),
+  
+  // Direct purchase functionality
+  addDirectPurchase: (purchaseData) => ipcRenderer.invoke('addDirectPurchase', purchaseData),
+  addDirectPurchaseWithItems: (purchaseData) => ipcRenderer.invoke('addDirectPurchaseWithItems', purchaseData),
   
   // Monthly reports functionality
   createMonthlyReport: (month, year) => ipcRenderer.invoke('createMonthlyReport', month, year),
@@ -61,6 +71,7 @@ contextBridge.exposeInMainWorld('api', {
   readBackupFile: (filePath) => ipcRenderer.invoke('readBackupFile', filePath),
   saveCloudBackup: (backupData, fileName) => ipcRenderer.invoke('saveCloudBackup', backupData, fileName),
   restoreFromCloudBackup: (filePath) => ipcRenderer.invoke('restoreFromCloudBackup', filePath),
+  getCurrentBackupPath: () => ipcRenderer.invoke('getCurrentBackupPath'),
   
   // Event listener support for cloud auto backup
   on: (channel, listener) => ipcRenderer.on(channel, listener),

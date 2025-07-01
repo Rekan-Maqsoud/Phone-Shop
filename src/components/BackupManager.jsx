@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-export default function BackupManager({ show, t, onClose, onRestore }) {
-  if (!show) return null;
-  
+const BackupManager = ({ show, t, onClose, onRestore }) => {
   const [backupHistory, setBackupHistory] = useState([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
@@ -26,8 +24,10 @@ export default function BackupManager({ show, t, onClose, onRestore }) {
   };
 
   useEffect(() => {
-    fetchBackupHistory();
-  }, []);
+    if (show) {
+      fetchBackupHistory();
+    }
+  }, [show]);
 
   const handleCreateBackup = async () => {
     setLoading(true);
@@ -80,6 +80,10 @@ export default function BackupManager({ show, t, onClose, onRestore }) {
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleString();
   };
+
+  if (!show) {
+    return null;
+  }
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50" role="dialog" aria-modal="true">
@@ -226,4 +230,6 @@ export default function BackupManager({ show, t, onClose, onRestore }) {
       </div>
     </div>
   );
-}
+};
+
+export default BackupManager;

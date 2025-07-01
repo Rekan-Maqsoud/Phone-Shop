@@ -20,7 +20,7 @@ export default function ProductSelectModal({ show, options, t, onSelect, onCance
             </thead>
             <tbody>
               {options.map((p) => (
-                <tr key={p.id} className="border-b last:border-b-0 dark:border-gray-700">
+                <tr key={p.uniqueId || `${p.itemType || 'product'}_${p.id}`} className="border-b last:border-b-0 dark:border-gray-700">
                   <td className="px-2 py-1">{p.name}</td>
                   <td className="px-2 py-1">{p.model}</td>
                   <td className="px-2 py-1">{p.ram}</td>

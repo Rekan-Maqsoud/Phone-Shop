@@ -24,10 +24,10 @@ export default function AccessoryModal({
     const accessoryData = {
       name: formData.get('name'),
       buying_price: parseFloat(formData.get('buying_price')) || 0,
-      price: parseFloat(formData.get('price')) || 0,
+      price: parseFloat(formData.get('buying_price')) || 0, // Use buying price as selling price for accessories
       stock: parseInt(formData.get('stock')) || 0,
       brand: formData.get('brand') || null,
-      model: formData.get('model') || null,
+      model: formData.get('name'), // Use name as model for consistency
       type: formData.get('type') || null,
     };
 
@@ -50,12 +50,13 @@ export default function AccessoryModal({
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
-              {t.name || 'Name'} *
+              {t.name || 'Name'} / {t.model || 'Model'} *
             </label>
             <input
               ref={nameRef}
               name="name"
               type="text"
+              placeholder={t?.enterNameModel || 'Enter accessory name/model'}
               defaultValue={accessory?.name || ''}
               className="w-full border rounded-xl px-4 py-3 dark:bg-gray-700 dark:text-gray-100 dark:border-gray-600 bg-white text-gray-900 border-gray-300 focus:outline-none focus:ring-2 focus:ring-green-400 transition"
               required
@@ -79,32 +80,17 @@ export default function AccessoryModal({
             </div>
             <div>
               <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
-                {t.sellingPrice || 'Selling Price'} *
+                {t.stock || 'Stock'} *
               </label>
               <input
-                name="price"
+                name="stock"
                 type="number"
-                step="0.01"
                 min="0"
-                defaultValue={accessory?.price || ''}
+                defaultValue={accessory?.stock || ''}
                 className="w-full border rounded-xl px-4 py-3 dark:bg-gray-700 dark:text-gray-100 dark:border-gray-600 bg-white text-gray-900 border-gray-300 focus:outline-none focus:ring-2 focus:ring-green-400 transition"
                 required
               />
             </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
-              {t.stock || 'Stock'} *
-            </label>
-            <input
-              name="stock"
-              type="number"
-              min="0"
-              defaultValue={accessory?.stock || ''}
-              className="w-full border rounded-xl px-4 py-3 dark:bg-gray-700 dark:text-gray-100 dark:border-gray-600 bg-white text-gray-900 border-gray-300 focus:outline-none focus:ring-2 focus:ring-green-400 transition"
-              required
-            />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -142,18 +128,6 @@ export default function AccessoryModal({
                 <option value="other">Other</option>
               </select>
             </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
-              {t.model || 'Model'}
-            </label>
-            <input
-              name="model"
-              type="text"
-              defaultValue={accessory?.model || ''}
-              className="w-full border rounded-xl px-4 py-3 dark:bg-gray-700 dark:text-gray-100 dark:border-gray-600 bg-white text-gray-900 border-gray-300 focus:outline-none focus:ring-2 focus:ring-green-400 transition"
-            />
           </div>
 
           <div className="flex gap-4 mt-6">

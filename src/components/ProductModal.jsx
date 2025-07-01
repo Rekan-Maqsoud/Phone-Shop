@@ -28,6 +28,7 @@ export default function ProductModal({
           const product = {
             name: form.name.value,
             price: parseFloat(form.price.value),
+            buying_price: parseFloat(form.buying_price.value) || parseFloat(form.price.value), // Default to price if not specified
             stock: parseInt(form.stock.value, 10),
             ram: form.ram.value || undefined,
             storage: form.storage.value || undefined,
@@ -38,7 +39,8 @@ export default function ProductModal({
           await onSubmit(product);
         }} className="flex flex-col gap-2">
           <input name="name" type="text" placeholder={t.name} defaultValue={initialProduct?.name || ''} className="border border-gray-300 dark:border-gray-600 rounded px-2 py-1 dark:bg-gray-700 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400" required ref={nameRef} />
-          <input name="price" type="number" step="0.01" placeholder={t.price} defaultValue={initialProduct?.price || ''} className="border border-gray-300 dark:border-gray-600 rounded px-2 py-1 dark:bg-gray-700 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400" required />
+          <input name="buying_price" type="number" step="0.01" placeholder={t.buyingPrice || 'Buying Price'} defaultValue={initialProduct?.buying_price || ''} className="border border-gray-300 dark:border-gray-600 rounded px-2 py-1 dark:bg-gray-700 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400" />
+          <input name="price" type="number" step="0.01" placeholder={t.sellingPrice || 'Selling Price'} defaultValue={initialProduct?.price || ''} className="border border-gray-300 dark:border-gray-600 rounded px-2 py-1 dark:bg-gray-700 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400" required />
           <input name="stock" type="number" step="1" placeholder={t.stock} defaultValue={initialProduct?.stock || ''} className="border border-gray-300 dark:border-gray-600 rounded px-2 py-1 dark:bg-gray-700 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400" required />
           <input name="ram" type="text" placeholder={t.ram || 'RAM'} defaultValue={initialProduct?.ram || ''} className="border border-gray-300 dark:border-gray-600 rounded px-2 py-1 dark:bg-gray-700 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400" />
           <input name="storage" type="text" placeholder={t.storage || 'Storage'} defaultValue={initialProduct?.storage || ''} className="border border-gray-300 dark:border-gray-600 rounded px-2 py-1 dark:bg-gray-700 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400" />

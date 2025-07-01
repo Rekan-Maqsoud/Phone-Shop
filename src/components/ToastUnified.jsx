@@ -16,8 +16,10 @@ export default function ToastUnified({ message, onClose, type = 'success', durat
   };
 
   return (
-    <div className={`fixed top-8 left-1/2 -translate-x-1/2 px-8 py-4 rounded-2xl shadow-2xl z-50 font-extrabold text-xl animate-fade-in ${styles[type] || styles.success}`}>
-      {message}
+    <div className="fixed top-8 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
+      <div className={`px-8 py-4 rounded-2xl shadow-2xl font-extrabold text-xl animate-fade-in pointer-events-auto ${styles[type] || styles.success}`}>
+        {message}
+      </div>
     </div>
   );
 }

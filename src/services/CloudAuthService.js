@@ -1,12 +1,14 @@
 import { Client, Account, Databases, Storage, ID, Query } from 'appwrite';
-
 class CloudAuthService {
   constructor() {
+    this._isAuthenticated = false;
+    this._listeners = [];
     this.client = new Client();
     this.account = null;
     this.databases = null;
     this.storage = null;
     this.user = null;
+    this._authCheckInterval = null;
     
     // Initialize Appwrite client with environment variables
     this.client
@@ -21,6 +23,60 @@ class CloudAuthService {
     this.DATABASE_ID = import.meta.env.VITE_APPWRITE_DATABASE_ID;
     this.BACKUPS_COLLECTION_ID = import.meta.env.VITE_APPWRITE_BACKUPS_COLLECTION_ID;
     this.BACKUP_BUCKET_ID = import.meta.env.VITE_APPWRITE_BACKUP_BUCKET_ID;
+    
+    // Validate configuration
+    const configValidation = this.validateConfiguration();
+    if (!configValidation.isValid) {
+      console.error('CloudAuthService: Configuration validation failed:', configValidation.message);
+    } else {
+      console.log('CloudAuthService: Configuration validated successfully');
+    }
+    
+    // Start periodic auth check (every 5 minutes)
+    this._startPeriodicAuthCheck();
+  }
+
+  // Configuration validation
+  validateConfiguration() {
+    const missingVars = [];
+    
+    if (!import.meta.env.VITE_APPWRITE_ENDPOINT) missingVars.push('VITE_APPWRITE_ENDPOINT');
+    if (!import.meta.env.VITE_APPWRITE_PROJECT_ID) missingVars.push('VITE_APPWRITE_PROJECT_ID');
+    if (!this.DATABASE_ID) missingVars.push('VITE_APPWRITE_DATABASE_ID');
+    if (!this.BACKUPS_COLLECTION_ID) missingVars.push('VITE_APPWRITE_BACKUPS_COLLECTION_ID');
+    if (!this.BACKUP_BUCKET_ID) missingVars.push('VITE_APPWRITE_BACKUP_BUCKET_ID');
+    
+    return {
+      isValid: missingVars.length === 0,
+      missingVars,
+      message: missingVars.length > 0 
+        ? `Missing environment variables: ${missingVars.join(', ')}` 
+        : 'Configuration is valid'
+    };
+  }
+
+  _startPeriodicAuthCheck() {
+    // Clear any existing interval
+    if (this._authCheckInterval) {
+      clearInterval(this._authCheckInterval);
+    }
+    
+    // Check auth every 5 minutes
+    this._authCheckInterval = setInterval(async () => {
+      if (this._isAuthenticated) {
+        const isStillAuth = await this.checkAuth();
+        if (!isStillAuth) {
+          console.log('CloudAuthService: Session expired during periodic check');
+        }
+      }
+    }, 5 * 60 * 1000); // 5 minutes
+  }
+
+  _stopPeriodicAuthCheck() {
+    if (this._authCheckInterval) {
+      clearInterval(this._authCheckInterval);
+      this._authCheckInterval = null;
+    }
   }
 
   // Authentication methods
@@ -36,13 +92,44 @@ class CloudAuthService {
   }
 
   async login(email, password) {
-    if (!email || !password) return;
+    if (!email || !password) return { success: false, error: 'Email and password are required' };
+    
     try {
+      // First, try to logout any existing session
+      try {
+        await this.account.deleteSession('current');
+      } catch (e) {
+        // Ignore error if no session exists
+      }
+      
+      // Create new session
       const session = await this.account.createEmailPasswordSession(email, password);
+      
+      // Get user info
       this.user = await this.account.get();
+      
+      // Verify we have valid user data
+      if (!this.user || !this.user.$id) {
+        throw new Error('Failed to retrieve user information');
+      }
+      
+      this.setAuthenticated(true);
       return { success: true, user: this.user, session };
     } catch (error) {
-      return { success: false, error: error.message };
+      this.user = null;
+      this.setAuthenticated(false);
+      
+      // Provide user-friendly error messages
+      let errorMessage = error.message;
+      if (error?.message?.includes('Invalid credentials')) {
+        errorMessage = 'Invalid email or password';
+      } else if (error?.message?.includes('User not found')) {
+        errorMessage = 'Account not found';
+      } else if (error?.message?.includes('Too many requests')) {
+        errorMessage = 'Too many login attempts. Please try again later';
+      }
+      
+      return { success: false, error: errorMessage };
     }
   }
 
@@ -51,6 +138,7 @@ class CloudAuthService {
     try {
       await this.account.deleteSession('current');
       this.user = null;
+      this.setAuthenticated(false);
       return { success: true };
     } catch (error) {
       return { success: false, error: error.message };
@@ -62,12 +150,29 @@ class CloudAuthService {
       if (!this.user) {
         this.user = await this.account.get();
       }
-      return { success: true, user: this.user };
+      
+      // Verify user data is valid
+      if (this.user && this.user.$id) {
+        this.setAuthenticated(true);
+        return { success: true, user: this.user };
+      } else {
+        this.user = null;
+        this.setAuthenticated(false);
+        return { success: false, error: 'No valid user data' };
+      }
     } catch (error) {
-      // Silently ignore 401 errors (user not logged in)
-      if (error?.response?.status === 401 || error?.code === 401 || error?.message?.includes('Unauthorized')) {
+      // Handle authentication errors gracefully
+      if (error?.code === 401 || error?.status === 401 || 
+          error?.message?.includes('Unauthorized') || 
+          error?.message?.includes('Missing or invalid credentials') ||
+          error?.message?.includes('User (role: guests) missing scope')) {
+        this.user = null;
+        this.setAuthenticated(false);
         return { success: false, error: 'Not logged in' };
       }
+      
+      // Network or other errors
+      console.warn('CloudAuthService: Error getting current user:', error.message);
       return { success: false, error: error.message };
     }
   }
@@ -96,46 +201,223 @@ class CloudAuthService {
   }
 
   // Backup methods
-  async uploadBackup(backupFile, backupName, description = '') {
+  async uploadBackup(backupFile, backupName = 'backup.sqlite', description = '') {
     try {
       if (!this.user) {
         throw new Error('User not authenticated');
       }
 
-      // Upload file to storage
-      const fileUpload = await this.storage.createFile(
-        this.BACKUP_BUCKET_ID,
-        ID.unique(),
-        backupFile
-      );
+      // Validate environment variables
+      if (!this.DATABASE_ID || !this.BACKUPS_COLLECTION_ID || !this.BACKUP_BUCKET_ID) {
+        throw new Error('Appwrite configuration missing. Please check environment variables.');
+      }
 
-      // Get next version and ensure it's a string and not too long
-      let version = await this.getNextBackupVersion();
-      version = String(version).slice(0, 255); // Appwrite string limit
+      // Sanitize backupName
+      backupName = this._sanitizeFileName(backupName);
 
-      // Create backup record in database
-      const backupRecord = await this.databases.createDocument(
-        this.DATABASE_ID,
-        this.BACKUPS_COLLECTION_ID,
-        ID.unique(),
-        {
-          userId: this.user.$id,
-          fileName: backupName,
-          description: description,
-          fileId: fileUpload.$id,
-          fileSize: fileUpload.sizeOriginal,
-          uploadDate: new Date().toISOString(),
-          version // always a string, max 255 chars
+      // Ensure backupFile is a File with a valid name
+      if (!(backupFile instanceof File)) {
+        backupFile = new File([backupFile], backupName, {
+          type: 'application/octet-stream'
+        });
+      } else if (!backupFile.name || backupFile.name !== backupName) {
+        backupFile = new File([backupFile], backupName, {
+          type: backupFile.type || 'application/octet-stream'
+        });
+      }
+
+      console.log(`CloudAuthService: Starting backup upload - File: ${backupName}, Size: ${backupFile.size} bytes`);
+
+      // Find existing backup for this user with the same fileName
+      let response;
+      try {
+        response = await this.databases.listDocuments(
+          this.DATABASE_ID,
+          this.BACKUPS_COLLECTION_ID,
+          [
+            Query.equal('userId', this.user.$id),
+            Query.equal('fileName', backupName),
+            Query.orderDesc('uploadDate'),
+            Query.limit(1)
+          ]
+        );
+      } catch (dbError) {
+        console.error('CloudAuthService: Database query error:', dbError);
+        throw new Error(`Database error: ${dbError.message}`);
+      }
+
+      let fileId;
+      let existingBackup = response.documents.length > 0 ? response.documents[0] : null;
+      if (existingBackup) {
+        fileId = existingBackup.fileId;
+        console.log('CloudAuthService: Found existing backup record:', existingBackup.$id);
+      }
+
+      let fileUpload;
+      let fileExists = false;
+      if (fileId) {
+        // Check if file exists in storage
+        try {
+          await this.storage.getFile(this.BACKUP_BUCKET_ID, fileId);
+          fileExists = true;
+          console.log('CloudAuthService: Existing file found in storage:', fileId);
+        } catch (e) {
+          fileExists = false;
+          console.log('CloudAuthService: Existing file not found in storage, will create new');
         }
-      );
+      }
 
-      return { 
-        success: true, 
-        backup: backupRecord,
-        fileId: fileUpload.$id 
-      };
+      if (fileId && fileExists) {
+        try {
+          // Delete the old file first to avoid storage conflicts
+          await this.storage.deleteFile(this.BACKUP_BUCKET_ID, fileId);
+          console.log('CloudAuthService: Deleted old backup file:', fileId);
+        } catch (deleteErr) {
+          console.warn('CloudAuthService: Could not delete old file:', deleteErr.message);
+        }
+        
+        // For auto backups, use a consistent file ID to avoid creating multiple files
+        let newFileId;
+        if (backupName === 'auto-backup-latest.sqlite') {
+          // Use a consistent ID for auto backups based on user ID
+          newFileId = `auto-backup-${this.user.$id}`;
+        } else {
+          newFileId = ID.unique();
+        }
+        
+        // Create a new file with the determined ID
+        fileUpload = await this.storage.createFile(
+          this.BACKUP_BUCKET_ID,
+          newFileId,
+          backupFile
+        );
+        fileId = fileUpload.$id;
+        
+        // Update the existing backup record with new file ID
+        if (existingBackup) {
+          await this.databases.updateDocument(
+            this.DATABASE_ID,
+            this.BACKUPS_COLLECTION_ID,
+            existingBackup.$id,
+            { 
+              fileId: fileId, 
+              fileSize: fileUpload.sizeOriginal, 
+              uploadDate: new Date().toISOString(),
+              description: description || existingBackup.description
+            }
+          );
+          console.log('CloudAuthService: Updated existing backup record');
+        }
+      } else {
+        // Create new file and record if missing
+        try {
+          console.log('CloudAuthService: Creating new backup file...');
+          
+          // For auto backups, use a consistent file ID to avoid creating multiple files
+          let newFileId;
+          if (backupName === 'auto-backup-latest.sqlite') {
+            // Use a consistent ID for auto backups based on user ID
+            newFileId = `auto-backup-${this.user.$id}`;
+          } else {
+            newFileId = ID.unique();
+          }
+          
+          fileUpload = await this.storage.createFile(
+            this.BACKUP_BUCKET_ID,
+            newFileId,
+            backupFile
+          );
+          fileId = fileUpload.$id;
+          console.log('CloudAuthService: New file created:', fileId);
+          
+          if (existingBackup) {
+            // Update existing record with new file ID
+            await this.databases.updateDocument(
+              this.DATABASE_ID,
+              this.BACKUPS_COLLECTION_ID,
+              existingBackup.$id,
+              { 
+                fileId: fileId, 
+                fileSize: fileUpload.sizeOriginal, 
+                uploadDate: new Date().toISOString(),
+                description: description || existingBackup.description
+              }
+            );
+            console.log('CloudAuthService: Updated existing backup record with new file');
+          } else {
+            // Create a new backup record
+            console.log('CloudAuthService: Creating new backup record...');
+            await this.databases.createDocument(
+              this.DATABASE_ID,
+              this.BACKUPS_COLLECTION_ID,
+              ID.unique(),
+              {
+                userId: this.user.$id,
+                fileName: backupName,
+                description: description,
+                fileId: fileId,
+                fileSize: fileUpload.sizeOriginal,
+                uploadDate: new Date().toISOString(),
+                version: '1'
+              }
+            );
+            console.log('CloudAuthService: New backup record created');
+          }
+        } catch (storageError) {
+          console.error('CloudAuthService: Storage operation failed:', storageError);
+          throw new Error(`Storage error: ${storageError.message}`);
+        }
+      }
+
+      // Return the latest backup record with verification
+      try {
+        const latestRecord = await this.databases.listDocuments(
+          this.DATABASE_ID,
+          this.BACKUPS_COLLECTION_ID,
+          [
+            Query.equal('userId', this.user.$id),
+            Query.equal('fileName', backupName),
+            Query.orderDesc('uploadDate'),
+            Query.limit(1)
+          ]
+        );
+        
+        if (latestRecord.documents.length === 0) {
+          throw new Error('Backup record not found after upload');
+        }
+        
+        const backupRecord = latestRecord.documents[0];
+        console.log('CloudAuthService: Backup upload completed successfully');
+
+        return {
+          success: true,
+          backup: backupRecord,
+          fileId: fileId
+        };
+      } catch (verificationError) {
+        console.error('CloudAuthService: Backup verification failed:', verificationError);
+        throw new Error(`Verification error: ${verificationError.message}`);
+      }
     } catch (error) {
-      return { success: false, error: error.message };
+      console.error('CloudAuthService: Upload backup error:', error);
+      
+      // Provide more specific error messages
+      let errorMessage = error.message;
+      if (error.message.includes('400') || error.message.includes('Bad Request')) {
+        errorMessage = 'Bad request - please check your Appwrite configuration and permissions';
+      } else if (error.message.includes('401') || error.message.includes('Unauthorized')) {
+        errorMessage = 'Authentication failed - please log in again';
+      } else if (error.message.includes('403') || error.message.includes('Forbidden')) {
+        errorMessage = 'Access denied - insufficient permissions';
+      } else if (error.message.includes('404') || error.message.includes('Not Found')) {
+        errorMessage = 'Resource not found - please check your Appwrite configuration';
+      } else if (error.message.includes('429') || error.message.includes('Too Many Requests')) {
+        errorMessage = 'Rate limit exceeded - please try again later';
+      } else if (error.message.includes('network') || error.message.includes('fetch')) {
+        errorMessage = 'Network error - please check your internet connection';
+      }
+      
+      return { success: false, error: errorMessage };
     }
   }
 
@@ -249,43 +531,210 @@ class CloudAuthService {
     }
   }
 
-  // Auto backup management
+  // Auto backup management - now automatically enabled when authenticated
   async getAutoBackupSettings() {
     try {
       if (!this.user) {
-        throw new Error('User not authenticated');
+        return { enabled: false, frequency: 'instant' };
       }
 
-      // You can store user preferences in a separate collection
-      // For now, we'll use localStorage as fallback
+      // Auto cloud backup is always enabled when authenticated
       return {
-        enabled: localStorage.getItem('autoCloudBackup') === 'true',
-        frequency: localStorage.getItem('autoCloudBackupFrequency') || 'daily'
+        enabled: true, // Always true when authenticated
+        frequency: 'instant' // Instant backup after every change
       };
     } catch (error) {
-      return { enabled: false, frequency: 'daily' };
+      return { enabled: false, frequency: 'instant' };
     }
   }
 
-  async updateAutoBackupSettings(enabled, frequency = 'daily') {
+  async updateAutoBackupSettings(enabled, frequency = 'instant') {
     try {
-      localStorage.setItem('autoCloudBackup', enabled.toString());
-      localStorage.setItem('autoCloudBackupFrequency', frequency);
+      // Cloud backup is always enabled when authenticated, no need to store settings
       return { success: true };
     } catch (error) {
       return { success: false, error: error.message };
     }
   }
 
-  // Utility methods
+  // Unified auto backup function - called from the unified backup system
+  async performAutoBackup() {
+    try {
+      // Double-check authentication before proceeding
+      const authCheck = await this.getCurrentUser();
+      if (!authCheck.success || !this.user || !this.user.$id) {
+        return { success: false, error: 'User not authenticated' };
+      }
+
+      // First, verify backup integrity and cleanup if needed
+      try {
+        await this.cleanupOrphanedBackups();
+        const integrityCheck = await this.verifyBackupIntegrity();
+        console.log('CloudAuthService: Integrity check result:', integrityCheck.message);
+      } catch (cleanupError) {
+        console.warn('CloudAuthService: Cleanup/integrity check failed:', cleanupError.message);
+      }
+
+      // Get the current backup file path
+      if (!window.api?.getCurrentBackupPath || !window.api?.readBackupFile) {
+        return { success: false, error: 'Backup API not available' };
+      }
+
+      const pathResult = await window.api.getCurrentBackupPath();
+      if (!pathResult.success || !pathResult.path) {
+        return { success: false, error: 'Current backup path not found' };
+      }
+
+      const backupFile = await window.api.readBackupFile(pathResult.path);
+      if (!backupFile || backupFile.length === 0) {
+        return { success: false, error: 'Failed to read current backup file' };
+      }
+
+      // Use a fixed file name for auto backup so it can be updated
+      const backupName = 'auto-backup-latest.sqlite';
+      const file = new File([backupFile], backupName, {
+        type: 'application/octet-stream'
+      });
+
+      console.log(`CloudAuthService: Starting auto backup, file size: ${file.size} bytes`);
+      const result = await this.uploadBackupWithRetry(file, backupName, 'Automatic backup');
+      
+      if (result.success) {
+        console.log('CloudAuthService: Auto backup completed successfully');
+        
+        // Verify the backup was actually saved
+        try {
+          const verifyResult = await this.verifyBackupIntegrity();
+          if (verifyResult.success && verifyResult.exists) {
+            console.log('CloudAuthService: Backup integrity verified after upload');
+          }
+        } catch (verifyError) {
+          console.warn('CloudAuthService: Post-upload verification failed:', verifyError.message);
+        }
+      } else {
+        console.error('CloudAuthService: Auto backup failed:', result.error);
+      }
+      
+      return result;
+    } catch (error) {
+      console.error('CloudAuthService: Auto backup error:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Authentication state tracking and event system
+  async checkAuth() {
+    try {
+      // First try to verify existing session
+      const sessionResult = await this.verifySession();
+      if (sessionResult.success) {
+        return true;
+      }
+      
+      // If session verification failed, try to get user directly
+      this.user = await this.account.get();
+      if (this.user && this.user.$id) {
+        this.setAuthenticated(true);
+        return true;
+      } else {
+        this.user = null;
+        this.setAuthenticated(false);
+        return false;
+      }
+    } catch (error) {
+      // Handle different types of authentication errors
+      if (error?.code === 401 || error?.status === 401 || 
+          error?.message?.includes('Unauthorized') || 
+          error?.message?.includes('Missing or invalid credentials') ||
+          error?.message?.includes('User (role: guests) missing scope')) {
+        // User is not authenticated
+        this.user = null;
+        this.setAuthenticated(false);
+        return false;
+      }
+      
+      // Network or other errors - log but don't change auth state
+      console.warn('CloudAuthService: Network error during auth check:', error.message);
+      
+      // If we had a user before, keep them authenticated during network issues
+      if (this.user && this.user.$id) {
+        return true;
+      }
+      
+      this.user = null;
+      this.setAuthenticated(false);
+      return false;
+    }
+  }
+
+  // Session validation and restoration
+  async verifySession() {
+    try {
+      // Try to get the current session
+      const session = await this.account.getSession('current');
+      
+      if (session && !this._isSessionExpired(session)) {
+        // Session exists and is valid, get user info
+        this.user = await this.account.get();
+        if (this.user && this.user.$id) {
+          this.setAuthenticated(true);
+          return { success: true, user: this.user };
+        }
+      }
+      
+      // No valid session or user
+      this.user = null;
+      this.setAuthenticated(false);
+      return { success: false, error: 'No valid session' };
+    } catch (error) {
+      // Session is invalid or expired
+      this.user = null;
+      this.setAuthenticated(false);
+      return { success: false, error: error.message };
+    }
+  }
+
+  _isSessionExpired(session) {
+    if (!session || !session.expire) return true;
+    
+    const now = new Date();
+    const expireDate = new Date(session.expire);
+    
+    // Consider session expired if it expires within 5 minutes
+    const fiveMinutes = 5 * 60 * 1000;
+    return (expireDate.getTime() - now.getTime()) < fiveMinutes;
+  }
+
   isAuthenticated() {
-    return this.user !== null;
+    return this._isAuthenticated;
   }
 
-  getUserInfo() {
-    return this.user;
+  onAuthChange(listener) {
+    this._listeners.push(listener);
   }
 
+  offAuthChange(listener) {
+    this._listeners = this._listeners.filter(l => l !== listener);
+  }
+
+  _notify() {
+    this._listeners.forEach(l => l(this._isAuthenticated));
+  }
+
+  setAuthenticated(val) {
+    this._isAuthenticated = val;
+    
+    // Start or stop periodic auth check based on auth state
+    if (val) {
+      this._startPeriodicAuthCheck();
+    } else {
+      this._stopPeriodicAuthCheck();
+    }
+    
+    this._notify();
+  }
+
+  // Utility methods
   async getStorageUsage() {
     try {
       if (!this.user) {
@@ -315,6 +764,260 @@ class CloudAuthService {
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  }
+
+  // Utility to sanitize and validate file names for Appwrite
+  _sanitizeFileName(name) {
+    if (!name || typeof name !== 'string') return 'backup.sqlite';
+    // Remove invalid characters and trim length
+    let sanitized = name.replace(/[^a-zA-Z0-9._-]/g, '-');
+    if (sanitized.length === 0) sanitized = 'backup.sqlite';
+    if (sanitized.length > 255) sanitized = sanitized.slice(0, 255);
+    return sanitized;
+  }
+
+  // Backup cleanup and integrity methods
+  async cleanupOrphanedBackups() {
+    try {
+      if (!this.user) {
+        throw new Error('User not authenticated');
+      }
+
+      // Get all backup records for this user
+      const response = await this.databases.listDocuments(
+        this.DATABASE_ID,
+        this.BACKUPS_COLLECTION_ID,
+        [
+          Query.equal('userId', this.user.$id),
+          Query.orderDesc('uploadDate'),
+          Query.limit(100)
+        ]
+      );
+
+      const backups = response.documents;
+      const autoBackupRecords = backups.filter(backup => backup.fileName === 'auto-backup-latest.sqlite');
+
+      // If we have more than one auto-backup record, keep only the latest
+      if (autoBackupRecords.length > 1) {
+        console.log(`CloudAuthService: Found ${autoBackupRecords.length} auto-backup records, cleaning up...`);
+        
+        const latestBackup = autoBackupRecords[0]; // Already sorted by uploadDate desc
+        const oldBackups = autoBackupRecords.slice(1);
+
+        for (const oldBackup of oldBackups) {
+          try {
+            // Delete the file from storage
+            await this.storage.deleteFile(this.BACKUP_BUCKET_ID, oldBackup.fileId);
+            // Delete the database record
+            await this.databases.deleteDocument(
+              this.DATABASE_ID,
+              this.BACKUPS_COLLECTION_ID,
+              oldBackup.$id
+            );
+            console.log('CloudAuthService: Cleaned up old backup:', oldBackup.$id);
+          } catch (error) {
+            console.warn('CloudAuthService: Error cleaning up backup:', error.message);
+          }
+        }
+      }
+
+      return { success: true, cleaned: autoBackupRecords.length - 1 };
+    } catch (error) {
+      console.error('CloudAuthService: Cleanup error:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  async verifyBackupIntegrity() {
+    try {
+      if (!this.user) {
+        throw new Error('User not authenticated');
+      }
+
+      // Get the latest auto-backup record
+      const response = await this.databases.listDocuments(
+        this.DATABASE_ID,
+        this.BACKUPS_COLLECTION_ID,
+        [
+          Query.equal('userId', this.user.$id),
+          Query.equal('fileName', 'auto-backup-latest.sqlite'),
+          Query.orderDesc('uploadDate'),
+          Query.limit(1)
+        ]
+      );
+
+      if (response.documents.length === 0) {
+        return { success: true, exists: false, message: 'No auto-backup found' };
+      }
+
+      const backup = response.documents[0];
+
+      // Check if the file actually exists in storage
+      try {
+        const file = await this.storage.getFile(this.BACKUP_BUCKET_ID, backup.fileId);
+        return { 
+          success: true, 
+          exists: true, 
+          backup: backup,
+          fileSize: file.sizeOriginal,
+          message: 'Backup integrity verified' 
+        };
+      } catch (storageError) {
+        console.warn('CloudAuthService: File missing from storage:', storageError.message);
+        
+        // File is missing, delete the orphaned record
+        try {
+          await this.databases.deleteDocument(
+            this.DATABASE_ID,
+            this.BACKUPS_COLLECTION_ID,
+            backup.$id
+          );
+          console.log('CloudAuthService: Removed orphaned backup record');
+        } catch (deleteError) {
+          console.error('CloudAuthService: Error removing orphaned record:', deleteError.message);
+        }
+
+        return { 
+          success: true, 
+          exists: false, 
+          message: 'Backup file missing, record cleaned up' 
+        };
+      }
+    } catch (error) {
+      console.error('CloudAuthService: Integrity check error:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Manual backup creation with versioning (for data safety)
+  async createManualBackup(description = 'Manual backup') {
+    try {
+      if (!this.user) {
+        throw new Error('User not authenticated');
+      }
+
+      // Get the current backup file path
+      if (!window.api?.getCurrentBackupPath || !window.api?.readBackupFile) {
+        return { success: false, error: 'Backup API not available' };
+      }
+
+      const pathResult = await window.api.getCurrentBackupPath();
+      if (!pathResult.success || !pathResult.path) {
+        return { success: false, error: 'Current backup path not found' };
+      }
+
+      const backupFile = await window.api.readBackupFile(pathResult.path);
+      if (!backupFile || backupFile.length === 0) {
+        return { success: false, error: 'Failed to read current backup file' };
+      }
+
+      // Create a timestamped backup name for manual backups
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const backupName = `manual-backup-${timestamp}.sqlite`;
+      
+      const file = new File([backupFile], backupName, {
+        type: 'application/octet-stream'
+      });
+
+      console.log(`CloudAuthService: Creating manual backup: ${backupName}`);
+      const result = await this.uploadBackupWithRetry(file, backupName, description);
+      
+      if (result.success) {
+        console.log('CloudAuthService: Manual backup created successfully');
+      } else {
+        console.error('CloudAuthService: Manual backup failed:', result.error);
+      }
+      
+      return result;
+    } catch (error) {
+      console.error('CloudAuthService: Manual backup error:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Get backup statistics
+  async getBackupStats() {
+    try {
+      if (!this.user) {
+        throw new Error('User not authenticated');
+      }
+
+      const backupsResult = await this.getBackups();
+      if (!backupsResult.success) {
+        return { success: false, error: backupsResult.error };
+      }
+
+      const backups = backupsResult.backups;
+      const autoBackups = backups.filter(b => b.fileName === 'auto-backup-latest.sqlite');
+      const manualBackups = backups.filter(b => b.fileName.startsWith('manual-backup-'));
+      
+      const totalSize = backups.reduce((sum, backup) => sum + (backup.fileSize || 0), 0);
+      const latestBackup = backups.length > 0 ? backups[0] : null;
+
+      return {
+        success: true,
+        stats: {
+          totalBackups: backups.length,
+          autoBackups: autoBackups.length,
+          manualBackups: manualBackups.length,
+          totalSize,
+          formattedSize: this.formatFileSize(totalSize),
+          latestBackup,
+          hasAutoBackup: autoBackups.length > 0
+        }
+      };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Robust upload with retry logic
+  async uploadBackupWithRetry(backupFile, backupName, description, maxRetries = 3) {
+    let lastError;
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`CloudAuthService: Upload attempt ${attempt}/${maxRetries}`);
+        const result = await this.uploadBackup(backupFile, backupName, description);
+        
+        if (result.success) {
+          console.log(`CloudAuthService: Upload succeeded on attempt ${attempt}`);
+          return result;
+        } else {
+          lastError = result.error;
+          console.warn(`CloudAuthService: Upload attempt ${attempt} failed:`, result.error);
+          
+          // Don't retry for authentication errors
+          if (result.error.includes('not authenticated') || result.error.includes('Unauthorized')) {
+            break;
+          }
+          
+          // Wait before retry (exponential backoff)
+          if (attempt < maxRetries) {
+            const waitTime = Math.pow(2, attempt) * 1000; // 2s, 4s, 8s
+            console.log(`CloudAuthService: Waiting ${waitTime}ms before retry...`);
+            await new Promise(resolve => setTimeout(resolve, waitTime));
+          }
+        }
+      } catch (error) {
+        lastError = error.message;
+        console.error(`CloudAuthService: Upload attempt ${attempt} error:`, error);
+        
+        // Don't retry for certain errors
+        if (error.message.includes('not authenticated') || error.message.includes('Unauthorized')) {
+          break;
+        }
+        
+        // Wait before retry
+        if (attempt < maxRetries) {
+          const waitTime = Math.pow(2, attempt) * 1000;
+          console.log(`CloudAuthService: Waiting ${waitTime}ms before retry...`);
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+        }
+      }
+    }
+    
+    return { success: false, error: `Upload failed after ${maxRetries} attempts. Last error: ${lastError}` };
   }
 }
 

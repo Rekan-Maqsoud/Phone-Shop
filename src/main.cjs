@@ -97,7 +97,8 @@ ipcMain.handle('getProducts', async () => {
 ipcMain.handle('addProduct', async (event, product) => {
   try {
     db.addProduct(product);
-    await updateCurrentBackup();
+    console.log('[main.cjs] addProduct: calling runAutoBackupAfterSale');
+    await runAutoBackupAfterSale();
     return { success: true };
   } catch (e) {
     return { success: false, message: e.message };
@@ -106,7 +107,8 @@ ipcMain.handle('addProduct', async (event, product) => {
 ipcMain.handle('editProduct', async (event, product) => {
   try {
     db.updateProduct(product);
-    await updateCurrentBackup();
+    console.log('[main.cjs] editProduct: calling runAutoBackupAfterSale');
+    await runAutoBackupAfterSale();
     return { success: true };
   } catch (e) {
     return { success: false, message: e.message };
@@ -115,7 +117,8 @@ ipcMain.handle('editProduct', async (event, product) => {
 ipcMain.handle('deleteProduct', async (event, id) => {
   try {
     db.deleteProduct(id);
-    await updateCurrentBackup();
+    console.log('[main.cjs] deleteProduct: calling runAutoBackupAfterSale');
+    await runAutoBackupAfterSale();
     return { success: true };
   } catch (e) {
     return { success: false, message: e.message };
@@ -131,7 +134,7 @@ ipcMain.handle('getAllAccessories', async () => {
 ipcMain.handle('addAccessory', async (event, accessory) => {
   try {
     db.addAccessory(accessory);
-    await updateCurrentBackup();
+    await runAutoBackupAfterSale();
     return { success: true };
   } catch (e) {
     return { success: false, message: e.message };
@@ -140,7 +143,7 @@ ipcMain.handle('addAccessory', async (event, accessory) => {
 ipcMain.handle('editAccessory', async (event, accessory) => {
   try {
     db.updateAccessory(accessory);
-    await updateCurrentBackup();
+    await runAutoBackupAfterSale();
     return { success: true };
   } catch (e) {
     return { success: false, message: e.message };
@@ -149,7 +152,7 @@ ipcMain.handle('editAccessory', async (event, accessory) => {
 ipcMain.handle('deleteAccessory', async (event, id) => {
   try {
     db.deleteAccessory(id);
-    await updateCurrentBackup();
+    await runAutoBackupAfterSale();
     return { success: true };
   } catch (e) {
     return { success: false, message: e.message };
@@ -287,46 +290,43 @@ ipcMain.handle('checkAdminPassword', async (event, password) => {
 });
 // IPC handler for saving sale (use db.saveSale)
 ipcMain.handle('saveSale', async (event, sale) => {
+  console.log('[main.cjs] saveSale IPC handler called');
   try {
     // Only call db.saveSale, which now handles all stock logic atomically
     const saleId = db.saveSale(sale);
-    
-    // Update backup after sale
-    await updateCurrentBackup();
-    
+    console.log('[main.cjs] db.saveSale returned, calling runAutoBackupAfterSale');
+    // Unified backup after sale
+    await runAutoBackupAfterSale();
+    console.log('[main.cjs] runAutoBackupAfterSale finished');
     return { success: true, id: saleId, lastInsertRowid: saleId };
   } catch (e) {
+    console.error('[main.cjs] saveSale error:', e);
     return { success: false, message: e.message };
   }
 });
 
-// Auto backup after sale (instant backup)
+// Unified backup logic - handles both local and cloud backups automatically
+async function runAutoBackupAfterSale() {
+  console.log('[runAutoBackupAfterSale] called');
+  await updateCurrentBackup();
+  console.log('[runAutoBackupAfterSale] Local auto backup completed after sale.');
+  // Trigger cloud backup for authenticated users
+  try {
+    const allWindows = BrowserWindow.getAllWindows();
+    console.log('[runAutoBackupAfterSale] Sending trigger-unified-auto-backup to all windows:', allWindows.length);
+    allWindows.forEach(window => {
+      window.webContents.send('trigger-unified-auto-backup');
+      console.log('[runAutoBackupAfterSale] Sent trigger-unified-auto-backup to window');
+    });
+  } catch (error) {
+    console.warn('[runAutoBackupAfterSale] Failed to trigger cloud auto backup:', error);
+  }
+}
+
+// Use the extracted function in the IPC handler
 ipcMain.handle('autoBackupAfterSale', async () => {
   try {
-    await updateCurrentBackup();
-    // Also trigger cloud auto backup if enabled
-    try {
-      const autoCloudBackup = settings.getSync('autoCloudBackup');
-      if (autoCloudBackup === 'true') {
-        // Find the latest backup file path
-        const backupDir = path.join(__dirname, '../database');
-        const files = fs.readdirSync(backupDir)
-          .filter(f => f.endsWith('.sqlite'))
-          .map(f => ({ name: f, time: fs.statSync(path.join(backupDir, f)).mtime.getTime() }))
-          .sort((a, b) => b.time - a.time);
-        if (files.length > 0) {
-          const latestBackupPath = path.join(backupDir, files[0].name);
-          try {
-            await mainCloudBackup.uploadBackupToCloud(latestBackupPath);
-            console.log('Cloud auto backup completed after sale.');
-          } catch (cloudErr) {
-            console.warn('Cloud auto backup failed:', cloudErr);
-          }
-        }
-      }
-    } catch (cloudError) {
-      console.warn('Cloud auto backup check failed:', cloudError);
-    }
+    await runAutoBackupAfterSale();
     return { success: true };
   } catch (e) {
     return { success: false, message: e.message };
@@ -336,7 +336,7 @@ ipcMain.handle('autoBackupAfterSale', async () => {
 // Debt handlers (backward compatibility)
 ipcMain.handle('addDebt', async (event, { sale_id, customer_name }) => {
   const result = db.addDebt({ sale_id, customer_name });
-  await updateCurrentBackup();
+  await runAutoBackupAfterSale();
   return result;
 });
 ipcMain.handle('getDebts', async () => {
@@ -344,14 +344,14 @@ ipcMain.handle('getDebts', async () => {
 });
 ipcMain.handle('markDebtPaid', async (event, id, paid_at) => {
   const result = db.markDebtPaid(id, paid_at);
-  await updateCurrentBackup();
+  await runAutoBackupAfterSale();
   return result;
 });
 
 // Customer debt handlers
 ipcMain.handle('addCustomerDebt', async (event, { sale_id, customer_name }) => {
   const result = db.addCustomerDebt({ sale_id, customer_name });
-  await updateCurrentBackup();
+  await runAutoBackupAfterSale();
   return result;
 });
 ipcMain.handle('getCustomerDebts', async () => {
@@ -359,29 +359,75 @@ ipcMain.handle('getCustomerDebts', async () => {
 });
 ipcMain.handle('markCustomerDebtPaid', async (event, id, paid_at) => {
   const result = db.markCustomerDebtPaid(id, paid_at);
-  await updateCurrentBackup();
+  await runAutoBackupAfterSale();
   return result;
 });
 
 // Company debt handlers
 ipcMain.handle('addCompanyDebt', async (event, { company_name, amount, description }) => {
   const result = db.addCompanyDebt({ company_name, amount, description });
-  await updateCurrentBackup();
+  await runAutoBackupAfterSale();
   return result;
+});
+ipcMain.handle('addCompanyDebtWithItems', async (event, { company_name, description, items }) => {
+  try {
+    const result = db.addCompanyDebtWithItems({ company_name, description, items });
+    await runAutoBackupAfterSale();
+    return { success: true, result };
+  } catch (error) {
+    console.error('Error adding company debt with items:', error);
+    return { success: false, message: error.message };
+  }
 });
 ipcMain.handle('getCompanyDebts', async () => {
   return db.getCompanyDebts();
 });
+ipcMain.handle('getCompanyDebtItems', async (event, debtId) => {
+  return db.getCompanyDebtItems(debtId);
+});
 ipcMain.handle('markCompanyDebtPaid', async (event, id, paid_at) => {
   const result = db.markCompanyDebtPaid(id, paid_at);
-  await updateCurrentBackup();
+  await runAutoBackupAfterSale();
   return result;
+});
+
+// Buying history handlers
+ipcMain.handle('getBuyingHistory', async () => {
+  return db.getBuyingHistory();
+});
+ipcMain.handle('getBuyingHistoryWithItems', async () => {
+  return db.getBuyingHistoryWithItems();
+});
+// Direct purchase handlers
+ipcMain.handle('addDirectPurchase', async (event, purchaseData) => {
+  console.log('[IPC] addDirectPurchase handler called with:', purchaseData);
+  try {
+    const result = db.addDirectPurchase(purchaseData);
+    console.log('[IPC] addDirectPurchase result:', result);
+    await runAutoBackupAfterSale();
+    return result;
+  } catch (error) {
+    console.error('[IPC] addDirectPurchase error:', error);
+    throw error;
+  }
+});
+ipcMain.handle('addDirectPurchaseWithItems', async (event, purchaseData) => {
+  console.log('[IPC] addDirectPurchaseWithItems handler called with:', purchaseData);
+  try {
+    const result = db.addDirectPurchaseWithItems(purchaseData);
+    console.log('[IPC] addDirectPurchaseWithItems result:', result);
+    await runAutoBackupAfterSale();
+    return result;
+  } catch (error) {
+    console.error('[IPC] addDirectPurchaseWithItems error:', error);
+    throw error;
+  }
 });
 
 // Monthly reports handlers
 ipcMain.handle('createMonthlyReport', async (event, month, year) => {
   const result = db.createMonthlyReport(month, year);
-  await updateCurrentBackup();
+  await runAutoBackupAfterSale();
   return result;
 });
 ipcMain.handle('getMonthlyReports', async () => {
@@ -389,7 +435,7 @@ ipcMain.handle('getMonthlyReports', async () => {
 });
 ipcMain.handle('resetMonthlySalesAndProfit', async () => {
   const result = db.resetMonthlySalesAndProfit();
-  await updateCurrentBackup();
+  await runAutoBackupAfterSale();
   return result;
 });
 
@@ -411,24 +457,19 @@ const initializeCurrentBackup = () => {
     const os = require('os');
     const documentsPath = path.join(os.homedir(), 'Documents');
     const backupDir = path.join(documentsPath, 'Phone Shop Backups');
-    
-    // Create backup directory if it doesn't exist
     if (!fs.existsSync(backupDir)) {
       fs.mkdirSync(backupDir, { recursive: true });
+      
     }
-    
-    // Use a fixed filename for current backup
     const currentBackupFileName = 'phone-shop-current-backup.sqlite';
     const backupPath = path.join(backupDir, currentBackupFileName);
-    
-    // Copy database file to current backup
     const dbPath = path.join(__dirname, '../database/shop.sqlite');
     fs.copyFileSync(dbPath, backupPath);
-    
     currentBackupPath = backupPath;
+ 
     return backupPath;
   } catch (e) {
-    console.error('Failed to initialize current backup:', e);
+    console.error('[initializeCurrentBackup] Failed to initialize current backup:', e);
     return null;
   }
 };
@@ -437,21 +478,20 @@ const initializeCurrentBackup = () => {
 const updateCurrentBackup = async () => {
   try {
     if (!currentBackupPath) {
+      console.log('[updateCurrentBackup] currentBackupPath not set, initializing...');
       initializeCurrentBackup();
       return;
     }
-    
     const dbPath = path.join(__dirname, '../database/shop.sqlite');
     fs.copyFileSync(dbPath, currentBackupPath);
-    
-    // Update backup log
     db.logBackup({
       file_name: 'phone-shop-current-backup.sqlite',
       encrypted: false,
       log: `Current backup updated at ${new Date().toISOString()}`
     });
+    console.log('[updateCurrentBackup] Backup file copied to', currentBackupPath);
   } catch (e) {
-    console.error('Failed to update current backup:', e);
+    console.error('[updateCurrentBackup] Failed to update current backup:', e);
   }
 };
 
@@ -652,7 +692,7 @@ ipcMain.handle('restoreFromCloudBackup', async (event, filePath) => {
 ipcMain.handle('returnSale', async (event, saleId) => {
   try {
     const result = db.returnSale(saleId);
-    await updateCurrentBackup();
+    await runAutoBackupAfterSale();
     return { success: true };
   } catch (e) {
     return { success: false, message: e.message };
@@ -662,19 +702,21 @@ ipcMain.handle('returnSale', async (event, saleId) => {
 ipcMain.handle('returnSaleItem', async (event, saleId, itemId) => {
   try {
     const result = db.returnSaleItem(saleId, itemId);
-    await updateCurrentBackup();
+    await runAutoBackupAfterSale();
     return { success: true };
   } catch (e) {
     return { success: false, message: e.message };
   }
 });
 
-// Cloud backup trigger handler
-ipcMain.on('trigger-cloud-auto-backup', (event) => {
-  console.debug('[Main] Received trigger-cloud-auto-backup event');
-  // Send message to all renderer processes to handle cloud backup
-  const allWindows = BrowserWindow.getAllWindows();
-  allWindows.forEach(window => {
-    window.webContents.send('trigger-cloud-auto-backup');
-  });
+// Get current backup path for unified backup system
+ipcMain.handle('getCurrentBackupPath', async () => {
+  try {
+    if (!currentBackupPath) {
+      initializeCurrentBackup();
+    }
+    return { success: true, path: currentBackupPath };
+  } catch (e) {
+    return { success: false, message: e.message };
+  }
 });
