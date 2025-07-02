@@ -4,6 +4,28 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Custom utility classes for enhanced functionality */
+@layer utilities {
+  .line-clamp-2 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+  
+  .scrollbar-thin {
+    scrollbar-width: thin;
+  }
+  
+  .scrollbar-thumb-blue-400\/40 {
+    scrollbar-color: rgba(96, 165, 250, 0.4) transparent;
+  }
+  
+  .scrollbar-track-transparent {
+    scrollbar-track-color: transparent;
+  }
+}
+
 /* Custom line-clamp utilities */
 @layer utilities {
   .line-clamp-2 {

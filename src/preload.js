@@ -72,13 +72,19 @@ contextBridge.exposeInMainWorld('api', {
   saveCloudBackup: (backupData, fileName) => ipcRenderer.invoke('saveCloudBackup', backupData, fileName),
   restoreFromCloudBackup: (filePath) => ipcRenderer.invoke('restoreFromCloudBackup', filePath),
   getCurrentBackupPath: () => ipcRenderer.invoke('getCurrentBackupPath'),
+  downloadCloudBackup: (backupId, fileName) => ipcRenderer.invoke('downloadCloudBackup', backupId, fileName),
+  getCloudBackups: () => ipcRenderer.invoke('getCloudBackups'),
+  getCloudStorageUsage: () => ipcRenderer.invoke('getCloudStorageUsage'),
+  setCloudSession: (sessionData) => ipcRenderer.invoke('setCloudSession', sessionData),
+  clearCloudSession: () => ipcRenderer.invoke('clearCloudSession'),
   
   // Event listener support for cloud auto backup
   on: (channel, listener) => ipcRenderer.on(channel, listener),
   off: (channel, listener) => ipcRenderer.removeListener(channel, listener),
   send: (channel, ...args) => ipcRenderer.send(channel, ...args),
+  restartApp: () => ipcRenderer.invoke('restartApp'),
 
   // Return functionality
   returnSale: (saleId) => ipcRenderer.invoke('returnSale', saleId),
-  returnSaleItem: (saleId, itemId) => ipcRenderer.invoke('returnSaleItem', saleId, itemId),
+  returnSaleItem: (saleId, itemId, quantity) => ipcRenderer.invoke('returnSaleItem', saleId, itemId, quantity),
 });

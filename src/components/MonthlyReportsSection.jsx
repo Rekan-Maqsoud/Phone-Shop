@@ -26,19 +26,22 @@ const MonthlyReportsSection = ({
             return d.getMonth() + 1 === month && d.getFullYear() === year;
           });
         }
-        // Helper to get accessories sold for a given month/year
-        function getAccessorySalesForMonth(month, year) {
-          return admin.sales.filter(sale => {
-            const d = new Date(sale.created_at);
-            return d.getMonth() + 1 === month && d.getFullYear() === year && sale.items?.some(i => i.is_accessory);
-          });
-        }
-        // Helper to get products sold for a given month/year
-        function getProductSalesForMonth(month, year) {
-          return admin.sales.filter(sale => {
-            const d = new Date(sale.created_at);
-            return d.getMonth() + 1 === month && d.getFullYear() === year && sale.items?.some(i => !i.is_accessory);
-          });
+        // Helper to get total spending for a given month/year
+        function getTotalSpentForMonth(month, year) {
+          // Use buying history to get actual cash spending for the month
+          // This avoids double-counting inventory costs
+          let totalSpent = 0;
+          if (admin.buyingHistory) {
+            admin.buyingHistory.forEach(entry => {
+              if (entry.paid_at) {
+                const paidDate = new Date(entry.paid_at);
+                if (paidDate.getMonth() + 1 === month && paidDate.getFullYear() === year) {
+                  totalSpent += entry.amount || 0;
+                }
+              }
+            });
+          }
+          return totalSpent;
         }
 
         return (
@@ -63,6 +66,8 @@ const MonthlyReportsSection = ({
               });
               const totalProfit = productProfit + accessoryProfit;
               const totalTransactions = sales.length;
+              const actualTotalSpent = getTotalSpentForMonth(report.month, report.year);
+              
               return (
                 <div key={report.id} className="bg-white/60 dark:bg-gray-800/80 rounded-2xl shadow p-6 border border-white/20">
                   <div className="flex items-center gap-3 mb-4">
@@ -107,7 +112,7 @@ const MonthlyReportsSection = ({
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600 dark:text-gray-400">{t.totalSpent || 'Total Spent'}:</span>
-                      <span className="font-bold text-red-600 dark:text-red-400">${(report.total_spent || 0).toFixed(2)}</span>
+                      <span className="font-bold text-red-600 dark:text-red-400">${actualTotalSpent.toFixed(2)}</span>
                     </div>
                   </div>
                 </div>

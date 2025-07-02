@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useData } from '../contexts/DataContext';
 import cloudAuthService from '../services/CloudAuthService';
 import ModalBase from './ModalBase';
 import ToastUnified from './ToastUnified';
 
 export default function CloudBackupManager({ onClose, t }) {
+  const { fetchAllData } = useData();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState(null);
   const [backups, setBackups] = useState([]);
@@ -31,8 +33,91 @@ export default function CloudBackupManager({ onClose, t }) {
     setToast({ show: false, message: '', type: 'success' });
   };
 
+  const checkAuthStatus = useCallback(async () => {
+    setLoading(true);
+    try {
+      // Use a more robust authentication check with retries
+      let authCheck = false;
+      let userResult = null;
+      
+      // Try to get current user first (this will validate the session)
+      userResult = await cloudAuthService.getCurrentUser();
+      
+      if (userResult.success && userResult.user) {
+        authCheck = true;
+        setIsAuthenticated(true);
+        setUser(userResult.user);
+        console.log('CloudBackupManager: User authenticated:', userResult.user.email);
+        
+        // Share session with main process for cloud backup operations
+        if (window.api?.setCloudSession) {
+          try {
+            // Get the current session to share with main process
+            const session = await cloudAuthService.account.getSession('current');
+            await window.api.setCloudSession({
+              sessionId: session.$id,
+              userId: userResult.user.$id,
+              userEmail: userResult.user.email,
+              sessionSecret: session.secret || session.sessionId
+            });
+            console.log('CloudBackupManager: Session shared with main process during auth check');
+          } catch (sessionError) {
+            console.warn('CloudBackupManager: Failed to share session with main process during auth check:', sessionError);
+          }
+        }
+      } else {
+        // If getCurrentUser fails, try checkAuth as fallback
+        authCheck = await cloudAuthService.checkAuth();
+        
+        if (authCheck) {
+          // Try getCurrentUser again after checkAuth
+          userResult = await cloudAuthService.getCurrentUser();
+          if (userResult.success && userResult.user) {
+            setIsAuthenticated(true);
+            setUser(userResult.user);
+            console.log('CloudBackupManager: User authenticated after retry:', userResult.user.email);
+            
+            // Share session with main process
+            if (window.api?.setCloudSession) {
+              try {
+                const session = await cloudAuthService.account.getSession('current');
+                await window.api.setCloudSession({
+                  sessionId: session.$id,
+                  userId: userResult.user.$id,
+                  userEmail: userResult.user.email,
+                  sessionSecret: session.secret || session.sessionId
+                });
+                console.log('CloudBackupManager: Session shared with main process after retry');
+              } catch (sessionError) {
+                console.warn('CloudBackupManager: Failed to share session with main process after retry:', sessionError);
+              }
+            }
+          } else {
+            setIsAuthenticated(false);
+            setUser(null);
+            console.log('CloudBackupManager: User not authenticated after retry:', userResult.error);
+          }
+        } else {
+          setIsAuthenticated(false);
+          setUser(null);
+          console.log('CloudBackupManager: No valid session found');
+        }
+      }
+    } catch (error) {
+      console.error('CloudBackupManager: Error checking auth status:', error);
+      setIsAuthenticated(false);
+      setUser(null);
+    }
+    setLoading(false);
+  }, []);
+
   // Replace loadBackups to use window.api
   const loadBackups = useCallback(async () => {
+    if (!isAuthenticated) {
+      
+      return;
+    }
+    
     setLoading(true);
     let result;
     if (window.api?.getCloudBackups) {
@@ -43,13 +128,26 @@ export default function CloudBackupManager({ onClose, t }) {
     if (result.success) {
       setBackups(result.backups);
     } else {
-      showToast(result.error || (t.failedToLoadBackups || 'Failed to load backups'), 'error');
+      console.error('CloudBackupManager: Failed to load backups:', result.error);
+      // Check if it's an authentication error
+      if (result.error?.includes('not authenticated') || result.error?.includes('Unauthorized')) {
+        // Re-check authentication status
+        await checkAuthStatus();
+        showToast(t.userNotAuthenticated || 'User not authenticated - please sign in to use cloud backup features', 'error');
+      } else {
+        showToast(result.error || (t.failedToLoadBackups || 'Failed to load backups'), 'error');
+      }
     }
     setLoading(false);
-  }, []);
+  }, [isAuthenticated, t, checkAuthStatus]);
 
   // Replace loadStorageUsage to use window.api
   const loadStorageUsage = useCallback(async () => {
+    if (!isAuthenticated) {
+    
+      return;
+    }
+    
     let result;
     if (window.api?.getCloudStorageUsage) {
       result = await window.api.getCloudStorageUsage();
@@ -58,8 +156,15 @@ export default function CloudBackupManager({ onClose, t }) {
     }
     if (result.success) {
       setStorageUsage(result);
+    } else {
+      console.error('CloudBackupManager: Failed to load storage usage:', result.error);
+      // Check if it's an authentication error
+      if (result.error?.includes('not authenticated') || result.error?.includes('Unauthorized')) {
+        // Re-check authentication status
+        await checkAuthStatus();
+      }
     }
-  }, []);
+  }, [isAuthenticated, checkAuthStatus]);
 
   // Unified auto backup function - called by the unified backup system
   const performUnifiedAutoBackup = useCallback(async () => {
@@ -110,37 +215,6 @@ export default function CloudBackupManager({ onClose, t }) {
       loadStorageUsage();
     }
   }, [isAuthenticated]);
-
-  const checkAuthStatus = async () => {
-    setLoading(true);
-    try {
-      // First check if we have a valid session
-      const authCheck = await cloudAuthService.checkAuth();
-      
-      if (authCheck) {
-        const userResult = await cloudAuthService.getCurrentUser();
-        if (userResult.success && userResult.user) {
-          setIsAuthenticated(true);
-          setUser(userResult.user);
-          console.log('CloudBackupManager: User authenticated:', userResult.user.email);
-        } else {
-          setIsAuthenticated(false);
-          setUser(null);
-          console.log('CloudBackupManager: User not authenticated:', userResult.error);
-        }
-      } else {
-        setIsAuthenticated(false);
-        setUser(null);
-        console.log('CloudBackupManager: No valid session found');
-      }
-    } catch (error) {
-      console.error('CloudBackupManager: Error checking auth status:', error);
-      setIsAuthenticated(false);
-      setUser(null);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleAuth = async (e) => {
     e.preventDefault();
@@ -295,14 +369,26 @@ export default function CloudBackupManager({ onClose, t }) {
         showToast(result.message || (t.databaseRestoredSuccessfully || 'Database restored successfully!'));
         
         if (result.requiresRestart) {
-          if (confirm(t.databaseRestoredRestartRequired || 'Database restored successfully! The application needs to restart to apply changes. Restart now?')) {
-            window.location.reload();
-          }
+          // Give user immediate feedback and then restart
+          setTimeout(() => {
+            if (confirm(t.databaseRestoredRestartRequired || 'Database restored successfully! The application needs to restart to apply changes. Restart now?')) {
+              // Use Electron's app restart if available, otherwise reload
+              if (window.api?.restartApp) {
+                window.api.restartApp();
+              } else {
+                window.location.reload();
+              }
+            }
+          }, 1000);
+        } else {
+          // Refresh all data from DataContext after restore if no restart required
+          await fetchAllData();
         }
       } else {
         showToast(result.message || (t.failedToRestoreBackup || 'Failed to restore backup'), 'error');
       }
     } catch (error) {
+      console.error('Restore error:', error);
       showToast(t.failedToRestoreBackup || 'Failed to restore backup', 'error');
     }
     
@@ -315,7 +401,21 @@ export default function CloudBackupManager({ onClose, t }) {
 
   return (
     <>
-      <ModalBase open={true} title={t.cloudBackupManager || 'Cloud Backup Manager'} onClose={onClose}>
+      <ModalBase open={true} className="max-w-4xl">
+        {/* Header with title and close button */}
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">
+            {t.cloudBackupManager || 'Cloud Backup Manager'}
+          </h2>
+          <button
+            onClick={onClose}
+            className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 text-2xl w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+            aria-label="Close Cloud Backup Manager"
+          >
+            ×
+          </button>
+        </div>
+        
         <div className="space-y-6">
           {/* Authentication Section */}
           {!isAuthenticated ? (
@@ -448,11 +548,21 @@ export default function CloudBackupManager({ onClose, t }) {
 
       {/* Auth Form Modal */}
       {showAuthForm && (
-        <ModalBase
-          open={true}
-          title={isLogin ? (t.signIn || 'Sign In') : (t.createAccount || 'Create Account')}
-          onClose={() => setShowAuthForm(false)}
-        >
+        <ModalBase open={true} className="max-w-md">
+          {/* Header with title and close button */}
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100">
+              {isLogin ? (t.signIn || 'Sign In') : (t.createAccount || 'Create Account')}
+            </h2>
+            <button
+              onClick={() => setShowAuthForm(false)}
+              className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 text-2xl w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+              aria-label="Close Auth Form"
+            >
+              ×
+            </button>
+          </div>
+          
           <form onSubmit={handleAuth} className="space-y-4">
             {!isLogin && (
               <div>

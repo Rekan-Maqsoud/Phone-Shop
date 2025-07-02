@@ -1,4 +1,5 @@
-import React, { useMemo, useEffect } from 'react';
+import React, { useMemo, useState } from 'react';
+import { useData } from '../contexts/DataContext';
 
 const AdminDashboard = ({ 
   t, 
@@ -10,16 +11,25 @@ const AdminDashboard = ({
   setSection,
   admin // Added admin prop to get more data
 }) => {
-  // Only fetch data once on mount, not on every admin change
-  useEffect(() => {
-    if (!admin) return;
-    // Only fetch if data arrays are empty to avoid unnecessary re-fetches
-    if (!admin.products?.length && admin.fetchProducts) admin.fetchProducts();
-    if (!admin.accessories?.length && admin.fetchAccessories) admin.fetchAccessories();
-    if (!admin.sales?.length && admin.fetchSales) admin.fetchSales();
-    if (!admin.debts?.length && admin.fetchDebts) admin.fetchDebts();
-    if (!admin.companyDebts?.length && admin.fetchCompanyDebts) admin.fetchCompanyDebts();
-  }, []); // Only run once on mount
+  const { reloadApp, loading } = useData();
+  const [reloading, setReloading] = useState(false);
+
+  const handleReload = async () => {
+    setReloading(true);
+    try {
+      const success = await reloadApp();
+      if (success) {
+        console.log('✅ Application reloaded successfully');
+      } else {
+        console.error('❌ Failed to reload application');
+      }
+    } catch (error) {
+      console.error('❌ Error during reload:', error);
+    } finally {
+      setReloading(false);
+    }
+  };
+  // Data is automatically fetched by DataContext, no manual fetching needed
   
   // Calculate additional metrics
   const metrics = useMemo(() => {
@@ -40,9 +50,14 @@ const AdminDashboard = ({
     );
     const thisWeeksRevenue = thisWeeksSales.reduce((sum, sale) => sum + (sale.total || 0), 0);
     
-    // Outstanding debts
-    const unpaidDebts = (admin?.debts || []).filter(debt => !debt.paid_at);
+    // Outstanding debts - fixed to check both paid_at and paid fields
+    const unpaidDebts = (admin?.debts || []).filter(debt => !debt.paid_at && !debt.paid);
     const totalUnpaidAmount = unpaidDebts.reduce((sum, debt) => {
+      // Use debt.total if available, otherwise find sale and use sale.total
+      const debtAmount = debt.total || debt.amount;
+      if (debtAmount) {
+        return sum + debtAmount;
+      }
       const sale = (admin?.sales || []).find(s => s.id === debt.sale_id);
       return sum + (sale ? sale.total : 0);
     }, 0);
@@ -80,10 +95,10 @@ const AdminDashboard = ({
             </p>
           </div>
           
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
             <button
               onClick={() => {
-                console.log('[AdminDashboard] Add Purchase button clicked');
+                
                 setShowAddPurchase(true);
               }}
               className="px-6 py-3 bg-white/20 backdrop-blur text-white rounded-xl hover:bg-white/30 transition font-semibold shadow-lg border border-white/20 flex items-center gap-2"
@@ -95,6 +110,23 @@ const AdminDashboard = ({
               className="px-6 py-3 bg-white/20 backdrop-blur text-white rounded-xl hover:bg-white/30 transition font-semibold shadow-lg border border-white/20 flex items-center gap-2"
             >
               🏢 {t.companyDebts || 'Company Debts'}
+            </button>
+            <button
+              onClick={handleReload}
+              disabled={reloading || loading}
+              className="px-6 py-3 bg-white/20 backdrop-blur text-white rounded-xl hover:bg-white/30 transition font-semibold shadow-lg border border-white/20 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white/20"
+              title={t.reloadApp || 'Reload Application Data'}
+            >
+              {reloading || loading ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  {t.reloading || 'Reloading...'}
+                </>
+              ) : (
+                <>
+                  🔄 {t.reload || 'Reload'}
+                </>
+              )}
             </button>
           </div>
         </div>
@@ -129,7 +161,7 @@ const AdminDashboard = ({
             <span className="text-orange-100 text-sm">{t.outstanding || 'Outstanding'}</span>
           </div>
           <div className="text-2xl font-bold">{formatCurrency(metrics.totalUnpaidAmount)}</div>
-          <div className="text-orange-100 text-sm">{metrics.unpaidDebtsCount} unpaid debts</div>
+          <div className="text-orange-100 text-sm">{metrics.unpaidDebtsCount} {t.unpaidDebts || 'unpaid debts'}</div>
         </div>
 
         {/* Inventory Status */}
@@ -140,7 +172,7 @@ const AdminDashboard = ({
           </div>
           <div className="text-2xl font-bold">{metrics.activeProducts + metrics.activeAccessories}</div>
           <div className="text-purple-100 text-sm">
-            {metrics.lowStockCount > 0 ? `${metrics.lowStockCount} low stock` : 'All stocks healthy'}
+            {metrics.lowStockCount > 0 ? `${metrics.lowStockCount} ${t.lowStockText || 'low stock'}` : (t.allStocksHealthy || 'All stocks healthy')}
           </div>
         </div>
       </div>
@@ -214,7 +246,7 @@ const AdminDashboard = ({
                       {formatCurrency(sale.total)}
                     </div>
                     <div className="text-xs text-gray-500 dark:text-gray-400">
-                      {new Date(sale.created_at).toLocaleDateString()} • {sale.items?.length || 0} items
+                      {new Date(sale.created_at).toLocaleDateString()} • {sale.items?.length || 0} {t.items || 'items'}
                     </div>
                   </div>
                 </div>

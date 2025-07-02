@@ -1,4 +1,7 @@
 import { Client, Account, Databases, Storage, ID, Query } from 'appwrite';
+
+let globalInstance = null;
+
 class CloudAuthService {
   constructor() {
     this._isAuthenticated = false;
@@ -9,6 +12,20 @@ class CloudAuthService {
     this.storage = null;
     this.user = null;
     this._authCheckInterval = null;
+    this._lastAuthCheck = 0; // Add timestamp tracking
+    this._authCheckCooldown = 30000; // 30 seconds cooldown between checks
+    this._networkTimeout = 10000; // 10 second timeout for requests
+    
+    // Debug environment variables
+    console.log('CloudAuthService: Environment variables:', {
+      endpoint: import.meta.env.VITE_APPWRITE_ENDPOINT,
+      projectId: import.meta.env.VITE_APPWRITE_PROJECT_ID,
+      databaseId: import.meta.env.VITE_APPWRITE_DATABASE_ID,
+      collectionsId: import.meta.env.VITE_APPWRITE_BACKUPS_COLLECTION_ID,
+      bucketId: import.meta.env.VITE_APPWRITE_BACKUP_BUCKET_ID,
+      mode: import.meta.env.MODE,
+      prod: import.meta.env.PROD
+    });
     
     // Initialize Appwrite client with environment variables
     this.client
@@ -27,13 +44,19 @@ class CloudAuthService {
     // Validate configuration
     const configValidation = this.validateConfiguration();
     if (!configValidation.isValid) {
-      console.error('CloudAuthService: Configuration validation failed:', configValidation.message);
+      console.warn('CloudAuthService: Configuration validation failed:', configValidation.message);
+      console.warn('CloudAuthService: Running in offline mode. Cloud backup features will be disabled.');
+      // Set a flag to indicate offline mode
+      this._offlineMode = true;
     } else {
       console.log('CloudAuthService: Configuration validated successfully');
+      this._offlineMode = false;
     }
     
-    // Start periodic auth check (every 5 minutes)
-    this._startPeriodicAuthCheck();
+    // Only start periodic auth check if not in offline mode
+    if (!this._offlineMode) {
+      this._startPeriodicAuthCheck();
+    }
   }
 
   // Configuration validation
@@ -61,15 +84,25 @@ class CloudAuthService {
       clearInterval(this._authCheckInterval);
     }
     
-    // Check auth every 5 minutes
+    // Only start periodic checks if authenticated
+    if (!this._isAuthenticated) {
+      return;
+    }
+    
+    // Check auth every 10 minutes (increased from 5 minutes)
     this._authCheckInterval = setInterval(async () => {
       if (this._isAuthenticated) {
         const isStillAuth = await this.checkAuth();
         if (!isStillAuth) {
           console.log('CloudAuthService: Session expired during periodic check');
+          // Stop periodic checks when not authenticated
+          this._stopPeriodicAuthCheck();
         }
+      } else {
+        // Stop periodic checks if not authenticated
+        this._stopPeriodicAuthCheck();
       }
-    }, 5 * 60 * 1000); // 5 minutes
+    }, 10 * 60 * 1000); // 10 minutes (reduced frequency)
   }
 
   _stopPeriodicAuthCheck() {
@@ -81,13 +114,31 @@ class CloudAuthService {
 
   // Authentication methods
   async createAccount(email, password, name) {
-    if (!email || !password || !name) return;
+    // Validate required parameters
+    if (!email || !password || !name) {
+      return { 
+        success: false, 
+        error: 'Email, password, and name are required' 
+      };
+    }
+    
     try {
       const response = await this.account.create(ID.unique(), email, password, name);
       await this.login(email, password);
       return { success: true, user: response };
     } catch (error) {
-      return { success: false, error: error.message };
+      let errorMessage = error.message;
+      
+      // Provide user-friendly error messages
+      if (error.message.includes('email already exists') || error.message.includes('user_already_exists')) {
+        errorMessage = 'An account with this email already exists';
+      } else if (error.message.includes('Invalid email')) {
+        errorMessage = 'Please enter a valid email address';
+      } else if (error.message.includes('Password must be')) {
+        errorMessage = 'Password must be at least 8 characters long';
+      }
+      
+      return { success: false, error: errorMessage };
     }
   }
 
@@ -95,18 +146,32 @@ class CloudAuthService {
     if (!email || !password) return { success: false, error: 'Email and password are required' };
     
     try {
+      // Create timeout promise for login operations
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Login timeout - please check your internet connection')), this._networkTimeout)
+      );
+      
       // First, try to logout any existing session
       try {
-        await this.account.deleteSession('current');
+        await Promise.race([
+          this.account.deleteSession('current'),
+          timeoutPromise
+        ]);
       } catch (e) {
-        // Ignore error if no session exists
+        // Ignore error if no session exists or timeout on logout
       }
       
-      // Create new session
-      const session = await this.account.createEmailPasswordSession(email, password);
+      // Create new session with timeout
+      const session = await Promise.race([
+        this.account.createEmailPasswordSession(email, password),
+        timeoutPromise
+      ]);
       
-      // Get user info
-      this.user = await this.account.get();
+      // Get user info with timeout
+      this.user = await Promise.race([
+        this.account.get(),
+        timeoutPromise
+      ]);
       
       // Verify we have valid user data
       if (!this.user || !this.user.$id) {
@@ -114,10 +179,31 @@ class CloudAuthService {
       }
       
       this.setAuthenticated(true);
+      
+      // Share session with main process for cloud backup operations
+      if (window.api?.setCloudSession) {
+        try {
+          await window.api.setCloudSession({
+            sessionId: session.$id,
+            userId: this.user.$id,
+            userEmail: this.user.email,
+            sessionSecret: session.secret || session.sessionId
+          });
+          console.log('CloudAuthService: Session shared with main process');
+        } catch (sessionError) {
+          console.warn('CloudAuthService: Failed to share session with main process:', sessionError);
+        }
+      }
+      
       return { success: true, user: this.user, session };
     } catch (error) {
       this.user = null;
       this.setAuthenticated(false);
+      
+      // Handle timeout specifically
+      if (error.message === 'Login timeout - please check your internet connection') {
+        return { success: false, error: error.message };
+      }
       
       // Provide user-friendly error messages
       let errorMessage = error.message;
@@ -139,6 +225,17 @@ class CloudAuthService {
       await this.account.deleteSession('current');
       this.user = null;
       this.setAuthenticated(false);
+      
+      // Clear session from main process
+      if (window.api?.clearCloudSession) {
+        try {
+          await window.api.clearCloudSession();
+          console.log('CloudAuthService: Session cleared from main process');
+        } catch (sessionError) {
+          console.warn('CloudAuthService: Failed to clear session from main process:', sessionError);
+        }
+      }
+      
       return { success: true };
     } catch (error) {
       return { success: false, error: error.message };
@@ -272,26 +369,47 @@ class CloudAuthService {
           // Delete the old file first to avoid storage conflicts
           await this.storage.deleteFile(this.BACKUP_BUCKET_ID, fileId);
           console.log('CloudAuthService: Deleted old backup file:', fileId);
+          
+          // Wait a moment for deletion to complete
+          await new Promise(resolve => setTimeout(resolve, 500));
         } catch (deleteErr) {
           console.warn('CloudAuthService: Could not delete old file:', deleteErr.message);
+          // If delete fails, use a new unique ID to avoid conflicts
+          fileId = null;
         }
         
-        // For auto backups, use a consistent file ID to avoid creating multiple files
+        // Create a new file with determined ID
         let newFileId;
-        if (backupName === 'auto-backup-latest.sqlite') {
-          // Use a consistent ID for auto backups based on user ID
-          newFileId = `auto-backup-${this.user.$id}`;
+        if (backupName === 'auto-backup-latest.sqlite' && fileId) {
+          // Only reuse ID if deletion was successful
+          newFileId = fileId;
         } else {
+          // Use unique ID for manual backups or if delete failed
           newFileId = ID.unique();
         }
         
-        // Create a new file with the determined ID
-        fileUpload = await this.storage.createFile(
-          this.BACKUP_BUCKET_ID,
-          newFileId,
-          backupFile
-        );
-        fileId = fileUpload.$id;
+        try {
+          fileUpload = await this.storage.createFile(
+            this.BACKUP_BUCKET_ID,
+            newFileId,
+            backupFile
+          );
+          fileId = fileUpload.$id;
+        } catch (createErr) {
+          // If file creation still fails (ID conflict), try with unique ID
+          if (createErr.message.includes('already exists')) {
+            console.warn('CloudAuthService: File ID conflict, trying with unique ID');
+            newFileId = ID.unique();
+            fileUpload = await this.storage.createFile(
+              this.BACKUP_BUCKET_ID,
+              newFileId,
+              backupFile
+            );
+            fileId = fileUpload.$id;
+          } else {
+            throw createErr;
+          }
+        }
         
         // Update the existing backup record with new file ID
         if (existingBackup) {
@@ -313,21 +431,37 @@ class CloudAuthService {
         try {
           console.log('CloudAuthService: Creating new backup file...');
           
-          // For auto backups, use a consistent file ID to avoid creating multiple files
+          // For auto backups, try consistent ID first, fallback to unique
           let newFileId;
           if (backupName === 'auto-backup-latest.sqlite') {
-            // Use a consistent ID for auto backups based on user ID
             newFileId = `auto-backup-${this.user.$id}`;
           } else {
             newFileId = ID.unique();
           }
           
-          fileUpload = await this.storage.createFile(
-            this.BACKUP_BUCKET_ID,
-            newFileId,
-            backupFile
-          );
-          fileId = fileUpload.$id;
+          try {
+            fileUpload = await this.storage.createFile(
+              this.BACKUP_BUCKET_ID,
+              newFileId,
+              backupFile
+            );
+            fileId = fileUpload.$id;
+          } catch (createErr) {
+            // If file creation fails (ID conflict), try with unique ID
+            if (createErr.message.includes('already exists')) {
+              console.warn('CloudAuthService: File ID conflict, trying with unique ID');
+              newFileId = ID.unique();
+              fileUpload = await this.storage.createFile(
+                this.BACKUP_BUCKET_ID,
+                newFileId,
+                backupFile
+              );
+              fileId = fileUpload.$id;
+            } else {
+              throw createErr;
+            }
+          }
+          
           console.log('CloudAuthService: New file created:', fileId);
           
           if (existingBackup) {
@@ -423,8 +557,10 @@ class CloudAuthService {
 
   async getBackups() {
     try {
-      if (!this.user) {
-        throw new Error('User not authenticated');
+      // Always refresh user state before making the request
+      const userResult = await this.getCurrentUser();
+      if (!userResult.success || !this.user) {
+        throw new Error('User not authenticated - please sign in to use cloud backup features');
       }
 
       const response = await this.databases.listDocuments(
@@ -439,6 +575,7 @@ class CloudAuthService {
 
       return { success: true, backups: response.documents };
     } catch (error) {
+      console.error('CloudAuthService: getBackups error:', error);
       return { success: false, error: error.message };
     }
   }
@@ -624,15 +761,42 @@ class CloudAuthService {
 
   // Authentication state tracking and event system
   async checkAuth() {
+    // If in offline mode, return false without attempting network calls
+    if (this._offlineMode) {
+      this.setAuthenticated(false);
+      return false;
+    }
+    
+    // Implement cooldown to prevent spam
+    const now = Date.now();
+    if (now - this._lastAuthCheck < this._authCheckCooldown) {
+      // Return cached authentication state during cooldown
+      return this._isAuthenticated;
+    }
+    this._lastAuthCheck = now;
+    
     try {
-      // First try to verify existing session
-      const sessionResult = await this.verifySession();
+      // Add timeout wrapper for network requests
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Network timeout')), this._networkTimeout)
+      );
+      
+      // First try to verify existing session with timeout
+      const sessionResult = await Promise.race([
+        this.verifySession(),
+        timeoutPromise
+      ]);
+      
       if (sessionResult.success) {
         return true;
       }
       
-      // If session verification failed, try to get user directly
-      this.user = await this.account.get();
+      // If session verification failed, try to get user directly with timeout
+      this.user = await Promise.race([
+        this.account.get(),
+        timeoutPromise
+      ]);
+      
       if (this.user && this.user.$id) {
         this.setAuthenticated(true);
         return true;
@@ -642,6 +806,13 @@ class CloudAuthService {
         return false;
       }
     } catch (error) {
+      // Handle timeout errors
+      if (error.message === 'Network timeout') {
+        console.warn('CloudAuthService: Network timeout during auth check');
+        // Return current state during timeout
+        return this._isAuthenticated;
+      }
+      
       // Handle different types of authentication errors
       if (error?.code === 401 || error?.status === 401 || 
           error?.message?.includes('Unauthorized') || 
@@ -670,12 +841,24 @@ class CloudAuthService {
   // Session validation and restoration
   async verifySession() {
     try {
-      // Try to get the current session
-      const session = await this.account.getSession('current');
+      // Create timeout promise
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Session verification timeout')), this._networkTimeout)
+      );
+      
+      // Try to get the current session with timeout
+      const session = await Promise.race([
+        this.account.getSession('current'),
+        timeoutPromise
+      ]);
       
       if (session && !this._isSessionExpired(session)) {
-        // Session exists and is valid, get user info
-        this.user = await this.account.get();
+        // Session exists and is valid, get user info with timeout
+        this.user = await Promise.race([
+          this.account.get(),
+          timeoutPromise
+        ]);
+        
         if (this.user && this.user.$id) {
           this.setAuthenticated(true);
           return { success: true, user: this.user };
@@ -687,6 +870,12 @@ class CloudAuthService {
       this.setAuthenticated(false);
       return { success: false, error: 'No valid session' };
     } catch (error) {
+      // Handle timeout specifically
+      if (error.message === 'Session verification timeout') {
+        console.warn('CloudAuthService: Session verification timed out');
+        return { success: false, error: 'Session verification timeout' };
+      }
+      
       // Session is invalid or expired
       this.user = null;
       this.setAuthenticated(false);
@@ -737,8 +926,10 @@ class CloudAuthService {
   // Utility methods
   async getStorageUsage() {
     try {
-      if (!this.user) {
-        throw new Error('User not authenticated');
+      // Always refresh user state before making the request
+      const userResult = await this.getCurrentUser();
+      if (!userResult.success || !this.user) {
+        throw new Error('User not authenticated - please sign in to use cloud backup features');
       }
 
       const backups = await this.getBackups();
@@ -754,6 +945,7 @@ class CloudAuthService {
         formattedSize: this.formatFileSize(totalSize)
       };
     } catch (error) {
+      console.error('CloudAuthService: getStorageUsage error:', error);
       return { success: false, error: error.message };
     }
   }
@@ -1021,6 +1213,9 @@ class CloudAuthService {
   }
 }
 
-// Create singleton instance
-const cloudAuthService = new CloudAuthService();
-export default cloudAuthService;
+// Create and export singleton instance to prevent initialization issues
+if (!globalInstance) {
+  globalInstance = new CloudAuthService();
+}
+
+export default globalInstance;

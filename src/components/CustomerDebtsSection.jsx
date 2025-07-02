@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useData } from '../contexts/DataContext';
 
 const CustomerDebtsSection = ({ 
   t, 
@@ -9,6 +10,7 @@ const CustomerDebtsSection = ({
   setShowPaidDebts, 
   triggerCloudBackup 
 }) => {
+  const { refreshDebts, refreshDebtSales, refreshSales } = useData();
   const [sortBy, setSortBy] = useState('date'); // 'date', 'amount', 'customer'
   const [sortOrder, setSortOrder] = useState('desc'); // 'asc', 'desc'
   const [expandedCustomers, setExpandedCustomers] = useState(new Set());
@@ -100,7 +102,8 @@ const CustomerDebtsSection = ({
         
         (admin.debtSales || []).forEach(sale => {
           const debt = debtMap[sale.id];
-          const customer = debt?.customer_name || sale.customer_name || 'Unknown Customer';
+          const originalCustomer = debt?.customer_name || sale.customer_name || 'Unknown Customer';
+          const customer = originalCustomer.toLowerCase(); // Normalize for grouping
           
           // Check paid status correctly
           const isPaid = Boolean(debt?.paid_at);
@@ -115,11 +118,12 @@ const CustomerDebtsSection = ({
               totalAmount: 0,
               totalTransactions: 0,
               latestDate: sale.created_at,
-              oldestDate: sale.created_at
+              oldestDate: sale.created_at,
+              displayName: originalCustomer // Store the original name for display
             };
           }
           
-          grouped[customer].sales.push({ sale, debt });
+          grouped[customer].sales.push({ sale, debt, originalCustomer });
           grouped[customer].totalAmount += sale.total;
           grouped[customer].totalTransactions += 1;
           
@@ -131,9 +135,9 @@ const CustomerDebtsSection = ({
           }
         });
 
-        // Apply search filter
-        let filteredGroups = Object.entries(grouped).filter(([customer]) => 
-          !debtSearch || customer.toLowerCase().includes(debtSearch.toLowerCase())
+        // Apply search filter (case-insensitive)
+        let filteredGroups = Object.entries(grouped).filter(([normalizedCustomer, data]) => 
+          !debtSearch || data.displayName.toLowerCase().includes(debtSearch.toLowerCase())
         );
 
         // Apply sorting
@@ -148,7 +152,7 @@ const CustomerDebtsSection = ({
               comparison = dataA.totalAmount - dataB.totalAmount;
               break;
             case 'customer':
-              comparison = customerA.localeCompare(customerB);
+              comparison = dataA.displayName.toLowerCase().localeCompare(dataB.displayName.toLowerCase());
               break;
             default:
               comparison = 0;
@@ -222,15 +226,16 @@ const CustomerDebtsSection = ({
 
             {/* Customer List */}
             <div className="space-y-4">
-              {filteredGroups.map(([customer, data]) => {
-                const isExpanded = expandedCustomers.has(customer);
+              {filteredGroups.map(([normalizedCustomer, data]) => {
+                const customer = data.displayName; // Use the original display name
+                const isExpanded = expandedCustomers.has(normalizedCustomer);
                 
                 return (
-                  <div key={customer} className="bg-white/60 dark:bg-gray-800/80 rounded-2xl shadow border border-white/20 overflow-hidden">
+                  <div key={normalizedCustomer} className="bg-white/60 dark:bg-gray-800/80 rounded-2xl shadow border border-white/20 overflow-hidden">
                     {/* Customer Header - Clickable to expand/collapse */}
                     <div 
                       className="p-6 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 transition"
-                      onClick={() => toggleCustomerExpanded(customer)}
+                      onClick={() => toggleCustomerExpanded(normalizedCustomer)}
                     >
                       <div className="flex flex-col md:flex-row justify-between items-start md:items-center">
                         <div className="flex items-center gap-3 mb-3 md:mb-0">
@@ -271,7 +276,7 @@ const CustomerDebtsSection = ({
                         <div className="p-6 space-y-3">
                           {data.sales
                             .sort((a, b) => new Date(b.sale.created_at) - new Date(a.sale.created_at))
-                            .map(({ sale, debt }) => (
+                            .map(({ sale, debt, originalCustomer }) => (
                             <div key={sale.id} className="bg-white dark:bg-gray-800 rounded-xl p-4 flex justify-between items-center shadow-sm">
                               <div className="flex-1">
                                 <div className="flex items-center gap-3 mb-2">
@@ -318,7 +323,7 @@ const CustomerDebtsSection = ({
                                         e.stopPropagation();
                                         if (e.target.checked) {
                                           const confirmed = window.confirm(
-                                            `${t.markDebtAsPaidConfirm || 'Are you sure you want to mark this debt as paid?'}\n\nAmount: ${formatCurrency(sale.total)}\nCustomer: ${customer}\n\nThis action cannot be undone.`
+                                            `${t.markDebtAsPaidConfirm || 'Are you sure you want to mark this debt as paid?'}\n\nAmount: ${formatCurrency(sale.total)}\nCustomer: ${originalCustomer}\n\nThis action cannot be undone.`
                                           );
                                           if (!confirmed) {
                                             e.target.checked = false;
@@ -327,9 +332,13 @@ const CustomerDebtsSection = ({
                                           try {
                                             const result = await window.api?.markCustomerDebtPaid?.(debt.id, new Date().toISOString());
                                             if (result && result.changes > 0) {
-                                              admin.setToast?.(`💰 Debt of ${formatCurrency(sale.total)} marked as paid for ${customer}`);
-                                              if (admin.fetchDebts) admin.fetchDebts();
-                                              if (admin.fetchDebtSales) admin.fetchDebtSales();
+                                              admin.setToast?.(`💰 Debt of ${formatCurrency(sale.total)} marked as paid for ${originalCustomer}`);
+                                              // Refresh all debt-related data
+                                              await Promise.all([
+                                                refreshDebts(),
+                                                refreshDebtSales(),
+                                                refreshSales() // Also refresh sales since paid debt moves to sales history
+                                              ]);
                                               triggerCloudBackup();
                                             } else {
                                               admin.setToast?.('❌ Failed to mark debt as paid');

@@ -1,5 +1,6 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 import OfflineIndicator from './OfflineIndicator';
+import { useData } from '../contexts/DataContext';
 
 const AdminStatsSidebar = ({ 
   admin, 
@@ -8,6 +9,32 @@ const AdminStatsSidebar = ({
   section, 
   handleNavClick 
 }) => {
+  const { products, sales, companyDebts } = useData();
+  const [refreshKey, setRefreshKey] = useState(0);
+  
+  // Set up midnight refresh timer
+  useEffect(() => {
+    const now = new Date();
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(0, 0, 0, 0);
+    const timeUntilMidnight = tomorrow.getTime() - now.getTime();
+    
+    // Set initial timeout to midnight
+    const midnightTimeout = setTimeout(() => {
+      setRefreshKey(prev => prev + 1);
+      
+      // Then set up daily interval
+      const dailyInterval = setInterval(() => {
+        setRefreshKey(prev => prev + 1);
+      }, 24 * 60 * 60 * 1000); // 24 hours
+      
+      return () => clearInterval(dailyInterval);
+    }, timeUntilMidnight);
+    
+    return () => clearTimeout(midnightTimeout);
+  }, []);
+  
   // Enhanced calculations for better admin insights - memoized for performance
   const stats = useMemo(() => {
     const currentDate = new Date();
@@ -15,7 +42,7 @@ const AdminStatsSidebar = ({
     const currentYear = currentDate.getFullYear();
     
     // Today's sales
-    const todaysSales = admin.sales.filter(sale => {
+    const todaysSales = sales.filter(sale => {
       const saleDate = new Date(sale.created_at);
       return saleDate.toDateString() === currentDate.toDateString();
     });
@@ -29,7 +56,7 @@ const AdminStatsSidebar = ({
     }, 0);
 
     // Today's spending (paid company debts)
-    const todaysSpending = (admin.companyDebts || []).filter(debt => {
+    const todaysSpending = (companyDebts || []).filter(debt => {
       if (!debt.paid_at) return false;
       const paidDate = new Date(debt.paid_at);
       return paidDate.toDateString() === currentDate.toDateString();
@@ -39,12 +66,12 @@ const AdminStatsSidebar = ({
     const todaysNetPerformance = todaysRevenue - todaysSpending;
 
     // Low stock products (critical alerts)
-    const criticalStockProducts = admin.products.filter(p => p.stock <= 2 && !p.archived);
-    const lowStockProducts = admin.products.filter(p => p.stock > 2 && p.stock < admin.lowStockThreshold && !p.archived);
+    const criticalStockProducts = products.filter(p => p.stock <= 2 && !p.archived);
+    const lowStockProducts = products.filter(p => p.stock > 2 && p.stock < admin.lowStockThreshold && !p.archived);
 
     // Top selling products (by quantity sold)
     const productSalesMap = {};
-    admin.sales.forEach(sale => {
+    sales.forEach(sale => {
       if (sale.items) {
         sale.items.forEach(item => {
           // Skip items without names
@@ -75,7 +102,7 @@ const AdminStatsSidebar = ({
       // For debt sales, check if the debt is paid by looking up in debts array
       if (sale.is_debt) {
         const debt = admin.debts?.find(d => d.sale_id === sale.id);
-        if (!debt || !debt.paid) return sum; // Skip unpaid debts
+        if (!debt || (!debt.paid_at && !debt.paid)) return sum; // Skip unpaid debts - check both fields
       }
       return sum + sale.items.reduce((itemSum, item) => {
         return itemSum + (item.profit || 0);
@@ -94,22 +121,38 @@ const AdminStatsSidebar = ({
       recentSales,
       totalProfit
     };
-  }, [admin.sales, admin.products, admin.companyDebts, admin.debts, admin.lowStockThreshold]);
+  }, [sales, products, companyDebts, admin.debts, admin.lowStockThreshold, refreshKey]);
 
-  // Debt calculations
+  // Debt calculations - fixed to handle both paid_at and paid fields
   const totalDebtAmount = useMemo(() => {
     return (admin.debts || [])
-      .filter(debt => !debt.paid)
+      .filter(debt => !debt.paid_at && !debt.paid) // Check both paid_at and paid fields
       .reduce((sum, debt) => {
-        const sale = admin.sales.find(s => s.id === debt.sale_id);
+        // Use debt.total if available, otherwise find sale and use sale.total
+        const debtAmount = debt.total || debt.amount;
+        if (debtAmount) {
+          return sum + debtAmount;
+        }
+        const sale = sales.find(s => s.id === debt.sale_id);
         return sum + (sale ? sale.total : 0);
       }, 0);
-  }, [admin.debts, admin.sales]);
+  }, [admin.debts, sales]);
+
+  const outstandingDebtsCount = useMemo(() => {
+    return (admin.debts || []).filter(debt => !debt.paid_at && !debt.paid).length;
+  }, [admin.debts]);
 
   const paidDebtsToday = useMemo(() => {
     const today = new Date().toDateString();
     return (admin.debts || [])
-      .filter(debt => debt.paid_at && new Date(debt.paid_at).toDateString() === today)
+      .filter(debt => {
+        // Check if debt was paid today using either paid_at field or paid field with timestamp
+        if (debt.paid_at) {
+          return new Date(debt.paid_at).toDateString() === today;
+        }
+        // Fallback for older data structure
+        return debt.paid && debt.paid_at && new Date(debt.paid_at).toDateString() === today;
+      })
       .length;
   }, [admin.debts]);
 
@@ -221,7 +264,7 @@ const AdminStatsSidebar = ({
               <div className="space-y-1 text-sm">
                 <div>
                   <span className="text-gray-600 dark:text-gray-400">{t.outstanding || 'Outstanding'}: </span>
-                  <span className="font-bold text-red-600 dark:text-red-400">${totalDebtAmount}</span>
+                  <span className="font-bold text-red-600 dark:text-red-400">{outstandingDebtsCount} debts (${totalDebtAmount.toFixed(2)})</span>
                 </div>
                 {paidDebtsToday > 0 && (
                   <div>
@@ -250,7 +293,7 @@ const AdminStatsSidebar = ({
                 ${item.disabled ? 'opacity-60 cursor-not-allowed' : ''}
               `}
               aria-current={section === item.key ? 'page' : undefined}
-              title={item.disabled ? 'No backup method configured' : ''}
+              title={item.disabled ? (t.noBackupMethodConfigured || 'No backup method configured') : ''}
               aria-label={item.label}
             >
               <span className="text-2xl">{item.icon}</span>

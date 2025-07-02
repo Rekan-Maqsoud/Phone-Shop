@@ -1,7 +1,10 @@
 import React from 'react';
 import ProductTable from './ProductTable';
+import { useData } from '../contexts/DataContext';
 
 export default function ArchivedItemsSection({ t, admin, handleArchiveToggle }) {
+  const { products, accessories } = useData();
+  
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row gap-4 items-center justify-between mb-6">
@@ -12,7 +15,7 @@ export default function ArchivedItemsSection({ t, admin, handleArchiveToggle }) 
       <div className="mb-8">
         <ProductTable
           title={t.archivedProducts || 'Archived Products'}
-          products={admin.products.filter(p => p && ((typeof p.archived === 'undefined' ? 0 : p.archived) === 1))}
+          products={products.filter(p => p && ((typeof p.archived === 'undefined' ? 0 : p.archived) === 1))}
           t={t}
           lowStockThreshold={admin.lowStockThreshold}
           onUnarchive={p => handleArchiveToggle(p, false)}
@@ -24,7 +27,7 @@ export default function ArchivedItemsSection({ t, admin, handleArchiveToggle }) 
       <div>
         <ProductTable
           title={t.archivedAccessories || 'Archived Accessories'}
-          products={admin.accessories.filter(a => a && ((typeof a.archived === 'undefined' ? 0 : a.archived) === 1))}
+          products={accessories.filter(a => a && ((typeof a.archived === 'undefined' ? 0 : a.archived) === 1))}
           t={t}
           lowStockThreshold={admin.lowStockThreshold}
           onUnarchive={a => handleArchiveToggle(a, false)}

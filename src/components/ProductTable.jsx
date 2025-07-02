@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 
-export default function ProductTable({
+const ProductTable = React.memo(function ProductTable({
   title,
   products,
   t,
@@ -12,8 +12,11 @@ export default function ProductTable({
 }) {
   const [search, setSearch] = useState("");
 
-  const filtered = products.filter(p =>
-    p.name && p.name.toLowerCase().includes(search.toLowerCase())
+  // Memoize filtered products to prevent recalculation on every render
+  const filtered = useMemo(() => 
+    products.filter(p =>
+      p.name && p.name.toLowerCase().includes(search.toLowerCase())
+    ), [products, search]
   );
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-8 w-full">
@@ -74,4 +77,6 @@ export default function ProductTable({
       </table>
     </div>
   );
-}
+});
+
+export default ProductTable;

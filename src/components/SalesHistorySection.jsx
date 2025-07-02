@@ -1,5 +1,6 @@
 import React from 'react';
 import SalesHistoryTable from './SalesHistoryTable';
+import { useData } from '../contexts/DataContext';
 
 export default function SalesHistorySection({ 
   t, 
@@ -9,6 +10,8 @@ export default function SalesHistorySection({
   setLoading, 
   triggerCloudBackup 
 }) {
+  const { refreshSales, refreshProducts, refreshAccessories, refreshDebts } = useData();
+
   return (
     <SalesHistoryTable
       sales={admin.sales}
@@ -27,11 +30,17 @@ export default function SalesHistorySection({
               const result = await window.api?.returnSale?.(saleId);
               if (result?.success) {
                 admin.setToast?.('Sale returned successfully. Stock has been restored.');
-                if (admin.fetchSales) admin.fetchSales();
-                if (admin.fetchProducts) admin.fetchProducts();
-                if (admin.fetchAccessories) admin.fetchAccessories();
-                if (admin.fetchDebts) admin.fetchDebts();
-                if (admin.fetchDebtSales) admin.fetchDebtSales();
+                // Refresh all relevant data in parallel for faster update
+                await Promise.all([
+                  refreshSales(),
+                  refreshProducts(),
+                  refreshAccessories(),
+                  refreshDebts()
+                ]);
+                
+                // Force a small delay to ensure state updates are applied
+                await new Promise(resolve => setTimeout(resolve, 100));
+                
                 triggerCloudBackup(); // Trigger cloud backup
               } else {
                 admin.setToast?.('Failed to return sale: ' + (result?.message || 'Unknown error'));

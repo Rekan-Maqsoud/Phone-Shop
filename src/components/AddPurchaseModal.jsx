@@ -21,7 +21,7 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t }) {
     const newItem = {
       id: Date.now(),
       item_type: type,
-      item_name: '',
+      item_name: '', // Will be auto-generated from brand/model
       quantity: 1,
       unit_price: '',
       ram: '',
@@ -34,11 +34,23 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t }) {
   };
 
   const updateItem = (id, field, value) => {
-    setItems(items.map(item => 
-      item.id === id 
-        ? { ...item, [field]: value }
-        : item
-    ));
+    setItems(items.map(item => {
+      if (item.id === id) {
+        const updatedItem = { ...item, [field]: value };
+        
+        // Auto-generate item_name based on brand and model
+        if (field === 'brand' || field === 'model') {
+          if (updatedItem.item_type === 'product') {
+            updatedItem.item_name = [updatedItem.brand, updatedItem.model].filter(Boolean).join(' ');
+          } else if (updatedItem.item_type === 'accessory') {
+            updatedItem.item_name = [updatedItem.brand, updatedItem.model].filter(Boolean).join(' ');
+          }
+        }
+        
+        return updatedItem;
+      }
+      return item;
+    }));
   };
 
   const removeItem = (id) => {
@@ -85,22 +97,36 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t }) {
         return;
       }
 
-      const invalidItems = items.filter(item => 
-        !item.item_name.trim() || 
-        !item.quantity || 
-        parseInt(item.quantity) <= 0 || 
-        !item.unit_price || 
-        parseFloat(item.unit_price) <= 0
-      );
+      const invalidItems = items.filter(item => {
+        // For products: require brand, model, quantity, and price
+        if (item.item_type === 'product') {
+          return !item.brand?.trim() || 
+                 !item.model?.trim() ||
+                 !item.quantity || 
+                 parseInt(item.quantity) <= 0 || 
+                 !item.unit_price || 
+                 parseFloat(item.unit_price) <= 0;
+        }
+        // For accessories: require brand, model, quantity, and price
+        else if (item.item_type === 'accessory') {
+          return !item.brand?.trim() || 
+                 !item.model?.trim() ||
+                 !item.quantity || 
+                 parseInt(item.quantity) <= 0 || 
+                 !item.unit_price || 
+                 parseFloat(item.unit_price) <= 0;
+        }
+        return true;
+      });
 
       if (invalidItems.length > 0) {
-        setError('Please fill in all required fields for all items (name, quantity, price)');
+        setError('Please fill in all required fields for all items (brand, model, quantity, price)');
         return;
       }
 
       const processedItems = items.map(item => ({
         ...item,
-        item_name: item.item_name.trim(),
+        item_name: item.item_name || [item.brand, item.model].filter(Boolean).join(' '), // Ensure item_name is set
         quantity: parseInt(item.quantity),
         unit_price: parseFloat(item.unit_price),
         total_price: parseInt(item.quantity) * parseFloat(item.unit_price),
@@ -136,10 +162,11 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t }) {
 
   return (
     <ModalBase show={show} onClose={onClose} maxWidth="4xl">
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <h2 className="text-2xl font-bold mb-4 text-gray-800 dark:text-gray-100">
-          ➕ {t?.addPurchase || 'Add Purchase'}
-        </h2>
+      <div className="max-h-[80vh] overflow-y-auto">
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <h2 className="text-2xl font-bold mb-4 text-gray-800 dark:text-gray-100">
+            ➕ {t?.addPurchase || 'Add Purchase'}
+          </h2>
 
         {/* Company Name */}
         <div>
@@ -327,19 +354,40 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t }) {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {/* Item Name */}
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                      {t?.itemName || 'Item Name'} *
-                    </label>
-                    <input
-                      className="w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                      placeholder={t?.enterItemName || 'Enter item name'}
-                      value={item.item_name}
-                      onChange={e => updateItem(item.id, 'item_name', e.target.value)}
-                      required
-                    />
-                  </div>
+                  {/* Product-specific fields - Brand and Model only */}
+                  {item.item_type === 'product' && (
+                    <>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                          {t?.brand || 'Brand'} *
+                        </label>
+                        <SearchableSelect
+                          options={brandOptions}
+                          value={item.brand}
+                          onChange={(value) => {
+                            updateItem(item.id, 'brand', value);
+                            // Clear model when brand changes
+                            updateItem(item.id, 'model', '');
+                          }}
+                          placeholder={t?.selectBrand || 'Select or type brand...'}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                          {t?.model || 'Model'} *
+                        </label>
+                        <SearchableSelect
+                          key={`model_${item.id}_${item.brand}`} // Force re-render when brand changes
+                          options={item.brand ? (phoneBrands.find(b => b.name === item.brand)?.models || []) : []}
+                          value={item.model}
+                          onChange={(value) => updateItem(item.id, 'model', value)}
+                          placeholder={item.brand ? (t?.selectModel || 'Select or type model...') : (t?.selectBrandFirst || 'Select brand first')}
+                          disabled={!item.brand}
+                        />
+                      </div>
+                      <div></div> {/* Empty div for grid spacing */}
+                    </>
+                  )}
 
                   {/* Quantity */}
                   <div>
@@ -379,33 +427,6 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t }) {
                     <>
                       <div>
                         <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                          {t?.brand || 'Brand'}
-                        </label>
-                        <SearchableSelect
-                          options={brandOptions}
-                          value={item.brand}
-                          onChange={(value) => {
-                            updateItem(item.id, 'brand', value);
-                            // Clear model when brand changes
-                            updateItem(item.id, 'model', '');
-                          }}
-                          placeholder={t?.selectBrand || 'Select or type brand...'}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                          {t?.model || 'Model'}
-                        </label>
-                        <SearchableSelect
-                          options={item.brand ? (phoneBrands.find(b => b.name === item.brand)?.models || []) : []}
-                          value={item.model}
-                          onChange={(value) => updateItem(item.id, 'model', value)}
-                          placeholder={item.brand ? (t?.selectModel || 'Select or type model...') : (t?.selectBrandFirst || 'Select brand first')}
-                          disabled={!item.brand}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                           RAM
                         </label>
                         <SearchableSelect
@@ -426,6 +447,7 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t }) {
                           placeholder={t?.selectStorage || 'Select or type storage...'}
                         />
                       </div>
+                      <div></div> {/* Empty div for grid spacing */}
                     </>
                   )}
 
@@ -434,13 +456,26 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t }) {
                     <>
                       <div>
                         <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                          {t?.brand || 'Brand'}
+                          {t?.brand || 'Brand'} *
                         </label>
                         <input
                           className="w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                           placeholder="Apple"
                           value={item.brand}
                           onChange={e => updateItem(item.id, 'brand', e.target.value)}
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                          {t?.model || 'Model'} *
+                        </label>
+                        <input
+                          className="w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                          placeholder="AirPods Pro"
+                          value={item.model}
+                          onChange={e => updateItem(item.id, 'model', e.target.value)}
+                          required
                         />
                       </div>
                       <div>
@@ -539,7 +574,8 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t }) {
             ➕ {t?.addPurchase || 'Add Purchase'}
           </button>
         </div>
-      </form>
+        </form>
+      </div>
     </ModalBase>
   );
 }

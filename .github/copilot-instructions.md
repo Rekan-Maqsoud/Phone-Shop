@@ -8,6 +8,34 @@ Key directives for this task:
 
     The entire application is AI-generated. You are responsible for implementing all requirements completely. Do not leave any placeholders, comments, or tasks for a human to finish. The implementation must be fully autonomous and final."
 
-    Work on a single problem and after fixing it check if its correct then more on to next problem , and you dont have to finish them all in one prompt do a few each time 
+    Work on a single problem and after fixing it check if its correct then more on to next problem 
 
-there are alot of non translated hardcoded texts in the app, you and to make your job easier i have taken screenshots of the app when the app settings was on arabic so every english text you see in the screenshots are missing translator and you need to fix them all 
+    remember we had infinite rerenderning issues in the past, so be careful with state updates and ensure they are done correctly to avoid performance issues.
+
+///// news  
+we are finally moving to production ,so the current issues might be working in dev but we have found them not working in production, so please be careful and test everything in production mode before submitting the changes.
+
+NOTE: The designs should be for laptop and make them wider instead of higher ...
+
+
+
+issue #2
+    for date selection filters , make it easier use a drop down list in both buying history and sale history 
+
+issue #3
+    cloud backup fails to fetch the backups to restore or download 
+    console log :(
+        
+index-CXrVbjhP.js:19 CloudBackupManager: User authenticated: rekankoye3333@gmail.com
+index-CXrVbjhP.js:19 CloudBackupManager: Failed to load backups: User not authenticated - please sign in to use cloud backup features
+index-CXrVbjhP.js:19 CloudBackupManager: User authenticated: rekankoye3333@gmail.com
+index-CXrVbjhP.js:19 CloudBackupManager: Failed to load storage usage: User not authenticated - please sign in to use cloud backup features
+index-CXrVbjhP.js:19 CloudBackupManager: User authenticated: rekankoye3333@gmail.com
+index-CXrVbjhP.js:19 CloudBackupManager: Failed to load backups: User not authenticated - please sign in to use cloud backup features
+index-CXrVbjhP.js:19 CloudBackupManager: User authenticated: rekankoye3333@gmail.com
+    )
+    also see pasted image 
+issue #4
+    manual backups havent been saved so restoring them always fails and says backup file not found , change the path or folder name to Mobile Roma BackUp
+issue #5
+    the settings input fields and close button doesnt support themes correctly 

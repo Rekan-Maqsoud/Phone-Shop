@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useData } from '../contexts/DataContext';
 
 const CompanyDebtsSection = ({ 
   t, 
@@ -11,6 +12,7 @@ const CompanyDebtsSection = ({
   triggerCloudBackup 
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  const { companyDebts, refreshCompanyDebts } = useData();
 
   return (
     <div className="space-y-6">
@@ -43,17 +45,15 @@ const CompanyDebtsSection = ({
       </div>
 
       {(() => {
-        const companyDebts = admin.companyDebts || [];
-        
-        if (companyDebts.length === 0) {
-          return <div className="text-center text-gray-400 py-6">{t.noCompanyDebts || 'No company debts'}</div>;
-        }
-
         // Filter debts by search term
         const filteredDebts = companyDebts.filter(debt => 
-          debt.company_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          (debt.description && debt.description.toLowerCase().includes(searchTerm.toLowerCase()))
+          debt?.company_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          debt?.description?.toLowerCase().includes(searchTerm.toLowerCase())
         );
+        
+        if (filteredDebts.length === 0) {
+          return <div className="text-center text-gray-400 py-6">{t.noCompanyDebts || 'No company debts'}</div>;
+        }
 
         // Group debts by company name
         const groupedDebts = filteredDebts.reduce((groups, debt) => {
@@ -65,14 +65,14 @@ const CompanyDebtsSection = ({
           return groups;
         }, {});
 
-        // Sort companies by unpaid debt amount (highest first), then alphabetically
+        // Sort companies by unpaid debt amount (highest first), then alphabetically (case-insensitive)
         const sortedCompanies = Object.keys(groupedDebts).sort((a, b) => {
           const aUnpaidTotal = groupedDebts[a].filter(d => !d.paid_at).reduce((sum, d) => sum + d.amount, 0);
           const bUnpaidTotal = groupedDebts[b].filter(d => !d.paid_at).reduce((sum, d) => sum + d.amount, 0);
           
-          // If both have unpaid debts or both don't, sort alphabetically
+          // If both have unpaid debts or both don't, sort alphabetically (case-insensitive)
           if ((aUnpaidTotal > 0 && bUnpaidTotal > 0) || (aUnpaidTotal === 0 && bUnpaidTotal === 0)) {
-            return a.localeCompare(b);
+            return a.toLowerCase().localeCompare(b.toLowerCase());
           }
           
           // Companies with unpaid debts come first
@@ -192,12 +192,24 @@ const CompanyDebtsSection = ({
                                   onClick={() => {
                                     showConfirm(
                                       `Mark debt to ${debt.company_name} ($${debt.amount.toFixed(2)}) as paid?`,
-                                      () => {
+                                      async () => {
                                         setConfirm({ open: false, message: '', onConfirm: null });
-                                        window.api?.markCompanyDebtPaid?.(debt.id);
-                                        admin.fetchCompanyDebts?.();
-                                        admin.fetchBuyingHistory?.();
-                                        triggerCloudBackup();
+                                        try {
+                                          const result = await window.api?.markCompanyDebtPaid?.(debt.id);
+                                          if (result && result.changes > 0) {
+                                            admin.setToast?.(`✅ Company debt of $${debt.amount.toFixed(2)} marked as paid for ${debt.company_name}`);
+                                            // Refresh all company debt related data
+                                            if (admin.fetchCompanyDebts) admin.fetchCompanyDebts();
+                                            if (admin.fetchBuyingHistory) admin.fetchBuyingHistory();
+                                            if (refreshCompanyDebts) refreshCompanyDebts();
+                                            triggerCloudBackup();
+                                          } else {
+                                            admin.setToast?.('❌ Failed to mark company debt as paid');
+                                          }
+                                        } catch (error) {
+                                          console.error('Error marking company debt as paid:', error);
+                                          admin.setToast?.('❌ Error marking company debt as paid');
+                                        }
                                       }
                                     );
                                   }}

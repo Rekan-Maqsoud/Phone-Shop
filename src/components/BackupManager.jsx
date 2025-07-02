@@ -61,7 +61,21 @@ const BackupManager = ({ show, t, onClose, onRestore }) => {
             setLoading(true);
             const result = await window.api.restoreBackup(fileResult.filePath);
             if (result.success) {
-              showMessage(t.restoreSuccess || 'Database restored successfully!', 'success');
+              showMessage(result.message || t.restoreSuccess || 'Database restored successfully!', 'success');
+              
+              // Handle restart requirement
+              if (result.requiresRestart) {
+                setTimeout(() => {
+                  if (confirm(t.restartRequired || 'Database restored successfully! The application needs to restart to apply changes. Restart now?')) {
+                    window.location.reload();
+                  }
+                }, 2000);
+              }
+              
+              // Refresh data if onRestore callback exists
+              if (onRestore) {
+                onRestore();
+              }
             } else {
               showMessage(result.message || t.restoreFailed || 'Restore failed', 'error');
             }
@@ -78,7 +92,55 @@ const BackupManager = ({ show, t, onClose, onRestore }) => {
   // Removed auto backup functionality - replaced with instant backup
 
   const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleString();
+    // Create a proper date object and format it for the user's local timezone
+    const date = new Date(dateString);
+    return date.toLocaleString(undefined, {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    });
+  };
+
+  const handleRestoreFromPath = async (backupPath) => {
+    if (!window.confirm(
+      t.confirmRestore || 'Are you sure you want to restore from this backup? This will replace all current data!'
+    )) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      if (window.api?.restoreBackup) {
+        const result = await window.api.restoreBackup(backupPath);
+        if (result.success) {
+          showMessage(result.message || t.restoreSuccess || 'Database restored successfully!', 'success');
+          
+          // Handle restart requirement
+          if (result.requiresRestart) {
+            setTimeout(() => {
+              if (confirm(t.restartRequired || 'Database restored successfully! The application needs to restart to apply changes. Restart now?')) {
+                window.location.reload();
+              }
+            }, 2000);
+          }
+          
+          // Refresh data if onRestore callback exists
+          if (onRestore) {
+            onRestore();
+          }
+        } else {
+          showMessage(result.message || t.restoreFailed || 'Restore failed', 'error');
+        }
+      }
+    } catch (e) {
+      showMessage(t.restoreFailed || 'Restore failed', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (!show) {
@@ -123,7 +185,7 @@ const BackupManager = ({ show, t, onClose, onRestore }) => {
                 {t.manualBackup || 'Manual Backup'}
               </h3>
               <p className="text-gray-600 dark:text-gray-300 mb-4">
-                {t.manualBackupDesc || 'Create a backup of your database to Documents/Phone Shop Backups folder'}
+                {t.manualBackupDesc || 'Create a backup of your database to Documents/Mobile Roma BackUp folder'}
               </p>
               <button
                 onClick={handleCreateBackup}
@@ -194,6 +256,9 @@ const BackupManager = ({ show, t, onClose, onRestore }) => {
                       <th className="px-4 py-3 text-left text-gray-800 dark:text-gray-100">
                         {t.status || 'Status'}
                       </th>
+                      <th className="px-4 py-3 text-left text-gray-800 dark:text-gray-100">
+                        {t.actions || 'Actions'}
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200 dark:divide-gray-600">
@@ -218,6 +283,16 @@ const BackupManager = ({ show, t, onClose, onRestore }) => {
                           <span className="inline-block px-2 py-1 rounded text-xs font-semibold bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100">
                             {t.completed || 'Completed'}
                           </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <button
+                            onClick={() => handleRestoreFromPath(backup.file_path)}
+                            disabled={loading}
+                            className="px-3 py-1 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg font-medium text-sm transition disabled:opacity-50 disabled:cursor-not-allowed"
+                            title={t.restoreFromThisBackup || 'Restore from this backup'}
+                          >
+                            📂 {loading ? (t.restoring || 'Restoring...') : (t.restore || 'Restore')}
+                          </button>
                         </td>
                       </tr>
                     ))}

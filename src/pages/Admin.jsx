@@ -2,6 +2,7 @@ import React, { useEffect, useState, useLayoutEffect, useMemo, useCallback } fro
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLocale } from '../contexts/LocaleContext';
+import { useData } from '../contexts/DataContext';
 import useAdmin from '../components/useAdmin';
 import AdminStatsSidebar from '../components/AdminStatsSidebar';
 import AdminDashboard from '../components/AdminDashboard';
@@ -14,16 +15,16 @@ import ProductsSection from '../components/ProductsSection';
 import SalesHistorySection from '../components/SalesHistorySection';
 import BuyingHistorySection from '../components/BuyingHistorySection';
 import AdminModals from '../components/AdminModals';
-import { setAppTheme } from '../utils/themeUtils';
 import ToastUnified from '../components/ToastUnified';
 
 export default function Admin() {
   const admin = useAdmin();
+  const { sales, debts, products } = useData(); // Get data directly from DataContext
   const { t, lang, isRTL, notoFont, setLang } = useLocale();
   const navigate = useNavigate();
   const [section, setSection] = useState('dashboard');
   const [showSettingsModal, setShowSettingsModal] = useState(false);
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme, setAppTheme } = useTheme();
   const [loading, setLoading] = useState(false);
   const [debtSearch, setDebtSearch] = useState('');
   const [showPaidDebts, setShowPaidDebts] = useState(false);
@@ -34,17 +35,6 @@ export default function Admin() {
   const [showEnhancedCompanyDebtModal, setShowEnhancedCompanyDebtModal] = useState(false);
   const [selectedCompanyDebt, setSelectedCompanyDebt] = useState(null);
   const [confirm, setConfirm] = useState({ open: false, message: '', onConfirm: null });
-
-  // Debug: Monitor showAddPurchase state changes
-  useEffect(() => {
-    console.log('[Admin] showAddPurchase state changed to:', showAddPurchase);
-  }, [showAddPurchase]);
-
-  // Debug function to test modal
-  const debugShowAddPurchase = useCallback(() => {
-    console.log('[Admin] debugShowAddPurchase called, setting showAddPurchase to true');
-    setShowAddPurchase(true);
-  }, []);
 
   // Helper function for showing confirm modals - use memoized callback
   const showConfirm = useCallback((message, onConfirm) => {
@@ -62,26 +52,13 @@ export default function Admin() {
     localStorage.setItem('lang', lang);
   }, [lang, admin.setLang]);
   
-  // Fetch initial data on mount - memoized to prevent infinite re-renders
-  const fetchAllData = useCallback(() => {
-    if (admin.fetchProducts) admin.fetchProducts();
-    if (admin.fetchAccessories) admin.fetchAccessories();
-    if (admin.fetchSales) admin.fetchSales();
-    if (admin.fetchDebts) admin.fetchDebts();
-    if (admin.fetchDebtSales) admin.fetchDebtSales();
-    if (admin.fetchCompanyDebts) admin.fetchCompanyDebts();
-    if (admin.fetchBuyingHistory) admin.fetchBuyingHistory();
-    if (admin.fetchMonthlyReports) admin.fetchMonthlyReports();
-  }, [admin]);
-
-  useEffect(() => {
-    fetchAllData();
-  }, [fetchAllData]);
+  // Data is automatically fetched by DataContext, no need for manual fetchAllData
+  
   // Low stock notification - memoized to prevent infinite re-renders
   const lowStockNotificationProducts = useMemo(() => {
-    if (!admin.notificationsEnabled || !admin.products.length) return [];
-    return admin.products.filter(p => p.stock < admin.lowStockThreshold);
-  }, [admin.products, admin.notificationsEnabled, admin.lowStockThreshold]);
+    if (!admin.notificationsEnabled || !products.length) return [];
+    return products.filter(p => p.stock < admin.lowStockThreshold);
+  }, [products, admin.notificationsEnabled, admin.lowStockThreshold]);
 
   useEffect(() => {
     if (lowStockNotificationProducts.length > 0) {
@@ -91,23 +68,23 @@ export default function Admin() {
 
   // Calculate total profit (for main page use, most calculations moved to AdminStatsSidebar) - memoized
   const totalProfit = useMemo(() => {
-    return admin.sales.reduce((sum, sale) => {
+    return sales.reduce((sum, sale) => {
       if (!sale.items) return sum;
       // For debt sales, check if the debt is paid by looking up in debts array
       if (sale.is_debt) {
-        const debt = admin.debts?.find(d => d.sale_id === sale.id);
-        if (!debt || !debt.paid_at) return sum; // Skip unpaid debts (check paid_at, not paid)
+        const debt = debts?.find(d => d.sale_id === sale.id);
+        if (!debt || (!debt.paid_at && !debt.paid)) return sum; // Skip unpaid debts - check both fields
       }
       return sum + sale.items.reduce((itemSum, item) => {
-        return itemSum + (item.profit || 0); // Fixed: add itemSum
+        return itemSum + (item.profit || 0);
       }, 0);
     }, 0);
-  }, [admin.sales, admin.debts]);
+  }, [sales, debts]);
 
   // Top selling products (by quantity sold) - memoized for performance
   const topSellingProducts = useMemo(() => {
     const productSalesMap = {};
-    admin.sales.forEach(sale => {
+    sales.forEach(sale => {
       if (sale.items) {
         sale.items.forEach(item => {
           // Skip items without names
@@ -127,12 +104,12 @@ export default function Admin() {
       .filter(([name]) => name && name !== 'null' && name !== null) // Filter out null/invalid names
       .sort(([,a], [,b]) => b.quantity - a.quantity)
       .slice(0, 5);
-  }, [admin.sales]);
+  }, [sales]);
 
   // Recent activity and low stock products - memoized
-  const recentSales = useMemo(() => admin.sales.slice(0, 5), [admin.sales]);
-  const criticalStockProducts = useMemo(() => admin.products.filter(p => p.stock <= 2 && !p.archived), [admin.products]);
-  const lowStockProducts = useMemo(() => admin.products.filter(p => p.stock > 2 && p.stock < admin.lowStockThreshold && !p.archived), [admin.products, admin.lowStockThreshold]);
+  const recentSales = useMemo(() => sales.slice(0, 5), [sales]);
+  const criticalStockProducts = useMemo(() => products.filter(p => p.stock <= 2 && !p.archived), [products]);
+  const lowStockProducts = useMemo(() => products.filter(p => p.stock > 2 && p.stock < admin.lowStockThreshold && !p.archived), [products, admin.lowStockThreshold]);
 
   // Memoize nav items for performance
   const navItems = useMemo(() => [
@@ -197,26 +174,30 @@ export default function Admin() {
     
     admin.setToast(archive ? `Archiving: ${item.name}` : `Unarchiving: ${item.name}`);
     setLoading(true);
+    
     try {
       const updated = {
         ...item,
         archived: archive ? 1 : 0,
         stock: archive ? 0 : item.stock
       };
+      
       const res = await apiCall?.(updated); 
       if (!res || !res.success) {
         admin.setToast(res?.message || 'Archive/unarchive failed (no response).');
       } else {
         admin.setToast(archive ? (t.productArchived || 'Item archived!') : (t.productUnarchived || 'Item unarchived!'));
+        
+        // Optimized: Update state locally instead of refetching all data
         if (isAccessory) {
-          admin.fetchAccessories();
+          admin.setAccessories(prev => prev.map(a => a.id === item.id ? updated : a));
         } else {
-          admin.fetchProducts();
+          admin.setProducts(prev => prev.map(p => p.id === item.id ? updated : p));
         }
       }
     } catch (e) {
+      console.error('Archive toggle error:', e);
       admin.setToast(archive ? (t.archiveFailed || 'Archive failed.') : (t.unarchiveFailed || 'Unarchive failed.'));
-      
     } finally {
       setLoading(false);
     }

@@ -44,8 +44,8 @@ export default function useCart(showToast, showConfirm) {
                 ...item, 
                 quantity: newTotal,
                 // Ensure selling_price is set if not already
-                selling_price: item.selling_price || product.price, // Use original price, not 110%
-                buying_price: item.buying_price || product.buying_price || product.price
+                selling_price: item.selling_price || Math.round((product.buying_price || product.price || 0) * 1.1 * 100) / 100, // Use 110% markup if no price set
+                buying_price: item.buying_price || product.buying_price || (product.itemType === 'accessory' ? 0 : product.price)
               }
             : item
         );
@@ -68,9 +68,9 @@ export default function useCart(showToast, showConfirm) {
             uniqueId,
             product_id: product.id,
             itemType: product.itemType || 'product',
-            buying_price: product.buying_price || product.price, // Use actual buying price, fallback to price
-            price: product.price, // Store original product price
-            selling_price: product.price, // Default selling price = original price (not 110%)
+            buying_price: product.buying_price || (product.itemType === 'accessory' ? 0 : product.price), // Use actual buying price, for accessories fallback to 0, for products fallback to price
+            price: Math.round((product.buying_price || product.price || 0) * 1.1 * 100) / 100, // Store 110% of buying price as default selling price
+            selling_price: Math.round((product.buying_price || product.price || 0) * 1.1 * 100) / 100, // Default selling price at 110% markup
             isReturn,
             quantity: quantity,
           },

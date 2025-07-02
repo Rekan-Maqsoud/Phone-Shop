@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { useData } from '../contexts/DataContext';
 import SettingsModal from './SettingsModal';
 import ProductModal from './ProductModal';
 import AccessoryModal from './AccessoryModal';
@@ -53,10 +54,8 @@ export default function AdminModals({
   // Confirm Modal
   confirm
 }) {
-  // Debug logging for add purchase modal
-  useEffect(() => {
-    console.log('[AdminModals] showAddPurchase changed to:', showAddPurchase);
-  }, [showAddPurchase]);
+  const { refreshSales, refreshProducts, refreshAccessories, refreshCompanyDebts, refreshBuyingHistory } = useData();
+  
 
   return (
     <>
@@ -113,22 +112,28 @@ export default function AdminModals({
       <SaleDetailsModal
         sale={admin.viewSale}
         onClose={() => admin.setViewSale(null)}
-        onReturnItem={async (saleId, itemId) => {
+        onReturnItem={async (saleId, itemId, quantity) => {
+          const quantityText = quantity && quantity < 999 ? ` (${quantity} items)` : '';
           showConfirm(
-            t.confirmReturnItem || 'Are you sure you want to return this item? This will restore stock and remove the item from the sale.',
+            (t.confirmReturnItem || 'Are you sure you want to return this item? This will restore stock and remove the item from the sale.') + quantityText,
             async () => {
               setConfirm({ open: false, message: '', onConfirm: null });
               setLoading(true);
               try {
-                const result = await window.api?.returnSaleItem?.(saleId, itemId);
+                const result = await window.api?.returnSaleItem?.(saleId, itemId, quantity);
                 if (result?.success) {
-                  admin.setToast?.('Item returned successfully. Stock has been restored.');
-                  if (admin.fetchSales) admin.fetchSales();
-                  if (admin.fetchProducts) admin.fetchProducts();
-                  if (admin.fetchAccessories) admin.fetchAccessories();
-                  // Refresh the current sale view
-                  const updatedSale = admin.sales.find(s => s.id === saleId);
-                  if (updatedSale) admin.setViewSale(updatedSale);
+                  admin.setToast?.(`Item returned successfully${quantityText}. Stock has been restored.`);
+                  
+                  // Use DataContext refresh functions instead of admin.fetch functions
+                  await Promise.all([
+                    refreshSales(),
+                    refreshProducts(),
+                    refreshAccessories()
+                  ]);
+                  
+                  // Close the sale view after successful return
+                  admin.setViewSale(null);
+                  
                   triggerCloudBackup(); // Trigger cloud backup
                 } else {
                   admin.setToast?.('Failed to return item: ' + (result?.message || 'Unknown error'));
@@ -176,24 +181,36 @@ export default function AdminModals({
           setLoading(true);
           try {
             let result;
+            
             if (data.type === 'withItems') {
               result = await admin.handleAddCompanyDebtWithItems?.(data);
             } else {
               result = await window.api?.addCompanyDebt?.(data);
-              if (result && result.lastInsertRowid) {
+              
+              // Normalize the result - if we have lastInsertRowid, it was successful
+              if (result && (result.lastInsertRowid || result.success)) {
                 result = { success: true };
+              } else if (!result) {
+                throw new Error('No response from API');
+              } else if (result.error) {
+                throw new Error(result.error);
               }
             }
+            
+  
             
             if (result?.success) {
               admin.setToast?.('Company debt added successfully');
               setShowAddCompanyDebt(false);
-              if (admin.fetchCompanyDebts) admin.fetchCompanyDebts();
+              await refreshCompanyDebts(); // Refresh data context
               triggerCloudBackup(); // Trigger cloud backup
             } else {
-              admin.setToast?.('Failed to add company debt: ' + (result?.message || 'Unknown error'));
+              const errorMsg = result?.message || result?.error || 'Unknown error - no success flag returned';
+              console.error('[AdminModals] Failed to add company debt:', errorMsg);
+              admin.setToast?.('Failed to add company debt: ' + errorMsg);
             }
           } catch (error) {
+            console.error('[AdminModals] Error adding company debt:', error);
             admin.setToast?.('Error adding company debt: ' + error.message);
           } finally {
             setLoading(false);
@@ -207,7 +224,7 @@ export default function AdminModals({
           show={showAddPurchase}
           onClose={() => setShowAddPurchase(false)}
           onSubmit={async (purchaseData) => {
-            console.log('[AdminModals] AddPurchaseModal onSubmit called with:', purchaseData);
+     
             setLoading(true);
             try {
               let result = null;
@@ -278,13 +295,9 @@ export default function AdminModals({
                 }
               }
               
-              // Refresh data
-              if (admin.fetchCompanyDebts) {
-                await admin.fetchCompanyDebts();
-              }
-              if (admin.fetchBuyingHistory) {
-                await admin.fetchBuyingHistory();
-              }
+              // Refresh data from DataContext
+              await refreshCompanyDebts();
+              await refreshBuyingHistory();
               if (admin.fetchProducts) {
                 await admin.fetchProducts();
               }
@@ -328,8 +341,8 @@ export default function AdminModals({
             try {
               setLoading(true);
               await window.api?.markCompanyDebtPaid?.(debtId);
-              admin.fetchCompanyDebts?.();
-              admin.fetchBuyingHistory?.();
+              await refreshCompanyDebts();
+              await refreshBuyingHistory();
               setShowEnhancedCompanyDebtModal(false);
               setSelectedCompanyDebt(null);
               setToast(t.debtMarkedAsPaid || 'Debt marked as paid successfully');

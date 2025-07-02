@@ -22,7 +22,7 @@ export default function SettingsModal({
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" role="dialog" aria-modal="true">
       <div className="bg-white dark:bg-gray-900 rounded-lg shadow-lg w-full max-w-md p-6 relative">
         <button
-          className="absolute top-2 right-2 text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 text-2xl"
+          className="absolute top-2 right-2 text-gray-500 hover:text-gray-800 dark:text-gray-500 dark:hover:text-gray-200 text-2xl transition-colors"
           onClick={onClose}
           aria-label="Close"
         >
@@ -33,7 +33,7 @@ export default function SettingsModal({
         <div className="mb-4">
           <label className="block text-gray-700 dark:text-gray-200 mb-1 font-semibold">{t.theme || 'Theme'}</label>
           <select
-            className="w-full border rounded px-3 py-2 dark:bg-gray-800 dark:text-gray-100"
+            className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 transition-colors"
             value={theme}
             onChange={e => setTheme(e.target.value)}
           >
@@ -46,7 +46,7 @@ export default function SettingsModal({
         <div className="mb-4">
           <label className="block text-gray-700 dark:text-gray-200 mb-1 font-semibold">{t.language || 'Language'}</label>
           <select
-            className="w-full border rounded px-3 py-2 dark:bg-gray-800 dark:text-gray-100"
+            className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 transition-colors"
             value={lang}
             onChange={e => setLang(e.target.value)}
           >
@@ -64,7 +64,7 @@ export default function SettingsModal({
             max="100"
             value={lowStockThreshold}
             onChange={e => setLowStockThreshold(Number(e.target.value))}
-            className="w-full border rounded px-3 py-2 dark:bg-gray-800 dark:text-gray-100"
+            className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 transition-colors"
           />
         </div>
         {/* Export Buttons */}
@@ -97,7 +97,7 @@ export default function SettingsModal({
         </div>
         {/* App Info */}
         <div className="mt-6 text-xs text-gray-500 text-center select-none">
-          <span>Made by Rekan M Koye &middot; v1.0.4</span>
+          <span>Made by Rekan M Koye &middot; v1.0.21</span>
         </div>
       </div>
     </div>

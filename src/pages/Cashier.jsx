@@ -10,8 +10,9 @@ import useOnlineStatus from '../components/hooks/useOnlineStatus';
 import useCashierKeyboard from '../components/hooks/useCashierKeyboard';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLocale } from '../contexts/LocaleContext';
+import { useData } from '../contexts/DataContext';
 import ToastUnified from '../components/ToastUnified';
-import { playWarningSound, playSuccessSound } from '../utils/sounds';
+import { playWarningSound } from '../utils/sounds';
 
 // Redesigned Cashier page with stunning modern UI
 export default function Cashier() {
@@ -47,20 +48,23 @@ export default function Cashier() {
   }, showConfirm);
   const admin = useAdmin(navigate);
 
-  // Memoize fetch functions to avoid unnecessary re-creation
-  const fetchProducts = useCallback(() => {
-    if (admin.fetchProducts) admin.fetchProducts();
-  }, [admin.fetchProducts]);
-  const fetchAccessories = useCallback(() => {
-    if (admin.fetchAccessories) admin.fetchAccessories();
-  }, [admin.fetchAccessories]);
-  const fetchSales = useCallback(() => {
-    if (admin.fetchSales) admin.fetchSales();
-  }, [admin.fetchSales]);
+  // Get data from DataContext
+  const { 
+    products: allProducts, 
+    accessories: allAccessories, 
+    apiReady,
+    refreshDebts, 
+    refreshDebtSales,
+    refreshProducts, 
+    refreshAccessories, 
+    refreshSales 
+  } = useData();
 
+  // Data is automatically fetched by DataContext, no need for manual fetch calls
+  
   // Memoize derived values
-  const products = useMemo(() => Array.isArray(admin.products) ? admin.products.filter(p => !p.archived) : [], [admin.products]);
-  const accessories = useMemo(() => Array.isArray(admin.accessories) ? admin.accessories.filter(a => !a.archived) : [], [admin.accessories]);
+  const products = useMemo(() => Array.isArray(allProducts) ? allProducts.filter(p => !p.archived) : [], [allProducts]);
+  const accessories = useMemo(() => Array.isArray(allAccessories) ? allAccessories.filter(a => !a.archived) : [], [allAccessories]);
   // Add unique identifiers to differentiate products and accessories
   const allItems = useMemo(() => [
     ...products.map(p => ({ ...p, itemType: 'product', uniqueId: `product_${p.id}` })), 
@@ -74,8 +78,8 @@ export default function Cashier() {
 
   // Ensure we fetch accessories for the cashier
   useEffect(() => {
-    fetchAccessories();
-  }, [fetchAccessories]);
+    refreshAccessories();
+  }, [refreshAccessories]);
 
   const handleSearchInput = (e) => {
     setSearch(e.target.value);
@@ -208,21 +212,27 @@ export default function Cashier() {
       showToast(t.cannotCompleteNegativeTotal || 'Cannot complete sale with negative total', 'error');
       return;
     }
-    if (isDebt && !customerName.trim()) {
-      showToast(t.pleaseEnterCustomerName || 'Please enter customer name for debt sale', 'error');
+    
+    // Customer name is now required for ALL sales (both cash and debt)
+    if (!customerName.trim()) {
+      showToast(t.pleaseEnterCustomerName || 'Please enter customer name for all sales', 'error');
       return;
     }
+    
     showConfirm(
       isDebt
         ? t.confirmDebtSale || 'Are you sure you want to record this sale as debt?'
         : t.confirmSale || 'Are you sure you want to complete this sale?',
       async () => {
         setConfirm({ open: false, message: '', onConfirm: null });
-        if (isDebt && !customerName.trim()) {
-          showToast(t.customerNameRequired || 'Customer name is required for debt sales.', 'error');
+        
+        // Double-check customer name is provided
+        if (!customerName.trim()) {
+          showToast(t.customerNameRequired || 'Customer name is required for all sales.', 'error');
           setLoading(l => ({ ...l, sale: false }));
           return;
         }
+        
         setLoading(l => ({ ...l, sale: true }));
         const saleItems = items.map(item => {
           const { id, ...rest } = item;
@@ -247,12 +257,13 @@ export default function Cashier() {
             try {
               const debtResult = await window.api.addDebt({ sale_id: res.id || res.lastInsertRowid, customer_name: customerName });
               if (!debtResult.success) {
-                admin.setToast?.((t.saleRecordCreationFailed || 'Sale saved but failed to create debt record: ') + (debtResult.message || (t.unknownError || 'Unknown error')));
+                showToast((t.saleRecordCreationFailed || 'Sale saved but failed to create debt record: ') + (debtResult.message || (t.unknownError || 'Unknown error')), 'error');
               }
-              if (admin.fetchDebts) await admin.fetchDebts();
-              if (admin.fetchDebtSales) await admin.fetchDebtSales();
+              await refreshDebts();
+              await refreshDebtSales();
+              // debt sales are now refreshed immediately for instant UI update
             } catch (debtError) {
-              admin.setToast?.((t.debtCreationFailed || 'Sale saved but debt creation failed: ') + debtError.message);
+              showToast((t.debtCreationFailed || 'Sale saved but debt creation failed: ') + debtError.message, 'error');
             }
           }
           setLoading(l => ({ ...l, sale: false }));
@@ -261,9 +272,9 @@ export default function Cashier() {
             setSearch('');
             setIsDebt(false);
             setCustomerName("");
-            if (admin.fetchProducts) await admin.fetchProducts();
-            if (admin.fetchAccessories) await admin.fetchAccessories();
-            if (admin.fetchSales) await admin.fetchSales();
+            await refreshProducts();
+            await refreshAccessories();
+            await refreshSales();
             
             // Auto backup is now handled automatically by the unified backup system
             
@@ -313,9 +324,13 @@ export default function Cashier() {
   }, [search, allItems]); // Changed dependency from products to allItems
 
   useEffect(() => {
-    console.debug('[Cashier] Fetching products on mount');
-    fetchProducts();
-  }, [fetchProducts]);
+    console.debug('[Cashier] API ready state changed:', apiReady);
+    if (apiReady) {
+      console.debug('[Cashier] API is ready, fetching products and accessories');
+      refreshProducts();
+      refreshAccessories();
+    }
+  }, [apiReady, refreshProducts, refreshAccessories]);
   
 
   // --- Redesigned UI ---

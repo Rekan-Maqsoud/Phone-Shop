@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { phoneBrands } from './phoneBrands';
 import SearchableSelect from './SearchableSelect';
 
@@ -9,6 +9,20 @@ function AddCompanyDebtModal({ show, onClose, onSubmit, t }) {
   const [simpleAmount, setSimpleAmount] = useState('');
   const [items, setItems] = useState([]);
   const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Reset form when modal is closed
+  useEffect(() => {
+    if (!show) {
+      setCompanyName('');
+      setDescription('');
+      setSimpleAmount('');
+      setItems([]);
+      setPurchaseType('simple');
+      setError('');
+      setIsSubmitting(false);
+    }
+  }, [show]);
 
   // Memoize options to prevent recreating arrays on every render
   const brandOptions = useMemo(() => phoneBrands.map(brand => brand.name), []);
@@ -19,7 +33,6 @@ function AddCompanyDebtModal({ show, onClose, onSubmit, t }) {
     const newItem = {
       id: Date.now(),
       item_type: type,
-      item_name: '',
       quantity: 1,
       unit_price: '',
       ram: '',
@@ -54,81 +67,98 @@ function AddCompanyDebtModal({ show, onClose, onSubmit, t }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setIsSubmitting(true);
 
-    if (!companyName.trim()) {
-      setError('Please provide a valid company name');
-      return;
+    try {
+      if (!companyName.trim()) {
+        setError('Please provide a valid company name');
+        return;
+      }
+
+      if (purchaseType === 'simple') {
+        const amt = parseFloat(simpleAmount);
+        if (!simpleAmount || isNaN(amt) || amt <= 0) {
+          setError('Please provide a valid amount greater than 0');
+          return;
+        }
+
+        await onSubmit({
+          company_name: companyName.trim(),
+          amount: Math.round(amt * 100) / 100,
+          description: description.trim(),
+          type: 'simple'
+        });
+      } else {
+        // Validate items
+        if (items.length === 0) {
+          setError('Please add at least one item');
+          return;
+        }
+
+        const invalidItems = items.filter(item => 
+          !item.quantity || 
+          parseInt(item.quantity) <= 0 || 
+          !item.unit_price || 
+          parseFloat(item.unit_price) <= 0
+        );
+
+        if (invalidItems.length > 0) {
+          setError('Please fill in all required fields for all items (quantity, price)');
+          return;
+        }
+
+        const processedItems = items.map(item => ({
+          ...item,
+          item_name: item.item_type === 'product' 
+            ? `${item.brand || 'Unknown'} ${item.model || 'Model'} ${item.ram ? item.ram + ' ' : ''}${item.storage || ''}`.trim()
+            : `${item.brand || 'Unknown'} ${item.type || 'Accessory'}`.trim(),
+          quantity: parseInt(item.quantity),
+          unit_price: parseFloat(item.unit_price),
+          total_price: parseInt(item.quantity) * parseFloat(item.unit_price),
+          buying_price: parseFloat(item.unit_price),
+          ram: item.ram?.trim() || null,
+          storage: item.storage?.trim() || null,
+          model: item.model?.trim() || null,
+          brand: item.brand?.trim() || null,
+          type: item.type?.trim() || null
+        }));
+
+        await onSubmit({
+          company_name: companyName.trim(),
+          description: description.trim(),
+          items: processedItems,
+          type: 'withItems'
+        });
+      }
+
+      // Reset form only on successful submission
+      setCompanyName('');
+      setDescription('');
+      setSimpleAmount('');
+      setItems([]);
+      setPurchaseType('simple');
+    } catch (error) {
+      setError('Failed to submit: ' + error.message);
+    } finally {
+      setIsSubmitting(false);
     }
-
-    if (purchaseType === 'simple') {
-      const amt = parseFloat(simpleAmount);
-      if (!simpleAmount || isNaN(amt) || amt <= 0) {
-        setError('Please provide a valid amount greater than 0');
-        return;
-      }
-
-      await onSubmit({
-        company_name: companyName.trim(),
-        amount: Math.round(amt * 100) / 100,
-        description: description.trim(),
-        type: 'simple'
-      });
-    } else {
-      // Validate items
-      if (items.length === 0) {
-        setError('Please add at least one item');
-        return;
-      }
-
-      const invalidItems = items.filter(item => 
-        !item.item_name.trim() || 
-        !item.quantity || 
-        parseInt(item.quantity) <= 0 || 
-        !item.unit_price || 
-        parseFloat(item.unit_price) <= 0
-      );
-
-      if (invalidItems.length > 0) {
-        setError('Please fill in all required fields for all items (name, quantity, price)');
-        return;
-      }
-
-      const processedItems = items.map(item => ({
-        ...item,
-        item_name: item.item_name.trim(),
-        quantity: parseInt(item.quantity),
-        unit_price: parseFloat(item.unit_price),
-        total_price: parseInt(item.quantity) * parseFloat(item.unit_price),
-        buying_price: parseFloat(item.unit_price),
-        ram: item.ram?.trim() || null,
-        storage: item.storage?.trim() || null,
-        model: item.model?.trim() || null,
-        brand: item.brand?.trim() || null,
-        type: item.type?.trim() || null
-      }));
-
-      await onSubmit({
-        company_name: companyName.trim(),
-        description: description.trim(),
-        items: processedItems,
-        type: 'withItems'
-      });
-    }
-
-    // Reset form
-    setCompanyName('');
-    setDescription('');
-    setSimpleAmount('');
-    setItems([]);
-    setPurchaseType('simple');
   };
 
   if (!show) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-        <form onSubmit={handleSubmit} className="p-8 space-y-6">
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={(e) => {
+        // Allow clicking on backdrop to close modal
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-4xl max-h-[85vh] overflow-hidden">
+        <div className="max-h-[85vh] overflow-y-auto">
+          <form onSubmit={handleSubmit} className="p-8 space-y-6">
           <h2 className="text-2xl font-bold mb-4 text-gray-800 dark:text-gray-100">
             ➕ {t.addCompanyDebt || 'Add Company Debt'}
           </h2>
@@ -276,20 +306,6 @@ function AddCompanyDebtModal({ show, onClose, onSubmit, t }) {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {/* Item Name */}
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                        {t.itemName || 'Item Name'} *
-                      </label>
-                      <input
-                        className="w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                        placeholder={t.enterItemName || 'Enter item name'}
-                        value={item.item_name}
-                        onChange={e => updateItem(item.id, 'item_name', e.target.value)}
-                        required
-                      />
-                    </div>
-
                     {/* Quantity */}
                     <div>
                       <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
@@ -346,11 +362,12 @@ function AddCompanyDebtModal({ show, onClose, onSubmit, t }) {
                             {t.model || 'Model'}
                           </label>
                           <SearchableSelect
+                            key={`model_${item.id}_${item.brand}`} // Force re-render when brand changes
                             options={item.brand ? (phoneBrands.find(b => b.name === item.brand)?.models || []) : []}
                             value={item.model}
                             onChange={(value) => updateItem(item.id, 'model', value)}
-                            placeholder={item.brand ? (t.selectModel || 'Select or type model...') : (t.selectBrandFirst || 'Select brand first')}
-                            disabled={!item.brand}
+                            placeholder={item.brand ? (t.selectModel || 'Select or type model...') : (t.typeModelName || 'Type model name...')}
+                            disabled={false} // Ensure model field is never disabled
                           />
                         </div>
                         <div>
@@ -446,18 +463,25 @@ function AddCompanyDebtModal({ show, onClose, onSubmit, t }) {
             <button 
               type="button" 
               onClick={onClose} 
-              className="px-6 py-2 rounded-lg bg-gray-300 dark:bg-gray-600 text-gray-800 dark:text-gray-200 hover:bg-gray-400 dark:hover:bg-gray-500 transition"
+              disabled={isSubmitting}
+              className="px-6 py-2 rounded-lg bg-gray-300 dark:bg-gray-600 text-gray-800 dark:text-gray-200 hover:bg-gray-400 dark:hover:bg-gray-500 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {t.cancel || 'Cancel'}
             </button>
             <button 
               type="submit" 
-              className="px-6 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 font-semibold transition"
+              disabled={isSubmitting}
+              className="px-6 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              ➕ {t.addCompanyDebt || 'Add Company Debt'}
+              {isSubmitting ? (
+                <>🔄 {t.submitting || 'Submitting...'}</>
+              ) : (
+                <>➕ {t.addCompanyDebt || 'Add Company Debt'}</>
+              )}
             </button>
           </div>
-        </form>
+          </form>
+        </div>
       </div>
     </div>
   );

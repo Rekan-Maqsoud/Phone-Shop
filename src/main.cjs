@@ -3,19 +3,58 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const db = require('../database/db.cjs');
+let db; // Will be initialized after DB path is set
 const bcrypt = require('bcryptjs');
 const settings = require('electron-settings');
 const mainCloudBackup = require('./services/mainCloudBackup.cjs');
+
+function getDatabasePath() {
+  if (app.isPackaged) {
+    const userDataPath = app.getPath('userData');
+    const dbPath = path.join(userDataPath, 'shop.sqlite');
+    
+    // Ensure userData directory exists
+    if (!fs.existsSync(userDataPath)) {
+      fs.mkdirSync(userDataPath, { recursive: true });
+    }
+    
+    if (!fs.existsSync(dbPath)) {
+      const defaultDbPath = path.join(process.resourcesPath, 'database', 'shop.sqlite');
+      try {
+        console.log('📂 Looking for default DB at:', defaultDbPath);
+        if (fs.existsSync(defaultDbPath)) {
+          fs.copyFileSync(defaultDbPath, dbPath);
+          console.log('📂 Copied default DB to userData:', dbPath);
+        } else {
+          console.log('⚠️ Default DB not found, creating new one...');
+          // Create a basic empty database if default doesn't exist
+          const dbModule = require('../database/db.cjs');
+          const tempDb = dbModule(dbPath);
+          tempDb.db.close();
+        }
+      } catch (e) {
+        console.error('❌ Error setting up database:', e);
+      }
+    }
+    
+    return dbPath;
+  } else {
+    return path.join(__dirname, '../database/shop.sqlite');
+  }
+}
 function createWindow() {
   const win = new BrowserWindow({
-    fullscreen: true, // Launch in fullscreen
+    width: 1200,
+    height: 800,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
     },
   });
+  
+  // Maximize the window (not fullscreen)
+  win.maximize();
   const urlToLoad = app.isPackaged
     ? `file://${path.join(__dirname, '../dist/index.html')}`
     : 'http://localhost:5173/';
@@ -42,11 +81,38 @@ function createWindow() {
   });
 }
 
-app.whenReady().then(() => {
-  createWindow();
-  
-  // Check if we need to perform monthly reset on app startup
-  checkAndPerformMonthlyReset();
+app.whenReady().then(async () => {
+  try {
+    console.log('🚀 App ready, initializing...');
+    
+    // Initialize DB after app is ready and DB path is set
+    const dbPath = getDatabasePath();
+    console.log('📂 Database path:', dbPath);
+    
+    const dbModule = require('../database/db.cjs');
+    db = dbModule(dbPath); // Call the function with dbPath
+    
+    console.log('✅ Database initialized successfully');
+    
+    // Test database connection
+    try {
+      const testQuery = db.db.prepare('SELECT COUNT(*) as count FROM sqlite_master').get();
+      console.log('✅ Database connection test passed:', testQuery);
+    } catch (dbError) {
+      console.error('❌ Database connection test failed:', dbError);
+      dialog.showErrorBox('Database Error', 'Failed to connect to database. Please restart the application.');
+    }
+    
+    createWindow();
+    
+    // Check if we need to perform monthly reset on app startup
+    checkAndPerformMonthlyReset();
+    
+  } catch (error) {
+    console.error('❌ App initialization failed:', error);
+    dialog.showErrorBox('Initialization Error', `Failed to initialize application: ${error.message}`);
+    app.quit();
+  }
 });
 
 app.on('window-all-closed', () => {
@@ -62,6 +128,12 @@ function toCSV(rows, headers) {
 // Check and perform monthly reset if needed
 function checkAndPerformMonthlyReset() {
   try {
+    // Only run if database is initialized
+    if (!db) {
+      console.log('Database not initialized yet, skipping monthly reset check');
+      return;
+    }
+    
     const now = new Date();
     const currentMonth = now.getMonth() + 1; // 1-12
     const currentYear = now.getFullYear();
@@ -80,9 +152,13 @@ function checkAndPerformMonthlyReset() {
     // If we're in a new month, perform reset
     if (currentYear > lastYear || (currentYear === lastYear && currentMonth > lastMonth)) {
       console.log('Performing monthly reset...');
-      db.resetMonthlySalesAndProfit();
-      settings.setSync('lastMonthlyResetDate', `${currentYear}-${currentMonth}`);
-      console.log('Monthly reset completed.');
+      if (db.resetMonthlySalesAndProfit) {
+        db.resetMonthlySalesAndProfit();
+        settings.setSync('lastMonthlyResetDate', `${currentYear}-${currentMonth}`);
+        console.log('Monthly reset completed.');
+      } else {
+        console.warn('resetMonthlySalesAndProfit function not available');
+      }
     }
   } catch (error) {
     console.error('Error during monthly reset check:', error);
@@ -92,68 +168,111 @@ function checkAndPerformMonthlyReset() {
 // IPC handlers
 // Product CRUD
 ipcMain.handle('getProducts', async () => {
-  return db.getProducts();
+  try {
+    return db.getProducts ? db.getProducts() : [];
+  } catch (e) {
+    console.error('getProducts error:', e);
+    return [];
+  }
 });
 ipcMain.handle('addProduct', async (event, product) => {
   try {
-    db.addProduct(product);
-    console.log('[main.cjs] addProduct: calling runAutoBackupAfterSale');
-    await runAutoBackupAfterSale();
-    return { success: true };
+    if (db.addProduct) {
+      db.addProduct(product);
+      console.log('[main.cjs] addProduct: calling runAutoBackupAfterSale');
+      await runAutoBackupAfterSale('product');
+      return { success: true };
+    } else {
+      return { success: false, message: 'Database function not available' };
+    }
   } catch (e) {
     return { success: false, message: e.message };
   }
 });
 ipcMain.handle('editProduct', async (event, product) => {
   try {
-    db.updateProduct(product);
-    console.log('[main.cjs] editProduct: calling runAutoBackupAfterSale');
-    await runAutoBackupAfterSale();
-    return { success: true };
+    if (db.updateProduct) {
+      db.updateProduct(product);
+      console.log('[main.cjs] editProduct: calling runAutoBackupAfterSale');
+      // Pass archive type for archived products
+      const operationType = product.archived ? 'archive' : 'product';
+      await runAutoBackupAfterSale(operationType);
+      return { success: true };
+    } else {
+      return { success: false, message: 'Database function not available' };
+    }
   } catch (e) {
     return { success: false, message: e.message };
   }
 });
 ipcMain.handle('deleteProduct', async (event, id) => {
   try {
-    db.deleteProduct(id);
-    console.log('[main.cjs] deleteProduct: calling runAutoBackupAfterSale');
-    await runAutoBackupAfterSale();
-    return { success: true };
+    if (db.deleteProduct) {
+      db.deleteProduct(id);
+      console.log('[main.cjs] deleteProduct: calling runAutoBackupAfterSale');
+      await runAutoBackupAfterSale('archive');
+      return { success: true };
+    } else {
+      return { success: false, message: 'Database function not available' };
+    }
   } catch (e) {
     return { success: false, message: e.message };
   }
 });
 // Accessory CRUD
 ipcMain.handle('getAccessories', async () => {
-  return db.getAccessories();
+  try {
+    return db.getAccessories ? db.getAccessories() : [];
+  } catch (e) {
+    console.error('getAccessories error:', e);
+    return [];
+  }
 });
 ipcMain.handle('getAllAccessories', async () => {
-  return db.getAllAccessories();
+  try {
+    return db.getAllAccessories ? db.getAllAccessories() : [];
+  } catch (e) {
+    console.error('getAllAccessories error:', e);
+    return [];
+  }
 });
 ipcMain.handle('addAccessory', async (event, accessory) => {
   try {
-    db.addAccessory(accessory);
-    await runAutoBackupAfterSale();
-    return { success: true };
+    if (db.addAccessory) {
+      db.addAccessory(accessory);
+      await runAutoBackupAfterSale('accessory');
+      return { success: true };
+    } else {
+      return { success: false, message: 'Database function not available' };
+    }
   } catch (e) {
     return { success: false, message: e.message };
   }
 });
 ipcMain.handle('editAccessory', async (event, accessory) => {
   try {
-    db.updateAccessory(accessory);
-    await runAutoBackupAfterSale();
-    return { success: true };
+    if (db.updateAccessory) {
+      db.updateAccessory(accessory);
+      // Pass archive type for archived accessories
+      const operationType = accessory.archived ? 'archive' : 'accessory';
+      await runAutoBackupAfterSale(operationType);
+      return { success: true };
+    } else {
+      return { success: false, message: 'Database function not available' };
+    }
   } catch (e) {
     return { success: false, message: e.message };
   }
 });
 ipcMain.handle('deleteAccessory', async (event, id) => {
   try {
-    db.deleteAccessory(id);
-    await runAutoBackupAfterSale();
-    return { success: true };
+    if (db.deleteAccessory) {
+      db.deleteAccessory(id);
+      await runAutoBackupAfterSale('archive');
+      return { success: true };
+    } else {
+      return { success: false, message: 'Database function not available' };
+    }
   } catch (e) {
     return { success: false, message: e.message };
   }
@@ -258,9 +377,9 @@ ipcMain.handle('getSaleDetails', async (event, saleId) => {
 // IPC handler for getting all sales
 ipcMain.handle('getSales', async () => {
   try {
-    const sales = db.getSales();
-    return sales;
+    return db.getSales ? db.getSales() : [];
   } catch (e) {
+    console.error('getSales error:', e);
     return [];
   }
 });
@@ -292,13 +411,17 @@ ipcMain.handle('checkAdminPassword', async (event, password) => {
 ipcMain.handle('saveSale', async (event, sale) => {
   console.log('[main.cjs] saveSale IPC handler called');
   try {
-    // Only call db.saveSale, which now handles all stock logic atomically
-    const saleId = db.saveSale(sale);
-    console.log('[main.cjs] db.saveSale returned, calling runAutoBackupAfterSale');
-    // Unified backup after sale
-    await runAutoBackupAfterSale();
-    console.log('[main.cjs] runAutoBackupAfterSale finished');
-    return { success: true, id: saleId, lastInsertRowid: saleId };
+    if (db.saveSale) {
+      // Only call db.saveSale, which now handles all stock logic atomically
+      const saleId = db.saveSale(sale);
+      console.log('[main.cjs] db.saveSale returned, calling runAutoBackupAfterSale');
+      // Sales are high priority and should backup quickly
+      await runAutoBackupAfterSale('sale');
+      console.log('[main.cjs] runAutoBackupAfterSale finished');
+      return { success: true, id: saleId, lastInsertRowid: saleId };
+    } else {
+      return { success: false, message: 'Database function not available' };
+    }
   } catch (e) {
     console.error('[main.cjs] saveSale error:', e);
     return { success: false, message: e.message };
@@ -306,21 +429,62 @@ ipcMain.handle('saveSale', async (event, sale) => {
 });
 
 // Unified backup logic - handles both local and cloud backups automatically
-async function runAutoBackupAfterSale() {
-  console.log('[runAutoBackupAfterSale] called');
-  await updateCurrentBackup();
-  console.log('[runAutoBackupAfterSale] Local auto backup completed after sale.');
-  // Trigger cloud backup for authenticated users
-  try {
-    const allWindows = BrowserWindow.getAllWindows();
-    console.log('[runAutoBackupAfterSale] Sending trigger-unified-auto-backup to all windows:', allWindows.length);
-    allWindows.forEach(window => {
-      window.webContents.send('trigger-unified-auto-backup');
-      console.log('[runAutoBackupAfterSale] Sent trigger-unified-auto-backup to window');
-    });
-  } catch (error) {
-    console.warn('[runAutoBackupAfterSale] Failed to trigger cloud auto backup:', error);
+// Simple debounced backup system to prevent excessive backup operations
+let backupTimeout = null;
+let lastBackupTime = 0;
+const BACKUP_COOLDOWN = 2000; // Minimum 2 seconds between backups
+
+async function runAutoBackupAfterSale(operationType = 'unknown') {
+  const now = Date.now();
+  
+  // For archiving operations, use a longer delay to batch multiple operations
+  const isArchiveOperation = operationType === 'archive' || operationType.includes('archive');
+  const isSaleOperation = operationType === 'sale';
+  
+  let delay;
+  if (isSaleOperation) {
+    delay = 1000; // 1s for sales (most critical)
+  } else if (isArchiveOperation) {
+    delay = 8000; // 8s for archive operations (reduced from 10s)
+  } else {
+    delay = 3000; // 3s for other operations
   }
+  
+  console.log(`[runAutoBackupAfterSale] Scheduled backup for ${operationType} (delay: ${delay}ms)`);
+  
+  // Clear existing timeout to debounce
+  if (backupTimeout) {
+    clearTimeout(backupTimeout);
+  }
+  
+  // If it's been a while since last backup, reduce delay significantly
+  const timeSinceLastBackup = now - lastBackupTime;
+  const actualDelay = timeSinceLastBackup > 30000 ? Math.min(delay, 1500) : delay;
+  
+  backupTimeout = setTimeout(async () => {
+    try {
+      console.log('[runAutoBackupAfterSale] Executing backup...');
+      await updateCurrentBackup();
+      lastBackupTime = Date.now();
+      console.log('[runAutoBackupAfterSale] Local backup completed');
+      
+      // Only trigger cloud backup for critical operations to reduce load
+      if (isSaleOperation || (!isArchiveOperation && Math.random() > 0.5)) {
+        const allWindows = BrowserWindow.getAllWindows();
+        console.log(`[runAutoBackupAfterSale] Triggering cloud backup for ${allWindows.length} windows`);
+        allWindows.forEach(window => {
+          window.webContents.send('trigger-unified-auto-backup');
+        });
+      } else {
+        console.log('[runAutoBackupAfterSale] Skipped cloud backup for low-priority operation');
+      }
+      
+      backupTimeout = null;
+    } catch (error) {
+      console.warn('[runAutoBackupAfterSale] Backup failed:', error);
+      backupTimeout = null;
+    }
+  }, actualDelay);
 }
 
 // Use the extracted function in the IPC handler
@@ -335,17 +499,38 @@ ipcMain.handle('autoBackupAfterSale', async () => {
 
 // Debt handlers (backward compatibility)
 ipcMain.handle('addDebt', async (event, { sale_id, customer_name }) => {
-  const result = db.addDebt({ sale_id, customer_name });
-  await runAutoBackupAfterSale();
-  return result;
+  try {
+    if (db.addDebt) {
+      const result = db.addDebt({ sale_id, customer_name });
+      await runAutoBackupAfterSale('debt');
+      return result;
+    } else {
+      return { success: false, message: 'Database function not available' };
+    }
+  } catch (e) {
+    return { success: false, message: e.message };
+  }
 });
 ipcMain.handle('getDebts', async () => {
-  return db.getDebts();
+  try {
+    return db.getDebts ? db.getDebts() : [];
+  } catch (e) {
+    console.error('getDebts error:', e);
+    return [];
+  }
 });
 ipcMain.handle('markDebtPaid', async (event, id, paid_at) => {
-  const result = db.markDebtPaid(id, paid_at);
-  await runAutoBackupAfterSale();
-  return result;
+  try {
+    if (db.markDebtPaid) {
+      const result = db.markDebtPaid(id, paid_at);
+      await runAutoBackupAfterSale('debt');
+      return result;
+    } else {
+      return { success: false, message: 'Database function not available' };
+    }
+  } catch (e) {
+    return { success: false, message: e.message };
+  }
 });
 
 // Customer debt handlers
@@ -441,9 +626,9 @@ ipcMain.handle('resetMonthlySalesAndProfit', async () => {
 
 ipcMain.handle('getDebtSales', async () => {
   try {
-    const sales = db.getDebtSales();
-    return sales;
+    return db.getDebtSales ? db.getDebtSales() : [];
   } catch (e) {
+    console.error('getDebtSales error:', e);
     return [];
   }
 });
@@ -456,15 +641,17 @@ const initializeCurrentBackup = () => {
   try {
     const os = require('os');
     const documentsPath = path.join(os.homedir(), 'Documents');
-    const backupDir = path.join(documentsPath, 'Phone Shop Backups');
+    const backupDir = path.join(documentsPath, 'Mobile Roma BackUp');
     if (!fs.existsSync(backupDir)) {
       fs.mkdirSync(backupDir, { recursive: true });
       
     }
     const currentBackupFileName = 'phone-shop-current-backup.sqlite';
     const backupPath = path.join(backupDir, currentBackupFileName);
-    const dbPath = path.join(__dirname, '../database/shop.sqlite');
-    fs.copyFileSync(dbPath, backupPath);
+    const dbPath = getDatabasePath();
+    if (fs.existsSync(dbPath)) {
+      fs.copyFileSync(dbPath, backupPath);
+    }
     currentBackupPath = backupPath;
  
     return backupPath;
@@ -482,13 +669,15 @@ const updateCurrentBackup = async () => {
       initializeCurrentBackup();
       return;
     }
-    const dbPath = path.join(__dirname, '../database/shop.sqlite');
+    const dbPath = getDatabasePath();
     fs.copyFileSync(dbPath, currentBackupPath);
-    db.logBackup({
-      file_name: 'phone-shop-current-backup.sqlite',
-      encrypted: false,
-      log: `Current backup updated at ${new Date().toISOString()}`
-    });
+    if (db && db.logBackup) {
+      db.logBackup({
+        file_name: 'phone-shop-current-backup.sqlite',
+        encrypted: false,
+        log: `Current backup updated at ${new Date().toISOString()}`
+      });
+    }
     console.log('[updateCurrentBackup] Backup file copied to', currentBackupPath);
   } catch (e) {
     console.error('[updateCurrentBackup] Failed to update current backup:', e);
@@ -501,9 +690,12 @@ ipcMain.handle('createBackup', async () => {
     const os = require('os');
     // Get default Documents folder
     const documentsPath = path.join(os.homedir(), 'Documents');
-    const backupDir = path.join(documentsPath, 'Phone Shop Backups');
+    const backupDir = path.join(documentsPath, 'Mobile Roma BackUp');
+    
+    console.log('Creating backup directory:', backupDir);
     if (!fs.existsSync(backupDir)) {
       fs.mkdirSync(backupDir, { recursive: true });
+      console.log('Backup directory created');
     }
     
     // Create backup filename with timestamp - always backup regardless of prefix
@@ -512,9 +704,26 @@ ipcMain.handle('createBackup', async () => {
     const backupFileName = `phone-shop-backup-${nowPrefix}.sqlite`;
     const backupPath = path.join(backupDir, backupFileName);
     
+    console.log('Creating backup at:', backupPath);
+    
     // Copy database file
     const dbPath = path.join(__dirname, '../database/shop.sqlite');
+    console.log('Source database path:', dbPath);
+    
+    if (!fs.existsSync(dbPath)) {
+      throw new Error(`Source database not found at: ${dbPath}`);
+    }
+    
     fs.copyFileSync(dbPath, backupPath);
+    console.log('Database file copied successfully');
+    
+    // Verify the backup file was created
+    if (!fs.existsSync(backupPath)) {
+      throw new Error(`Backup file was not created at: ${backupPath}`);
+    }
+    
+    const backupStats = fs.statSync(backupPath);
+    console.log(`Backup file created successfully. Size: ${backupStats.size} bytes`);
     
     // Log backup in database
     db.logBackup({
@@ -525,12 +734,17 @@ ipcMain.handle('createBackup', async () => {
     
     return {
       success: true,
-      message: 'Backup created successfully',
+      message: `Backup created successfully at ${backupPath}`,
       path: backupPath,
       fileName: backupFileName
     };
   } catch (e) {
-    return { success: false, message: e.message };
+    console.error('Error creating backup:', e);
+    return { 
+      success: false, 
+      message: `Failed to create backup: ${e.message}`,
+      error: e.message 
+    };
   }
 });
 
@@ -547,17 +761,83 @@ ipcMain.handle('getBackupHistory', async () => {
 });
 
 ipcMain.handle('restoreBackup', async (event, filePath) => {
+  const dbPath = path.join(__dirname, '../database/shop.sqlite');
+  const backupCurrentPath = dbPath + '.bak';
+  
   try {
+    console.log('[Local Restore] Starting restore from:', filePath);
+    
     if (!fs.existsSync(filePath)) {
+      console.error('[Local Restore] Backup file not found:', filePath);
       return { success: false, message: 'Backup file not found' };
     }
     
-    // Copy backup file to current database location
-    const dbPath = path.join(__dirname, '../database/shop.sqlite');
-    fs.copyFileSync(filePath, dbPath);
+    // Verify backup file is valid SQLite by checking header
+    const buffer = Buffer.alloc(16);
+    const fd = fs.openSync(filePath, 'r');
+    fs.readSync(fd, buffer, 0, 16, 0);
+    fs.closeSync(fd);
     
-    return { success: true, message: 'Database restored successfully' };
+    if (!buffer.toString('utf8', 0, 15).startsWith('SQLite format 3')) {
+      console.error('[Local Restore] Invalid SQLite file:', filePath);
+      return { success: false, message: 'Selected file is not a valid SQLite database backup' };
+    }
+    
+    // Close database connection
+    try {
+      db.db.close();
+      console.log('[Local Restore] Closed DB connection');
+    } catch (e) {
+      console.warn('[Local Restore] DB close failed (may already be closed):', e.message);
+    }
+    
+    // Create backup of current database
+    if (fs.existsSync(dbPath)) {
+      fs.copyFileSync(dbPath, backupCurrentPath);
+      console.log('[Local Restore] Backed up current DB to', backupCurrentPath);
+    }
+    
+    // Copy backup file to current database location
+    fs.copyFileSync(filePath, dbPath);
+    console.log('[Local Restore] Copied backup file to DB path:', dbPath);
+    
+    // Reinitialize database connection
+    try {
+      // Clear require cache for db.cjs to force reload
+      delete require.cache[require.resolve('../database/db.cjs')];
+      const dbModule = require('../database/db.cjs');
+      Object.assign(db, dbModule);
+      
+      // Test connection by running a simple query
+      const testResult = db.getProducts();
+      console.log('[Local Restore] DB connection re-initialized and test query succeeded, got', testResult.length, 'products');
+    } catch (e) {
+      console.error('[Local Restore] DB re-initialization or test query failed:', e);
+      // Rollback if DB cannot be opened
+      if (fs.existsSync(backupCurrentPath)) {
+        fs.copyFileSync(backupCurrentPath, dbPath);
+        delete require.cache[require.resolve('../database/db.cjs')];
+        const dbModule = require('../database/db.cjs');
+        Object.assign(db, dbModule);
+        console.log('[Local Restore] Rolled back to previous DB');
+      }
+      throw new Error('Restored DB is invalid or corrupt. Rolled back to previous database.');
+    }
+    
+    // Log the restore
+    db.logBackup({
+      file_name: path.basename(filePath),
+      encrypted: false,
+      log: `Database restored from local backup: ${filePath}`
+    });
+    
+    return { 
+      success: true, 
+      message: 'Database restored successfully. Please restart the application to ensure all changes take effect.',
+      requiresRestart: true
+    };
   } catch (e) {
+    console.error('[Local Restore] Restore failed:', e);
     return { success: false, message: e.message };
   }
 });
@@ -601,7 +881,7 @@ ipcMain.handle('saveCloudBackup', async (event, backupData, fileName) => {
   try {
     const os = require('os');
     const documentsPath = path.join(os.homedir(), 'Documents');
-    const restoreDir = path.join(documentsPath, 'Phone Shop Backups', 'Downloaded');
+    const restoreDir = path.join(documentsPath, 'Mobile Roma BackUp', 'Downloaded');
     
     // Create restore directory if it doesn't exist
     if (!fs.existsSync(restoreDir)) {
@@ -625,25 +905,39 @@ ipcMain.handle('restoreFromCloudBackup', async (event, filePath) => {
   let dbPath = path.join(__dirname, '../database/shop.sqlite');
   let backupCurrentPath = dbPath + '.bak';
   try {
+    console.log('[Cloud Restore] Starting restore from:', filePath);
+    
     if (!fs.existsSync(filePath)) {
-      console.error('[Restore] Backup file not found:', filePath);
+      console.error('[Cloud Restore] Backup file not found:', filePath);
       throw new Error('Backup file not found');
     }
+    
+    // Verify backup file is valid SQLite by checking header
+    const buffer = Buffer.alloc(16);
+    const fd = fs.openSync(filePath, 'r');
+    fs.readSync(fd, buffer, 0, 16, 0);
+    fs.closeSync(fd);
+    
+    if (!buffer.toString('utf8', 0, 15).startsWith('SQLite format 3')) {
+      console.error('[Cloud Restore] Invalid SQLite file:', filePath);
+      throw new Error('Downloaded file is not a valid SQLite database backup');
+    }
+    
     // Close database connection
     try {
       db.db.close();
-      console.log('[Restore] Closed DB connection');
+      console.log('[Cloud Restore] Closed DB connection');
     } catch (e) {
-      console.warn('[Restore] DB close failed (may already be closed):', e.message);
+      console.warn('[Cloud Restore] DB close failed (may already be closed):', e.message);
     }
     // Create backup of current database
     if (fs.existsSync(dbPath)) {
       fs.copyFileSync(dbPath, backupCurrentPath);
-      console.log('[Restore] Backed up current DB to', backupCurrentPath);
+      console.log('[Cloud Restore] Backed up current DB to', backupCurrentPath);
     }
     // Restore from backup
     fs.copyFileSync(filePath, dbPath);
-    console.log('[Restore] Copied backup file to DB path:', dbPath);
+    console.log('[Cloud Restore] Copied backup file to DB path:', dbPath);
     // Reinitialize database connection
     let dbModule;
     try {
@@ -652,8 +946,8 @@ ipcMain.handle('restoreFromCloudBackup', async (event, filePath) => {
       dbModule = require('../database/db.cjs');
       Object.assign(db, dbModule);
       // Test connection by running a simple query
-      db.getProducts();
-      console.log('[Restore] DB connection re-initialized and test query succeeded');
+      const testResult = db.getProducts();
+      console.log('[Cloud Restore] DB connection re-initialized and test query succeeded, got', testResult.length, 'products');
     } catch (e) {
       console.error('[Restore] DB re-initialization or test query failed:', e);
       // Rollback if DB cannot be opened
@@ -672,11 +966,7 @@ ipcMain.handle('restoreFromCloudBackup', async (event, filePath) => {
       encrypted: false,
       log: `Database restored from cloud backup: ${filePath}`
     });
-    // Force restart the app to ensure all DB connections are fresh
-    setTimeout(() => {
-      app.relaunch();
-      app.exit(0);
-    }, 500);
+    
     return {
       success: true,
       message: 'Database restored successfully from cloud backup. The app will now restart.',
@@ -699,9 +989,9 @@ ipcMain.handle('returnSale', async (event, saleId) => {
   }
 });
 
-ipcMain.handle('returnSaleItem', async (event, saleId, itemId) => {
+ipcMain.handle('returnSaleItem', async (event, saleId, itemId, quantity = null) => {
   try {
-    const result = db.returnSaleItem(saleId, itemId);
+    const result = db.returnSaleItem(saleId, itemId, quantity);
     await runAutoBackupAfterSale();
     return { success: true };
   } catch (e) {
@@ -719,4 +1009,80 @@ ipcMain.handle('getCurrentBackupPath', async () => {
   } catch (e) {
     return { success: false, message: e.message };
   }
+});
+
+ipcMain.handle('getCloudBackups', async () => {
+  try {
+    const result = await mainCloudBackup.getBackups();
+    return result;
+  } catch (error) {
+    console.error('Error getting cloud backups:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('setCloudSession', async (event, sessionData) => {
+  try {
+    const result = await mainCloudBackup.setSession(sessionData);
+    return { success: true };
+  } catch (error) {
+    console.error('Error setting cloud session:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('clearCloudSession', async () => {
+  try {
+    await mainCloudBackup.clearSession();
+    return { success: true };
+  } catch (error) {
+    console.error('Error clearing cloud session:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('getCloudStorageUsage', async () => {
+  try {
+    const result = await mainCloudBackup.getStorageUsage();
+    return result;
+  } catch (error) {
+    console.error('Error getting cloud storage usage:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('downloadCloudBackup', async (event, backupId, fileName) => {
+  try {
+    const path = require('path');
+    const os = require('os');
+    
+    // Download the backup to downloads folder
+    const downloadPath = path.join(os.homedir(), 'Downloads', fileName || `backup-${backupId}.sqlite`);
+    
+    const result = await mainCloudBackup.downloadBackup(backupId, downloadPath);
+    
+    if (result.success) {
+      return {
+        success: true,
+        path: downloadPath,
+        message: 'Backup downloaded successfully'
+      };
+    } else {
+      return {
+        success: false,
+        message: result.error || 'Failed to download backup'
+      };
+    }
+  } catch (error) {
+    console.error('Error downloading cloud backup:', error);
+    return { success: false, message: error.message };
+  }
+});
+
+ipcMain.handle('restartApp', async () => {
+  setTimeout(() => {
+    app.relaunch();
+    app.exit(0);
+  }, 500);
+  return { success: true };
 });
