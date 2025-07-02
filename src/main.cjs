@@ -706,8 +706,8 @@ ipcMain.handle('createBackup', async () => {
     
     console.log('Creating backup at:', backupPath);
     
-    // Copy database file
-    const dbPath = path.join(__dirname, '../database/shop.sqlite');
+    // Copy database file - use the same path resolution as the main app
+    const dbPath = getDatabasePath(); // Use the function that handles both dev and production paths
     console.log('Source database path:', dbPath);
     
     if (!fs.existsSync(dbPath)) {

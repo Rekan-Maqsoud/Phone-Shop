@@ -20,7 +20,7 @@ NOTE: The designs should be for laptop and make them wider instead of higher ...
 
 
 issue #2
-    for date selection filters , make it easier use a drop down list in both buying history and sale history 
+    for date selection filters , make it easier use a drop down list in both buying history and sale history (you miss understood me , the drop down should be for selecting the date like 1-31 for days , 1-12 for months and the year starting from 2025 and dynamically to the year the user uses the app )
 
 issue #3
     cloud backup fails to fetch the backups to restore or download 
@@ -35,7 +35,6 @@ index-CXrVbjhP.js:19 CloudBackupManager: Failed to load backups: User not authen
 index-CXrVbjhP.js:19 CloudBackupManager: User authenticated: rekankoye3333@gmail.com
     )
     also see pasted image 
+
 issue #4
-    manual backups havent been saved so restoring them always fails and says backup file not found , change the path or folder name to Mobile Roma BackUp
-issue #5
-    the settings input fields and close button doesnt support themes correctly 
+    manual backups dont save the file in production , they dont even make the folder

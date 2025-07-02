@@ -300,8 +300,8 @@ class CloudAuthService {
   // Backup methods
   async uploadBackup(backupFile, backupName = 'backup.sqlite', description = '') {
     try {
-      if (!this.user) {
-        throw new Error('User not authenticated');
+      if (!this._isAuthenticated || !this.user) {
+        throw new Error('User not authenticated - please sign in to use cloud backup features');
       }
 
       // Validate environment variables
@@ -557,9 +557,8 @@ class CloudAuthService {
 
   async getBackups() {
     try {
-      // Always refresh user state before making the request
-      const userResult = await this.getCurrentUser();
-      if (!userResult.success || !this.user) {
+      // Use cached user if authenticated, otherwise return authentication error
+      if (!this._isAuthenticated || !this.user) {
         throw new Error('User not authenticated - please sign in to use cloud backup features');
       }
 
@@ -582,8 +581,8 @@ class CloudAuthService {
 
   async downloadBackup(backupId) {
     try {
-      if (!this.user) {
-        throw new Error('User not authenticated');
+      if (!this._isAuthenticated || !this.user) {
+        throw new Error('User not authenticated - please sign in to use cloud backup features');
       }
 
       // Get backup record
@@ -616,8 +615,8 @@ class CloudAuthService {
 
   async deleteBackup(backupId) {
     try {
-      if (!this.user) {
-        throw new Error('User not authenticated');
+      if (!this._isAuthenticated || !this.user) {
+        throw new Error('User not authenticated - please sign in to use cloud backup features');
       }
 
       // Get backup record
@@ -650,7 +649,7 @@ class CloudAuthService {
 
   async getNextBackupVersion() {
     try {
-      if (!this.user) return 1;
+      if (!this._isAuthenticated || !this.user) return 1;
 
       const response = await this.databases.listDocuments(
         this.DATABASE_ID,
@@ -671,7 +670,7 @@ class CloudAuthService {
   // Auto backup management - now automatically enabled when authenticated
   async getAutoBackupSettings() {
     try {
-      if (!this.user) {
+      if (!this._isAuthenticated || !this.user) {
         return { enabled: false, frequency: 'instant' };
       }
 
@@ -697,9 +696,8 @@ class CloudAuthService {
   // Unified auto backup function - called from the unified backup system
   async performAutoBackup() {
     try {
-      // Double-check authentication before proceeding
-      const authCheck = await this.getCurrentUser();
-      if (!authCheck.success || !this.user || !this.user.$id) {
+      // Use cached authentication state instead of re-checking
+      if (!this._isAuthenticated || !this.user || !this.user.$id) {
         return { success: false, error: 'User not authenticated' };
       }
 
@@ -926,9 +924,8 @@ class CloudAuthService {
   // Utility methods
   async getStorageUsage() {
     try {
-      // Always refresh user state before making the request
-      const userResult = await this.getCurrentUser();
-      if (!userResult.success || !this.user) {
+      // Use cached user if authenticated, otherwise return authentication error
+      if (!this._isAuthenticated || !this.user) {
         throw new Error('User not authenticated - please sign in to use cloud backup features');
       }
 
@@ -971,8 +968,8 @@ class CloudAuthService {
   // Backup cleanup and integrity methods
   async cleanupOrphanedBackups() {
     try {
-      if (!this.user) {
-        throw new Error('User not authenticated');
+      if (!this._isAuthenticated || !this.user) {
+        throw new Error('User not authenticated - please sign in to use cloud backup features');
       }
 
       // Get all backup records for this user
@@ -1022,8 +1019,8 @@ class CloudAuthService {
 
   async verifyBackupIntegrity() {
     try {
-      if (!this.user) {
-        throw new Error('User not authenticated');
+      if (!this._isAuthenticated || !this.user) {
+        throw new Error('User not authenticated - please sign in to use cloud backup features');
       }
 
       // Get the latest auto-backup record
@@ -1084,8 +1081,8 @@ class CloudAuthService {
   // Manual backup creation with versioning (for data safety)
   async createManualBackup(description = 'Manual backup') {
     try {
-      if (!this.user) {
-        throw new Error('User not authenticated');
+      if (!this._isAuthenticated || !this.user) {
+        throw new Error('User not authenticated - please sign in to use cloud backup features');
       }
 
       // Get the current backup file path
@@ -1130,8 +1127,8 @@ class CloudAuthService {
   // Get backup statistics
   async getBackupStats() {
     try {
-      if (!this.user) {
-        throw new Error('User not authenticated');
+      if (!this._isAuthenticated || !this.user) {
+        throw new Error('User not authenticated - please sign in to use cloud backup features');
       }
 
       const backupsResult = await this.getBackups();

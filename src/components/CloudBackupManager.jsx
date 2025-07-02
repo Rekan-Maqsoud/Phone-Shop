@@ -113,8 +113,8 @@ export default function CloudBackupManager({ onClose, t }) {
 
   // Replace loadBackups to use window.api
   const loadBackups = useCallback(async () => {
-    if (!isAuthenticated) {
-      
+    if (!isAuthenticated || !user) {
+      console.log('CloudBackupManager: User not authenticated, skipping backup load');
       return;
     }
     
@@ -129,22 +129,15 @@ export default function CloudBackupManager({ onClose, t }) {
       setBackups(result.backups);
     } else {
       console.error('CloudBackupManager: Failed to load backups:', result.error);
-      // Check if it's an authentication error
-      if (result.error?.includes('not authenticated') || result.error?.includes('Unauthorized')) {
-        // Re-check authentication status
-        await checkAuthStatus();
-        showToast(t.userNotAuthenticated || 'User not authenticated - please sign in to use cloud backup features', 'error');
-      } else {
-        showToast(result.error || (t.failedToLoadBackups || 'Failed to load backups'), 'error');
-      }
+      showToast(result.error || (t.failedToLoadBackups || 'Failed to load backups'), 'error');
     }
     setLoading(false);
-  }, [isAuthenticated, t, checkAuthStatus]);
+  }, [isAuthenticated, user, t]);
 
   // Replace loadStorageUsage to use window.api
   const loadStorageUsage = useCallback(async () => {
-    if (!isAuthenticated) {
-    
+    if (!isAuthenticated || !user) {
+      console.log('CloudBackupManager: User not authenticated, skipping storage usage load');
       return;
     }
     
@@ -158,22 +151,16 @@ export default function CloudBackupManager({ onClose, t }) {
       setStorageUsage(result);
     } else {
       console.error('CloudBackupManager: Failed to load storage usage:', result.error);
-      // Check if it's an authentication error
-      if (result.error?.includes('not authenticated') || result.error?.includes('Unauthorized')) {
-        // Re-check authentication status
-        await checkAuthStatus();
-      }
     }
-  }, [isAuthenticated, checkAuthStatus]);
+  }, [isAuthenticated, user]);
 
   // Unified auto backup function - called by the unified backup system
   const performUnifiedAutoBackup = useCallback(async () => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || !user) return;
     
     try {
       const result = await cloudAuthService.performAutoBackup();
       if (result.success) {
-  
         loadBackups();
         loadStorageUsage();
       } else {
@@ -182,7 +169,7 @@ export default function CloudBackupManager({ onClose, t }) {
     } catch (error) {
       console.warn('Unified cloud auto backup error:', error);
     }
-  }, [isAuthenticated, loadBackups, loadStorageUsage]);
+  }, [isAuthenticated, user, loadBackups, loadStorageUsage]);
 
   useEffect(() => {
     // Wait a bit to allow Appwrite session restoration
@@ -192,7 +179,7 @@ export default function CloudBackupManager({ onClose, t }) {
 
     // Listen for unified auto backup trigger
     const handleUnifiedAutoBackup = () => {
-      if (isAuthenticated) {
+      if (isAuthenticated && user) {
         performUnifiedAutoBackup();
       }
     };
@@ -207,14 +194,14 @@ export default function CloudBackupManager({ onClose, t }) {
         window.api.off('trigger-unified-auto-backup', handleUnifiedAutoBackup);
       }
     };
-  }, [isAuthenticated, performUnifiedAutoBackup]); // Added performUnifiedAutoBackup to dependencies
+  }, [isAuthenticated, user, performUnifiedAutoBackup]); // Added performUnifiedAutoBackup to dependencies
 
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && user) {
       loadBackups();
       loadStorageUsage();
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, user, loadBackups, loadStorageUsage]);
 
   const handleAuth = async (e) => {
     e.preventDefault();
