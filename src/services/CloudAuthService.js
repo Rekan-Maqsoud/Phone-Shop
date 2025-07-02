@@ -12,9 +12,9 @@ class CloudAuthService {
     this.storage = null;
     this.user = null;
     this._authCheckInterval = null;
-    this._lastAuthCheck = 0; // Add timestamp tracking
-    this._authCheckCooldown = 30000; // 30 seconds cooldown between checks
     this._networkTimeout = 10000; // 10 second timeout for requests
+    this._sessionShared = false; // Track if session has been shared with main process
+    this._universalAuthState = false; // Single source of truth for authentication
     
     // Debug environment variables
     console.log('CloudAuthService: Environment variables:', {
@@ -29,25 +29,25 @@ class CloudAuthService {
     
     // Initialize Appwrite client with environment variables
     this.client
-      .setEndpoint(import.meta.env.VITE_APPWRITE_ENDPOINT || 'https://cloud.appwrite.io/v1')
-      .setProject(import.meta.env.VITE_APPWRITE_PROJECT_ID);
+      .setEndpoint(import.meta.env.VITE_APPWRITE_ENDPOINT || 'https://fra.cloud.appwrite.io/v1')
+      .setProject(import.meta.env.VITE_APPWRITE_PROJECT_ID || '685ddcd00006c06a72f0');
     
     this.account = new Account(this.client);
     this.databases = new Databases(this.client);
     this.storage = new Storage(this.client);
     
-    // Configuration from environment variables
-    this.DATABASE_ID = import.meta.env.VITE_APPWRITE_DATABASE_ID;
-    this.BACKUPS_COLLECTION_ID = import.meta.env.VITE_APPWRITE_BACKUPS_COLLECTION_ID;
-    this.BACKUP_BUCKET_ID = import.meta.env.VITE_APPWRITE_BACKUP_BUCKET_ID;
+    // Configuration from environment variables with fallbacks for production
+    this.DATABASE_ID = import.meta.env.VITE_APPWRITE_DATABASE_ID || '685ddd3d003b13f80483';
+    this.BACKUPS_COLLECTION_ID = import.meta.env.VITE_APPWRITE_BACKUPS_COLLECTION_ID || '685ddd94003cac4491a5';
+    this.BACKUP_BUCKET_ID = import.meta.env.VITE_APPWRITE_BACKUP_BUCKET_ID || '685ddea60039b672ee60';
     
     // Validate configuration
     const configValidation = this.validateConfiguration();
     if (!configValidation.isValid) {
       console.warn('CloudAuthService: Configuration validation failed:', configValidation.message);
-      console.warn('CloudAuthService: Running in offline mode. Cloud backup features will be disabled.');
-      // Set a flag to indicate offline mode
-      this._offlineMode = true;
+      console.warn('CloudAuthService: Using fallback configuration values for production.');
+      // Use fallback values for production
+      this._offlineMode = false;
     } else {
       console.log('CloudAuthService: Configuration validated successfully');
       this._offlineMode = false;
@@ -55,7 +55,66 @@ class CloudAuthService {
     
     // Only start periodic auth check if not in offline mode
     if (!this._offlineMode) {
-      this._startPeriodicAuthCheck();
+      this._initializeAuthState();
+    }
+  }
+
+  // Initialize authentication state once
+  async _initializeAuthState() {
+    try {
+      console.log('CloudAuthService: Initializing authentication state...');
+      this.user = await this.account.get();
+      
+      if (this.user && this.user.$id) {
+        this._universalAuthState = true;
+        this.setAuthenticated(true);
+        console.log('CloudAuthService: User already authenticated:', this.user.email);
+        
+        // Share session with main process if not already shared
+        await this._shareSessionWithMainProcess();
+      } else {
+        this._universalAuthState = false;
+        this.setAuthenticated(false);
+        console.log('CloudAuthService: No existing session found');
+      }
+    } catch (error) {
+      console.log('CloudAuthService: No existing session or invalid session');
+      this._universalAuthState = false;
+      this.setAuthenticated(false);
+      this.user = null;
+    }
+  }
+
+  // Share session with main process (only called once)
+  async _shareSessionWithMainProcess() {
+    if (this._sessionShared || !this.user || !window.api?.setCloudSession) {
+      return;
+    }
+
+    try {
+      const session = await this.account.getSession('current');
+      
+      // Try to get JWT token for better session sharing
+      let jwtToken = null;
+      try {
+        const jwtResponse = await this.account.createJWT();
+        jwtToken = jwtResponse.jwt;
+      } catch (jwtError) {
+        console.warn('CloudAuthService: Failed to create JWT token:', jwtError.message);
+      }
+      
+      await window.api.setCloudSession({
+        sessionId: session.$id,
+        userId: this.user.$id,
+        userEmail: this.user.email,
+        sessionSecret: session.secret || session.sessionId,
+        jwt: jwtToken
+      });
+      
+      this._sessionShared = true;
+      console.log('CloudAuthService: Session shared with main process');
+    } catch (sessionError) {
+      console.warn('CloudAuthService: Failed to share session with main process:', sessionError);
     }
   }
 
@@ -63,11 +122,17 @@ class CloudAuthService {
   validateConfiguration() {
     const missingVars = [];
     
-    if (!import.meta.env.VITE_APPWRITE_ENDPOINT) missingVars.push('VITE_APPWRITE_ENDPOINT');
-    if (!import.meta.env.VITE_APPWRITE_PROJECT_ID) missingVars.push('VITE_APPWRITE_PROJECT_ID');
-    if (!this.DATABASE_ID) missingVars.push('VITE_APPWRITE_DATABASE_ID');
-    if (!this.BACKUPS_COLLECTION_ID) missingVars.push('VITE_APPWRITE_BACKUPS_COLLECTION_ID');
-    if (!this.BACKUP_BUCKET_ID) missingVars.push('VITE_APPWRITE_BACKUP_BUCKET_ID');
+    const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT || 'https://fra.cloud.appwrite.io/v1';
+    const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID || '685ddcd00006c06a72f0';
+    const databaseId = this.DATABASE_ID;
+    const backupsCollectionId = this.BACKUPS_COLLECTION_ID;
+    const backupBucketId = this.BACKUP_BUCKET_ID;
+    
+    if (!endpoint) missingVars.push('VITE_APPWRITE_ENDPOINT');
+    if (!projectId) missingVars.push('VITE_APPWRITE_PROJECT_ID');
+    if (!databaseId) missingVars.push('VITE_APPWRITE_DATABASE_ID');
+    if (!backupsCollectionId) missingVars.push('VITE_APPWRITE_BACKUPS_COLLECTION_ID');
+    if (!backupBucketId) missingVars.push('VITE_APPWRITE_BACKUP_BUCKET_ID');
     
     return {
       isValid: missingVars.length === 0,
@@ -78,38 +143,14 @@ class CloudAuthService {
     };
   }
 
-  _startPeriodicAuthCheck() {
-    // Clear any existing interval
-    if (this._authCheckInterval) {
-      clearInterval(this._authCheckInterval);
-    }
-    
-    // Only start periodic checks if authenticated
-    if (!this._isAuthenticated) {
-      return;
-    }
-    
-    // Check auth every 10 minutes (increased from 5 minutes)
-    this._authCheckInterval = setInterval(async () => {
-      if (this._isAuthenticated) {
-        const isStillAuth = await this.checkAuth();
-        if (!isStillAuth) {
-          console.log('CloudAuthService: Session expired during periodic check');
-          // Stop periodic checks when not authenticated
-          this._stopPeriodicAuthCheck();
-        }
-      } else {
-        // Stop periodic checks if not authenticated
-        this._stopPeriodicAuthCheck();
-      }
-    }, 10 * 60 * 1000); // 10 minutes (reduced frequency)
+  // Get universal authentication state (no network calls)
+  isAuthenticated() {
+    return this._universalAuthState && this.user !== null;
   }
 
-  _stopPeriodicAuthCheck() {
-    if (this._authCheckInterval) {
-      clearInterval(this._authCheckInterval);
-      this._authCheckInterval = null;
-    }
+  // Get current user (uses cached state, no network calls)
+  getUser() {
+    return this.user;
   }
 
   // Authentication methods
@@ -178,26 +219,16 @@ class CloudAuthService {
         throw new Error('Failed to retrieve user information');
       }
       
+      this._universalAuthState = true;
       this.setAuthenticated(true);
       
-      // Share session with main process for cloud backup operations
-      if (window.api?.setCloudSession) {
-        try {
-          await window.api.setCloudSession({
-            sessionId: session.$id,
-            userId: this.user.$id,
-            userEmail: this.user.email,
-            sessionSecret: session.secret || session.sessionId
-          });
-          console.log('CloudAuthService: Session shared with main process');
-        } catch (sessionError) {
-          console.warn('CloudAuthService: Failed to share session with main process:', sessionError);
-        }
-      }
+      // Share session with main process for cloud backup operations (only once)
+      await this._shareSessionWithMainProcess();
       
       return { success: true, user: this.user, session };
     } catch (error) {
       this.user = null;
+      this._universalAuthState = false;
       this.setAuthenticated(false);
       
       // Handle timeout specifically
@@ -224,6 +255,8 @@ class CloudAuthService {
     try {
       await this.account.deleteSession('current');
       this.user = null;
+      this._universalAuthState = false;
+      this._sessionShared = false;
       this.setAuthenticated(false);
       
       // Clear session from main process
@@ -243,34 +276,11 @@ class CloudAuthService {
   }
 
   async getCurrentUser() {
-    try {
-      if (!this.user) {
-        this.user = await this.account.get();
-      }
-      
-      // Verify user data is valid
-      if (this.user && this.user.$id) {
-        this.setAuthenticated(true);
-        return { success: true, user: this.user };
-      } else {
-        this.user = null;
-        this.setAuthenticated(false);
-        return { success: false, error: 'No valid user data' };
-      }
-    } catch (error) {
-      // Handle authentication errors gracefully
-      if (error?.code === 401 || error?.status === 401 || 
-          error?.message?.includes('Unauthorized') || 
-          error?.message?.includes('Missing or invalid credentials') ||
-          error?.message?.includes('User (role: guests) missing scope')) {
-        this.user = null;
-        this.setAuthenticated(false);
-        return { success: false, error: 'Not logged in' };
-      }
-      
-      // Network or other errors
-      console.warn('CloudAuthService: Error getting current user:', error.message);
-      return { success: false, error: error.message };
+    // Return cached user state without making network calls
+    if (this._universalAuthState && this.user && this.user.$id) {
+      return { success: true, user: this.user };
+    } else {
+      return { success: false, error: 'Not logged in' };
     }
   }
 
@@ -300,7 +310,7 @@ class CloudAuthService {
   // Backup methods
   async uploadBackup(backupFile, backupName = 'backup.sqlite', description = '') {
     try {
-      if (!this._isAuthenticated || !this.user) {
+      if (!this._universalAuthState || !this.user) {
         throw new Error('User not authenticated - please sign in to use cloud backup features');
       }
 
@@ -325,9 +335,43 @@ class CloudAuthService {
 
       console.log(`CloudAuthService: Starting backup upload - File: ${backupName}, Size: ${backupFile.size} bytes`);
 
-      // Find existing backup for this user with the same fileName
-      let response;
-      try {
+      // For auto backups, ensure we only have one file and record
+      if (backupName === 'auto-backup-latest.sqlite') {
+        // Check for existing auto backup record
+        response = await this.databases.listDocuments(
+          this.DATABASE_ID,
+          this.BACKUPS_COLLECTION_ID,
+          [
+            Query.equal('userId', this.user.$id),
+            Query.equal('fileName', backupName),
+            Query.limit(1)
+          ]
+        );
+        
+        existingBackup = response.documents.length > 0 ? response.documents[0] : null;
+        
+        if (existingBackup) {
+          fileId = existingBackup.fileId;
+          console.log('CloudAuthService: Found existing auto backup record:', existingBackup.$id);
+          
+          // Delete the old file first
+          try {
+            await this.storage.deleteFile(this.BACKUP_BUCKET_ID, fileId);
+            console.log('CloudAuthService: Deleted old auto backup file:', fileId);
+            // Wait for deletion to complete
+            await new Promise(resolve => setTimeout(resolve, 500));
+          } catch (deleteErr) {
+            console.warn('CloudAuthService: Could not delete old auto backup file:', deleteErr.message);
+          }
+          
+          // Use consistent file ID for auto backups
+          fileId = `auto-backup-${this.user.$id}`;
+        } else {
+          // Use consistent file ID for new auto backup
+          fileId = `auto-backup-${this.user.$id}`;
+        }
+      } else {
+        // For manual backups, check for existing records
         response = await this.databases.listDocuments(
           this.DATABASE_ID,
           this.BACKUPS_COLLECTION_ID,
@@ -338,16 +382,12 @@ class CloudAuthService {
             Query.limit(1)
           ]
         );
-      } catch (dbError) {
-        console.error('CloudAuthService: Database query error:', dbError);
-        throw new Error(`Database error: ${dbError.message}`);
-      }
-
-      let fileId;
-      let existingBackup = response.documents.length > 0 ? response.documents[0] : null;
-      if (existingBackup) {
-        fileId = existingBackup.fileId;
-        console.log('CloudAuthService: Found existing backup record:', existingBackup.$id);
+        
+        existingBackup = response.documents.length > 0 ? response.documents[0] : null;
+        if (existingBackup) {
+          fileId = existingBackup.fileId;
+          console.log('CloudAuthService: Found existing manual backup record:', existingBackup.$id);
+        }
       }
 
       let fileUpload;
@@ -364,143 +404,68 @@ class CloudAuthService {
         }
       }
 
-      if (fileId && fileExists) {
-        try {
-          // Delete the old file first to avoid storage conflicts
-          await this.storage.deleteFile(this.BACKUP_BUCKET_ID, fileId);
-          console.log('CloudAuthService: Deleted old backup file:', fileId);
-          
-          // Wait a moment for deletion to complete
-          await new Promise(resolve => setTimeout(resolve, 500));
-        } catch (deleteErr) {
-          console.warn('CloudAuthService: Could not delete old file:', deleteErr.message);
-          // If delete fails, use a new unique ID to avoid conflicts
-          fileId = null;
-        }
+      // Create new file (old file was already deleted above if it existed)
+      try {
+        const newFileId = fileId || ID.unique();
+        console.log('CloudAuthService: Creating new backup file with ID:', newFileId);
         
-        // Create a new file with determined ID
-        let newFileId;
-        if (backupName === 'auto-backup-latest.sqlite' && fileId) {
-          // Only reuse ID if deletion was successful
-          newFileId = fileId;
-        } else {
-          // Use unique ID for manual backups or if delete failed
-          newFileId = ID.unique();
-        }
-        
-        try {
+        fileUpload = await this.storage.createFile(
+          this.BACKUP_BUCKET_ID,
+          newFileId,
+          backupFile
+        );
+        fileId = fileUpload.$id;
+        console.log('CloudAuthService: New file created successfully:', fileId);
+      } catch (createErr) {
+        // If file creation fails with ID conflict, try with unique ID
+        if (createErr.message.includes('already exists') || createErr.message.includes('unique')) {
+          console.warn('CloudAuthService: File ID conflict, trying with unique ID');
+          const uniqueFileId = ID.unique();
           fileUpload = await this.storage.createFile(
             this.BACKUP_BUCKET_ID,
-            newFileId,
+            uniqueFileId,
             backupFile
           );
           fileId = fileUpload.$id;
-        } catch (createErr) {
-          // If file creation still fails (ID conflict), try with unique ID
-          if (createErr.message.includes('already exists')) {
-            console.warn('CloudAuthService: File ID conflict, trying with unique ID');
-            newFileId = ID.unique();
-            fileUpload = await this.storage.createFile(
-              this.BACKUP_BUCKET_ID,
-              newFileId,
-              backupFile
-            );
-            fileId = fileUpload.$id;
-          } else {
-            throw createErr;
+          console.log('CloudAuthService: File created with unique ID:', fileId);
+        } else {
+          throw createErr;
+        }
+      }
+
+      // Update or create backup record
+      if (existingBackup) {
+        // Update existing record
+        await this.databases.updateDocument(
+          this.DATABASE_ID,
+          this.BACKUPS_COLLECTION_ID,
+          existingBackup.$id,
+          { 
+            fileId: fileId, 
+            fileSize: fileUpload.sizeOriginal, 
+            uploadDate: new Date().toISOString(),
+            description: description || existingBackup.description
           }
-        }
-        
-        // Update the existing backup record with new file ID
-        if (existingBackup) {
-          await this.databases.updateDocument(
-            this.DATABASE_ID,
-            this.BACKUPS_COLLECTION_ID,
-            existingBackup.$id,
-            { 
-              fileId: fileId, 
-              fileSize: fileUpload.sizeOriginal, 
-              uploadDate: new Date().toISOString(),
-              description: description || existingBackup.description
-            }
-          );
-          console.log('CloudAuthService: Updated existing backup record');
-        }
+        );
+        console.log('CloudAuthService: Updated existing backup record');
       } else {
-        // Create new file and record if missing
-        try {
-          console.log('CloudAuthService: Creating new backup file...');
-          
-          // For auto backups, try consistent ID first, fallback to unique
-          let newFileId;
-          if (backupName === 'auto-backup-latest.sqlite') {
-            newFileId = `auto-backup-${this.user.$id}`;
-          } else {
-            newFileId = ID.unique();
+        // Create new backup record
+        console.log('CloudAuthService: Creating new backup record...');
+        await this.databases.createDocument(
+          this.DATABASE_ID,
+          this.BACKUPS_COLLECTION_ID,
+          ID.unique(),
+          {
+            userId: this.user.$id,
+            fileName: backupName,
+            description: description,
+            fileId: fileId,
+            fileSize: fileUpload.sizeOriginal,
+            uploadDate: new Date().toISOString(),
+            version: '1'
           }
-          
-          try {
-            fileUpload = await this.storage.createFile(
-              this.BACKUP_BUCKET_ID,
-              newFileId,
-              backupFile
-            );
-            fileId = fileUpload.$id;
-          } catch (createErr) {
-            // If file creation fails (ID conflict), try with unique ID
-            if (createErr.message.includes('already exists')) {
-              console.warn('CloudAuthService: File ID conflict, trying with unique ID');
-              newFileId = ID.unique();
-              fileUpload = await this.storage.createFile(
-                this.BACKUP_BUCKET_ID,
-                newFileId,
-                backupFile
-              );
-              fileId = fileUpload.$id;
-            } else {
-              throw createErr;
-            }
-          }
-          
-          console.log('CloudAuthService: New file created:', fileId);
-          
-          if (existingBackup) {
-            // Update existing record with new file ID
-            await this.databases.updateDocument(
-              this.DATABASE_ID,
-              this.BACKUPS_COLLECTION_ID,
-              existingBackup.$id,
-              { 
-                fileId: fileId, 
-                fileSize: fileUpload.sizeOriginal, 
-                uploadDate: new Date().toISOString(),
-                description: description || existingBackup.description
-              }
-            );
-            console.log('CloudAuthService: Updated existing backup record with new file');
-          } else {
-            // Create a new backup record
-            console.log('CloudAuthService: Creating new backup record...');
-            await this.databases.createDocument(
-              this.DATABASE_ID,
-              this.BACKUPS_COLLECTION_ID,
-              ID.unique(),
-              {
-                userId: this.user.$id,
-                fileName: backupName,
-                description: description,
-                fileId: fileId,
-                fileSize: fileUpload.sizeOriginal,
-                uploadDate: new Date().toISOString(),
-                version: '1'
-              }
-            );
-            console.log('CloudAuthService: New backup record created');
-          }
-        } catch (storageError) {
-          console.error('CloudAuthService: Storage operation failed:', storageError);
-          throw new Error(`Storage error: ${storageError.message}`);
-        }
+        );
+        console.log('CloudAuthService: New backup record created');
       }
 
       // Return the latest backup record with verification
@@ -558,7 +523,7 @@ class CloudAuthService {
   async getBackups() {
     try {
       // Use cached user if authenticated, otherwise return authentication error
-      if (!this._isAuthenticated || !this.user) {
+      if (!this._universalAuthState || !this.user) {
         throw new Error('User not authenticated - please sign in to use cloud backup features');
       }
 
@@ -581,7 +546,7 @@ class CloudAuthService {
 
   async downloadBackup(backupId) {
     try {
-      if (!this._isAuthenticated || !this.user) {
+      if (!this._universalAuthState || !this.user) {
         throw new Error('User not authenticated - please sign in to use cloud backup features');
       }
 
@@ -615,7 +580,7 @@ class CloudAuthService {
 
   async deleteBackup(backupId) {
     try {
-      if (!this._isAuthenticated || !this.user) {
+      if (!this._universalAuthState || !this.user) {
         throw new Error('User not authenticated - please sign in to use cloud backup features');
       }
 
@@ -649,7 +614,7 @@ class CloudAuthService {
 
   async getNextBackupVersion() {
     try {
-      if (!this._isAuthenticated || !this.user) return 1;
+      if (!this._universalAuthState || !this.user) return 1;
 
       const response = await this.databases.listDocuments(
         this.DATABASE_ID,
@@ -670,7 +635,7 @@ class CloudAuthService {
   // Auto backup management - now automatically enabled when authenticated
   async getAutoBackupSettings() {
     try {
-      if (!this._isAuthenticated || !this.user) {
+      if (!this._universalAuthState || !this.user) {
         return { enabled: false, frequency: 'instant' };
       }
 
@@ -697,7 +662,7 @@ class CloudAuthService {
   async performAutoBackup() {
     try {
       // Use cached authentication state instead of re-checking
-      if (!this._isAuthenticated || !this.user || !this.user.$id) {
+      if (!this._universalAuthState || !this.user || !this.user.$id) {
         return { success: false, error: 'User not authenticated' };
       }
 
@@ -759,81 +724,8 @@ class CloudAuthService {
 
   // Authentication state tracking and event system
   async checkAuth() {
-    // If in offline mode, return false without attempting network calls
-    if (this._offlineMode) {
-      this.setAuthenticated(false);
-      return false;
-    }
-    
-    // Implement cooldown to prevent spam
-    const now = Date.now();
-    if (now - this._lastAuthCheck < this._authCheckCooldown) {
-      // Return cached authentication state during cooldown
-      return this._isAuthenticated;
-    }
-    this._lastAuthCheck = now;
-    
-    try {
-      // Add timeout wrapper for network requests
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Network timeout')), this._networkTimeout)
-      );
-      
-      // First try to verify existing session with timeout
-      const sessionResult = await Promise.race([
-        this.verifySession(),
-        timeoutPromise
-      ]);
-      
-      if (sessionResult.success) {
-        return true;
-      }
-      
-      // If session verification failed, try to get user directly with timeout
-      this.user = await Promise.race([
-        this.account.get(),
-        timeoutPromise
-      ]);
-      
-      if (this.user && this.user.$id) {
-        this.setAuthenticated(true);
-        return true;
-      } else {
-        this.user = null;
-        this.setAuthenticated(false);
-        return false;
-      }
-    } catch (error) {
-      // Handle timeout errors
-      if (error.message === 'Network timeout') {
-        console.warn('CloudAuthService: Network timeout during auth check');
-        // Return current state during timeout
-        return this._isAuthenticated;
-      }
-      
-      // Handle different types of authentication errors
-      if (error?.code === 401 || error?.status === 401 || 
-          error?.message?.includes('Unauthorized') || 
-          error?.message?.includes('Missing or invalid credentials') ||
-          error?.message?.includes('User (role: guests) missing scope')) {
-        // User is not authenticated
-        this.user = null;
-        this.setAuthenticated(false);
-        return false;
-      }
-      
-      // Network or other errors - log but don't change auth state
-      console.warn('CloudAuthService: Network error during auth check:', error.message);
-      
-      // If we had a user before, keep them authenticated during network issues
-      if (this.user && this.user.$id) {
-        return true;
-      }
-      
-      this.user = null;
-      this.setAuthenticated(false);
-      return false;
-    }
+    // Return cached universal authentication state without network calls
+    return this._universalAuthState;
   }
 
   // Session validation and restoration
@@ -893,7 +785,7 @@ class CloudAuthService {
   }
 
   isAuthenticated() {
-    return this._isAuthenticated;
+    return this._universalAuthState;
   }
 
   onAuthChange(listener) {
@@ -905,19 +797,12 @@ class CloudAuthService {
   }
 
   _notify() {
-    this._listeners.forEach(l => l(this._isAuthenticated));
+    this._listeners.forEach(l => l(this._universalAuthState));
   }
 
   setAuthenticated(val) {
-    this._isAuthenticated = val;
-    
-    // Start or stop periodic auth check based on auth state
-    if (val) {
-      this._startPeriodicAuthCheck();
-    } else {
-      this._stopPeriodicAuthCheck();
-    }
-    
+    this._isAuthenticated = val; // Keep for compatibility
+    this._universalAuthState = val; // Set universal state
     this._notify();
   }
 
@@ -925,7 +810,7 @@ class CloudAuthService {
   async getStorageUsage() {
     try {
       // Use cached user if authenticated, otherwise return authentication error
-      if (!this._isAuthenticated || !this.user) {
+      if (!this._universalAuthState || !this.user) {
         throw new Error('User not authenticated - please sign in to use cloud backup features');
       }
 
@@ -968,7 +853,7 @@ class CloudAuthService {
   // Backup cleanup and integrity methods
   async cleanupOrphanedBackups() {
     try {
-      if (!this._isAuthenticated || !this.user) {
+      if (!this._universalAuthState || !this.user) {
         throw new Error('User not authenticated - please sign in to use cloud backup features');
       }
 
@@ -1019,7 +904,7 @@ class CloudAuthService {
 
   async verifyBackupIntegrity() {
     try {
-      if (!this._isAuthenticated || !this.user) {
+      if (!this._universalAuthState || !this.user) {
         throw new Error('User not authenticated - please sign in to use cloud backup features');
       }
 
@@ -1081,7 +966,7 @@ class CloudAuthService {
   // Manual backup creation with versioning (for data safety)
   async createManualBackup(description = 'Manual backup') {
     try {
-      if (!this._isAuthenticated || !this.user) {
+      if (!this._universalAuthState || !this.user) {
         throw new Error('User not authenticated - please sign in to use cloud backup features');
       }
 
@@ -1127,7 +1012,7 @@ class CloudAuthService {
   // Get backup statistics
   async getBackupStats() {
     try {
-      if (!this._isAuthenticated || !this.user) {
+      if (!this._universalAuthState || !this.user) {
         throw new Error('User not authenticated - please sign in to use cloud backup features');
       }
 

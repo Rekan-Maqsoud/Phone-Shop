@@ -47,13 +47,9 @@ function App() {
     const initializeAuth = async () => {
       try {
         console.log('App: Initializing authentication...');
-        const isAuthenticated = await cloudAuthService.checkAuth();
-        
-        if (isAuthenticated) {
-          console.log('App: Authentication successful');
-        } else {
-          console.log('App: Not authenticated or in offline mode');
-        }
+        // Authentication is now initialized in CloudAuthService constructor
+        // No need for additional network calls here
+        console.log('App: Authentication initialization complete');
         
       } catch (error) {
         console.error('App: Error during auth initialization:', error);

@@ -41,30 +41,57 @@ export default function SearchableSelect({
   }, []);
 
   const handleInputChange = (e) => {
+    if (disabled) return;
+    
     const newValue = e.target.value;
     setSearchTerm(newValue);
     setIsOpen(true);
-    onChange(newValue);
+    
+    // Call onChange immediately for better responsiveness
+    if (onChange) {
+      onChange(newValue);
+    }
   };
 
   const handleOptionClick = (option) => {
     setSearchTerm(option);
     setIsOpen(false);
-    onChange(option);
-    inputRef.current?.blur();
+    
+    // Call onChange immediately
+    if (onChange) {
+      onChange(option);
+    }
+    
+    // Blur input after selection
+    if (inputRef.current) {
+      inputRef.current.blur();
+    }
   };
 
   const handleInputFocus = () => {
-    setIsOpen(true);
+    if (!disabled) {
+      setIsOpen(true);
+    }
   };
 
   const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && filteredOptions.length > 0) {
+    if (disabled) return;
+    
+    if (e.key === 'Enter') {
       e.preventDefault();
-      handleOptionClick(filteredOptions[0]);
+      if (filteredOptions.length > 0) {
+        handleOptionClick(filteredOptions[0]);
+      } else if (searchTerm) {
+        // Allow custom values even if no matches
+        handleOptionClick(searchTerm);
+      }
     } else if (e.key === 'Escape') {
       setIsOpen(false);
-      inputRef.current?.blur();
+      if (inputRef.current) {
+        inputRef.current.blur();
+      }
+    } else if (e.key === 'Tab') {
+      setIsOpen(false);
     }
   };
 
@@ -82,8 +109,8 @@ export default function SearchableSelect({
         className={`w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-400 border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${disabled ? 'opacity-50 cursor-not-allowed' : ''} ${className}`}
       />
       
-      {isOpen && filteredOptions.length > 0 && (
-        <div className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg max-h-60 overflow-auto">
+      {isOpen && !disabled && filteredOptions.length > 0 && (
+        <div className="absolute z-[60] w-full mt-1 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg max-h-60 overflow-auto">
           {filteredOptions.map((option, index) => (
             <div
               key={index}
@@ -96,8 +123,8 @@ export default function SearchableSelect({
         </div>
       )}
       
-      {isOpen && filteredOptions.length === 0 && searchTerm && (
-        <div className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg">
+      {isOpen && !disabled && filteredOptions.length === 0 && searchTerm && (
+        <div className="absolute z-[60] w-full mt-1 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg">
           <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">
             No matches found. Press Enter to use "{searchTerm}"
           </div>

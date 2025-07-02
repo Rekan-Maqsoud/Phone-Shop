@@ -48,14 +48,24 @@ npm install
 ```
 
 3. Set up environment variables:
-```bash
-cp .env.example .env
-# Edit .env with your Appwrite configuration
-```
+   Copy `.env.example` to `.env` and configure your Appwrite settings:
+   ```bash
+   cp .env.example .env
+   ```
+   
+   Edit `.env` with your Appwrite configuration:
+   ```
+   # Appwrite Configuration
+   VITE_APPWRITE_ENDPOINT=https://fra.cloud.appwrite.io/v1
+   VITE_APPWRITE_PROJECT_ID=your-project-id
+   VITE_APPWRITE_DATABASE_ID=your-database-id
+   VITE_APPWRITE_BACKUPS_COLLECTION_ID=your-collection-id
+   VITE_APPWRITE_BACKUP_BUCKET_ID=your-bucket-id
+   ```
+   
+   **Note**: Cloud backup will use fallback values if environment variables are not set, but for production use, proper configuration is recommended.
 
-## Development
-
-Run the development server:
+4. Start development server:
 ```bash
 npm run dev
 ```

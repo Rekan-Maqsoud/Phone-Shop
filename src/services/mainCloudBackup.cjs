@@ -3,11 +3,11 @@ const { Client, Account, Storage, ID, Databases, Query } = require('appwrite');
 const fs = require('fs');
 
 // These should be securely loaded from environment or settings
-const APPWRITE_ENDPOINT = process.env.VITE_APPWRITE_ENDPOINT || 'https://cloud.appwrite.io/v1';
-const APPWRITE_PROJECT_ID = process.env.VITE_APPWRITE_PROJECT_ID;
-const APPWRITE_BACKUP_BUCKET_ID = process.env.VITE_APPWRITE_BACKUP_BUCKET_ID;
-const APPWRITE_DATABASE_ID = process.env.VITE_APPWRITE_DATABASE_ID;
-const APPWRITE_BACKUPS_COLLECTION_ID = process.env.VITE_APPWRITE_BACKUPS_COLLECTION_ID;
+const APPWRITE_ENDPOINT = process.env.VITE_APPWRITE_ENDPOINT || 'https://fra.cloud.appwrite.io/v1';
+const APPWRITE_PROJECT_ID = process.env.VITE_APPWRITE_PROJECT_ID || '685ddcd00006c06a72f0';
+const APPWRITE_BACKUP_BUCKET_ID = process.env.VITE_APPWRITE_BACKUP_BUCKET_ID || '685ddea60039b672ee60';
+const APPWRITE_DATABASE_ID = process.env.VITE_APPWRITE_DATABASE_ID || '685ddd3d003b13f80483';
+const APPWRITE_BACKUPS_COLLECTION_ID = process.env.VITE_APPWRITE_BACKUPS_COLLECTION_ID || '685ddd94003cac4491a5';
 
 function getAppwriteClient() {
   const client = new Client();
@@ -37,8 +37,26 @@ async function setSession(sessionData) {
   }
   
   // Re-initialize with new session
-  sharedClient = null;
-  await initializeServices();
+  sharedClient = getAppwriteClient();
+  sharedAccount = new Account(sharedClient);
+  sharedStorage = new Storage(sharedClient);
+  sharedDatabases = new Databases(sharedClient);
+  
+  // Set the session using the session data from renderer process
+  try {
+    // Use Appwrite's setJWT method if we have a JWT token
+    if (sessionData.jwt) {
+      sharedClient.setJWT(sessionData.jwt);
+      console.log('MainCloudBackup: JWT set successfully in main process');
+    } else if (sessionData.sessionId) {
+      // Alternative: create a cookie string for session
+      const sessionCookie = `a_session_${APPWRITE_PROJECT_ID}=${sessionData.sessionId}`;
+      sharedClient.headers['cookie'] = sessionCookie;
+      console.log('MainCloudBackup: Session cookie set in main process');
+    }
+  } catch (error) {
+    console.warn('MainCloudBackup: Failed to set session in main process:', error.message);
+  }
 }
 
 async function clearSession() {
@@ -68,55 +86,15 @@ async function initializeServices() {
     sharedDatabases = new Databases(sharedClient);
   }
   
-  // If we have cached session data from the renderer process, use it
-  if (cachedSessionData) {
-    console.log('MainCloudBackup: Using cached session for user:', cachedSessionData.userEmail);
-    
-    // Try to validate the cached session
-    try {
-      const user = await sharedAccount.get();
-      if (user && user.$id === cachedSessionData.userId) {
-        console.log('MainCloudBackup: Cached session is valid for user:', user.email);
-        return { client: sharedClient, account: sharedAccount, storage: sharedStorage, databases: sharedDatabases };
-      } else {
-        console.log('MainCloudBackup: Cached session user mismatch, clearing cache');
-        cachedSessionData = null;
-      }
-    } catch (error) {
-      console.log('MainCloudBackup: Cached session validation failed:', error.message);
-      cachedSessionData = null;
-    }
+  // If we have cached session data, we can work with it
+  // The main process will rely on the cached session data instead of network auth
+  if (cachedSessionData && cachedSessionData.userId) {
+    console.log('MainCloudBackup: Using cached session data for operations:', cachedSessionData.userEmail);
+    return { client: sharedClient, account: sharedAccount, storage: sharedStorage, databases: sharedDatabases };
   }
   
-  // If no cached session or validation failed, try to check for existing session
-  let user = null;
-  let retryCount = 0;
-  const maxRetries = 3; // Reduced retries since we should have cached session
-  
-  while (!user && retryCount < maxRetries) {
-    try {
-      user = await sharedAccount.get();
-      if (user && user.$id) {
-        console.log('MainCloudBackup: Successfully authenticated user:', user.email);
-        break; // Success
-      }
-    } catch (error) {
-      retryCount++;
-      console.log(`MainCloudBackup: Auth check attempt ${retryCount}/${maxRetries}`, error.message);
-      
-      if (retryCount < maxRetries) {
-        // Reduced wait time since we expect cached session to work
-        const waitTime = Math.min(500 * retryCount, 2000); // Max 2 seconds
-        console.log(`MainCloudBackup: Waiting ${waitTime}ms before retry...`);
-        await new Promise(resolve => setTimeout(resolve, waitTime));
-      } else {
-        console.error('MainCloudBackup: Failed to authenticate after', maxRetries, 'attempts');
-        throw new Error('User not authenticated - please sign in to use cloud backup features');
-      }
-    }
-  }
-  
-  return { client: sharedClient, account: sharedAccount, storage: sharedStorage, databases: sharedDatabases };
+  // If no cached session, we cannot proceed
+  throw new Error('User not authenticated - please sign in to use cloud backup features');
 }
 
 async function uploadBackupToCloud(localBackupPath) {
@@ -124,24 +102,46 @@ async function uploadBackupToCloud(localBackupPath) {
     throw new Error('Local backup file does not exist.');
   }
   
-  const { storage } = await initializeServices();
+  const { storage, databases } = await initializeServices();
   
   // Use a consistent filename for auto backups to avoid creating multiple files
   const autoBackupName = 'auto-backup-latest.sqlite';
   const fileBuffer = fs.readFileSync(localBackupPath);
-  const fileId = 'auto-backup-latest';
+  
+  // Use consistent file ID for auto backups based on user ID
+  const fileId = `auto-backup-${cachedSessionData.userId}`;
   
   try {
-    // First, try to delete the existing file if it exists
+    // Check if backup record exists first
+    let existingBackup = null;
     try {
-      await storage.deleteFile(APPWRITE_BACKUP_BUCKET_ID, fileId);
-      console.log('MainCloudBackup: Deleted existing backup file');
-    } catch (deleteError) {
-      // File doesn't exist, which is fine
-      console.log('MainCloudBackup: No existing file to delete (normal for first backup)');
+      const backupsResult = await databases.listDocuments(
+        APPWRITE_DATABASE_ID,
+        APPWRITE_BACKUPS_COLLECTION_ID,
+        [
+          Query.equal('userId', cachedSessionData.userId),
+          Query.equal('fileName', autoBackupName),
+          Query.limit(1)
+        ]
+      );
+      existingBackup = backupsResult.documents.length > 0 ? backupsResult.documents[0] : null;
+    } catch (dbError) {
+      console.log('MainCloudBackup: No existing backup record found');
+    }
+
+    // Delete existing file if it exists
+    if (existingBackup && existingBackup.fileId) {
+      try {
+        await storage.deleteFile(APPWRITE_BACKUP_BUCKET_ID, existingBackup.fileId);
+        console.log('MainCloudBackup: Deleted existing backup file');
+        // Wait a moment for deletion to complete
+        await new Promise(resolve => setTimeout(resolve, 500));
+      } catch (deleteError) {
+        console.log('MainCloudBackup: No existing file to delete or delete failed:', deleteError.message);
+      }
     }
     
-    // Create the new backup file
+    // Create the new backup file with consistent ID
     const result = await storage.createFile(
       APPWRITE_BACKUP_BUCKET_ID,
       fileId,
@@ -149,7 +149,42 @@ async function uploadBackupToCloud(localBackupPath) {
       autoBackupName
     );
     
-    console.log('MainCloudBackup: Successfully uploaded backup file');
+    console.log('MainCloudBackup: Successfully uploaded backup file with ID:', fileId);
+
+    // Update or create backup record
+    if (existingBackup) {
+      // Update existing record
+      await databases.updateDocument(
+        APPWRITE_DATABASE_ID,
+        APPWRITE_BACKUPS_COLLECTION_ID,
+        existingBackup.$id,
+        {
+          fileId: result.$id,
+          fileSize: result.sizeOriginal,
+          uploadDate: new Date().toISOString(),
+          description: 'Auto backup (updated)'
+        }
+      );
+      console.log('MainCloudBackup: Updated existing backup record');
+    } else {
+      // Create new record
+      await databases.createDocument(
+        APPWRITE_DATABASE_ID,
+        APPWRITE_BACKUPS_COLLECTION_ID,
+        ID.unique(),
+        {
+          userId: cachedSessionData.userId,
+          fileName: autoBackupName,
+          description: 'Auto backup',
+          fileId: result.$id,
+          fileSize: result.sizeOriginal,
+          uploadDate: new Date().toISOString(),
+          version: '1'
+        }
+      );
+      console.log('MainCloudBackup: Created new backup record');
+    }
+    
     return result;
   } catch (error) {
     console.error('MainCloudBackup: Error uploading backup:', error);
@@ -159,62 +194,26 @@ async function uploadBackupToCloud(localBackupPath) {
 
 async function getBackups() {
   try {
-    const { databases, account } = await initializeServices();
-    
-    // If we have cached session data, use it directly
-    if (cachedSessionData) {
-      console.log('MainCloudBackup: Using cached session for getBackups:', cachedSessionData.userEmail);
-      
-      const response = await databases.listDocuments(
-        APPWRITE_DATABASE_ID,
-        APPWRITE_BACKUPS_COLLECTION_ID,
-        [
-          Query.equal('userId', cachedSessionData.userId),
-          Query.orderDesc('uploadDate'),
-          Query.limit(50)
-        ]
-      );
-
-      return { success: true, backups: response.documents };
-    }
-    
-    // Fallback to standard auth verification with reduced retries
-    let user = null;
-    let retryCount = 0;
-    const maxRetries = 2; // Reduced since we should have cached session
-    
-    while (!user && retryCount < maxRetries) {
-      try {
-        user = await account.get();
-        if (user && user.$id) {
-          console.log('MainCloudBackup: User authenticated for getBackups:', user.email);
-          break;
-        }
-      } catch (error) {
-        retryCount++;
-        console.log(`MainCloudBackup: getBackups auth attempt ${retryCount}/${maxRetries}`, error.message);
-        
-        if (retryCount < maxRetries) {
-          const waitTime = 1000 * retryCount;
-          await new Promise(resolve => setTimeout(resolve, waitTime));
-        }
-      }
-    }
-    
-    if (!user || !user.$id) {
+    // Ensure we have cached session data
+    if (!cachedSessionData || !cachedSessionData.userId) {
       throw new Error('User not authenticated - please sign in to use cloud backup features');
     }
-
+    
+    const { databases } = await initializeServices();
+    
+    console.log('MainCloudBackup: Getting backups for user:', cachedSessionData.userEmail);
+    
     const response = await databases.listDocuments(
       APPWRITE_DATABASE_ID,
       APPWRITE_BACKUPS_COLLECTION_ID,
       [
-        Query.equal('userId', user.$id),
+        Query.equal('userId', cachedSessionData.userId),
         Query.orderDesc('uploadDate'),
         Query.limit(50)
       ]
     );
 
+    console.log('MainCloudBackup: Successfully retrieved', response.documents.length, 'backups');
     return { success: true, backups: response.documents };
   } catch (error) {
     console.error('MainCloudBackup: Error getting backups:', error);
@@ -224,55 +223,13 @@ async function getBackups() {
 
 async function getStorageUsage() {
   try {
-    const { account } = await initializeServices();
-    
-    // If we have cached session data, use it directly
-    if (cachedSessionData) {
-      console.log('MainCloudBackup: Using cached session for getStorageUsage:', cachedSessionData.userEmail);
-      
-      const backupsResult = await getBackups();
-      if (!backupsResult.success) {
-        return { success: false, error: backupsResult.error };
-      }
-
-      const totalSize = backupsResult.backups.reduce((sum, backup) => sum + (backup.fileSize || 0), 0);
-      const count = backupsResult.backups.length;
-
-      return {
-        success: true,
-        totalSize,
-        count,
-        formattedSize: formatFileSize(totalSize)
-      };
-    }
-    
-    // Fallback to standard auth verification with reduced retries
-    let user = null;
-    let retryCount = 0;
-    const maxRetries = 2; // Reduced since we should have cached session
-    
-    while (!user && retryCount < maxRetries) {
-      try {
-        user = await account.get();
-        if (user && user.$id) {
-          console.log('MainCloudBackup: User authenticated for getStorageUsage:', user.email);
-          break;
-        }
-      } catch (error) {
-        retryCount++;
-        console.log(`MainCloudBackup: getStorageUsage auth attempt ${retryCount}/${maxRetries}`, error.message);
-        
-        if (retryCount < maxRetries) {
-          const waitTime = 1000 * retryCount;
-          await new Promise(resolve => setTimeout(resolve, waitTime));
-        }
-      }
-    }
-    
-    if (!user || !user.$id) {
+    // Ensure we have cached session data
+    if (!cachedSessionData || !cachedSessionData.userId) {
       throw new Error('User not authenticated - please sign in to use cloud backup features');
     }
-
+    
+    console.log('MainCloudBackup: Getting storage usage for user:', cachedSessionData.userEmail);
+    
     const backupsResult = await getBackups();
     if (!backupsResult.success) {
       return { success: false, error: backupsResult.error };
@@ -281,6 +238,7 @@ async function getStorageUsage() {
     const totalSize = backupsResult.backups.reduce((sum, backup) => sum + (backup.fileSize || 0), 0);
     const count = backupsResult.backups.length;
 
+    console.log('MainCloudBackup: Storage usage calculated -', count, 'backups,', formatFileSize(totalSize));
     return {
       success: true,
       totalSize,
@@ -309,12 +267,14 @@ function formatFileSize(bytes) {
 
 async function downloadBackup(backupId, downloadPath) {
   try {
-    const { databases, storage, account } = await initializeServices();
-    const user = await account.get();
-    
-    if (!user || !user.$id) {
-      throw new Error('User not authenticated');
+    // Ensure we have cached session data
+    if (!cachedSessionData || !cachedSessionData.userId) {
+      throw new Error('User not authenticated - please sign in to use cloud backup features');
     }
+    
+    const { databases, storage } = await initializeServices();
+    
+    console.log('MainCloudBackup: Downloading backup', backupId, 'for user:', cachedSessionData.userEmail);
 
     // Get backup record
     const backup = await databases.getDocument(
@@ -323,8 +283,8 @@ async function downloadBackup(backupId, downloadPath) {
       backupId
     );
 
-    // Verify ownership
-    if (backup.userId !== user.$id) {
+    // Verify ownership using cached session data
+    if (backup.userId !== cachedSessionData.userId) {
       throw new Error('Access denied');
     }
 
@@ -344,8 +304,41 @@ async function downloadBackup(backupId, downloadPath) {
         fs.mkdirSync(dir, { recursive: true });
       }
       
-      // Write file
-      fs.writeFileSync(downloadPath, Buffer.from(fileBuffer));
+      // Handle the file buffer properly - Appwrite returns Uint8Array
+      let bufferToWrite;
+      if (fileBuffer instanceof Uint8Array) {
+        bufferToWrite = Buffer.from(fileBuffer);
+      } else if (fileBuffer instanceof ArrayBuffer) {
+        bufferToWrite = Buffer.from(fileBuffer);
+      } else if (Buffer.isBuffer(fileBuffer)) {
+        bufferToWrite = fileBuffer;
+      } else {
+        // If it's already a buffer or other format, try to convert
+        bufferToWrite = Buffer.from(fileBuffer);
+      }
+      
+      // Write file as binary
+      fs.writeFileSync(downloadPath, bufferToWrite);
+      
+      // Verify the downloaded file is valid SQLite
+      try {
+        const verifyBuffer = fs.readFileSync(downloadPath);
+        if (verifyBuffer.length < 16 || !verifyBuffer.toString('utf8', 0, 15).startsWith('SQLite format 3')) {
+          console.error('MainCloudBackup: Downloaded file is not valid SQLite format');
+          console.error('MainCloudBackup: File header:', verifyBuffer.slice(0, 16).toString('hex'));
+          throw new Error('Downloaded file is not a valid SQLite database backup');
+        }
+        console.log('MainCloudBackup: Downloaded file verified as valid SQLite database');
+      } catch (verifyError) {
+        console.error('MainCloudBackup: File verification failed:', verifyError.message);
+        // Clean up invalid file
+        if (fs.existsSync(downloadPath)) {
+          fs.unlinkSync(downloadPath);
+        }
+        throw verifyError;
+      }
+      
+      console.log('MainCloudBackup: Backup downloaded successfully to:', downloadPath);
     }
 
     return { 

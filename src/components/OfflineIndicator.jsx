@@ -8,10 +8,10 @@ export default function OfflineIndicator({ className = '' }) {
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
   useEffect(() => {
-    // Check authentication status on mount
+    // Check authentication status on mount (using cached state)
     const checkAuth = async () => {
       setIsCheckingAuth(true);
-      const isAuth = await cloudAuthService.checkAuth();
+      const isAuth = cloudAuthService.isAuthenticated();
       setIsCloudAuthenticated(isAuth);
       setIsCheckingAuth(false);
     };

@@ -36,72 +36,18 @@ export default function CloudBackupManager({ onClose, t }) {
   const checkAuthStatus = useCallback(async () => {
     setLoading(true);
     try {
-      // Use a more robust authentication check with retries
-      let authCheck = false;
-      let userResult = null;
+      // Use simple cached authentication state (no network calls)
+      const authCheck = cloudAuthService.isAuthenticated();
+      const user = cloudAuthService.getUser();
       
-      // Try to get current user first (this will validate the session)
-      userResult = await cloudAuthService.getCurrentUser();
-      
-      if (userResult.success && userResult.user) {
-        authCheck = true;
+      if (authCheck && user) {
         setIsAuthenticated(true);
-        setUser(userResult.user);
-        console.log('CloudBackupManager: User authenticated:', userResult.user.email);
-        
-        // Share session with main process for cloud backup operations
-        if (window.api?.setCloudSession) {
-          try {
-            // Get the current session to share with main process
-            const session = await cloudAuthService.account.getSession('current');
-            await window.api.setCloudSession({
-              sessionId: session.$id,
-              userId: userResult.user.$id,
-              userEmail: userResult.user.email,
-              sessionSecret: session.secret || session.sessionId
-            });
-            console.log('CloudBackupManager: Session shared with main process during auth check');
-          } catch (sessionError) {
-            console.warn('CloudBackupManager: Failed to share session with main process during auth check:', sessionError);
-          }
-        }
+        setUser(user);
+        console.log('CloudBackupManager: User authenticated:', user.email);
       } else {
-        // If getCurrentUser fails, try checkAuth as fallback
-        authCheck = await cloudAuthService.checkAuth();
-        
-        if (authCheck) {
-          // Try getCurrentUser again after checkAuth
-          userResult = await cloudAuthService.getCurrentUser();
-          if (userResult.success && userResult.user) {
-            setIsAuthenticated(true);
-            setUser(userResult.user);
-            console.log('CloudBackupManager: User authenticated after retry:', userResult.user.email);
-            
-            // Share session with main process
-            if (window.api?.setCloudSession) {
-              try {
-                const session = await cloudAuthService.account.getSession('current');
-                await window.api.setCloudSession({
-                  sessionId: session.$id,
-                  userId: userResult.user.$id,
-                  userEmail: userResult.user.email,
-                  sessionSecret: session.secret || session.sessionId
-                });
-                console.log('CloudBackupManager: Session shared with main process after retry');
-              } catch (sessionError) {
-                console.warn('CloudBackupManager: Failed to share session with main process after retry:', sessionError);
-              }
-            }
-          } else {
-            setIsAuthenticated(false);
-            setUser(null);
-            console.log('CloudBackupManager: User not authenticated after retry:', userResult.error);
-          }
-        } else {
-          setIsAuthenticated(false);
-          setUser(null);
-          console.log('CloudBackupManager: No valid session found');
-        }
+        setIsAuthenticated(false);
+        setUser(null);
+        console.log('CloudBackupManager: User not authenticated');
       }
     } catch (error) {
       console.error('CloudBackupManager: Error checking auth status:', error);
@@ -310,10 +256,7 @@ export default function CloudBackupManager({ onClose, t }) {
             setLoading(false);
             return;
           }
-          showToast(t.backupDownloadedSuccessfully || 'Backup downloaded successfully! You can now restore it.');
-          if (confirm((t.confirmDownloadRestore || 'Backup downloaded to {path}. Do you want to restore it now?').replace('{path}', result.path))) {
-            await handleRestoreBackup(result.path);
-          }
+          showToast(t.backupDownloadedSuccessfully || 'Backup downloaded successfully! Use the "Restore from File" button in Backup Manager to restore it.');
         } else {
           showToast(result.message || (t.failedToDownloadBackup || 'Failed to download backup'), 'error');
         }
@@ -502,17 +445,6 @@ export default function CloudBackupManager({ onClose, t }) {
                               title={t.download || 'Download backup'}
                             >
                               {t.download || 'Download'}
-                            </button>
-                            <button
-                              onClick={() => {
-                                if (confirm((t.confirmRestoreFromBackup || 'Are you sure you want to restore from "{fileName}"? This will replace all current data!').replace('{fileName}', backup.fileName))) {
-                                  handleDownloadBackup(backup);
-                                }
-                              }}
-                              className="text-green-500 hover:text-green-700 text-sm"
-                              title={t.restore || 'Download and restore backup'}
-                            >
-                              {t.restore || 'Restore'}
                             </button>
                             <button
                               onClick={() => handleDeleteBackup(backup)}

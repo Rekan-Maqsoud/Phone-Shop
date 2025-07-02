@@ -13,9 +13,45 @@ export default function HistorySearchFilter({
   const [searchTerm, setSearchTerm] = useState('');
   const [searchType, setSearchType] = useState('preset'); // 'preset', 'single', 'week', 'range'
   const [presetPeriod, setPresetPeriod] = useState(''); // 'today', 'yesterday', 'thisWeek', 'lastWeek', 'thisMonth', 'lastMonth'
-  const [singleDate, setSingleDate] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  
+  // Date dropdown states
+  const [singleDay, setSingleDay] = useState('');
+  const [singleMonth, setSingleMonth] = useState('');
+  const [singleYear, setSingleYear] = useState('');
+  
+  const [startDay, setStartDay] = useState('');
+  const [startMonth, setStartMonth] = useState('');
+  const [startYear, setStartYear] = useState('');
+  
+  const [endDay, setEndDay] = useState('');
+  const [endMonth, setEndMonth] = useState('');
+  const [endYear, setEndYear] = useState('');
+
+  // Generate dropdown options
+  const getDaysInMonth = (month, year) => {
+    if (!month || !year) return 31; // Default to 31 if month/year not selected
+    return new Date(year, month, 0).getDate();
+  };
+
+  const dayOptions = (month, year) => {
+    const days = getDaysInMonth(month, year);
+    return Array.from({ length: days }, (_, i) => i + 1);
+  };
+
+  const monthOptions = Array.from({ length: 12 }, (_, i) => ({
+    value: i + 1,
+    label: new Date(2025, i).toLocaleDateString('en', { month: 'long' })
+  }));
+
+  const currentYear = new Date().getFullYear();
+  const yearOptions = Array.from({ length: 10 }, (_, i) => currentYear - i + 5); // 5 years future, 5 years past
+
+  // Helper to format date for comparison
+  const formatDateForComparison = (day, month, year) => {
+    if (!day || !month || !year) return null;
+    const date = new Date(year, month - 1, day);
+    return date.toISOString().split('T')[0];
+  };
 
   // Helper function to get date ranges for preset periods
   const getPresetDateRange = (period) => {
@@ -90,25 +126,28 @@ export default function HistorySearchFilter({
           return itemDate >= dateRange.start && itemDate <= dateRange.end;
         });
       }
-    } else if (searchType === 'single' && singleDate) {
-      filtered = filtered.filter(item => {
-        const itemDate = new Date(item[dateField]).toISOString().split('T')[0];
-        return itemDate === singleDate;
-      });
-    } else if (searchType === 'week' && startDate) {
+    } else if (searchType === 'single' && singleDay && singleMonth && singleYear) {
+      const singleDate = formatDateForComparison(singleDay, singleMonth, singleYear);
+      if (singleDate) {
+        filtered = filtered.filter(item => {
+          const itemDate = new Date(item[dateField]).toISOString().split('T')[0];
+          return itemDate === singleDate;
+        });
+      }
+    } else if (searchType === 'week' && startDay && startMonth && startYear) {
       // Week filtering - from start of week to end of week
-      const weekStart = new Date(startDate);
-      const weekEnd = new Date(startDate);
+      const weekStart = new Date(startYear, startMonth - 1, startDay);
+      const weekEnd = new Date(startYear, startMonth - 1, startDay);
       weekEnd.setDate(weekEnd.getDate() + 6); // Add 6 days to get end of week
       
       filtered = filtered.filter(item => {
         const itemDate = new Date(item[dateField]);
         return itemDate >= weekStart && itemDate <= weekEnd;
       });
-    } else if (searchType === 'range' && startDate && endDate) {
+    } else if (searchType === 'range' && startDay && startMonth && startYear && endDay && endMonth && endYear) {
       // Range filtering
-      const rangeStart = new Date(startDate);
-      const rangeEnd = new Date(endDate + 'T23:59:59'); // Include end date
+      const rangeStart = new Date(startYear, startMonth - 1, startDay);
+      const rangeEnd = new Date(endYear, endMonth - 1, endDay, 23, 59, 59, 999); // Include end date
       
       filtered = filtered.filter(item => {
         const itemDate = new Date(item[dateField]);
@@ -117,7 +156,7 @@ export default function HistorySearchFilter({
     }
 
     return filtered;
-  }, [data, searchTerm, searchType, presetPeriod, singleDate, startDate, endDate, searchFields, dateField, showNameSearch]);
+  }, [data, searchTerm, searchType, presetPeriod, singleDay, singleMonth, singleYear, startDay, startMonth, startYear, endDay, endMonth, endYear, searchFields, dateField, showNameSearch]);
 
   // Calculate totals if function provided
   const totals = useMemo(() => {
@@ -139,29 +178,32 @@ export default function HistorySearchFilter({
     setSearchType(type);
     // Clear filters when changing type
     setPresetPeriod('');
-    setSingleDate('');
-    setStartDate('');
-    setEndDate('');
+    setSingleDay('');
+    setSingleMonth('');
+    setSingleYear('');
+    setStartDay('');
+    setStartMonth('');
+    setStartYear('');
+    setEndDay('');
+    setEndMonth('');
+    setEndYear('');
   };
 
   // Clear all filters
   const clearFilters = () => {
     setSearchTerm('');
     setPresetPeriod('');
-    setSingleDate('');
-    setStartDate('');
-    setEndDate('');
+    setSingleDay('');
+    setSingleMonth('');
+    setSingleYear('');
+    setStartDay('');
+    setStartMonth('');
+    setStartYear('');
+    setEndDay('');
+    setEndMonth('');
+    setEndYear('');
     setSearchType('preset');
   };
-
-  // Set end date automatically when start date changes and search type is week
-  React.useEffect(() => {
-    if (searchType === 'week' && startDate) {
-      const weekEnd = new Date(startDate);
-      weekEnd.setDate(weekEnd.getDate() + 6);
-      setEndDate(weekEnd.toISOString().split('T')[0]);
-    }
-  }, [searchType, startDate]);
 
   return (
     <div className="bg-white/60 dark:bg-gray-800/80 rounded-2xl shadow p-6 border border-white/20">
@@ -243,63 +285,172 @@ export default function HistorySearchFilter({
             </div>
           )}
           {searchType === 'single' && (
-            <div className="flex gap-2 items-center">
+            <div className="flex gap-2 items-center flex-wrap">
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300 min-w-fit">
                 {t?.selectDate || 'Select Date'}:
               </label>
-              <input
-                type="date"
-                value={singleDate}
-                onChange={(e) => setSingleDate(e.target.value)}
-                className="border rounded-xl px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400"
-              />
+              <div className="flex gap-2">
+                <select
+                  value={singleDay}
+                  onChange={(e) => setSingleDay(e.target.value)}
+                  className="border rounded-xl px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400 min-w-16"
+                >
+                  <option value="">{t?.day || 'Day'}</option>
+                  {dayOptions(singleMonth, singleYear).map(day => (
+                    <option key={day} value={day}>{day}</option>
+                  ))}
+                </select>
+                <select
+                  value={singleMonth}
+                  onChange={(e) => setSingleMonth(e.target.value)}
+                  className="border rounded-xl px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400 min-w-32"
+                >
+                  <option value="">{t?.month || 'Month'}</option>
+                  {monthOptions.map(month => (
+                    <option key={month.value} value={month.value}>{month.label}</option>
+                  ))}
+                </select>
+                <select
+                  value={singleYear}
+                  onChange={(e) => setSingleYear(e.target.value)}
+                  className="border rounded-xl px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400 min-w-20"
+                >
+                  <option value="">{t?.year || 'Year'}</option>
+                  {yearOptions.map(year => (
+                    <option key={year} value={year}>{year}</option>
+                  ))}
+                </select>
+              </div>
             </div>
           )}
 
           {searchType === 'week' && (
-            <div className="flex gap-2 items-center">
+            <div className="flex gap-2 items-center flex-wrap">
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300 min-w-fit">
                 {t?.weekStartDate || 'Week Start'}:
               </label>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="border rounded-xl px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400"
-              />
-              {endDate && (
+              <div className="flex gap-2">
+                <select
+                  value={startDay}
+                  onChange={(e) => setStartDay(e.target.value)}
+                  className="border rounded-xl px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400 min-w-16"
+                >
+                  <option value="">{t?.day || 'Day'}</option>
+                  {dayOptions(startMonth, startYear).map(day => (
+                    <option key={day} value={day}>{day}</option>
+                  ))}
+                </select>
+                <select
+                  value={startMonth}
+                  onChange={(e) => setStartMonth(e.target.value)}
+                  className="border rounded-xl px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400 min-w-32"
+                >
+                  <option value="">{t?.month || 'Month'}</option>
+                  {monthOptions.map(month => (
+                    <option key={month.value} value={month.value}>{month.label}</option>
+                  ))}
+                </select>
+                <select
+                  value={startYear}
+                  onChange={(e) => setStartYear(e.target.value)}
+                  className="border rounded-xl px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400 min-w-20"
+                >
+                  <option value="">{t?.year || 'Year'}</option>
+                  {yearOptions.map(year => (
+                    <option key={year} value={year}>{year}</option>
+                  ))}
+                </select>
+              </div>
+              {startDay && startMonth && startYear && (
                 <span className="text-sm text-gray-600 dark:text-gray-400">
-                  {t?.to || 'to'} {new Date(endDate).toLocaleDateString()}
+                  {t?.to || 'to'} {(() => {
+                    const weekEnd = new Date(startYear, startMonth - 1, parseInt(startDay));
+                    weekEnd.setDate(weekEnd.getDate() + 6);
+                    return weekEnd.toLocaleDateString();
+                  })()}
                 </span>
               )}
             </div>
           )}
 
           {searchType === 'range' && (
-            <div className="flex gap-2 items-center">
+            <div className="flex gap-2 items-center flex-wrap">
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300 min-w-fit">
                 {t?.dateRange || 'Date Range'}:
               </label>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="border rounded-xl px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400"
-                placeholder="Start date"
-              />
-              <span className="text-gray-500">{t?.to || 'to'}</span>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="border rounded-xl px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400"
-                placeholder="End date"
-              />
+              <div className="flex gap-2 items-center flex-wrap">
+                <span className="text-sm text-gray-600 dark:text-gray-400">{t?.from || 'From'}:</span>
+                <div className="flex gap-2">
+                  <select
+                    value={startDay}
+                    onChange={(e) => setStartDay(e.target.value)}
+                    className="border rounded-xl px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400 min-w-16"
+                  >
+                    <option value="">{t?.day || 'Day'}</option>
+                    {dayOptions(startMonth, startYear).map(day => (
+                      <option key={day} value={day}>{day}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={startMonth}
+                    onChange={(e) => setStartMonth(e.target.value)}
+                    className="border rounded-xl px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400 min-w-32"
+                  >
+                    <option value="">{t?.month || 'Month'}</option>
+                    {monthOptions.map(month => (
+                      <option key={month.value} value={month.value}>{month.label}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={startYear}
+                    onChange={(e) => setStartYear(e.target.value)}
+                    className="border rounded-xl px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400 min-w-20"
+                  >
+                    <option value="">{t?.year || 'Year'}</option>
+                    {yearOptions.map(year => (
+                      <option key={year} value={year}>{year}</option>
+                    ))}
+                  </select>
+                </div>
+                <span className="text-sm text-gray-600 dark:text-gray-400">{t?.to || 'To'}:</span>
+                <div className="flex gap-2">
+                  <select
+                    value={endDay}
+                    onChange={(e) => setEndDay(e.target.value)}
+                    className="border rounded-xl px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400 min-w-16"
+                  >
+                    <option value="">{t?.day || 'Day'}</option>
+                    {dayOptions(endMonth, endYear).map(day => (
+                      <option key={day} value={day}>{day}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={endMonth}
+                    onChange={(e) => setEndMonth(e.target.value)}
+                    className="border rounded-xl px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400 min-w-32"
+                  >
+                    <option value="">{t?.month || 'Month'}</option>
+                    {monthOptions.map(month => (
+                      <option key={month.value} value={month.value}>{month.label}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={endYear}
+                    onChange={(e) => setEndYear(e.target.value)}
+                    className="border rounded-xl px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400 min-w-20"
+                  >
+                    <option value="">{t?.year || 'Year'}</option>
+                    {yearOptions.map(year => (
+                      <option key={year} value={year}>{year}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
             </div>
           )}
 
           {/* Clear Filters Button */}
-          {(searchTerm || presetPeriod || singleDate || startDate || endDate) && (
+          {(searchTerm || presetPeriod || singleDay || singleMonth || singleYear || startDay || startMonth || startYear || endDay || endMonth || endYear) && (
             <button
               onClick={clearFilters}
               className="px-3 py-2 bg-gray-600 text-white rounded-xl hover:bg-gray-700 transition text-sm"

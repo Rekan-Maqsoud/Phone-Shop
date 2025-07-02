@@ -178,7 +178,7 @@ const BackupManager = ({ show, t, onClose, onRestore }) => {
           )}
 
           {/* Backup Actions */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             {/* Manual Backup */}
             <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-6">
               <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">
@@ -193,6 +193,23 @@ const BackupManager = ({ show, t, onClose, onRestore }) => {
                 className="w-full bg-blue-600 text-white px-4 py-3 rounded-lg font-semibold shadow hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
               >
                 {loading ? (t.creating || 'Creating...') : (t.createBackup || 'Create Backup')}
+              </button>
+            </div>
+
+            {/* Restore from File */}
+            <div className="bg-yellow-50 dark:bg-yellow-900/30 rounded-lg p-6">
+              <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">
+                {t.restoreFromFile || 'Restore from File'}
+              </h3>
+              <p className="text-gray-600 dark:text-gray-300 mb-4">
+                {t.restoreFromFileDesc || 'Select a backup file from your computer to restore'}
+              </p>
+              <button
+                onClick={handleRestoreBackup}
+                disabled={loading}
+                className="w-full bg-yellow-600 text-white px-4 py-3 rounded-lg font-semibold shadow hover:bg-yellow-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+              >
+                📂 {loading ? (t.restoring || 'Restoring...') : (t.selectAndRestore || 'Select File & Restore')}
               </button>
             </div>
 
@@ -211,23 +228,6 @@ const BackupManager = ({ show, t, onClose, onRestore }) => {
                 </span>
               </div>
             </div>
-          </div>
-
-          {/* Restore Section */}
-          <div className="bg-yellow-50 dark:bg-yellow-900 rounded-lg p-6 mb-8">
-            <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">
-              {t.restoreBackup || 'Restore from Backup'}
-            </h3>
-            <p className="text-yellow-700 dark:text-yellow-100 mb-4">
-              {t.restoreWarning || 'Warning: Restoring from a backup will replace all current data. This action cannot be undone.'}
-            </p>
-            <button
-              onClick={handleRestoreBackup}
-              disabled={loading}
-              className="bg-yellow-600 text-white px-4 py-3 rounded-lg font-semibold shadow hover:bg-yellow-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
-            >
-              {loading ? (t.restoring || 'Restoring...') : (t.selectBackupFile || 'Select Backup File')}
-            </button>
           </div>
 
           {/* Backup History */}
@@ -256,9 +256,6 @@ const BackupManager = ({ show, t, onClose, onRestore }) => {
                       <th className="px-4 py-3 text-left text-gray-800 dark:text-gray-100">
                         {t.status || 'Status'}
                       </th>
-                      <th className="px-4 py-3 text-left text-gray-800 dark:text-gray-100">
-                        {t.actions || 'Actions'}
-                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200 dark:divide-gray-600">
@@ -283,16 +280,6 @@ const BackupManager = ({ show, t, onClose, onRestore }) => {
                           <span className="inline-block px-2 py-1 rounded text-xs font-semibold bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100">
                             {t.completed || 'Completed'}
                           </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <button
-                            onClick={() => handleRestoreFromPath(backup.file_path)}
-                            disabled={loading}
-                            className="px-3 py-1 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg font-medium text-sm transition disabled:opacity-50 disabled:cursor-not-allowed"
-                            title={t.restoreFromThisBackup || 'Restore from this backup'}
-                          >
-                            📂 {loading ? (t.restoring || 'Restoring...') : (t.restore || 'Restore')}
-                          </button>
                         </td>
                       </tr>
                     ))}

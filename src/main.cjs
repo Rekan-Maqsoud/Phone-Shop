@@ -688,7 +688,7 @@ const updateCurrentBackup = async () => {
 ipcMain.handle('createBackup', async () => {
   try {
     const os = require('os');
-    // Get default Documents folder
+    // Get default Documents folder - make it more visible
     const documentsPath = path.join(os.homedir(), 'Documents');
     const backupDir = path.join(documentsPath, 'Mobile Roma BackUp');
     
@@ -717,13 +717,25 @@ ipcMain.handle('createBackup', async () => {
     fs.copyFileSync(dbPath, backupPath);
     console.log('Database file copied successfully');
     
-    // Verify the backup file was created
+    // Verify the backup file was created and is readable
     if (!fs.existsSync(backupPath)) {
       throw new Error(`Backup file was not created at: ${backupPath}`);
     }
     
     const backupStats = fs.statSync(backupPath);
     console.log(`Backup file created successfully. Size: ${backupStats.size} bytes`);
+    
+    // Try to open the backup file to verify it's a valid SQLite database
+    try {
+      const testBuffer = fs.readFileSync(backupPath, { encoding: null });
+      if (testBuffer.length < 16 || !testBuffer.toString('utf8', 0, 15).startsWith('SQLite format 3')) {
+        throw new Error('Backup file is not a valid SQLite database');
+      }
+      console.log('Backup file validation successful');
+    } catch (validationError) {
+      console.error('Backup file validation failed:', validationError);
+      throw new Error(`Backup created but validation failed: ${validationError.message}`);
+    }
     
     // Log backup in database
     db.logBackup({
@@ -732,11 +744,16 @@ ipcMain.handle('createBackup', async () => {
       log: `Manual backup created at ${backupPath}`
     });
     
+    // Open the backup directory in explorer so user can see the file
+    const { shell } = require('electron');
+    shell.showItemInFolder(backupPath);
+    
     return {
       success: true,
-      message: `Backup created successfully at ${backupPath}`,
+      message: `Backup created successfully! File saved at: ${backupPath}`,
       path: backupPath,
-      fileName: backupFileName
+      fileName: backupFileName,
+      size: backupStats.size
     };
   } catch (e) {
     console.error('Error creating backup:', e);

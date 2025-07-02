@@ -9,7 +9,7 @@ export default function CloudBackupListener() {
     // Initialize authentication state on mount
     const initializeAuth = async () => {
       try {
-        const isAuth = await cloudAuthService.checkAuth();
+        const isAuth = cloudAuthService.isAuthenticated();
         setIsAuthenticated(isAuth);
         setIsInitialized(true);
         
@@ -47,9 +47,9 @@ export default function CloudBackupListener() {
     const CLOUD_BACKUP_THROTTLE = 5000; // Minimum 5 seconds between cloud backups
 
     const handleUnifiedAutoBackup = async () => {
-      // Always check current auth status before showing warnings
+      // Use cached auth status instead of network call
       try {
-        const currentAuth = await cloudAuthService.checkAuth();
+        const currentAuth = cloudAuthService.isAuthenticated();
         setIsAuthenticated(currentAuth);
         
         if (currentAuth) {
