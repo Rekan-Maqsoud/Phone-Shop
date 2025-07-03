@@ -114,18 +114,18 @@ export default function AccessoryModal({
                 defaultValue={accessory?.type || ''}
                 className="w-full border rounded-xl px-4 py-3 dark:bg-gray-700 dark:text-gray-100 dark:border-gray-600 bg-white text-gray-900 border-gray-300 focus:outline-none focus:ring-2 focus:ring-green-400 transition"
               >
-                <option value="">Select Type</option>
-                <option value="headphones">Headphones</option>
-                <option value="earbuds">Earbuds</option>
-                <option value="charger">Charger</option>
-                <option value="cable">Cable</option>
-                <option value="case">Case</option>
-                <option value="screen-protector">Screen Protector</option>
-                <option value="power-bank">Power Bank</option>
-                <option value="wireless-charger">Wireless Charger</option>
-                <option value="speaker">Speaker</option>
-                <option value="smartwatch">Smart Watch</option>
-                <option value="other">Other</option>
+                <option value="">{t.selectType || 'Select Type'}</option>
+                <option value="headphones">{t.headphones || 'Headphones'}</option>
+                <option value="earbuds">{t.earbuds || 'Earbuds'}</option>
+                <option value="charger">{t.charger || 'Charger'}</option>
+                <option value="cable">{t.cable || 'Cable'}</option>
+                <option value="case">{t.case || 'Case'}</option>
+                <option value="screen-protector">{t.screenProtector || 'Screen Protector'}</option>
+                <option value="power-bank">{t.powerBank || 'Power Bank'}</option>
+                <option value="wireless-charger">{t.wirelessCharger || 'Wireless Charger'}</option>
+                <option value="speaker">{t.speaker || 'Speaker'}</option>
+                <option value="smartwatch">{t.smartwatch || 'Smart Watch'}</option>
+                <option value="other">{t.other || 'Other'}</option>
               </select>
             </div>
           </div>

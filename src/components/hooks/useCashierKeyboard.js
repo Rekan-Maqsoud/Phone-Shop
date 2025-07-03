@@ -47,7 +47,7 @@ export default function useCashierKeyboard({
       
       if (e.key === 'F2') {
         e.preventDefault();
-        if (items.length) showToast(t.completeSaleNotImplemented || 'Complete sale (not implemented)', 'info');
+        if (items.length) showToast(t.completeSaleNotImplemented, 'info');
       } else if (e.key === 'Escape') {
         setSearch('');
         setShowSuggestions(false);

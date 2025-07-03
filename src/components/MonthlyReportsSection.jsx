@@ -8,9 +8,6 @@ const MonthlyReportsSection = ({
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row gap-4 items-center justify-between mb-6">
         <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100">{t.monthlyReports || 'Monthly Reports'}</h2>
-        <div className="text-sm text-gray-600 dark:text-gray-400">
-          {t.reportsAutomaticallyGeneratedMonthly || 'Reports are automatically generated monthly'}
-        </div>
       </div>
 
       {(() => {

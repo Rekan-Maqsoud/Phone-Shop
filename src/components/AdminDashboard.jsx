@@ -86,10 +86,10 @@ const AdminDashboard = ({
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
           <div>
             <h1 className="text-3xl font-bold mb-2">
-              📊 {t.businessOverview || 'Business Overview'}
+              📊 {t.businessOverview}
             </h1>
             <p className="text-blue-100 text-lg">
-              {t.dashboardWelcome || 'Welcome to your business dashboard'}
+              {t.dashboardWelcome}
             </p>
           </div>
           
@@ -101,28 +101,28 @@ const AdminDashboard = ({
               }}
               className="px-6 py-3 bg-white/20 backdrop-blur text-white rounded-xl hover:bg-white/30 transition font-semibold shadow-lg border border-white/20 flex items-center gap-2"
             >
-              ➕ {t.addPurchase || 'Add Purchase'}
+              ➕ {t.addPurchase}
             </button>
             <button
               onClick={() => setSection('companyDebts')}
               className="px-6 py-3 bg-white/20 backdrop-blur text-white rounded-xl hover:bg-white/30 transition font-semibold shadow-lg border border-white/20 flex items-center gap-2"
             >
-              🏢 {t.companyDebts || 'Company Debts'}
+              🏢 {t.companyDebts}
             </button>
             <button
               onClick={handleReload}
               disabled={reloading || loading}
               className="px-6 py-3 bg-white/20 backdrop-blur text-white rounded-xl hover:bg-white/30 transition font-semibold shadow-lg border border-white/20 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white/20"
-              title={t.reloadApp || 'Reload Application Data'}
+              title={t.reloadApp}
             >
               {reloading || loading ? (
                 <>
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  {t.reloading || 'Reloading...'}
+                  {t.reloading}
                 </>
               ) : (
                 <>
-                  🔄 {t.reload || 'Reload'}
+                  🔄 {t.reload}
                 </>
               )}
             </button>
@@ -132,45 +132,45 @@ const AdminDashboard = ({
 
       {/* Key Metrics Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Today's Revenue */}
+      
         <div className="bg-gradient-to-br from-green-400 to-emerald-500 rounded-2xl p-6 text-white shadow-lg">
           <div className="flex items-center justify-between mb-3">
             <span className="text-3xl">💰</span>
-            <span className="text-green-100 text-sm">{t.today || 'Today'}</span>
+            <span className="text-green-100 text-sm">{t.today}</span>
           </div>
           <div className="text-2xl font-bold">{formatCurrency(metrics.todaysRevenue)}</div>
-          <div className="text-green-100 text-sm">{metrics.todaysTransactions} transactions</div>
+          <div className="text-green-100 text-sm">{metrics.todaysTransactions} {t.transactions}</div>
         </div>
 
         {/* This Week's Revenue */}
         <div className="bg-gradient-to-br from-blue-400 to-indigo-500 rounded-2xl p-6 text-white shadow-lg">
           <div className="flex items-center justify-between mb-3">
             <span className="text-3xl">📈</span>
-            <span className="text-blue-100 text-sm">{t.thisWeek || 'This Week'}</span>
+            <span className="text-blue-100 text-sm">{t.thisWeek}</span>
           </div>
           <div className="text-2xl font-bold">{formatCurrency(metrics.thisWeeksRevenue)}</div>
-          <div className="text-blue-100 text-sm">{t.weeklyRevenue || 'Weekly Revenue'}</div>
+          <div className="text-blue-100 text-sm">{t.weeklyRevenue}</div>
         </div>
 
         {/* Outstanding Debts */}
         <div className="bg-gradient-to-br from-orange-400 to-red-500 rounded-2xl p-6 text-white shadow-lg">
           <div className="flex items-center justify-between mb-3">
             <span className="text-3xl">⚠️</span>
-            <span className="text-orange-100 text-sm">{t.outstanding || 'Outstanding'}</span>
+            <span className="text-orange-100 text-sm">{t.outstanding}</span>
           </div>
           <div className="text-2xl font-bold">{formatCurrency(metrics.totalUnpaidAmount)}</div>
-          <div className="text-orange-100 text-sm">{metrics.unpaidDebtsCount} {t.unpaidDebts || 'unpaid debts'}</div>
+          <div className="text-orange-100 text-sm">{metrics.unpaidDebtsCount} {t.unpaidDebts}</div>
         </div>
 
         {/* Inventory Status */}
         <div className="bg-gradient-to-br from-purple-400 to-pink-500 rounded-2xl p-6 text-white shadow-lg">
           <div className="flex items-center justify-between mb-3">
             <span className="text-3xl">📦</span>
-            <span className="text-purple-100 text-sm">{t.inventory || 'Inventory'}</span>
+            <span className="text-purple-100 text-sm">{t.inventory}</span>
           </div>
           <div className="text-2xl font-bold">{metrics.activeProducts + metrics.activeAccessories}</div>
           <div className="text-purple-100 text-sm">
-            {metrics.lowStockCount > 0 ? `${metrics.lowStockCount} ${t.lowStockText || 'low stock'}` : (t.allStocksHealthy || 'All stocks healthy')}
+            {metrics.lowStockCount > 0 ? `${metrics.lowStockCount} ${t.lowStockText}` : t.allStocksHealthy}
           </div>
         </div>
       </div>
@@ -184,8 +184,8 @@ const AdminDashboard = ({
               <span className="text-2xl">🏆</span>
             </div>
             <div>
-              <h3 className="text-lg font-bold text-gray-800 dark:text-gray-200">{t.topProducts || 'Top Products'}</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400">{t.bestSellers || 'Best selling items'}</p>
+              <h3 className="text-lg font-bold text-gray-800 dark:text-gray-200">{t.topProducts}</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400">{t.bestSellers}</p>
             </div>
           </div>
           
@@ -200,19 +200,19 @@ const AdminDashboard = ({
                   </div>
                   <div>
                     <div className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate max-w-[150px]">{name}</div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">{formatCurrency(data.revenue || 0)} revenue</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">{formatCurrency(data.revenue || 0)} {t.revenue}</div>
                   </div>
                 </div>
                 <div className="text-right">
                   <div className="text-lg font-bold text-green-600 dark:text-green-400">{data.quantity}</div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400">{t.sold || 'sold'}</div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400">{t.sold}</div>
                 </div>
               </div>
             )) : (
               <div className="text-center py-8">
                 <span className="text-4xl">📊</span>
-                <p className="text-gray-500 dark:text-gray-400 mt-2">{t.noSalesDataYet || 'No sales data yet'}</p>
-                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{t.sellItemsToSeeStats || 'Start selling items to see statistics'}</p>
+                <p className="text-gray-500 dark:text-gray-400 mt-2">{t.noSalesDataYet}</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{t.sellItemsToSeeStats}</p>
               </div>
             )}
           </div>
@@ -225,8 +225,8 @@ const AdminDashboard = ({
               <span className="text-2xl">📋</span>
             </div>
             <div>
-              <h3 className="text-lg font-bold text-gray-800 dark:text-gray-200">{t.recentSales || 'Recent Sales'}</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400">{t.latestTransactions || 'Latest transactions'}</p>
+              <h3 className="text-lg font-bold text-gray-800 dark:text-gray-200">{t.recentSales}</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400">{t.latestTransactions}</p>
             </div>
           </div>
           
@@ -244,29 +244,29 @@ const AdminDashboard = ({
                       {formatCurrency(sale.total)}
                     </div>
                     <div className="text-xs text-gray-500 dark:text-gray-400">
-                      {new Date(sale.created_at).toLocaleDateString()} • {sale.items?.length || 0} {t.items || 'items'}
+                      {new Date(sale.created_at).toLocaleDateString()} • {sale.items?.length || 0} {t.items}
                     </div>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
                   {sale.is_debt && (
                     <span className="px-2 py-1 bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200 rounded-full text-xs font-medium">
-                      {t.debt || 'Debt'}
+                      {t.debt}
                     </span>
                   )}
                   <button
                     onClick={() => admin.setViewSale(sale)}
                     className="px-2 py-1 bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 rounded-full text-xs font-medium hover:bg-blue-200 dark:hover:bg-blue-800 transition"
                   >
-                    {t.view || 'View'}
+                    {t.view}
                   </button>
                 </div>
               </div>
             )) : (
               <div className="text-center py-8">
                 <span className="text-4xl">🛒</span>
-                <p className="text-gray-500 dark:text-gray-400 mt-2">{t.noRecentSales || 'No recent sales'}</p>
-                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{t.salesWillAppearHere || 'Recent sales will appear here'}</p>
+                <p className="text-gray-500 dark:text-gray-400 mt-2">{t.noRecentSales}</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{t.salesWillAppearHere}</p>
               </div>
             )}
           </div>
@@ -279,8 +279,8 @@ const AdminDashboard = ({
               <span className="text-2xl">⚠️</span>
             </div>
             <div>
-              <h3 className="text-lg font-bold text-gray-800 dark:text-gray-200">{t.stockAlerts || 'Stock Alerts'}</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400">{t.lowStockItems || 'Items running low'}</p>
+              <h3 className="text-lg font-bold text-gray-800 dark:text-gray-200">{t.stockAlerts}</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400">{t.lowStockItems}</p>
             </div>
           </div>
           
@@ -303,15 +303,15 @@ const AdminDashboard = ({
                     <div className={`text-lg font-bold ${product.stock <= 2 ? 'text-red-600 dark:text-red-400' : 'text-orange-600 dark:text-orange-400'}`}>
                       {product.stock}
                     </div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">{t.left || 'left'}</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">{t.itemsLeft}</div>
                   </div>
                 </div>
               ))
             ) : (
               <div className="text-center py-8">
                 <span className="text-4xl">✅</span>
-                <p className="text-green-600 dark:text-green-400 mt-2">{t.allStocksHealthy || 'All stocks healthy'}</p>
-                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{t.noLowStockItems || 'No items are running low'}</p>
+                <p className="text-green-600 dark:text-green-400 mt-2">{t.allStocksHealthy}</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{t.noLowStockItems}</p>
               </div>
             )}
           </div>
@@ -325,19 +325,19 @@ const AdminDashboard = ({
             <span className="text-2xl text-white">⚡</span>
           </div>
           <div>
-            <h3 className="text-lg font-bold text-gray-800 dark:text-gray-200">{t.quickActions || 'Quick Actions'}</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400">{t.commonTasks || 'Frequently used features'}</p>
+            <h3 className="text-lg font-bold text-gray-800 dark:text-gray-200">{t.quickActions}</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400">{t.commonTasks}</p>
           </div>
         </div>
         
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           {[
-            { key: 'active', icon: '📦', label: t.products || 'Products', description: `${metrics.activeProducts} active` },
-            { key: 'accessories', icon: '🎧', label: t.accessories || 'Accessories', description: `${metrics.activeAccessories} active` },
-            { key: 'history', icon: '📈', label: t.salesHistory || 'Sales', description: `${admin?.sales?.length || 0} total` },
-            { key: 'customerDebts', icon: '💸', label: t.customerDebts || 'Customer Debts', description: `${metrics.unpaidDebtsCount} unpaid` },
-            { key: 'companyDebts', icon: '🏢', label: t.companyDebts || 'Company Debts', description: `${(admin?.companyDebts || []).filter(d => !d.paid_at).length} unpaid` },
-            { key: 'archived', icon: '🗃️', label: t.archived || 'Archived', description: `${((admin?.products || []).filter(p => p.archived).length + (admin?.accessories || []).filter(a => a.archived).length)} items` }
+            { key: 'active', icon: '📦', label: t.products, description: `${metrics.activeProducts} ${t.active}` },
+            { key: 'accessories', icon: '🎧', label: t.accessories, description: `${metrics.activeAccessories} ${t.active}` },
+            { key: 'history', icon: '📈', label: t.salesHistory, description: `${admin?.sales?.length || 0} ${t.totalCount}` },
+            { key: 'customerDebts', icon: '💸', label: t.customerDebts, description: `${metrics.unpaidDebtsCount} ${t.unpaid}` },
+            { key: 'companyDebts', icon: '🏢', label: t.companyDebts, description: `${(admin?.companyDebts || []).filter(d => !d.paid_at).length} ${t.unpaid}` },
+            { key: 'archived', icon: '🗃️', label: t.archived, description: `${((admin?.products || []).filter(p => p.archived).length + (admin?.accessories || []).filter(a => a.archived).length)} ${t.items}` }
           ].map((action) => (
             <button
               key={action.key}

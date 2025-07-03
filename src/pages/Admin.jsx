@@ -62,9 +62,9 @@ export default function Admin() {
 
   useEffect(() => {
     if (lowStockNotificationProducts.length > 0) {
-      admin.setToast(`Low stock alert: ${lowStockNotificationProducts.map(p => p.name).join(', ')}`);
+      admin.setToast(`${t.lowStockAlert}: ${lowStockNotificationProducts.map(p => p.name).join(', ')}`);
     }
-  }, [lowStockNotificationProducts, admin.setToast]);
+  }, [lowStockNotificationProducts, admin.setToast, t]);
 
   // Calculate total profit (for main page use, most calculations moved to AdminStatsSidebar) - memoized
   const totalProfit = useMemo(() => {
@@ -113,18 +113,18 @@ export default function Admin() {
 
   // Memoize nav items for performance
   const navItems = useMemo(() => [
-    { key: 'dashboard', label: t.dashboard || 'Dashboard', icon: '📊', accent: 'bg-blue-600' },
+    { key: 'dashboard', label: t.dashboard, icon: '📊', accent: 'bg-blue-600' },
     { key: 'active', label: t.products, icon: '📦', accent: 'bg-purple-600' },
-    { key: 'accessories', label: t.accessories || 'Accessories', icon: '🎧', accent: 'bg-green-600' },
-    { key: 'archived', label: t.archivedProducts || 'Archived', icon: '🗃️' },
-    { key: 'history', label: t.salesHistory || 'Sales', icon: '📈' },
-    { key: 'buyingHistory', label: t.buyingHistory || 'Buying History', icon: '🛒' },
-    { key: 'customerDebts', label: t.customerDebts || 'Customer Debts', icon: '💳' },
-    { key: 'companyDebts', label: t.companyDebts || 'Company Debts', icon: '💸' },
-    { key: 'monthlyReports', label: t.monthlyReports || 'Monthly Reports', icon: '📊' },
-    { key: 'backup', label: 'Cloud Backup', icon: '☁️', action: () => setShowBackupManager(true) },
+    { key: 'accessories', label: t.accessories, icon: '🎧', accent: 'bg-green-600' },
+    { key: 'archived', label: t.archivedProducts, icon: '🗃️' },
+    { key: 'history', label: t.salesHistory, icon: '📈' },
+    { key: 'buyingHistory', label: t.buyingHistory, icon: '🛒' },
+    { key: 'customerDebts', label: t.customerDebts, icon: '💳' },
+    { key: 'companyDebts', label: t.companyDebts, icon: '💸' },
+    { key: 'monthlyReports', label: t.monthlyReports, icon: '📊' },
+    { key: 'backup', label: t.cloudBackup, icon: '☁️', action: () => setShowBackupManager(true) },
     { key: 'settings', label: t.settings, icon: '⚙️' },
-    { key: 'logout', label: t.logout || 'Log out', icon: '🚪', action: () => navigate('/cashier'), accent: 'bg-red-600 text-white hover:bg-red-700', isLogout: true },
+    { key: 'logout', label: t.logout, icon: '🚪', action: () => navigate('/cashier'), accent: 'bg-red-600 text-white hover:bg-red-700', isLogout: true },
   ], [t, navigate]);
 
   // Keyboard navigation for sections
@@ -171,7 +171,7 @@ export default function Admin() {
     const itemType = isAccessory ? 'accessory' : 'product';
     const apiCall = isAccessory ? window.api?.editAccessory : window.api?.editProduct;
     
-    admin.setToast(archive ? `Archiving: ${item.name}` : `Unarchiving: ${item.name}`);
+    admin.setToast(archive ? `${t.archiving}: ${item.name}` : `${t.unarchiving}: ${item.name}`);
     setLoading(true);
     
     try {
@@ -183,9 +183,9 @@ export default function Admin() {
       
       const res = await apiCall?.(updated); 
       if (!res || !res.success) {
-        admin.setToast(res?.message || 'Archive/unarchive failed (no response).');
+        admin.setToast(res?.message || t.archiveUnarchiveFailed);
       } else {
-        admin.setToast(archive ? (t.productArchived || 'Item archived!') : (t.productUnarchived || 'Item unarchived!'));
+        admin.setToast(archive ? t.productArchived : t.productUnarchived);
         
         // Optimized: Update state locally instead of refetching all data
         if (isAccessory) {
@@ -196,7 +196,7 @@ export default function Admin() {
       }
     } catch (e) {
       console.error('Archive toggle error:', e);
-      admin.setToast(archive ? (t.archiveFailed || 'Archive failed.') : (t.unarchiveFailed || 'Unarchive failed.'));
+      admin.setToast(archive ? t.archiveFailed : t.unarchiveFailed);
     } finally {
       setLoading(false);
     }

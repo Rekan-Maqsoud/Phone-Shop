@@ -26,7 +26,7 @@ export default function QuickAddProduct({ t, onAdd, loading }) {
     e.preventDefault();
     // Ask for confirmation if RAM or Storage is empty
     if (!ram || !storage) {
-      const proceed = window.confirm(t.missingRamStorageConfirm || 'RAM or Storage is empty. Are you sure you want to add this product?');
+      const proceed = window.confirm(t.missingRamStorageConfirm);
       if (!proceed) return;
     }
     onAdd({
@@ -49,16 +49,16 @@ export default function QuickAddProduct({ t, onAdd, loading }) {
         className="border rounded px-2 py-1 bg-white text-gray-900 dark:bg-gray-700 dark:text-gray-100 min-w-[120px]"
         required
       >
-        <option value="" disabled>{t.company || 'Company'}</option>
+        <option value="" disabled>{t.company}</option>
         {phoneBrands.map(b => <option key={b.name} value={b.name}>{b.name}</option>)}
-        <option value="Other">{t.other || 'Other'}</option>
+        <option value="Other">{t.other}</option>
       </select>
       {isOtherBrand && (
         <input
           type="text"
           value={customBrand}
           onChange={e => setCustomBrand(e.target.value)}
-          placeholder={t.company || 'Company'}
+          placeholder={t.company}
           className="border rounded px-2 py-1 bg-white text-gray-900 dark:bg-gray-700 dark:text-gray-100 min-w-[120px]"
           required
         />
@@ -69,7 +69,7 @@ export default function QuickAddProduct({ t, onAdd, loading }) {
           type="text"
           value={customModel}
           onChange={e => setCustomModel(e.target.value)}
-          placeholder={t.model || 'Model'}
+          placeholder={t.model}
           className="border rounded px-2 py-1 bg-white text-gray-900 dark:bg-gray-700 dark:text-gray-100 min-w-[120px]"
           required
         />
@@ -82,16 +82,16 @@ export default function QuickAddProduct({ t, onAdd, loading }) {
             required
             disabled={!brand}
           >
-            <option value="" disabled>{t.model || 'Model'}</option>
+            <option value="" disabled>{t.model}</option>
             {models.map(m => <option key={m} value={m}>{m}</option>)}
-            <option value="Other">{t.other || 'Other'}</option>
+            <option value="Other">{t.other}</option>
           </select>
           {isOtherModel && (
             <input
               type="text"
               value={customModel}
               onChange={e => setCustomModel(e.target.value)}
-              placeholder={t.model || 'Model'}
+              placeholder={t.model}
               className="border rounded px-2 py-1 bg-white text-gray-900 dark:bg-gray-700 dark:text-gray-100 min-w-[120px]"
               required
             />
@@ -104,7 +104,7 @@ export default function QuickAddProduct({ t, onAdd, loading }) {
         onChange={e => setRam(e.target.value)}
         className="border rounded px-2 py-1 bg-white text-gray-900 dark:bg-gray-700 dark:text-gray-100 min-w-[80px]"
       >
-        <option value="">RAM (e.g. 8GB)</option>
+        <option value="">{t.ramPlaceholder}</option>
         {RAM_OPTIONS.map(opt => opt && <option key={opt} value={opt}>{opt}</option>)}
       </select>
       {/* Storage dropdown */}
@@ -113,12 +113,12 @@ export default function QuickAddProduct({ t, onAdd, loading }) {
         onChange={e => setStorage(e.target.value)}
         className="border rounded px-2 py-1 bg-white text-gray-900 dark:bg-gray-700 dark:text-gray-100 min-w-[80px]"
       >
-        <option value="">Storage (e.g. 128GB)</option>
+        <option value="">{t.storagePlaceholder}</option>
         {STORAGE_OPTIONS.map(opt => opt && <option key={opt} value={opt}>{opt}</option>)}
       </select>
       <input type="number" value={price} onChange={e => setPrice(e.target.value)} placeholder={t.price} className="border rounded px-2 py-1 bg-white text-gray-900 dark:bg-gray-700 dark:text-gray-100 min-w-[80px]" required />
       {/* Stock input */}
-      <input type="number" min="1" value={stock} onChange={e => setStock(e.target.value)} placeholder={t.stock || 'Stock'} className="border rounded px-2 py-1 bg-white text-gray-900 dark:bg-gray-700 dark:text-gray-100 min-w-[70px]" required />
+      <input type="number" min="1" value={stock} onChange={e => setStock(e.target.value)} placeholder={t.stock} className="border rounded px-2 py-1 bg-white text-gray-900 dark:bg-gray-700 dark:text-gray-100 min-w-[70px]" required />
       <button type="submit" className="bg-blue-600 text-white px-4 py-1 rounded hover:bg-blue-700 transition min-w-[80px]" disabled={loading}>{t.addProduct}</button>
     </form>
   );

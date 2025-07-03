@@ -237,7 +237,7 @@ const AdminStatsSidebar = ({
             <div className="bg-gradient-to-r from-red-500/20 to-orange-500/20 dark:from-red-900/40 dark:to-orange-900/40 rounded-2xl shadow p-4 border border-red-200/30 dark:border-red-700/30">
               <div className="flex items-center gap-2 mb-2">
                 <span className="text-lg">⚠️</span>
-                <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">{t.stockAlerts || 'Stock Alerts'}</span>
+                <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">{t.stockWarnings || 'Stock Alerts'}</span>
               </div>
               <div className="space-y-1 text-sm">
                 {stats.criticalStockProducts.length > 0 && (

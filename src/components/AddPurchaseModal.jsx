@@ -70,14 +70,14 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t }) {
     setError('');
 
     if (!companyName.trim()) {
-      setError('Please provide a valid company name');
+      setError(t.pleaseProvideValidCompanyName || 'Please provide a valid company name');
       return;
     }
 
     if (purchaseType === 'simple') {
       const amt = parseFloat(simpleAmount);
       if (!simpleAmount || isNaN(amt) || amt <= 0) {
-        setError('Please provide a valid amount greater than 0');
+        setError(t.pleaseProvideValidAmount || 'Please provide a valid amount greater than 0');
         return;
       }
 
@@ -93,7 +93,7 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t }) {
     } else {
       // Validate items
       if (items.length === 0) {
-        setError('Please add at least one item');
+        setError(t.pleaseAddAtLeastOneItem || 'Please add at least one item');
         return;
       }
 
@@ -120,7 +120,7 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t }) {
       });
 
       if (invalidItems.length > 0) {
-        setError('Please fill in all required fields for all items (brand, model, quantity, price)');
+        setError(t.pleaseFillAllRequiredFields || 'Please fill in all required fields for all items (brand, model, quantity, price)');
         return;
       }
 

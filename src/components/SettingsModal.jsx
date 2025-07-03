@@ -87,7 +87,7 @@ export default function SettingsModal({
           <button
             className="w-full bg-red-600 text-white py-2 rounded hover:bg-red-700 transition font-semibold"
             onClick={() => {
-              if (window.confirm('Are you sure you want to delete ALL products, archived, and sales history? This cannot be undone!')) {
+              if (window.confirm(t.confirmResetAllData || 'Are you sure you want to delete ALL products, archived, and sales history? This cannot be undone!')) {
                 handleResetAllData();
               }
             }}

@@ -54,7 +54,7 @@ export default function SaleDetailsModal({ sale, t, onClose, onReturnItem }) {
                 <span className="font-medium">{t.date || 'Date'}:</span> {sale.created_at ? new Date(sale.created_at).toLocaleString() : '-'}
               </div>
               <div className="text-gray-600 dark:text-gray-300">
-                <span className="font-medium">{t.customer || 'Customer'}:</span> {sale.customer_name || t.unknown || 'Unknown'}
+                <span className="font-medium">{t.customer || 'Customer'}:</span> {sale.customer_name || t.unknownCustomer || 'Unknown'}
               </div>
             </div>
           </div>
@@ -80,8 +80,8 @@ export default function SaleDetailsModal({ sale, t, onClose, onReturnItem }) {
                     <tr>
                       <th className="px-3 py-3 font-medium">#</th>
                       <th className="px-3 py-3 font-medium">{t.name}</th>
-                      <th className="px-3 py-3 font-medium">{t.ram || 'RAM'}</th>
-                      <th className="px-3 py-3 font-medium">{t.storage || 'Storage'}</th>
+                      <th className="px-3 py-3 font-medium">{t.ramSpecs || 'RAM'}</th>
+                      <th className="px-3 py-3 font-medium">{t.storageSpecs || 'Storage'}</th>
                       <th className="px-3 py-3 font-medium">{t.sellingPrice || 'Selling Price'}</th>
                       <th className="px-3 py-3 font-medium">{t.buyingPrice || 'Buying Price'}</th>
                       <th className="px-3 py-3 font-medium">{t.qty || 'Qty'}</th>

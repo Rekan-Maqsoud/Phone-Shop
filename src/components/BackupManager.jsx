@@ -309,9 +309,9 @@ export default function BackupManager({ show, onClose, t }) {
 
         {!isAuthenticated ? (
           <div className="text-center py-8">
-            <h3 className="text-lg font-semibold mb-4 text-gray-800 dark:text-gray-100">Cloud Backup Service</h3>
+            <h3 className="text-lg font-semibold mb-4 text-gray-800 dark:text-gray-100">{t.cloudBackupService || 'Cloud Backup Service'}</h3>
             <p className="text-gray-600 dark:text-gray-300 mb-6">
-              Sign in to enable automatic cloud backup after every data change, plus manual backup and restore capabilities
+              {t.signInToEnable || 'Sign in to enable automatic cloud backup after every data change, plus manual backup and restore capabilities'}
             </p>
             
             {!showAuthForm ? (
@@ -319,14 +319,14 @@ export default function BackupManager({ show, onClose, t }) {
                 onClick={() => setShowAuthForm(true)}
                 className="bg-blue-500 text-white px-6 py-2 rounded hover:bg-blue-600 transition-colors"
               >
-                Sign In / Sign Up
+                {t.signInSignUp || 'Sign In / Sign Up'}
               </button>
             ) : (
               <form onSubmit={handleAuth} className="max-w-md mx-auto space-y-4">
                 {isSignUp && (
                   <input
                     type="text"
-                    placeholder="Full Name"
+                    placeholder={t.fullName || 'Full Name'}
                     value={authForm.name}
                     onChange={(e) => setAuthForm({...authForm, name: e.target.value})}
                     className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -335,7 +335,7 @@ export default function BackupManager({ show, onClose, t }) {
                 )}
                 <input
                   type="email"
-                  placeholder="Email Address"
+                  placeholder={t.emailAddress || 'Email Address'}
                   value={authForm.email}
                   onChange={(e) => setAuthForm({...authForm, email: e.target.value})}
                   className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -343,7 +343,7 @@ export default function BackupManager({ show, onClose, t }) {
                 />
                 <input
                   type="password"
-                  placeholder="Password"
+                  placeholder={t.password || 'Password'}
                   value={authForm.password}
                   onChange={(e) => setAuthForm({...authForm, password: e.target.value})}
                   className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -352,7 +352,7 @@ export default function BackupManager({ show, onClose, t }) {
                 {isSignUp && (
                   <input
                     type="password"
-                    placeholder="Confirm Password"
+                    placeholder={t.confirmPassword || 'Confirm Password'}
                     value={authForm.confirmPassword}
                     onChange={(e) => setAuthForm({...authForm, confirmPassword: e.target.value})}
                     className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -365,24 +365,24 @@ export default function BackupManager({ show, onClose, t }) {
                     disabled={loading}
                     className="flex-1 bg-blue-500 text-white py-3 rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
                   >
-                    {loading ? 'Processing...' : (isSignUp ? 'Sign Up' : 'Sign In')}
+                    {loading ? (t.processingAuth || 'Processing...') : (isSignUp ? (t.signUp || 'Sign Up') : (t.signIn || 'Sign In'))}
                   </button>
                   <button
                     type="button"
                     onClick={() => setShowAuthForm(false)}
                     className="px-6 py-3 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300"
                   >
-                    Cancel
+                    {t.cancel || 'Cancel'}
                   </button>
                 </div>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  {isSignUp ? 'Already have an account?' : "Don't have an account?"}{' '}
+                  {isSignUp ? (t.alreadyHaveAccount || 'Already have an account?') : (t.dontHaveAccount || "Don't have an account?")}{' '}
                   <button
                     type="button"
                     onClick={() => setIsSignUp(!isSignUp)}
                     className="text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 hover:underline font-medium"
                   >
-                    {isSignUp ? 'Sign In' : 'Sign Up'}
+                    {isSignUp ? (t.signIn || 'Sign In') : (t.signUp || 'Sign Up')}
                   </button>
                 </p>
               </form>
@@ -394,8 +394,8 @@ export default function BackupManager({ show, onClose, t }) {
             <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
               <div className="flex justify-between items-center mb-4">
                 <div>
-                  <h3 className="font-semibold text-gray-800 dark:text-gray-100">Signed in as: {user?.email}</h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Auto Cloud Backup Active (Updates after every change)</p>
+                  <h3 className="font-semibold text-gray-800 dark:text-gray-100">{t.signedInAs || 'Signed in as'}: {user?.email}</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">{t.autoCloudBackupActive || 'Auto Cloud Backup Active (Updates after every change)'}</p>
                 </div>
                 <button
                   onClick={handleSignOut}

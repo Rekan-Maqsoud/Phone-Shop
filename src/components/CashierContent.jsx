@@ -36,7 +36,7 @@ export default function CashierContent({
   if (admin.loading) {
     return (
       <div className="flex-1 flex items-center justify-center text-2xl text-gray-500 dark:text-gray-300">
-        {t.loading || 'Loading...'}
+        {t.loading}
       </div>
     );
   }
@@ -45,7 +45,7 @@ export default function CashierContent({
   if (products.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center text-2xl text-gray-500 dark:text-gray-300">
-        {t.noProducts || 'No products found.'}
+        {t.noProducts}
       </div>
     );
   }
@@ -59,7 +59,7 @@ export default function CashierContent({
         <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
           <div className="flex items-center justify-between mb-4">
             <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-              {t.cashier || 'Cashier'}
+              {t.cashier}
             </h1>
             <div className="text-right">
               <div className="text-sm text-gray-500 dark:text-gray-400">
@@ -76,20 +76,20 @@ export default function CashierContent({
             onClick={() => admin.goToAdmin()}
             className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
           >
-            ← {t.backToAdmin || 'Back to Admin'}
+            ← {t.backToAdmin}
           </button>
         </div>
 
         {/* Cart Items */}
         <div className="flex-1 overflow-y-auto p-6 min-h-0">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
-            {t.cart || 'Cart'} ({items.length} {t.items || 'items'})
+            {t.cart} ({items.length} {t.items})
           </h2>
           
           {items.length === 0 ? (
             <div className="text-center py-12 text-gray-500 dark:text-gray-400">
               <div className="text-4xl mb-2">🛒</div>
-              <p>{t.emptyCart || 'Cart is empty'}</p>
+              <p>{t.emptyCart}</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -208,13 +208,13 @@ export default function CashierContent({
           {/* Customer Name - Required for all sales */}
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              {t.customerName || 'Customer Name'} *
+              {t.customerName} *
             </label>
             <input
               type="text"
               value={customerName}
               onChange={(e) => setCustomerName(e.target.value)}
-              placeholder={t.enterCustomerName || 'Enter customer name'}
+              placeholder={t.enterCustomerName}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             />
@@ -223,7 +223,7 @@ export default function CashierContent({
           {/* Payment Type */}
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              {t.paymentType || 'Payment Type'}
+              {t.paymentType}
             </label>
             <div className="flex gap-2">
               <button
@@ -234,7 +234,7 @@ export default function CashierContent({
                     : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-500'
                 }`}
               >
-                💳 {t.cash || 'Cash'}
+                💳 {t.cash}
               </button>
               <button
                 onClick={() => setIsDebt(true)}
@@ -244,7 +244,7 @@ export default function CashierContent({
                     : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-500'
                 }`}
               >
-                📝 {t.credit || 'Credit'}
+                📝 {t.credit}
               </button>
             </div>
           </div>
@@ -252,7 +252,7 @@ export default function CashierContent({
           {/* Total */}
           <div className="mb-4 text-center">
             <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">
-              {t.total || 'Total'}
+              {t.total}
             </div>
             <div className="text-3xl font-bold text-gray-900 dark:text-gray-100">
               ${total.toFixed(2)}
@@ -266,10 +266,10 @@ export default function CashierContent({
             className="w-full py-3 bg-blue-600 text-white rounded-lg font-semibold text-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
           >
             {loading.sale 
-              ? (t.processing || 'Processing...') 
+              ? t.processing 
               : isDebt 
-                ? (t.addToCredit || 'Add to Credit') 
-                : (t.completeSale || 'Complete Sale')
+                ? t.addToCredit 
+                : t.completeSale
             }
           </button>
         </div>
@@ -333,7 +333,7 @@ function CashierSearchForm({
           <input
             type="text"
             className="w-full border-2 border-blue-300 dark:border-blue-700 rounded-xl px-4 py-3 text-lg font-medium focus:outline-none focus:ring-2 focus:ring-blue-400 dark:bg-gray-700 dark:text-gray-100 bg-white text-gray-900 placeholder-gray-400 dark:placeholder-gray-400 shadow-lg transition-all"
-            placeholder={t.searchProducts || 'Search products...'}
+            placeholder={t.searchProducts}
             value={search}
             onChange={handleSearchInput}
             autoFocus
@@ -380,7 +380,7 @@ function CashierSearchForm({
                     <div className={`text-sm ${
                       idx === selectedSuggestionIndex ? 'text-blue-100' : 'text-gray-500'
                     }`}>
-                      Stock: {p.stock}
+                      {t.stockLabel}: {p.stock}
                     </div>
                   </div>
                 </button>
@@ -397,7 +397,7 @@ function CashierSearchForm({
             value={quantity}
             onChange={handleQuantityInput}
             className="w-full border-2 border-blue-300 dark:border-blue-700 rounded-xl px-3 py-3 text-lg font-medium focus:outline-none focus:ring-2 focus:ring-blue-400 dark:bg-gray-700 dark:text-gray-100 bg-white text-gray-900 placeholder-gray-400 dark:placeholder-gray-400 shadow-lg transition-all"
-            placeholder={t.quantity || 'Qty'}
+            placeholder={t.quantity}
             disabled={loading.price}
           />
         </div>
@@ -408,7 +408,7 @@ function CashierSearchForm({
           disabled={loading.price || !search.trim()}
           className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-bold text-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
         >
-          {loading.price ? '...' : t.add || 'Add'}
+          {loading.price ? '...' : t.add}
         </button>
       </form>
     </div>
@@ -466,7 +466,7 @@ function ProductCardsGrid({ t, allItems, search, addOrUpdateItem, showToast }) {
               onChange={(e) => setBrandFilter(e.target.value)}
               className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400"
             >
-              <option value="">{t.allBrands || 'All Brands'}</option>
+              <option value="">{t.allBrands}</option>
               {availableBrands.map(brand => (
                 <option key={brand} value={brand}>{brand}</option>
               ))}
@@ -478,9 +478,9 @@ function ProductCardsGrid({ t, allItems, search, addOrUpdateItem, showToast }) {
               onChange={(e) => setCategoryFilter(e.target.value)}
               className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400"
             >
-              <option value="">{t.allCategories || 'All Categories'}</option>
-              <option value="product">{t.phones || 'Phones'}</option>
-              <option value="accessory">{t.accessories || 'Accessories'}</option>
+              <option value="">{t.allCategories}</option>
+              <option value="product">{t.phones}</option>
+              <option value="accessory">{t.accessories}</option>
             </select>
           </div>
           <div className="flex-1">
@@ -489,14 +489,14 @@ function ProductCardsGrid({ t, allItems, search, addOrUpdateItem, showToast }) {
               onChange={(e) => setStockFilter(e.target.value)}
               className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400"
             >
-              <option value="">{t.allStock || 'All Stock'}</option>
-              <option value="in-stock">{t.inStock || 'In Stock'}</option>
-              <option value="low-stock">{t.lowStock || 'Low Stock (≤5)'}</option>
-              <option value="out-of-stock">{t.outOfStock || 'Out of Stock'}</option>
+              <option value="">{t.allStock}</option>
+              <option value="in-stock">{t.inStock}</option>
+              <option value="low-stock">{t.lowStock}</option>
+              <option value="out-of-stock">{t.outOfStock}</option>
             </select>
           </div>
           <div className="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">
-            {filteredItems.length} {t.of || 'of'} {allItems.length} {t.items || 'items'}
+            {filteredItems.length} {t.of} {allItems.length} {t.items}
           </div>
         </div>
       </div>
@@ -507,8 +507,8 @@ function ProductCardsGrid({ t, allItems, search, addOrUpdateItem, showToast }) {
           <div className="flex items-center justify-center h-full text-gray-500 dark:text-gray-400">
             <div className="text-center">
               <div className="text-6xl mb-4">📱</div>
-              <div className="text-xl font-semibold mb-2">{t.noItemsFound || 'No items found'}</div>
-              <div className="text-sm">{t.tryDifferentFilters || 'Try adjusting your search or filters'}</div>
+              <div className="text-xl font-semibold mb-2">{t.noItemsFound}</div>
+              <div className="text-sm">{t.tryDifferentFilters}</div>
             </div>
           </div>
         ) : (
@@ -535,11 +535,11 @@ function ProductCardsGrid({ t, allItems, search, addOrUpdateItem, showToast }) {
 function ProductCard({ item, t, addOrUpdateItem, showToast }) {
   const handleAddToCart = () => {
     if (item.stock <= 0) {
-      showToast(t.outOfStock || 'This item is out of stock', 'error');
+      showToast(t.outOfStock, 'error');
       return;
     }
     addOrUpdateItem(item, false, 1);
-    showToast(`${item.name} ${t.addedToCart || 'added to cart'}`, 'success');
+    showToast(`${item.name} ${t.addedToCart}`, 'success');
   };
 
   const isOutOfStock = item.stock <= 0;
@@ -554,12 +554,12 @@ function ProductCard({ item, t, addOrUpdateItem, showToast }) {
         </span>
         {isLowStock && !isOutOfStock && (
           <span className="px-1.5 py-0.5 bg-orange-500 text-white text-xs rounded-full">
-            {t.lowStock || 'Low'}
+            {t.lowStock}
           </span>
         )}
         {isOutOfStock && (
           <span className="px-1.5 py-0.5 bg-red-500 text-white text-xs rounded-full">
-            {t.outOfStock || 'Out'}
+            {t.outOfStock}
           </span>
         )}
       </div>

@@ -44,7 +44,7 @@ const AccessoriesSection = ({
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row gap-4 items-center justify-between mb-6">
-        <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100">{t.accessories || 'Accessories'}</h2>
+        <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100">{t.accessories}</h2>
         <button
           onClick={() => {
             admin.setEditAccessory(null);
@@ -52,7 +52,7 @@ const AccessoriesSection = ({
           }}
           className="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl font-semibold shadow-lg hover:scale-105 hover:from-emerald-600 hover:to-green-600 transition-all duration-200"
         >
-          {t.addAccessory || 'Add Accessory'}
+          {t.addAccessory}
         </button>
       </div>
       
@@ -64,7 +64,7 @@ const AccessoriesSection = ({
             <div className="relative">
               <input
                 type="text"
-                placeholder={t.searchAccessories || 'Search accessories by name...'}
+                placeholder={t.searchAccessories}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full px-4 py-2 pl-10 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-800 dark:text-gray-100"
@@ -92,7 +92,7 @@ const AccessoriesSection = ({
               onChange={(e) => setBrandFilter(e.target.value)}
               className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-800 dark:text-gray-100"
             >
-              <option value="">{t.allBrands || 'All Brands'}</option>
+              <option value="">{t.allBrands}</option>
               {availableBrands.map(brand => (
                 <option key={brand} value={brand}>{brand}</option>
               ))}
@@ -106,7 +106,7 @@ const AccessoriesSection = ({
               onChange={(e) => setTypeFilter(e.target.value)}
               className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-800 dark:text-gray-100"
             >
-              <option value="">{t.allTypes || 'All Types'}</option>
+              <option value="">{t.allTypes}</option>
               {availableTypes.map(type => (
                 <option key={type} value={type}>{type}</option>
               ))}
@@ -123,7 +123,7 @@ const AccessoriesSection = ({
               }}
               className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition whitespace-nowrap"
             >
-              {t.clearFilters || 'Clear Filters'}
+              {t.clearFilters}
             </button>
           )}
         </div>
@@ -131,7 +131,7 @@ const AccessoriesSection = ({
         {/* Results Summary */}
         {(searchTerm || brandFilter || typeFilter) && (
           <div className="mt-3 text-sm text-gray-600 dark:text-gray-400">
-            {t.showing || 'Showing'} {filteredAccessories.length} {t.of || 'of'} {accessories.filter(a => !a.archived).length} {t.accessories || 'accessories'}
+            {t.showing} {filteredAccessories.length} {t.of} {accessories.filter(a => !a.archived).length} {t.accessories}
           </div>
         )}
       </div>

@@ -45,7 +45,7 @@ export default function Cashier() {
   };
   const { items, addOrUpdateItem, deleteItem, clearCart, total, setItems } = useCart((msg, type) => {
     setToast({ msg, type });
-  }, showConfirm);
+  }, showConfirm, t);
   const admin = useAdmin(navigate);
 
   // Get data from DataContext
@@ -106,7 +106,7 @@ export default function Cashier() {
     e.preventDefault();
     
     if (!search.trim()) {
-      showToast(t.pleaseEnterProductName || 'Please enter a product name', 'error');
+      showToast(t.pleaseEnterProductName, 'error');
       return;
     }
     
@@ -128,7 +128,7 @@ export default function Cashier() {
       setProductOptions(matches);
       setShowProductSelect(true);
     } else {
-      showToast(t.productNotFoundOrInvalid || 'Product not found or invalid', 'error');
+      showToast(t.productNotFoundOrInvalid, 'error');
       setSearch('');
       setQuantity(1);
     }
@@ -166,7 +166,7 @@ export default function Cashier() {
     
     // Check if offline and warn user
     if (!isOnline) {
-      showToast(t.offlineWarning || '⚠️ You are offline! This sale will not be backed up to cloud until connection is restored.', 'warning');
+      showToast(t.offlineWarning, 'warning');
     }
     
     // Check for low price warning (selling below buying price)
@@ -180,7 +180,7 @@ export default function Cashier() {
     if (belowCostItems.length > 0) {
       const itemNames = belowCostItems.map(item => {
         const product = allItems.find(p => p.uniqueId === item.uniqueId || p.id === item.product_id);
-        return product ? product.name : (t.unknown || 'Unknown');
+        return product ? product.name : t.unknown;
       }).join(', ');
       
       // Play warning sound
@@ -189,7 +189,7 @@ export default function Cashier() {
       
       const confirmed = await new Promise((resolve) => {
         showConfirm(
-          `${t.warningSellingBelowCost || '⚠️ WARNING: Selling below buying price!'}\nItems: ${itemNames}\n${t.continueAnyway || 'This will result in a loss. Continue anyway?'}`,
+          `${t.warningSellingBelowCost}\nItems: ${itemNames}\n${t.continueAnyway}`,
           () => {
             setConfirm({ open: false, message: '', onConfirm: null });
             resolve(true);
@@ -209,26 +209,26 @@ export default function Cashier() {
     
     // Don't allow negative totals for regular sales 
     if (total < 0) {
-      showToast(t.cannotCompleteNegativeTotal || 'Cannot complete sale with negative total', 'error');
+      showToast(t.cannotCompleteNegativeTotal, 'error');
       return;
     }
     
     // Customer name is now required for ALL sales (both cash and debt)
     if (!customerName.trim()) {
-      showToast(t.pleaseEnterCustomerName || 'Please enter customer name for all sales', 'error');
+      showToast(t.pleaseEnterCustomerName, 'error');
       return;
     }
     
     showConfirm(
       isDebt
-        ? t.confirmDebtSale || 'Are you sure you want to record this sale as debt?'
-        : t.confirmSale || 'Are you sure you want to complete this sale?',
+        ? t.confirmDebtSale
+        : t.confirmSale,
       async () => {
         setConfirm({ open: false, message: '', onConfirm: null });
         
         // Double-check customer name is provided
         if (!customerName.trim()) {
-          showToast(t.customerNameRequired || 'Customer name is required for all sales.', 'error');
+          showToast(t.customerNameRequired, 'error');
           setLoading(l => ({ ...l, sale: false }));
           return;
         }
@@ -257,13 +257,13 @@ export default function Cashier() {
             try {
               const debtResult = await window.api.addDebt({ sale_id: res.id || res.lastInsertRowid, customer_name: customerName });
               if (!debtResult.success) {
-                showToast((t.saleRecordCreationFailed || 'Sale saved but failed to create debt record: ') + (debtResult.message || (t.unknownError || 'Unknown error')), 'error');
+                showToast(t.saleRecordCreationFailed + (debtResult.message || t.unknownError), 'error');
               }
               await refreshDebts();
               await refreshDebtSales();
               // debt sales are now refreshed immediately for instant UI update
             } catch (debtError) {
-              showToast((t.debtCreationFailed || 'Sale saved but debt creation failed: ') + debtError.message, 'error');
+              showToast(t.debtCreationFailed + debtError.message, 'error');
             }
           }
           setLoading(l => ({ ...l, sale: false }));
@@ -278,13 +278,13 @@ export default function Cashier() {
             
             // Auto backup is now handled automatically by the unified backup system
             
-            showToast(isDebt ? (t.debtSaleSuccess || 'Debt sale recorded!') : (t.saleSuccess || 'Complete sale successful!'));
+            showToast(isDebt ? t.debtSaleSuccess : t.saleSuccess);
           } else {
-            showToast(res.message || t.saleFailed || 'Sale failed', 'error');
+            showToast(res.message || t.saleFailed, 'error');
           }
         } else {
           setLoading(l => ({ ...l, sale: false }));
-          showToast(t.saleApiUnavailable || 'Sale API not available', 'error');
+          showToast(t.saleApiUnavailable, 'error');
         }
       }
     );

@@ -173,7 +173,7 @@ export default function ProductModal({
           {/* RAM */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              {t.ram || 'RAM'}
+              {t.ramSpecs || 'RAM'}
             </label>
             <SearchableSelect
               options={ramOptions}
@@ -186,7 +186,7 @@ export default function ProductModal({
           {/* Storage */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              {t.storage || 'Storage'}
+              {t.storageSpecs || 'Storage'}
             </label>
             <SearchableSelect
               options={storageOptions}

@@ -71,14 +71,14 @@ function AddCompanyDebtModal({ show, onClose, onSubmit, t }) {
 
     try {
       if (!companyName.trim()) {
-        setError('Please provide a valid company name');
+        setError(t.pleaseProvideValidCompanyName || 'Please provide a valid company name');
         return;
       }
 
       if (purchaseType === 'simple') {
         const amt = parseFloat(simpleAmount);
         if (!simpleAmount || isNaN(amt) || amt <= 0) {
-          setError('Please provide a valid amount greater than 0');
+          setError(t.pleaseProvideValidAmount || 'Please provide a valid amount greater than 0');
           return;
         }
 
@@ -91,7 +91,7 @@ function AddCompanyDebtModal({ show, onClose, onSubmit, t }) {
       } else {
         // Validate items
         if (items.length === 0) {
-          setError('Please add at least one item');
+          setError(t.pleaseAddAtLeastOneItem || 'Please add at least one item');
           return;
         }
 
@@ -103,15 +103,15 @@ function AddCompanyDebtModal({ show, onClose, onSubmit, t }) {
         );
 
         if (invalidItems.length > 0) {
-          setError('Please fill in all required fields for all items (quantity, price)');
+          setError(t.pleaseFillAllRequiredFields || 'Please fill in all required fields for all items (quantity, price)');
           return;
         }
 
         const processedItems = items.map(item => ({
           ...item,
           item_name: item.item_type === 'product' 
-            ? `${item.brand || 'Unknown'} ${item.model || 'Model'} ${item.ram ? item.ram + ' ' : ''}${item.storage || ''}`.trim()
-            : `${item.brand || 'Unknown'} ${item.type || 'Accessory'}`.trim(),
+            ? `${item.brand || t.unknownCustomer || 'Unknown'} ${item.model || t.model || 'Model'} ${item.ram ? item.ram + ' ' : ''}${item.storage || ''}`.trim()
+            : `${item.brand || t.unknownCustomer || 'Unknown'} ${item.type || t.accessory || 'Accessory'}`.trim(),
           quantity: parseInt(item.quantity),
           unit_price: parseFloat(item.unit_price),
           total_price: parseInt(item.quantity) * parseFloat(item.unit_price),
@@ -258,7 +258,7 @@ function AddCompanyDebtModal({ show, onClose, onSubmit, t }) {
             <div className="space-y-4">
               <div className="flex justify-between items-center">
                 <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200">
-                  📦 {t.items || 'Items'}
+                  📦 {t.itemsList || 'Items'}
                 </h3>
                 <div className="flex gap-2">
                   <button

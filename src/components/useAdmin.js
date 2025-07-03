@@ -220,7 +220,7 @@ export default function useAdmin() {
         setToast(res.success ? `${t.exportSales} successful!` : res.message || 'Export failed.');
       }
     } catch (e) {
-      setToast('Export failed.');
+      setToast(t.exportFailed || 'Export failed.');
     } finally {
       
     }
@@ -230,10 +230,10 @@ export default function useAdmin() {
     try {
       if (window.api?.exportInventoryCSV) {
         const res = await window.api.exportInventoryCSV();
-        setToast(res.success ? `${t.exportInventory} successful!` : res.message || 'Export failed.');
+        setToast(res.success ? `${t.exportInventory} ${t.successful}!` : res.message || t.exportFailed || 'Export failed.');
       }
     } catch (e) {
-      setToast('Export failed.');
+      setToast(t.exportFailed || 'Export failed.');
     } finally {
       
     }
@@ -243,10 +243,10 @@ export default function useAdmin() {
     try {
       if (window.api?.testPrint) {
         const res = await window.api.testPrint();
-        setToast(res.success ? 'Test print successful!' : res.message || 'Print test failed.');
+        setToast(res.success ? t.testPrintSuccessful || 'Test print successful!' : res.message || t.printTestFailed || 'Print test failed.');
       }
     } catch (e) {
-      setToast('Print test failed.');
+      setToast(t.printTestFailed || 'Print test failed.');
     } finally {
       
     }

@@ -25,7 +25,7 @@ const ProductTable = React.memo(function ProductTable({
         <input
           type="text"
           className="border rounded px-2 py-1 bg-white text-gray-900 dark:bg-gray-700 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400"
-          placeholder={t.search || 'Search...'}
+          placeholder={t.search}
           value={search}
           onChange={e => setSearch(e.target.value)}
           style={{ minWidth: 180 }}
@@ -36,8 +36,8 @@ const ProductTable = React.memo(function ProductTable({
           <tr>
             <th className="px-4 py-2 text-white">#</th>
             <th className="px-4 py-2 text-white">{t.name}</th>
-            <th className="px-4 py-2 text-white">{t.ram || 'RAM'}</th>
-            <th className="px-4 py-2 text-white">{t.storage || 'Storage'}</th>
+            <th className="px-4 py-2 text-white">{t.ram}</th>
+            <th className="px-4 py-2 text-white">{t.storage}</th>
             <th className="px-4 py-2 text-white">{t.price}</th>
             <th className="px-4 py-2 text-white">{t.stock}</th>
             <th className="px-4 py-2 text-white">{t.action}</th>
@@ -45,14 +45,14 @@ const ProductTable = React.memo(function ProductTable({
         </thead>
         <tbody>
           {filtered.length === 0 ? (
-            <tr><td colSpan={7} className="text-center text-gray-400 py-4">{isArchived ? 'No archived products' : 'No products'}</td></tr>
+            <tr><td colSpan={7} className="text-center text-gray-400 py-4">{isArchived ? t.noArchivedProducts : t.noProducts}</td></tr>
           ) : filtered.map((p, idx) => (
             <tr key={p.id} className={`border-b last:border-b-0 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-gray-700 transition group`}>
               <td className="px-4 py-2">{idx + 1}</td>
               <td className="px-4 py-2 flex items-center gap-2">
                 {p.name}
                 {!isArchived && p.stock < lowStockThreshold && (
-                  <span className="ml-2 px-2 py-0.5 bg-red-500 text-white text-xs rounded-full animate-pulse">Low</span>
+                  <span className="ml-2 px-2 py-0.5 bg-red-500 text-white text-xs rounded-full animate-pulse">{t.low}</span>
                 )}
               </td>
               <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">{p.ram || '-'}</td>
@@ -62,13 +62,13 @@ const ProductTable = React.memo(function ProductTable({
               <td className="px-4 py-2 flex gap-2">
                 {!isArchived ? (
                   <>
-                    <button onClick={() => onEdit(p)} className="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-400 transition">{t.edit || 'Edit'}</button>
+                    <button onClick={() => onEdit(p)} className="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-400 transition">{t.edit}</button>
                     <button disabled={false} onClick={() => { onArchive(p); }} className="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-yellow-400 transition">
-                      {t.archive || 'Archive'} 
+                      {t.archive} 
                     </button>
                   </>
                 ) : (
-                  <button onClick={() => onUnarchive(p)} className="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-400 transition">{t.unarchive || 'Unarchive'}</button>
+                  <button onClick={() => onUnarchive(p)} className="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-400 transition">{t.unarchive}</button>
                 )}
               </td>
             </tr>
