@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLocale } from '../contexts/LocaleContext';
 import { useData } from '../contexts/DataContext';
+import { triggerCloudBackup } from '../utils/cloudBackup';
 import useAdmin from '../components/useAdmin';
 import AdminStatsSidebar from '../components/AdminStatsSidebar';
 import AdminDashboard from '../components/AdminDashboard';
@@ -29,7 +30,6 @@ export default function Admin() {
   const [debtSearch, setDebtSearch] = useState('');
   const [showPaidDebts, setShowPaidDebts] = useState(false);
   const [showBackupManager, setShowBackupManager] = useState(false);
-  const [showCloudBackupManager, setShowCloudBackupManager] = useState(false);
   const [showAddCompanyDebt, setShowAddCompanyDebt] = useState(false);
   const [showAddPurchase, setShowAddPurchase] = useState(false);
   const [showEnhancedCompanyDebtModal, setShowEnhancedCompanyDebtModal] = useState(false);
@@ -122,8 +122,7 @@ export default function Admin() {
     { key: 'customerDebts', label: t.customerDebts || 'Customer Debts', icon: '💳' },
     { key: 'companyDebts', label: t.companyDebts || 'Company Debts', icon: '💸' },
     { key: 'monthlyReports', label: t.monthlyReports || 'Monthly Reports', icon: '📊' },
-    { key: 'backup', label: t.backupManager || 'Local Backup', icon: '🗄️', action: () => setShowBackupManager(true) },
-    { key: 'cloudBackup', label: t.cloudBackupManager || 'Cloud Backup', icon: '☁️', action: () => setShowCloudBackupManager(true) },
+    { key: 'backup', label: 'Cloud Backup', icon: '☁️', action: () => setShowBackupManager(true) },
     { key: 'settings', label: t.settings, icon: '⚙️' },
     { key: 'logout', label: t.logout || 'Log out', icon: '🚪', action: () => navigate('/cashier'), accent: 'bg-red-600 text-white hover:bg-red-700', isLogout: true },
   ], [t, navigate]);
@@ -132,7 +131,7 @@ export default function Admin() {
   useEffect(() => {
     const handleKeyDown = (e) => {
       // Don't handle keys if a modal is open
-      if (admin.productModal || admin.saleDetailsModal || showSettingsModal || showBackupManager || showCloudBackupManager) {
+      if (admin.productModal || admin.saleDetailsModal || showSettingsModal || showBackupManager) {
         return;
       }
       
@@ -153,7 +152,7 @@ export default function Admin() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [section, navItems, admin.productModal, admin.saleDetailsModal, showSettingsModal, showBackupManager, showCloudBackupManager]);
+  }, [section, navItems, admin.productModal, admin.saleDetailsModal, showSettingsModal, showBackupManager]);
 
   // UseCallback for nav click handler - optimize dependencies
   const handleNavClick = useCallback((item) => {
@@ -208,17 +207,6 @@ export default function Admin() {
     admin.setEditProduct(product);
     admin.setShowProductModal(true);
   }, [admin.setEditProduct, admin.setShowProductModal]);
-
-  // Cloud backup trigger
-  const triggerCloudBackup = useCallback(async () => {
-    try {
-      if (window.api?.autoBackupAfterSale) {
-        await window.api.autoBackupAfterSale();
-      }
-    } catch (error) {
-      console.warn('Cloud backup trigger failed:', error);
-    }
-  }, []);
 
   // Toast notification (unified, auto-dismiss)
   useEffect(() => {
@@ -362,11 +350,8 @@ export default function Admin() {
         showConfirm={showConfirm}
         setConfirm={setConfirm}
         setLoading={setLoading}
-        triggerCloudBackup={triggerCloudBackup}
         showBackupManager={showBackupManager}
         setShowBackupManager={setShowBackupManager}
-        showCloudBackupManager={showCloudBackupManager}
-        setShowCloudBackupManager={setShowCloudBackupManager}
         showAddCompanyDebt={showAddCompanyDebt}
         setShowAddCompanyDebt={setShowAddCompanyDebt}
         showAddPurchase={showAddPurchase}
@@ -377,6 +362,7 @@ export default function Admin() {
         selectedCompanyDebt={selectedCompanyDebt}
         setSelectedCompanyDebt={setSelectedCompanyDebt}
         confirm={confirm}
+        triggerCloudBackup={triggerCloudBackup}
       />
 
       {/* Toast notification */}

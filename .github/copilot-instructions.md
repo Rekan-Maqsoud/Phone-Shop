@@ -12,9 +12,14 @@ Key directives for this task:
 
     remember we had infinite rerenderning issues in the past, so be careful with state updates and ensure they are done correctly to avoid performance issues.
 
+valid seperator is ;
+use 
+npm run build 
+to build
+ and
+npm run make 
+to make the application.
+
 ///// news  
 we are finally moving to production ,so the current issues might be working in dev but we have found them not working in production, so please be careful and test everything in production mode before submitting the changes.
 
-NOTE: The designs should be for laptop and make them wider instead of higher ...
-
-i have too much problem with the backups , i want you to completely 

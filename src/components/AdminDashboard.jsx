@@ -18,9 +18,7 @@ const AdminDashboard = ({
     setReloading(true);
     try {
       const success = await reloadApp();
-      if (success) {
-        console.log('✅ Application reloaded successfully');
-      } else {
+      if (!success) {
         console.error('❌ Failed to reload application');
       }
     } catch (error) {

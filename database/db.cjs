@@ -1173,18 +1173,15 @@ function returnSaleItem(saleId, itemId, returnQuantity = null) {
 
 // --- Direct Purchase functions (for immediate payments) ---
 function addDirectPurchase({ company_name, amount, description }) {
-  console.log('[DB] addDirectPurchase called with:', { company_name, amount, description });
   const paidTime = new Date().toISOString();
   const result = db.prepare(`
     INSERT INTO buying_history (company_debt_id, company_name, amount, description, has_items, paid_at)
     VALUES (NULL, ?, ?, ?, 0, ?)
   `).run(company_name, amount, description || null, paidTime);
-  console.log('[DB] addDirectPurchase result:', result);
   return result;
 }
 
 function addDirectPurchaseWithItems({ company_name, description, items }) {
-  console.log('[DB] addDirectPurchaseWithItems called with:', { company_name, description, items });
   const transaction = db.transaction(() => {
     // Calculate total amount from items
     const total_amount = items.reduce((sum, item) => sum + (item.total_price || (item.unit_price * item.quantity)), 0);

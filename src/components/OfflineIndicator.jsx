@@ -11,7 +11,7 @@ export default function OfflineIndicator({ className = '' }) {
     // Check authentication status on mount (using cached state)
     const checkAuth = async () => {
       setIsCheckingAuth(true);
-      const isAuth = cloudAuthService.isAuthenticated();
+      const isAuth = cloudAuthService.isAuthenticated;
       setIsCloudAuthenticated(isAuth);
       setIsCheckingAuth(false);
     };
@@ -24,10 +24,10 @@ export default function OfflineIndicator({ className = '' }) {
       setIsCheckingAuth(false);
     };
     
-    cloudAuthService.onAuthChange(listener);
+    cloudAuthService.addAuthListener(listener);
     
     return () => {
-      cloudAuthService.offAuthChange(listener);
+      cloudAuthService.removeAuthListener(listener);
     };
   }, []);
 

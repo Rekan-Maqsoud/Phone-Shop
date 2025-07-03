@@ -5,7 +5,6 @@ import { LocaleProvider } from './contexts/LocaleContext';
 import { DataProvider } from './contexts/DataContext';
 import Cashier from './pages/Cashier';
 import Admin from './pages/Admin';
-import CloudBackupListener from './components/CloudBackupListener';
 import ToastUnified from './components/ToastUnified';
 import cloudAuthService from './services/CloudAuthService';
 
@@ -46,13 +45,16 @@ function App() {
   useEffect(() => {
     const initializeAuth = async () => {
       try {
-        console.log('App: Initializing authentication...');
-        // Authentication is now initialized in CloudAuthService constructor
-        // No need for additional network calls here
-        console.log('App: Authentication initialization complete');
+        console.log('[App] Initializing authentication...');
+        // Initialize CloudAuthService
+        const isAuthenticated = await cloudAuthService.initializeAuth();
         
+        // Give it a bit more time to ensure proper initialization
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        console.log('[App] Authentication initialized, authenticated:', isAuthenticated);
       } catch (error) {
-        console.error('App: Error during auth initialization:', error);
+        console.error('[App] Error during auth initialization:', error);
       } finally {
         setAuthInitialized(true);
       }
@@ -66,7 +68,6 @@ function App() {
     const checkDataReady = () => {
       // Check if window.api is available and basic data fetching capabilities exist
       if (window.api && window.api.getProducts) {
-        console.log('App: Data context ready');
         setDataInitialized(true);
         return true;
       }
@@ -87,7 +88,6 @@ function App() {
     // Timeout after 15 seconds
     const timeout = setTimeout(() => {
       clearInterval(interval);
-      console.log('App: Data initialization timeout, proceeding anyway');
       setDataInitialized(true);
     }, 15000);
 
@@ -100,20 +100,21 @@ function App() {
   // Set app as ready when both auth and data are initialized
   useEffect(() => {
     if (authInitialized && dataInitialized && !appReady) {
-      console.log('App: All systems ready, showing app');
       setAppReady(true);
       
       // Show authentication status notifications after app is ready
-      setTimeout(() => {
+      setTimeout(async () => {
         if (window.showGlobalToast) {
-          const isAuthenticated = cloudAuthService.isAuthenticated?.();
+          // Double check authentication status
+          const isAuthenticated = await cloudAuthService.checkAuth();
           if (isAuthenticated) {
-            window.showGlobalToast('Cloud backup enabled', 'success', 2000);
-          } else if (!cloudAuthService._offlineMode) {
+            const user = await cloudAuthService.getCurrentUser();
+            window.showGlobalToast(`Cloud backup enabled for ${user?.email || 'user'}`, 'success', 3000);
+          } else {
             window.showGlobalToast('You are not logged in. Changes won\'t be saved to cloud.', 'warning', 5000);
           }
         }
-      }, 1000);
+      }, 2000);
     }
   }, [authInitialized, dataInitialized, appReady]);
 
@@ -157,7 +158,6 @@ function App() {
     <ThemeProvider>
       <LocaleProvider>
         <DataProvider>
-          <CloudBackupListener />
           <div className="min-h-screen bg-gray-100">
             <RouterProvider router={router} />
             {globalToast && (

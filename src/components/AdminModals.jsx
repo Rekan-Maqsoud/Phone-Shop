@@ -5,7 +5,6 @@ import ProductModal from './ProductModal';
 import AccessoryModal from './AccessoryModal';
 import SaleDetailsModal from './SaleDetailsModal';
 import BackupManager from './BackupManager';
-import CloudBackupManager from './CloudBackupManager';
 import AddCompanyDebtModal from './AddCompanyDebtModal';
 import AddPurchaseModal from './AddPurchaseModal';
 import ConfirmModal from './ConfirmModal';
@@ -30,13 +29,10 @@ export default function AdminModals({
   showConfirm,
   setConfirm,
   setLoading,
-  triggerCloudBackup,
   
-  // Backup Modals
+  // Backup Modal
   showBackupManager,
   setShowBackupManager,
-  showCloudBackupManager,
-  setShowCloudBackupManager,
   
   // Company Debt Modals
   showAddCompanyDebt,
@@ -52,7 +48,10 @@ export default function AdminModals({
   setSelectedCompanyDebt,
   
   // Confirm Modal
-  confirm
+  confirm,
+  
+  // Cloud Backup
+  triggerCloudBackup
 }) {
   const { refreshSales, refreshProducts, refreshAccessories, refreshCompanyDebts, refreshBuyingHistory } = useData();
   
@@ -153,17 +152,8 @@ export default function AdminModals({
       <BackupManager
         show={showBackupManager}
         onClose={() => setShowBackupManager(false)}
-        onRestore={admin.handleRestoreBackup}
         t={t}
       />
-
-      {/* Cloud Backup Manager */}
-      {showCloudBackupManager && (
-        <CloudBackupManager
-          onClose={() => setShowCloudBackupManager(false)}
-          t={t}
-        />
-      )}
 
       {/* Toast */}
       <ToastUnified

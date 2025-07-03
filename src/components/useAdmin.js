@@ -40,9 +40,7 @@ export default function useAdmin() {
     setToastState({ msg, type, duration });
   };
   const [notificationsEnabled, setNotificationsEnabled] = useState(() => localStorage.getItem('notificationsEnabled') === 'true');
-  const [autoBackup, setAutoBackup] = useState(() => localStorage.getItem('autoBackup') === 'true');
   const [lowStockThreshold, setLowStockThreshold] = useState(() => Number(localStorage.getItem('lowStockThreshold')) || 5);
-  const [autoBackupEnabled, setAutoBackupEnabled] = useState(() => localStorage.getItem('autoBackupEnabled') === 'true');
 
   // Admin modal state for Cashier
   const [adminModal, setAdminModal] = useState(false);
@@ -313,12 +311,9 @@ export default function useAdmin() {
     return sum + a.buying_price * a.stock;
   }, 0);
 
-  // Initialize settings and auto backup on mount
+  // Initialize settings on mount
   useEffect(() => {
-    // Initialize auto backup if enabled
-    if (autoBackupEnabled && window.api?.setAutoBackup) {
-      window.api.setAutoBackup(true);
-    }
+    // No longer need to initialize auto backup as it's handled by CloudBackupService
   }, []); // Empty dependency array to run only once
 
   // Memoize the admin object to ensure stability across renders
@@ -366,14 +361,12 @@ export default function useAdmin() {
     loading: dataLoading,
     monthlySales, totalRevenue, inventoryValue,
     notificationsEnabled, setNotificationsEnabled,
-    autoBackup, setAutoBackup,
-    autoBackupEnabled, setAutoBackupEnabled,
     lowStockThreshold, setLowStockThreshold,
     adminModal, setAdminModal, openAdminModal, adminPassword, setAdminPassword, adminError, handleAdminAccess,
     goToAdmin,
   }), [
     products, accessories, sales, showProductModal, showAccessoryModal, editProduct, editAccessory, viewSale, debts, debtSales, companyDebts, buyingHistory, monthlyReports,
-    toast, dataLoading, notificationsEnabled, autoBackup, autoBackupEnabled, lowStockThreshold, adminModal, adminPassword, adminError
+    toast, dataLoading, notificationsEnabled, lowStockThreshold, adminModal, adminPassword, adminError
   ]); // Removed function dependencies and apiReady that change on every render
   return adminObject;
 }

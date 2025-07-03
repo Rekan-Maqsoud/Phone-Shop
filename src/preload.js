@@ -60,23 +60,24 @@ contextBridge.exposeInMainWorld('api', {
   editAccessory: (accessory) => ipcRenderer.invoke('editAccessory', accessory),
   deleteAccessory: (id) => ipcRenderer.invoke('deleteAccessory', id),
   
-  // Backup functionality
-  createBackup: () => ipcRenderer.invoke('createBackup'),
-  getBackupHistory: () => ipcRenderer.invoke('getBackupHistory'),
-  restoreBackup: (filePath) => ipcRenderer.invoke('restoreBackup', filePath),
-  selectBackupFile: () => ipcRenderer.invoke('selectBackupFile'),
+  // New Cloud Backup functionality
+  setCloudBackupSession: (sessionData) => ipcRenderer.invoke('setCloudBackupSession', sessionData),
+  clearCloudBackupSession: () => ipcRenderer.invoke('clearCloudBackupSession'),
   setAutoBackup: (enabled) => ipcRenderer.invoke('setAutoBackup', enabled),
-  
-  // Cloud backup functionality
+  getAutoBackup: () => ipcRenderer.invoke('getAutoBackup'),
+  createCloudBackup: (description) => ipcRenderer.invoke('createCloudBackup', description),
+  downloadCloudBackup: (backupId) => ipcRenderer.invoke('downloadCloudBackup', backupId),
+  downloadCloudBackupFile: (backupId) => ipcRenderer.invoke('downloadCloudBackupFile', backupId),
+  listCloudBackups: () => ipcRenderer.invoke('listCloudBackups'),
+  deleteCloudBackup: (backupId) => ipcRenderer.invoke('deleteCloudBackup', backupId),
+  restoreFromFile: (filePath) => ipcRenderer.invoke('restoreFromFile', filePath),
+  selectAndRestoreBackup: () => ipcRenderer.invoke('selectAndRestoreBackup'),
+  selectBackupFile: () => ipcRenderer.invoke('selectBackupFile'),
+  triggerCloudBackup: () => ipcRenderer.invoke('triggerCloudBackup'),
+  openBackupFolder: () => ipcRenderer.invoke('openBackupFolder'),
+  createBackup: () => ipcRenderer.invoke('createBackup'),
+  createLocalBackup: () => ipcRenderer.invoke('createLocalBackup'),
   readBackupFile: (filePath) => ipcRenderer.invoke('readBackupFile', filePath),
-  saveCloudBackup: (backupData, fileName) => ipcRenderer.invoke('saveCloudBackup', backupData, fileName),
-  restoreFromCloudBackup: (filePath) => ipcRenderer.invoke('restoreFromCloudBackup', filePath),
-  getCurrentBackupPath: () => ipcRenderer.invoke('getCurrentBackupPath'),
-  downloadCloudBackup: (backupId, fileName) => ipcRenderer.invoke('downloadCloudBackup', backupId, fileName),
-  getCloudBackups: () => ipcRenderer.invoke('getCloudBackups'),
-  getCloudStorageUsage: () => ipcRenderer.invoke('getCloudStorageUsage'),
-  setCloudSession: (sessionData) => ipcRenderer.invoke('setCloudSession', sessionData),
-  clearCloudSession: () => ipcRenderer.invoke('clearCloudSession'),
   
   // Event listener support for cloud auto backup
   on: (channel, listener) => ipcRenderer.on(channel, listener),
