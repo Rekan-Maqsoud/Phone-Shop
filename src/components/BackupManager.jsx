@@ -288,7 +288,7 @@ export default function BackupManager({ show, onClose, t }) {
         {/* Header with title and close button */}
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">
-            ☁️ Cloud Backup Manager
+            ☁️ {t.cloudBackupManager || 'Cloud Backup Manager'}
           </h2>
           <button
             onClick={onClose}
@@ -401,7 +401,7 @@ export default function BackupManager({ show, onClose, t }) {
                   onClick={handleSignOut}
                   className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-colors font-medium"
                 >
-                  Sign Out
+                  {t.signOut || 'Sign Out'}
                 </button>
               </div>
               
@@ -411,21 +411,21 @@ export default function BackupManager({ show, onClose, t }) {
                   disabled={loading}
                   className="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
                 >
-                  {loading ? 'Creating...' : 'Create Manual Backup'}
+                  {loading ? (t.creating || 'Creating...') : (t.createManualBackup || 'Create Manual Backup')}
                 </button>
                 <button
                   onClick={createLocalBackup}
                   disabled={loading}
                   className="bg-purple-500 text-white px-4 py-2 rounded-lg hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
                 >
-                  {loading ? 'Creating...' : 'Create Local Backup'}
+                  {loading ? (t.creating || 'Creating...') : (t.createLocalBackup || 'Create Local Backup')}
                 </button>
                 <button
                   onClick={loadBackups}
                   disabled={loading}
                   className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
                 >
-                  Refresh
+                  {t.refresh || 'Refresh'}
                 </button>
               </div>
             </div>
@@ -434,12 +434,12 @@ export default function BackupManager({ show, onClose, t }) {
             <div className="space-y-6">
               {/* Cloud Backups */}
               <div>
-                <h4 className="font-semibold mb-4 text-gray-800 dark:text-gray-100">☁️ Cloud Backups ({backups.length} backups)</h4>
+                <h4 className="font-semibold mb-4 text-gray-800 dark:text-gray-100">☁️ {t.cloudBackups || 'Cloud Backups'} ({backups.length} {t.backups || 'backups'})</h4>
                 
-                {loading && <p className="text-center py-4 text-gray-600 dark:text-gray-400">Loading...</p>}
+                {loading && <p className="text-center py-4 text-gray-600 dark:text-gray-400">{t.loading || 'Loading...'}</p>}
                 
                 {!loading && backups.length === 0 && (
-                  <p className="text-center py-8 text-gray-500 dark:text-gray-400">No cloud backups found</p>
+                  <p className="text-center py-8 text-gray-500 dark:text-gray-400">{t.noCloudBackupsFound || 'No cloud backups found'}</p>
                 )}
                 
                 {!loading && backups.length > 0 && (
@@ -447,11 +447,11 @@ export default function BackupManager({ show, onClose, t }) {
                     <table className="w-full border-collapse border border-gray-300 dark:border-gray-600">
                       <thead>
                         <tr className="bg-gray-50 dark:bg-gray-700">
-                          <th className="border border-gray-300 dark:border-gray-600 p-3 text-left text-gray-800 dark:text-gray-100">File Name</th>
-                          <th className="border border-gray-300 dark:border-gray-600 p-3 text-left text-gray-800 dark:text-gray-100">Description</th>
-                          <th className="border border-gray-300 dark:border-gray-600 p-3 text-left text-gray-800 dark:text-gray-100">Upload Date</th>
-                          <th className="border border-gray-300 dark:border-gray-600 p-3 text-left text-gray-800 dark:text-gray-100">Size</th>
-                          <th className="border border-gray-300 dark:border-gray-600 p-3 text-left text-gray-800 dark:text-gray-100">Actions</th>
+                          <th className="border border-gray-300 dark:border-gray-600 p-3 text-left text-gray-800 dark:text-gray-100">{t.fileName || 'File Name'}</th>
+                          <th className="border border-gray-300 dark:border-gray-600 p-3 text-left text-gray-800 dark:text-gray-100">{t.description || 'Description'}</th>
+                          <th className="border border-gray-300 dark:border-gray-600 p-3 text-left text-gray-800 dark:text-gray-100">{t.uploadDate || 'Upload Date'}</th>
+                          <th className="border border-gray-300 dark:border-gray-600 p-3 text-left text-gray-800 dark:text-gray-100">{t.size || 'Size'}</th>
+                          <th className="border border-gray-300 dark:border-gray-600 p-3 text-left text-gray-800 dark:text-gray-100">{t.actions || 'Actions'}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -463,30 +463,30 @@ export default function BackupManager({ show, onClose, t }) {
                               {new Date(backup.uploadDate).toLocaleString()}
                             </td>
                             <td className="border border-gray-300 dark:border-gray-600 p-3 text-gray-800 dark:text-gray-200">
-                              {backup.fileSize ? `${Math.round(backup.fileSize / 1024)} KB` : 'Unknown'}
+                              {backup.fileSize ? `${Math.round(backup.fileSize / 1024)} KB` : (t.unknown || 'Unknown')}
                             </td>
                             <td className="border border-gray-300 dark:border-gray-600 p-3">
                               <div className="space-x-2">
                                 <button
                                   onClick={() => downloadBackup(backup)}
                                   className="bg-green-500 text-white px-3 py-1 rounded text-sm hover:bg-green-600 transition-colors"
-                                  title="Download backup file to your computer"
+                                  title={t.downloadBackupFile || 'Download backup file to your computer'}
                                 >
-                                  Download
+                                  {t.download || 'Download'}
                                 </button>
                                 <button
                                   onClick={() => downloadAndRestore(backup)}
                                   className="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600 transition-colors"
-                                  title="Download and restore backup"
+                                  title={t.downloadAndRestore || 'Download and restore backup'}
                                 >
-                                  Download & Restore
+                                  {t.downloadRestore || 'Download & Restore'}
                                 </button>
                                 <button
                                   onClick={() => deleteBackup(backup)}
                                   className="bg-red-500 text-white px-3 py-1 rounded text-sm hover:bg-red-600 transition-colors"
-                                  title="Delete backup from cloud"
+                                  title={t.deleteBackupFromCloud || 'Delete backup from cloud'}
                                 >
-                                  Delete
+                                  {t.delete || 'Delete'}
                                 </button>
                               </div>
                             </td>
@@ -500,23 +500,23 @@ export default function BackupManager({ show, onClose, t }) {
 
               {/* Local Backups Section */}
               <div>
-                <h4 className="font-semibold mb-4 text-gray-800 dark:text-gray-100">💾 Local Backups</h4>
+                <h4 className="font-semibold mb-4 text-gray-800 dark:text-gray-100">💾 {t.localBackups || 'Local Backups'}</h4>
                 <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
                   <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-                    Local backups are stored in your Documents folder under "Mobile Roma BackUp"
+                    {t.localBackupsStored || 'Local backups are stored in your Documents folder under "Mobile Roma BackUp"'}
                   </p>
                   <div className="flex gap-2">
                     <button
                       onClick={openLocalBackupFolder}
                       className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors font-medium"
                     >
-                      Open Backup Folder
+                      {t.openBackupFolder || 'Open Backup Folder'}
                     </button>
                     <button
                       onClick={restoreFromLocalFile}
                       className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium"
                     >
-                      Restore from File
+                      {t.restoreFromFile || 'Restore from File'}
                     </button>
                   </div>
                 </div>

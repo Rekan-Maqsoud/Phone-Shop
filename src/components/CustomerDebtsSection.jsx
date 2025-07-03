@@ -72,12 +72,12 @@ const CustomerDebtsSection = ({
               }}
               className="border rounded-xl px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-400"
             >
-              <option value="date-desc">📅 Newest First</option>
-              <option value="date-asc">📅 Oldest First</option>
-              <option value="amount-desc">💰 Highest Amount</option>
-              <option value="amount-asc">💰 Lowest Amount</option>
-              <option value="customer-asc">👤 Customer A-Z</option>
-              <option value="customer-desc">👤 Customer Z-A</option>
+              <option value="date-desc">📅 {t.newestFirst || 'Newest First'}</option>
+              <option value="date-asc">📅 {t.oldestFirst || 'Oldest First'}</option>
+              <option value="amount-desc">💰 {t.highestAmount || 'Highest Amount'}</option>
+              <option value="amount-asc">💰 {t.lowestAmount || 'Lowest Amount'}</option>
+              <option value="customer-asc">👤 {t.customerAZ || 'Customer A-Z'}</option>
+              <option value="customer-desc">👤 {t.customerZA || 'Customer Z-A'}</option>
             </select>
 
             {/* Paid/Unpaid Toggle */}
@@ -89,7 +89,7 @@ const CustomerDebtsSection = ({
                   : 'bg-red-600 text-white hover:bg-red-700'
               }`}
             >
-              {showPaidDebts ? '✅ Paid Debts' : '💸 Unpaid Debts'}
+              {showPaidDebts ? '✅ ' + (t.debtsPaid || 'Paid Debts') : '💸 ' + (t.unpaidDebts || 'Unpaid Debts')}
             </button>
           </div>
         </div>
@@ -202,7 +202,7 @@ const CustomerDebtsSection = ({
                     {formatCurrency(totalAmount)}
                   </div>
                   <div className="text-sm text-gray-600 dark:text-gray-400">
-                    {showPaidDebts ? 'Total Paid' : 'Total Outstanding'}
+                    {showPaidDebts ? (t.totalPaid || 'Total Paid') : (t.totalOutstanding || 'Total Outstanding')}
                   </div>
                 </div>
                 <div className="text-center">
@@ -245,7 +245,7 @@ const CustomerDebtsSection = ({
                           <div>
                             <h3 className="text-lg font-bold text-gray-800 dark:text-gray-100">{customer}</h3>
                             <div className="text-sm text-gray-600 dark:text-gray-400">
-                              {data.totalTransactions} {data.totalTransactions === 1 ? 'transaction' : 'transactions'}
+                              {data.totalTransactions} {data.totalTransactions === 1 ? (t.singleTransaction || 'transaction') : (t.transactions || 'transactions')}
                               {data.latestDate !== data.oldestDate && (
                                 <span> • {new Date(data.oldestDate).toLocaleDateString()} - {new Date(data.latestDate).toLocaleDateString()}</span>
                               )}
@@ -259,7 +259,7 @@ const CustomerDebtsSection = ({
                               {formatCurrency(data.totalAmount)}
                             </div>
                             <div className="text-sm text-gray-600 dark:text-gray-400">
-                              {showPaidDebts ? 'Paid Amount' : 'Outstanding'}
+                              {showPaidDebts ? (t.paidAmount || 'Paid Amount') : (t.outstandingAmount || 'Outstanding')}
                             </div>
                           </div>
                           
@@ -288,12 +288,12 @@ const CustomerDebtsSection = ({
                                       ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' 
                                       : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
                                   }`}>
-                                    {debt?.paid_at ? '✅ Paid' : '💸 Unpaid'}
+                                    {debt?.paid_at ? '✅ ' + (t.paid || 'Paid') : '💸 ' + (t.unpaid || 'Unpaid')}
                                   </div>
                                 </div>
                                 
                                 <div className="font-semibold text-gray-800 dark:text-gray-100 mb-1">
-                                  {formatCurrency(sale.total)} • {sale.items?.length || 0} items
+                                  {formatCurrency(sale.total)} • {sale.items?.length || 0} {t.itemsCount || 'items'}
                                 </div>
                                 
                                 {debt?.paid_at && (
@@ -352,7 +352,7 @@ const CustomerDebtsSection = ({
                                         }
                                       }}
                                     />
-                                    <span className="text-sm text-green-600 font-medium">💰 Mark Paid</span>
+                                    <span className="text-sm text-green-600 font-medium">💰 {t.markPaid || 'Mark Paid'}</span>
                                   </label>
                                 )}
                               </div>

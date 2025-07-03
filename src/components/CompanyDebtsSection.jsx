@@ -17,7 +17,7 @@ const CompanyDebtsSection = ({
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row gap-4 items-center justify-between mb-6">
-        <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100">{t.companyDebts || 'Company Debts'} - We owe them</h2>
+        <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100">{t.companyDebts || 'Company Debts'}</h2>
         <button
           onClick={() => setShowAddCompanyDebt(true)}
           className="px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition font-semibold"
@@ -90,7 +90,7 @@ const CompanyDebtsSection = ({
           <>
             <div className="bg-white/60 dark:bg-gray-800/80 rounded-2xl p-4 mb-6 shadow border border-white/20">
               <span className="text-lg font-bold text-red-600 dark:text-red-400">
-                Total Company Debt: ${totalCompanyDebt.toFixed(2)}
+                {t.totalCompanyDebt || 'Total Company Debt'}: ${totalCompanyDebt.toFixed(2)}
               </span>
             </div>
             
@@ -118,9 +118,9 @@ const CompanyDebtsSection = ({
                       <div className="flex justify-between items-center">
                         <div>
                           <h3 className="text-xl font-bold">{companyName}</h3>
-                          <p className="text-red-100">
-                            {unpaidDebts.length} unpaid debt{unpaidDebts.length !== 1 ? 's' : ''} • 
-                            {sortedCompanyDebts.length - unpaidDebts.length} paid debt{sortedCompanyDebts.length - unpaidDebts.length !== 1 ? 's' : ''}
+                          <p className="text-gray-400 dark:text-gray-500">
+                            {unpaidDebts.length} {unpaidDebts.length === 1 ? (t.unpaidDebt || 'unpaid debt') : (t.unpaidDebts || 'unpaid debts')} • 
+                            {sortedCompanyDebts.length - unpaidDebts.length} {sortedCompanyDebts.length - unpaidDebts.length === 1 ? (t.paidDebt || 'paid debt') : (t.paidDebts || 'paid debts')}
                           </p>
                         </div>
                         <div className="text-right">
@@ -191,7 +191,7 @@ const CompanyDebtsSection = ({
                                 <button
                                   onClick={() => {
                                     showConfirm(
-                                      `Mark debt to ${debt.company_name} ($${debt.amount.toFixed(2)}) as paid?`,
+                                      `${t.markDebtAsPaidConfirm || 'Mark debt to'} ${debt.company_name} ($${debt.amount.toFixed(2)}) ${t.markAsPaid || 'as paid'}?`,
                                       async () => {
                                         setConfirm({ open: false, message: '', onConfirm: null });
                                         try {

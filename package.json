@@ -1,7 +1,7 @@
 {
   "name": "mobile-roma",
   "private": true,
-  "version": "1.0.33",
+  "version": "1.0.34",
   "main": "src/main.cjs",
   "author": "",
   "license": "MIT",

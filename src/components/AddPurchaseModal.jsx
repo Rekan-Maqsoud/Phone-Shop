@@ -258,7 +258,7 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t }) {
                 <div className="text-2xl mb-2">📝</div>
                 <div className="font-semibold">{t?.buyOnCredit || 'Buy on Credit'}</div>
                 <div className="text-sm text-gray-600 dark:text-gray-400">
-                  {t?.payLater || 'Pay later - creates company debt'}
+                  {t?.payLaterCreatesDebt || 'Pay later - creates company debt'}
                 </div>
               </div>
             </button>
@@ -275,7 +275,7 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t }) {
                 <div className="text-2xl mb-2">💳</div>
                 <div className="font-semibold">{t?.payNow || 'Pay Now'}</div>
                 <div className="text-sm text-gray-600 dark:text-gray-400">
-                  {t?.immediatePayment || 'Immediate payment - goes to buying history'}
+                  {t?.immediatePaymentHistory || 'Immediate payment - goes to buying history'}
                 </div>
               </div>
             </button>
@@ -382,7 +382,6 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t }) {
                           value={item.model}
                           onChange={(value) => updateItem(item.id, 'model', value)}
                           placeholder={item.brand ? (t?.selectModel || 'Select or type model...') : (t?.selectBrandFirst || 'Select brand first')}
-                          disabled={!item.brand}
                         />
                       </div>
                       <div></div> {/* Empty div for grid spacing */}

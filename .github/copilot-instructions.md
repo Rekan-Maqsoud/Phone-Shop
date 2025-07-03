@@ -23,3 +23,10 @@ to make the application.
 ///// news  
 we are finally moving to production ,so the current issues might be working in dev but we have found them not working in production, so please be careful and test everything in production mode before submitting the changes.
 
+found issues:
+ 1- the company debt adding doesnt adabt to both themes correctly
+ 2- cloud backup have fixed texts (hardcoded) that need to be translated
+ 3- adding purchase with items still have problem with suggesting the model after selecting a brand , the model input is always blocked , remove the disabled attribute from the input and make sure it works correctly
+ 4- sales history section also have fixed texts (hardcoded) that need to be translated
+ 5-customer debts section also have fixed texts (hardcoded) that need to be translated
+ 6- remove the text we owe them in company debts section .
