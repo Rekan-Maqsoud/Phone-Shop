@@ -3,7 +3,7 @@ import { useData } from '../contexts/DataContext';
 
 const AdminDashboard = ({ 
   t, 
-  setShowAddPurchase, 
+  openAddPurchaseModal, 
   topSellingProducts, 
   recentSales, 
   criticalStockProducts, 
@@ -97,7 +97,7 @@ const AdminDashboard = ({
             <button
               onClick={() => {
                 
-                setShowAddPurchase(true);
+                openAddPurchaseModal();
               }}
               className="px-6 py-3 bg-white/20 backdrop-blur text-white rounded-xl hover:bg-white/30 transition font-semibold shadow-lg border border-white/20 flex items-center gap-2"
             >

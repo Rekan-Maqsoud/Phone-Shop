@@ -94,7 +94,7 @@ export default function CashierContent({
           ) : (
             <div className="space-y-3">
               {items.map((item, index) => (
-                <div key={index} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 border border-gray-200 dark:border-gray-600">
+                <div key={item.uniqueId || index} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 border border-gray-200 dark:border-gray-600">
                   <div className="flex justify-between items-start mb-2">
                     <div className="flex-1 pr-2">
                       <h3 className="font-medium text-gray-900 dark:text-gray-100 text-sm leading-tight">
@@ -126,7 +126,7 @@ export default function CashierContent({
                       )}
                     </div>
                     <button
-                      onClick={() => deleteItem(index)}
+                      onClick={() => deleteItem(item.uniqueId)}
                       className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 p-1"
                     >
                       ✕

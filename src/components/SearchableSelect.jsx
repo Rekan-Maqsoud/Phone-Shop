@@ -74,6 +74,17 @@ export default function SearchableSelect({
     }
   };
 
+  const handleInputBlur = (e) => {
+    // Delay blur handling to allow for dropdown clicks
+    setTimeout(() => {
+      // Ensure the value is committed when bluring
+      if (onChange && searchTerm !== value) {
+        onChange(searchTerm);
+      }
+      setIsOpen(false);
+    }, 150);
+  };
+
   const handleKeyDown = (e) => {
     if (disabled) return;
     
@@ -103,6 +114,7 @@ export default function SearchableSelect({
         value={searchTerm}
         onChange={handleInputChange}
         onFocus={handleInputFocus}
+        onBlur={handleInputBlur}
         onKeyDown={handleKeyDown}
         placeholder={placeholder}
         disabled={disabled}

@@ -4,7 +4,7 @@ import { useData } from '../contexts/DataContext';
 const CompanyDebtsSection = ({ 
   t, 
   admin, 
-  setShowAddCompanyDebt, 
+  openAddCompanyDebtModal, 
   setSelectedCompanyDebt, 
   setShowEnhancedCompanyDebtModal, 
   showConfirm, 
@@ -19,7 +19,7 @@ const CompanyDebtsSection = ({
       <div className="flex flex-col md:flex-row gap-4 items-center justify-between mb-6">
         <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100">{t.companyDebts || 'Company Debts'}</h2>
         <button
-          onClick={() => setShowAddCompanyDebt(true)}
+          onClick={() => openAddCompanyDebtModal()}
           className="px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition font-semibold"
         >
           ➕ {t.addCompanyDebt || 'Add Company Debt'}
@@ -117,17 +117,17 @@ const CompanyDebtsSection = ({
                     <div className="bg-white/60 dark:bg-gray-800/80 rounded-2xl shadow p-6 border border-white/20">
                       <div className="flex justify-between items-center">
                         <div>
-                          <h3 className="text-xl font-bold">{companyName}</h3>
-                          <p className="text-gray-400 dark:text-gray-500">
+                          <h3 className="text-xl font-bold text-gray-800 dark:text-gray-100">{companyName}</h3>
+                          <p className="text-gray-600 dark:text-gray-400">
                             {unpaidDebts.length} {unpaidDebts.length === 1 ? (t.unpaidDebt || 'unpaid debt') : (t.unpaidDebts || 'unpaid debts')} • 
                             {sortedCompanyDebts.length - unpaidDebts.length} {sortedCompanyDebts.length - unpaidDebts.length === 1 ? (t.paidDebt || 'paid debt') : (t.paidDebts || 'paid debts')}
                           </p>
                         </div>
                         <div className="text-right">
-                          <div className="text-2xl font-bold">
+                          <div className="text-2xl font-bold text-gray-800 dark:text-gray-100">
                             ${totalUnpaidForCompany.toFixed(2)}
                           </div>
-                          <div className="text-red-100 text-sm">
+                          <div className="text-red-600 dark:text-red-400 text-sm">
                             {t.totalOwed || 'Total Owed'}
                           </div>
                         </div>

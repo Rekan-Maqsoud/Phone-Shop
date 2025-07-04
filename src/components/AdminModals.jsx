@@ -5,7 +5,6 @@ import ProductModal from './ProductModal';
 import AccessoryModal from './AccessoryModal';
 import SaleDetailsModal from './SaleDetailsModal';
 import BackupManager from './BackupManager';
-import AddCompanyDebtModal from './AddCompanyDebtModal';
 import AddPurchaseModal from './AddPurchaseModal';
 import ConfirmModal from './ConfirmModal';
 import EnhancedCompanyDebtModal from './EnhancedCompanyDebtModal';
@@ -35,10 +34,9 @@ export default function AdminModals({
   setShowBackupManager,
   
   // Company Debt Modals
-  showAddCompanyDebt,
-  setShowAddCompanyDebt,
   showAddPurchase,
   setShowAddPurchase,
+  isCompanyDebtMode,
   setToast,
   
   // Enhanced Company Debt Modal
@@ -163,56 +161,12 @@ export default function AdminModals({
         onClose={() => admin.setToast(null)}
       />
 
-      <AddCompanyDebtModal
-        show={showAddCompanyDebt}
-        onClose={() => setShowAddCompanyDebt(false)}
-        t={t}
-        onSubmit={async (data) => {
-          setLoading(true);
-          try {
-            let result;
-            
-            if (data.type === 'withItems') {
-              result = await admin.handleAddCompanyDebtWithItems?.(data);
-            } else {
-              result = await window.api?.addCompanyDebt?.(data);
-              
-              // Normalize the result - if we have lastInsertRowid, it was successful
-              if (result && (result.lastInsertRowid || result.success)) {
-                result = { success: true };
-              } else if (!result) {
-                throw new Error('No response from API');
-              } else if (result.error) {
-                throw new Error(result.error);
-              }
-            }
-            
-  
-            
-            if (result?.success) {
-              admin.setToast?.('Company debt added successfully');
-              setShowAddCompanyDebt(false);
-              await refreshCompanyDebts(); // Refresh data context
-              triggerCloudBackup(); // Trigger cloud backup
-            } else {
-              const errorMsg = result?.message || result?.error || 'Unknown error - no success flag returned';
-              console.error('[AdminModals] Failed to add company debt:', errorMsg);
-              admin.setToast?.('Failed to add company debt: ' + errorMsg);
-            }
-          } catch (error) {
-            console.error('[AdminModals] Error adding company debt:', error);
-            admin.setToast?.('Error adding company debt: ' + error.message);
-          } finally {
-            setLoading(false);
-          }
-        }}
-      />
-
       {/* Add Purchase Modal */}
       {showAddPurchase && (
         <AddPurchaseModal
           show={showAddPurchase}
-          onClose={() => setShowAddPurchase(false)}
+          onClose={() => setShowAddPurchase()}
+          isCompanyDebtMode={isCompanyDebtMode}
           onSubmit={async (purchaseData) => {
      
             setLoading(true);
@@ -295,7 +249,7 @@ export default function AdminModals({
                 await admin.fetchAccessories();
               }
               
-              setShowAddPurchase(false);
+              setShowAddPurchase(); // This calls the close function
               setToast(t.purchaseAddedSuccessfully || 'Purchase added successfully!');
               
             } catch (error) {

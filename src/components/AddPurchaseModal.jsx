@@ -1,16 +1,32 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import ModalBase from './ModalBase';
 import { phoneBrands } from './phoneBrands';
 import SearchableSelect from './SearchableSelect';
 
-export default function AddPurchaseModal({ show, onClose, onSubmit, t }) {
+export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompanyDebtMode = false }) {
   const [companyName, setCompanyName] = useState('');
   const [description, setDescription] = useState('');
   const [purchaseType, setPurchaseType] = useState('simple'); // 'simple' or 'withItems'
-  const [paymentStatus, setPaymentStatus] = useState('debt'); // 'debt' or 'paid'
+  const [paymentStatus, setPaymentStatus] = useState(isCompanyDebtMode ? 'debt' : 'debt'); // 'debt' or 'paid'
   const [simpleAmount, setSimpleAmount] = useState('');
   const [items, setItems] = useState([]);
   const [error, setError] = useState('');
+
+  // Reset form when modal opens/closes
+  useEffect(() => {
+    if (!show) {
+      setCompanyName('');
+      setDescription('');
+      setSimpleAmount('');
+      setItems([]);
+      setPurchaseType('simple');
+      setPaymentStatus(isCompanyDebtMode ? 'debt' : 'debt');
+      setError('');
+    } else {
+      // Set the payment status when modal opens
+      setPaymentStatus(isCompanyDebtMode ? 'debt' : 'debt');
+    }
+  }, [show, isCompanyDebtMode]);
 
   // Memoize options to prevent recreating arrays on every render
   const brandOptions = useMemo(() => phoneBrands.map(brand => brand.name), []);
@@ -34,23 +50,26 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t }) {
   };
 
   const updateItem = (id, field, value) => {
-    setItems(items.map(item => {
-      if (item.id === id) {
-        const updatedItem = { ...item, [field]: value };
-        
-        // Auto-generate item_name based on brand and model
-        if (field === 'brand' || field === 'model') {
-          if (updatedItem.item_type === 'product') {
-            updatedItem.item_name = [updatedItem.brand, updatedItem.model].filter(Boolean).join(' ');
-          } else if (updatedItem.item_type === 'accessory') {
-            updatedItem.item_name = [updatedItem.brand, updatedItem.model].filter(Boolean).join(' ');
+    setItems(prevItems => {
+      const newItems = prevItems.map(item => {
+        if (item.id === id) {
+          const updatedItem = { ...item, [field]: value };
+          
+          // Auto-generate item_name based on brand and model
+          if (field === 'brand' || field === 'model') {
+            if (updatedItem.item_type === 'product') {
+              updatedItem.item_name = [updatedItem.brand, updatedItem.model].filter(Boolean).join(' ');
+            } else if (updatedItem.item_type === 'accessory') {
+              updatedItem.item_name = [updatedItem.brand, updatedItem.model].filter(Boolean).join(' ');
+            }
           }
+          
+          return updatedItem;
         }
-        
-        return updatedItem;
-      }
-      return item;
-    }));
+        return item;
+      });
+      return newItems;
+    });
   };
 
   const removeItem = (id) => {
@@ -90,6 +109,14 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t }) {
       };
 
       await onSubmit(purchaseData);
+      
+      // Reset form only on successful submission
+      setCompanyName('');
+      setDescription('');
+      setSimpleAmount('');
+      setItems([]);
+      setPurchaseType('simple');
+      setPaymentStatus('debt');
     } else {
       // Validate items
       if (items.length === 0) {
@@ -97,24 +124,30 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t }) {
         return;
       }
 
-      const invalidItems = items.filter(item => {
+      const invalidItems = items.filter((item, index) => {
         // For products: require brand, model, quantity, and price
         if (item.item_type === 'product') {
-          return !item.brand?.trim() || 
-                 !item.model?.trim() ||
-                 !item.quantity || 
-                 parseInt(item.quantity) <= 0 || 
-                 !item.unit_price || 
-                 parseFloat(item.unit_price) <= 0;
+          const validations = {
+            brand: !item.brand?.trim(),
+            model: !item.model?.trim(),
+            quantity: !item.quantity || parseInt(item.quantity) <= 0,
+            unitPrice: !item.unit_price || parseFloat(item.unit_price) <= 0
+          };
+          
+          const isInvalid = validations.brand || validations.model || validations.quantity || validations.unitPrice;
+          return isInvalid;
         }
-        // For accessories: require brand, model, quantity, and price
+        // For accessories: require brand, model, quantity, and price (type is optional)
         else if (item.item_type === 'accessory') {
-          return !item.brand?.trim() || 
-                 !item.model?.trim() ||
-                 !item.quantity || 
-                 parseInt(item.quantity) <= 0 || 
-                 !item.unit_price || 
-                 parseFloat(item.unit_price) <= 0;
+          const validations = {
+            brand: !item.brand?.trim(),
+            model: !item.model?.trim(),
+            quantity: !item.quantity || parseInt(item.quantity) <= 0,
+            unitPrice: !item.unit_price || parseFloat(item.unit_price) <= 0
+          };
+          
+          const isInvalid = validations.brand || validations.model || validations.quantity || validations.unitPrice;
+          return isInvalid;
         }
         return true;
       });
@@ -147,15 +180,15 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t }) {
       };
 
       await onSubmit(purchaseData);
+      
+      // Reset form only on successful submission
+      setCompanyName('');
+      setDescription('');
+      setSimpleAmount('');
+      setItems([]);
+      setPurchaseType('simple');
+      setPaymentStatus('debt');
     }
-
-    // Reset form
-    setCompanyName('');
-    setDescription('');
-    setSimpleAmount('');
-    setItems([]);
-    setPurchaseType('simple');
-    setPaymentStatus('debt');
   };
 
   if (!show) return null;
@@ -165,7 +198,7 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t }) {
       <div className="max-h-[80vh] overflow-y-auto">
         <form onSubmit={handleSubmit} className="space-y-6">
           <h2 className="text-2xl font-bold mb-4 text-gray-800 dark:text-gray-100">
-            ➕ {t?.addPurchase || 'Add Purchase'}
+            ➕ {isCompanyDebtMode ? (t?.addCompanyDebt || 'Add Company Debt') : (t?.addPurchase || 'Add Purchase')}
           </h2>
 
         {/* Company Name */}
@@ -240,47 +273,67 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t }) {
         </div>
 
         {/* Payment Status Selection */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-            {t?.paymentStatus || 'Payment Status'}
-          </label>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <button
-              type="button"
-              onClick={() => setPaymentStatus('debt')}
-              className={`p-4 rounded-xl border-2 transition-all ${
-                paymentStatus === 'debt'
-                  ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300'
-                  : 'border-gray-300 dark:border-gray-600 hover:border-orange-300 dark:hover:border-orange-500'
-              }`}
-            >
+        {!isCompanyDebtMode && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+              {t?.paymentStatus || 'Payment Status'}
+            </label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setPaymentStatus('debt')}
+                className={`p-4 rounded-xl border-2 transition-all ${
+                  paymentStatus === 'debt'
+                    ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300'
+                    : 'border-gray-300 dark:border-gray-600 hover:border-orange-300 dark:hover:border-orange-500'
+                }`}
+              >
+                <div className="text-center">
+                  <div className="text-2xl mb-2">📝</div>
+                  <div className="font-semibold">{t?.buyOnCredit || 'Buy on Credit'}</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">
+                    {t?.payLaterCreatesDebt || 'Pay later - creates company debt'}
+                  </div>
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setPaymentStatus('paid')}
+                className={`p-4 rounded-xl border-2 transition-all ${
+                  paymentStatus === 'paid'
+                    ? 'border-green-500 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300'
+                    : 'border-gray-300 dark:border-gray-600 hover:border-green-300 dark:hover:border-green-500'
+                }`}
+              >
+                <div className="text-center">
+                  <div className="text-2xl mb-2">💳</div>
+                  <div className="font-semibold">{t?.payNow || 'Pay Now'}</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">
+                    {t?.immediatePaymentHistory || 'Immediate payment - goes to buying history'}
+                  </div>
+                </div>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Show locked payment status for company debt mode */}
+        {isCompanyDebtMode && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+              {t?.paymentStatus || 'Payment Status'}
+            </label>
+            <div className="p-4 rounded-xl border-2 border-orange-500 bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300">
               <div className="text-center">
                 <div className="text-2xl mb-2">📝</div>
                 <div className="font-semibold">{t?.buyOnCredit || 'Buy on Credit'}</div>
                 <div className="text-sm text-gray-600 dark:text-gray-400">
-                  {t?.payLaterCreatesDebt || 'Pay later - creates company debt'}
+                  {t?.companyDebtMode || 'Company debt mode - payment will be tracked as unpaid debt'}
                 </div>
               </div>
-            </button>
-            <button
-              type="button"
-              onClick={() => setPaymentStatus('paid')}
-              className={`p-4 rounded-xl border-2 transition-all ${
-                paymentStatus === 'paid'
-                  ? 'border-green-500 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300'
-                  : 'border-gray-300 dark:border-gray-600 hover:border-green-300 dark:hover:border-green-500'
-              }`}
-            >
-              <div className="text-center">
-                <div className="text-2xl mb-2">💳</div>
-                <div className="font-semibold">{t?.payNow || 'Pay Now'}</div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">
-                  {t?.immediatePaymentHistory || 'Immediate payment - goes to buying history'}
-                </div>
-              </div>
-            </button>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Simple Purchase Amount */}
         {purchaseType === 'simple' && (
@@ -519,37 +572,6 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t }) {
             )}
           </div>
         )}
-
-        {/* Payment Status */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            {t?.paymentStatus || 'Payment Status'}
-          </label>
-          <div className="flex gap-3">
-            <button
-              type="button"
-              onClick={() => setPaymentStatus('debt')}
-              className={`flex-1 px-4 py-2 rounded-lg transition-all flex items-center justify-center gap-2 font-semibold ${
-                paymentStatus === 'debt'
-                  ? 'bg-red-50 border-red-500 text-red-700 dark:bg-red-900/20 dark:border-red-700'
-                  : 'bg-gray-100 border-gray-300 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              {paymentStatus === 'debt' && '✅'} {t?.debt || 'Debt'}
-            </button>
-            <button
-              type="button"
-              onClick={() => setPaymentStatus('paid')}
-              className={`flex-1 px-4 py-2 rounded-lg transition-all flex items-center justify-center gap-2 font-semibold ${
-                paymentStatus === 'paid'
-                  ? 'bg-green-50 border-green-500 text-green-700 dark:bg-green-900/20 dark:border-green-700'
-                  : 'bg-gray-100 border-gray-300 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              {paymentStatus === 'paid' && '✅'} {t?.paid || 'Paid'}
-            </button>
-          </div>
-        </div>
 
         {error && (
           <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">

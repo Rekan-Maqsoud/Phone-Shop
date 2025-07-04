@@ -110,17 +110,17 @@ export default function SalesHistoryTable({ sales, t, onView, onPrintLast, onRet
                 <th className="px-4 py-2 text-gray-800 dark:text-white cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700" onClick={() => setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')}>
                   {t.date} {sortOrder === 'desc' ? '↓' : '↑'}
                 </th>
-                <th className="px-4 py-2 text-gray-800 dark:text-white">Customer</th>
+                <th className="px-4 py-2 text-gray-800 dark:text-white">{t.customer}</th>
                 <th className="px-4 py-2 text-gray-800 dark:text-white">{t.total}</th>
-                <th className="px-4 py-2 text-gray-800 dark:text-white">Buying Price</th>
-                <th className="px-4 py-2 text-gray-800 dark:text-white">Selling Price</th>
-                <th className="px-4 py-2 text-gray-800 dark:text-white">Profit</th>
+                <th className="px-4 py-2 text-gray-800 dark:text-white">{t.buyingPrice}</th>
+                <th className="px-4 py-2 text-gray-800 dark:text-white">{t.sellingPrice}</th>
+                <th className="px-4 py-2 text-gray-800 dark:text-white">{t.profit}</th>
                 <th className="px-4 py-2 text-gray-800 dark:text-white">{t.action}</th>
               </tr>
             </thead>
             <tbody>
               {sortedSales.length === 0 ? (
-                <tr><td colSpan={8} className="text-center text-gray-400 py-4">No sales</td></tr>
+                <tr><td colSpan={8} className="text-center text-gray-400 py-4">{t.noSales}</td></tr>
               ) : sortedSales.map((s, idx) => {
             const { totalBuying, totalSelling, totalProfit } = getTotals(s);
             const fmt = n => n != null ? `$${(+n).toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '-';
@@ -141,7 +141,7 @@ export default function SalesHistoryTable({ sales, t, onView, onPrintLast, onRet
                       className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-400 transition"
                       title="Return this sale"
                     >
-                      Return
+                      {t.returnSale}
                     </button>
                   </div>
                 </td>

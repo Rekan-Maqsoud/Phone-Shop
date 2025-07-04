@@ -409,7 +409,6 @@ const translations = {
     restoreFromFile: 'Restore from File',
     
     // Company debts section
-    weOweThem: 'We owe them',
     markAsPaid: 'Mark as Paid',
     viewDetails: 'View Details',
     totalCompanyDebt: 'Total Company Debt',
@@ -439,6 +438,10 @@ const translations = {
     selectModel: 'Select or type model...',
     payLaterCreatesDebt: 'Pay later - creates company debt',
     immediatePaymentHistory: 'Immediate payment - goes to buying history',
+
+    // Sales history hardcoded text translations
+    noSales: 'No sales',
+    returnSale: 'Return',
 
   },
   ku: {
@@ -845,7 +848,6 @@ const translations = {
     restoreFromFile: 'گەڕاندنەوە لە فایل',
     
     // Company debts section
-    weOweThem: 'ئێمە قەرزاریانین',
     markAsPaid: 'نیشانکردن وەک پارە دراو',
     viewDetails: 'بینینی وردەکاری',
     totalCompanyDebt: 'کۆی قەرزی کۆمپانیا',
@@ -875,6 +877,10 @@ const translations = {
     selectModel: 'مۆدێل هەڵبژێرە یان بنووسە...',
     payLaterCreatesDebt: 'دواتر پارە بدە - قەرزی کۆمپانیا دروست دەکات',
     immediatePaymentHistory: 'پارەدانی ڕاستەوخۆ - دەچێتە مێژووی کڕین',
+
+    // Sales history hardcoded text translations
+    noSales: 'هیچ فرۆشتنێک نییە',
+    returnSale: 'گەڕاندنەوە',
 
   },
   ar: {
@@ -1281,7 +1287,6 @@ const translations = {
     restoreFromFile: 'استعادة من ملف',
     
     // Company debts section
-    weOweThem: 'نحن مدينون لهم',
     markAsPaid: 'تمييز كمدفوع',
     viewDetails: 'عرض التفاصيل',
     totalCompanyDebt: 'إجمالي دين الشركة',
@@ -1311,6 +1316,10 @@ const translations = {
     selectModel: 'اختر أو اكتب الموديل...',
     payLaterCreatesDebt: 'ادفع لاحقاً - ينشئ دين شركة',
     immediatePaymentHistory: 'الدفع الفوري - يذهب إلى تاريخ الشراء',
+
+    // Sales history hardcoded text translations
+    noSales: 'لا توجد مبيعات',
+    returnSale: 'إرجاع',
 
   },
 };

@@ -30,8 +30,8 @@ export default function Admin() {
   const [debtSearch, setDebtSearch] = useState('');
   const [showPaidDebts, setShowPaidDebts] = useState(false);
   const [showBackupManager, setShowBackupManager] = useState(false);
-  const [showAddCompanyDebt, setShowAddCompanyDebt] = useState(false);
   const [showAddPurchase, setShowAddPurchase] = useState(false);
+  const [isCompanyDebtMode, setIsCompanyDebtMode] = useState(false); // Track if modal is for company debt
   const [showEnhancedCompanyDebtModal, setShowEnhancedCompanyDebtModal] = useState(false);
   const [selectedCompanyDebt, setSelectedCompanyDebt] = useState(null);
   const [confirm, setConfirm] = useState({ open: false, message: '', onConfirm: null });
@@ -218,6 +218,22 @@ export default function Admin() {
     }
   }, [admin.toast, admin.setToast]);
 
+  // Helper functions to manage company debt mode
+  const openAddPurchaseModal = useCallback(() => {
+    setIsCompanyDebtMode(false);
+    setShowAddPurchase(true);
+  }, []);
+
+  const openAddCompanyDebtModal = useCallback(() => {
+    setIsCompanyDebtMode(true);
+    setShowAddPurchase(true);
+  }, []);
+
+  const closeAddPurchaseModal = useCallback(() => {
+    setShowAddPurchase(false);
+    setIsCompanyDebtMode(false);
+  }, []);
+
   // --- Redesigned UI ---
   return (
     <div
@@ -245,7 +261,7 @@ export default function Admin() {
               <AdminDashboard 
                 t={t}
                 admin={admin}
-                setShowAddPurchase={setShowAddPurchase}
+                openAddPurchaseModal={openAddPurchaseModal}
                 topSellingProducts={topSellingProducts}
                 recentSales={recentSales}
                 criticalStockProducts={criticalStockProducts}
@@ -297,7 +313,7 @@ export default function Admin() {
               <BuyingHistorySection 
                 t={t}
                 admin={admin}
-                setShowAddPurchase={setShowAddPurchase}
+                openAddPurchaseModal={openAddPurchaseModal}
               />
             )}
             {section === 'customerDebts' && (
@@ -316,7 +332,7 @@ export default function Admin() {
               <CompanyDebtsSection 
                 t={t}
                 admin={admin}
-                setShowAddCompanyDebt={setShowAddCompanyDebt}
+                openAddCompanyDebtModal={openAddCompanyDebtModal}
                 setSelectedCompanyDebt={setSelectedCompanyDebt}
                 setShowEnhancedCompanyDebtModal={setShowEnhancedCompanyDebtModal}
                 showConfirm={showConfirm}
@@ -352,10 +368,9 @@ export default function Admin() {
         setLoading={setLoading}
         showBackupManager={showBackupManager}
         setShowBackupManager={setShowBackupManager}
-        showAddCompanyDebt={showAddCompanyDebt}
-        setShowAddCompanyDebt={setShowAddCompanyDebt}
         showAddPurchase={showAddPurchase}
-        setShowAddPurchase={setShowAddPurchase}
+        setShowAddPurchase={closeAddPurchaseModal}
+        isCompanyDebtMode={isCompanyDebtMode}
         setToast={admin.setToast}
         showEnhancedCompanyDebtModal={showEnhancedCompanyDebtModal}
         setShowEnhancedCompanyDebtModal={setShowEnhancedCompanyDebtModal}
