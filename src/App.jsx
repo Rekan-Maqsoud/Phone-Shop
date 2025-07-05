@@ -4,6 +4,7 @@ import { ThemeProvider } from './contexts/ThemeContext';
 import { LocaleProvider } from './contexts/LocaleContext';
 import { DataProvider } from './contexts/DataContext';
 import { SoundProvider } from './contexts/SoundContext';
+import { BackupProgressProvider, BackupProgressOverlay } from './contexts/BackupProgressContext';
 import Cashier from './pages/Cashier';
 import Admin from './pages/Admin';
 import ToastUnified from './components/ToastUnified';
@@ -159,17 +160,20 @@ function App() {
       <LocaleProvider>
         <SoundProvider>
           <DataProvider>
-            <div className="min-h-screen bg-gray-100">
-              <RouterProvider router={router} />
-              {globalToast && (
-                <ToastUnified
-                  message={globalToast.msg}
-                  type={globalToast.type}
-                  duration={globalToast.duration}
-                  onClose={handleCloseToast}
-                />
-              )}
-            </div>
+            <BackupProgressProvider>
+              <div className="min-h-screen bg-gray-100">
+                <RouterProvider router={router} />
+                <BackupProgressOverlay />
+                {globalToast && (
+                  <ToastUnified
+                    message={globalToast.msg}
+                    type={globalToast.type}
+                    duration={globalToast.duration}
+                    onClose={handleCloseToast}
+                  />
+                )}
+              </div>
+            </BackupProgressProvider>
           </DataProvider>
         </SoundProvider>
       </LocaleProvider>

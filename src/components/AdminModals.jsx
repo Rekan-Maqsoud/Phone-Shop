@@ -131,7 +131,7 @@ export default function AdminModals({
                   // Close the sale view after successful return
                   admin.setViewSale(null);
                   
-                  triggerCloudBackup(); // Trigger cloud backup
+                  triggerCloudBackup();
                 } else {
                   admin.setToast?.('Failed to return item: ' + (result?.message || 'Unknown error'));
                 }

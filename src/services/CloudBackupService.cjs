@@ -140,8 +140,18 @@ class CloudBackupService {
         // Try to upload directly with buffer first using our File polyfill
         let file;
         try {
+          // Validate buffer before upload
+          if (!dbBuffer || dbBuffer.length === 0) {
+            throw new Error('Database buffer is empty or invalid');
+          }
+          
           // For newer versions of AppWrite, try direct buffer upload
           const fileObj = new File([dbBuffer], fileName, { type: 'application/vnd.sqlite3' });
+          
+          // Validate File object
+          if (!fileObj || fileObj.size === 0) {
+            throw new Error('Failed to create valid File object from buffer');
+          }
           
           file = await this.storage.createFile(
             this.BACKUP_BUCKET_ID,
@@ -182,12 +192,13 @@ class CloudBackupService {
 
           try {
             // Create readable stream for upload
-            const fileStream = fs.createReadStream(tempPath);
+            const fileBuffer = fs.readFileSync(tempPath);
+            const finalFileObj = new File([fileBuffer], fileName, { type: 'application/vnd.sqlite3' });
             
             file = await this.storage.createFile(
               this.BACKUP_BUCKET_ID,
               fileId,
-              fileStream,
+              finalFileObj,
               []
             );
           } finally {
@@ -458,15 +469,18 @@ class CloudBackupService {
     }
 
     try {
-      // First, delete any existing auto backups
-      await this.deleteOldAutoBackups();
+      // First, delete any existing auto backups in background
+      this.deleteOldAutoBackups().catch(error => {
+        console.error('[CloudBackupService] Background cleanup failed:', error);
+      });
       
       // Create the new auto backup
       const description = `Auto backup - ${new Date().toISOString()}`;
       return await this.createBackup(dbPath, description);
     } catch (error) {
       console.error('[CloudBackupService] Auto backup failed:', error);
-      return { success: false, message: error.message };
+      // Don't fail - just log and continue
+      return { success: false, message: error.message, silent: true };
     }
   }
 

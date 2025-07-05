@@ -99,19 +99,19 @@ const MonthlyReportsSection = ({
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600 dark:text-gray-400">{t.productProfit || 'Product Profit'}:</span>
-                      <span className="font-bold text-green-600 dark:text-green-400">${productProfit.toFixed(2)}</span>
+                      <span className="font-bold text-green-600 dark:text-green-400">${Number(productProfit).toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600 dark:text-gray-400">{t.accessoryProfit || 'Accessory Profit'}:</span>
-                      <span className="font-bold text-green-600 dark:text-green-400">${accessoryProfit.toFixed(2)}</span>
+                      <span className="font-bold text-green-600 dark:text-green-400">${Number(accessoryProfit).toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600 dark:text-gray-400">{t.totalProfit || 'Total Profit'}:</span>
-                      <span className="font-bold text-emerald-600 dark:text-emerald-400">${totalProfit.toFixed(2)}</span>
+                      <span className="font-bold text-emerald-600 dark:text-emerald-400">${Number(totalProfit).toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600 dark:text-gray-400">{t.totalSpent || 'Total Spent'}:</span>
-                      <span className="font-bold text-red-600 dark:text-red-400">${actualTotalSpent.toFixed(2)}</span>
+                      <span className="font-bold text-red-600 dark:text-red-400">${Number(actualTotalSpent).toFixed(2)}</span>
                     </div>
                   </div>
                 </div>

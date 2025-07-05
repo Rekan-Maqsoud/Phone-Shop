@@ -41,7 +41,7 @@ export default function SalesHistorySection({
                 // Force a small delay to ensure state updates are applied
                 await new Promise(resolve => setTimeout(resolve, 100));
                 
-                triggerCloudBackup(); // Trigger cloud backup
+                triggerCloudBackup();
               } else {
                 admin.setToast?.('Failed to return sale: ' + (result?.message || 'Unknown error'));
               }

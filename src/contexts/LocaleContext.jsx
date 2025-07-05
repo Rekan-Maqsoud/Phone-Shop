@@ -522,7 +522,7 @@ const translations = {
     stockLabel: 'کۆگا',
     quantity: 'ژمارە',
     total: 'کۆی گشتی',
-    items: 'بڕگە',
+    items: 'کاڵا',
     of: 'لە',
     unknown: 'نەزانراو',
     
@@ -548,7 +548,7 @@ const translations = {
     multipleProductsFound: 'چەندین بەرهەم دۆزرایەوە',
     
     // Stock messages
-    outOfStock: 'کۆگا تەواو بووە',
+    outOfStock: 'لە کۆگا تەواو بووە',
     inStock: 'لە کۆگا',
     lowStock: 'کۆگا کەم (≤5)',
     allStock: 'هەموو کۆگا',
@@ -563,7 +563,7 @@ const translations = {
     tryDifferentFilters: 'هەوڵی گۆڕینی گەڕان یان فلتەرەکان بدە',
     
     // Sale messages
-    offlineWarning: '⚠️ تۆ ئۆفلاینیت! ئەم فرۆشتنە پاشەکەوت ناکرێت بۆ کلاود تا پەیوەندی گەڕێندرێتەوە.',
+    offlineWarning: '⚠️ تۆ ئۆفلاینیت! ئەم فرۆشتنە پاشەکەوت ناکرێت بۆ کلاود تا ئەنتەرێت دەگەڕێندرێتەوە.',
     warningSellingBelowCost: '⚠️ ئاگاداری: فرۆشتن بە کەمتر لە نرخی کڕین!',
     continueAnyway: 'ئەمە زیانێکی لێدەکەوێت. بەردەوامبوون؟',
     cannotCompleteNegativeTotal: 'ناکرێت فرۆشتن بە کۆی منفی تەواو بکرێت',
@@ -593,7 +593,7 @@ const translations = {
     // Admin Page
     dashboard: 'داشبۆرد',
     products: 'بەرهەمەکان',
-    archivedProducts: 'ئارشیو کراوەکان',
+    archivedProducts: 'ئارشیف کراوەکان',
     salesHistory: 'مێژووی فرۆشتن',
     buyingHistory: 'مێژووی کڕین',
     customerDebts: 'قەرزی کڕیارەکان',
@@ -617,16 +617,16 @@ const translations = {
 
     // Admin notifications
     lowStockAlert: 'ئاگاداری کۆگای کەم',
-    archiving: 'ئارشیو کردن',
-    unarchiving: 'لە ئارشیو دەرهێنان',
-    archiveUnarchiveFailed: 'ئارشیو کردن/لە ئارشیو دەرهێنان شکستی هێنا (وەڵامی نەهات).',
-    productArchived: 'بڕگە ئارشیو کرا!',
-    productUnarchived: 'بڕگە لە ئارشیو دەرهێنرا!',
-    archiveFailed: 'ئارشیو کردن شکستی هێنا.',
-    unarchiveFailed: 'لە ئارشیو دەرهێنان شکستی هێنا.',
+    archiving: 'ئارشیف کردن',
+    unarchiving: 'لە ئارشیف دەرهێنان',
+    archiveUnarchiveFailed: 'ئارشیف کردن/لە ئارشیف دەرهێنان شکستی هێنا (وەڵامی نەهات).',
+    productArchived: 'بڕگە ئارشیف کرا!',
+    productUnarchived: 'بڕگە لە ئارشیف دەرهێنرا!',
+    archiveFailed: 'ئارشیف کردن شکستی هێنا.',
+    unarchiveFailed: 'لە ئارشیف دەرهێنان شکستی هێنا.',
     
     // Dashboard
-    businessOverview: 'گشتی بازرگانی',
+    businessOverview: 'بینینی گشتی بازرگانیەکان ',
     dashboardWelcome: 'بەخێرهاتن بۆ داشبۆردی بازرگانیت',
     addPurchase: 'زیادکردنی کڕین',
     reloadApp: 'دووبارە بارکردنی زانیاری بەرنامە',
@@ -669,20 +669,20 @@ const translations = {
     active: 'چالاک',
     totalCount: 'کۆی گشتی',
     unpaid: 'نەدراو',
-    archived: 'ئارشیو کراو',
+    archived: 'ئارشیف کراو',
     
     // Product table
     search: 'گەڕان...',
     action: 'کردار',
     noArchivedProducts: 'هیچ بەرهەمی ئارشیو کراو نییە',
     low: 'کەم',
-    edit: 'گۆڕان',
-    archive: 'ئارشیو کردن',
-    unarchive: 'لە ئارشیو دەرهێنان',
+    edit: 'گۆڕین',
+    archive: 'ئارشیف کردن',
+    unarchive: 'لە ئارشیف دەرهێنان',
     
     // Quick add product
     company: 'کۆمپانیا',
-    other: 'دیکە',
+    other: 'هیتر',
     ramPlaceholder: 'RAM (نموونە: 8GB)',
     storagePlaceholder: 'بیرگە (نموونە: 128GB)',
     addProduct: 'زیادکردنی بەرهەم',
@@ -724,15 +724,15 @@ const translations = {
     
     // Accessory modal dropdowns
     selectType: 'جۆر هەڵبژێرە',
-    headphones: 'قولاقگرەکان',
-    earbuds: 'قولاقگری بچووک',
-    charger: 'شارجەر',
-    cable: 'کابل',
-    case: 'کیس',
+    headphones: 'هێدفۆن',
+    earbuds: 'هێدفۆنی بچووک',
+    charger: 'بارگاوی کەرەوە',
+    cable: 'کەیبڵ',
+    case: 'کەیس',
     screenProtector: 'پاریزەری شاشە',
     powerBank: 'پاوەر بانک',
-    wirelessCharger: 'شارجەری بێ وایەر',
-    speaker: 'بەربڕ',
+    wirelessCharger: 'بارگاوی کەرەوەی بێ وایەر',
+    speaker: 'سپیکەر',
     smartwatch: 'کاتژمێری زیرەک',
     enterNameModel: 'ناو/مۆدێلی ئامێری یارمەتیدەر بنووسە',
     

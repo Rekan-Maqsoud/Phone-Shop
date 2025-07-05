@@ -176,7 +176,7 @@ const AccessoriesSection = ({
                     </td>
                     <td className="px-6 py-4 text-gray-700 dark:text-gray-300">{accessory.brand || '-'}</td>
                     <td className="px-6 py-4 text-gray-700 dark:text-gray-300">{accessory.type || '-'}</td>
-                    <td className="px-6 py-4 text-blue-600 dark:text-blue-400 font-semibold">${accessory.buying_price || 0}</td>
+                    <td className="px-6 py-4 text-blue-600 dark:text-blue-400 font-semibold">${Number(accessory.buying_price || 0).toFixed(2)}</td>
                     <td className="px-6 py-4">
                       <span className={`px-2 py-1 rounded-full text-sm font-medium ${
                         accessory.stock <= 2 ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :

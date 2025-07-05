@@ -51,8 +51,10 @@ export default function HistorySearchFilter({
   // Helper to format date for comparison
   const formatDateForComparison = (day, month, year) => {
     if (!day || !month || !year) return null;
-    const date = new Date(year, month - 1, day);
-    return date.toISOString().split('T')[0];
+    // Format as YYYY-MM-DD without timezone conversion
+    const paddedMonth = String(month).padStart(2, '0');
+    const paddedDay = String(day).padStart(2, '0');
+    return `${year}-${paddedMonth}-${paddedDay}`;
   };
 
   // Helper function to get date ranges for preset periods
@@ -138,23 +140,28 @@ export default function HistorySearchFilter({
       }
     } else if (searchType === 'week' && startDay && startMonth && startYear) {
       // Week filtering - from start of week to end of week
-      const weekStart = new Date(startYear, startMonth - 1, startDay);
-      const weekEnd = new Date(startYear, startMonth - 1, startDay);
-      weekEnd.setDate(weekEnd.getDate() + 6); // Add 6 days to get end of week
-      
-      filtered = filtered.filter(item => {
-        const itemDate = new Date(item[dateField]);
-        return itemDate >= weekStart && itemDate <= weekEnd;
-      });
+      const weekStart = formatDateForComparison(startDay, startMonth, startYear);
+      if (weekStart) {
+        const startDate = new Date(startYear, startMonth - 1, startDay);
+        const endDate = new Date(startYear, startMonth - 1, startDay + 6);
+        const weekEnd = formatDateForComparison(endDate.getDate(), endDate.getMonth() + 1, endDate.getFullYear());
+        
+        filtered = filtered.filter(item => {
+          const itemDate = new Date(item[dateField]).toISOString().split('T')[0];
+          return itemDate >= weekStart && itemDate <= weekEnd;
+        });
+      }
     } else if (searchType === 'range' && startDay && startMonth && startYear && endDay && endMonth && endYear) {
       // Range filtering
-      const rangeStart = new Date(startYear, startMonth - 1, startDay);
-      const rangeEnd = new Date(endYear, endMonth - 1, endDay, 23, 59, 59, 999); // Include end date
+      const rangeStart = formatDateForComparison(startDay, startMonth, startYear);
+      const rangeEnd = formatDateForComparison(endDay, endMonth, endYear);
       
-      filtered = filtered.filter(item => {
-        const itemDate = new Date(item[dateField]);
-        return itemDate >= rangeStart && itemDate <= rangeEnd;
-      });
+      if (rangeStart && rangeEnd) {
+        filtered = filtered.filter(item => {
+          const itemDate = new Date(item[dateField]).toISOString().split('T')[0];
+          return itemDate >= rangeStart && itemDate <= rangeEnd;
+        });
+      }
     }
 
     return filtered;
@@ -233,14 +240,6 @@ export default function HistorySearchFilter({
                 className="w-full border rounded-xl px-4 py-2 pl-10 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-600 transition"
               />
               <span className="absolute left-3 top-2.5 text-gray-400">🔍</span>
-              {searchTerm && (
-                <button
-                  onClick={() => setSearchTerm('')}
-                  className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600"
-                >
-                  ✕
-                </button>
-              )}
             </div>
           </div>
         )}

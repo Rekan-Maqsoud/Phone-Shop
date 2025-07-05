@@ -57,7 +57,7 @@ const ProductTable = React.memo(function ProductTable({
               </td>
               <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">{p.ram || '-'}</td>
               <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">{p.storage || '-'}</td>
-              <td className="px-4 py-2">${p.price}</td>
+              <td className="px-4 py-2">${Number(p.price).toFixed(2)}</td>
               <td className={`px-4 py-2 ${!isArchived && p.stock < lowStockThreshold ? 'text-red-600 font-bold' : ''}`}>{p.stock}</td>
               <td className="px-4 py-2 flex gap-2">
                 {!isArchived ? (

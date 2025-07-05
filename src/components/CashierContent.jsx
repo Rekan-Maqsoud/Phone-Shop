@@ -1,4 +1,5 @@
 import React, { useMemo, useState, memo } from 'react';
+import { playWarningSound } from '../utils/sounds';
 
 export default function CashierContent({
   t,
@@ -179,9 +180,7 @@ export default function CashierContent({
                             
                             // Sound alert and red text if selling under buying price
                             if (newPrice < (item.buying_price || 0)) {
-                              import('../utils/sounds.js').then(({ playWarningSound }) => {
-                                playWarningSound();
-                              });
+                              playWarningSound();
                             }
                           }}
                           className={`w-16 text-xs text-right bg-transparent border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500 ${
@@ -593,7 +592,7 @@ const ProductCard = memo(function ProductCard({ item, t, addOrUpdateItem, showTo
       {/* Price and Stock */}
       <div className="flex justify-between items-center mb-3">
         <span className="text-lg font-bold text-green-600 dark:text-green-400">
-          ${item.price || item.buying_price || 0}
+          ${Number(item.price || item.buying_price || 0).toFixed(2)}
         </span>
         <span className={`text-sm font-semibold ${isOutOfStock ? 'text-red-500' : isLowStock ? 'text-orange-500' : 'text-blue-600 dark:text-blue-400'}`}>
           {item.stock}

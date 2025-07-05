@@ -138,7 +138,7 @@ const AdminDashboard = ({
             <span className="text-3xl">💰</span>
             <span className="text-green-100 text-sm">{t.today}</span>
           </div>
-          <div className="text-2xl font-bold">{formatCurrency(metrics.todaysRevenue)}</div>
+          <div className="text-2xl font-bold">{formatCurrency(Number(metrics.todaysRevenue))}</div>
           <div className="text-green-100 text-sm">{metrics.todaysTransactions} {t.transactions}</div>
         </div>
 
@@ -148,7 +148,7 @@ const AdminDashboard = ({
             <span className="text-3xl">📈</span>
             <span className="text-blue-100 text-sm">{t.thisWeek}</span>
           </div>
-          <div className="text-2xl font-bold">{formatCurrency(metrics.thisWeeksRevenue)}</div>
+          <div className="text-2xl font-bold">{formatCurrency(Number(metrics.thisWeeksRevenue))}</div>
           <div className="text-blue-100 text-sm">{t.weeklyRevenue}</div>
         </div>
 
@@ -158,7 +158,7 @@ const AdminDashboard = ({
             <span className="text-3xl">⚠️</span>
             <span className="text-orange-100 text-sm">{t.outstanding}</span>
           </div>
-          <div className="text-2xl font-bold">{formatCurrency(metrics.totalUnpaidAmount)}</div>
+          <div className="text-2xl font-bold">{formatCurrency(Number(metrics.totalUnpaidAmount))}</div>
           <div className="text-orange-100 text-sm">{metrics.unpaidDebtsCount} {t.unpaidDebts}</div>
         </div>
 
@@ -168,7 +168,7 @@ const AdminDashboard = ({
             <span className="text-3xl">📦</span>
             <span className="text-purple-100 text-sm">{t.inventory}</span>
           </div>
-          <div className="text-2xl font-bold">{metrics.activeProducts + metrics.activeAccessories}</div>
+          <div className="text-2xl font-bold">{Number(metrics.activeProducts + metrics.activeAccessories).toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
           <div className="text-purple-100 text-sm">
             {metrics.lowStockCount > 0 ? `${metrics.lowStockCount} ${t.lowStockText}` : t.allStocksHealthy}
           </div>
@@ -200,11 +200,11 @@ const AdminDashboard = ({
                   </div>
                   <div>
                     <div className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate max-w-[150px]">{name}</div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">{formatCurrency(data.revenue || 0)} {t.revenue}</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">{formatCurrency(Number(data.revenue || 0))} {t.revenue}</div>
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="text-lg font-bold text-green-600 dark:text-green-400">{data.quantity}</div>
+                  <div className="text-lg font-bold text-green-600 dark:text-green-400">{Number(data.quantity).toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
                   <div className="text-xs text-gray-500 dark:text-gray-400">{t.sold}</div>
                 </div>
               </div>
@@ -296,7 +296,7 @@ const AdminDashboard = ({
                     </div>
                     <div>
                       <div className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate max-w-[120px]">{product.name}</div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400">{formatCurrency(product.price)}</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">{formatCurrency(Number(product.price))}</div>
                     </div>
                   </div>
                   <div className="text-right">
@@ -332,8 +332,8 @@ const AdminDashboard = ({
         
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           {[
-            { key: 'active', icon: '📦', label: t.products, description: `${metrics.activeProducts} ${t.active}` },
-            { key: 'accessories', icon: '🎧', label: t.accessories, description: `${metrics.activeAccessories} ${t.active}` },
+            { key: 'active', icon: '📦', label: t.products, description: `${Number(metrics.activeProducts).toLocaleString(undefined, { maximumFractionDigits: 2 })} ${t.active}` },
+            { key: 'accessories', icon: '🎧', label: t.accessories, description: `${Number(metrics.activeAccessories).toLocaleString(undefined, { maximumFractionDigits: 2 })} ${t.active}` },
             { key: 'history', icon: '📈', label: t.salesHistory, description: `${admin?.sales?.length || 0} ${t.totalCount}` },
             { key: 'customerDebts', icon: '💸', label: t.customerDebts, description: `${metrics.unpaidDebtsCount} ${t.unpaid}` },
             { key: 'companyDebts', icon: '🏢', label: t.companyDebts, description: `${(admin?.companyDebts || []).filter(d => !d.paid_at).length} ${t.unpaid}` },

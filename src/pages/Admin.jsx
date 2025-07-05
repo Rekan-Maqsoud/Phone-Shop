@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLocale } from '../contexts/LocaleContext';
 import { useData } from '../contexts/DataContext';
-import { triggerCloudBackup } from '../utils/cloudBackup';
+import { triggerCloudBackupAsync } from '../utils/cloudBackupEnhanced';
 import { playNavigationSound, playActionSound, playModalOpenSound, playModalCloseSound, playSuccessSound, playErrorSound } from '../utils/sounds';
 import useAdmin from '../components/useAdmin';
 import AdminStatsSidebar from '../components/AdminStatsSidebar';
@@ -314,7 +314,7 @@ export default function Admin() {
                 showConfirm={showConfirm}
                 setConfirm={setConfirm}
                 setLoading={setLoading}
-                triggerCloudBackup={triggerCloudBackup}
+                triggerCloudBackup={triggerCloudBackupAsync}
               />
             )}
             {section === 'buyingHistory' && (
@@ -332,7 +332,7 @@ export default function Admin() {
                 setDebtSearch={setDebtSearch}
                 showPaidDebts={showPaidDebts}
                 setShowPaidDebts={setShowPaidDebts}
-                triggerCloudBackup={triggerCloudBackup}
+                triggerCloudBackup={triggerCloudBackupAsync}
               />
             )}
 
@@ -345,7 +345,7 @@ export default function Admin() {
                 setShowEnhancedCompanyDebtModal={setShowEnhancedCompanyDebtModal}
                 showConfirm={showConfirm}
                 setConfirm={setConfirm}
-                triggerCloudBackup={triggerCloudBackup}
+                triggerCloudBackup={triggerCloudBackupAsync}
               />
             )}
 
@@ -385,7 +385,7 @@ export default function Admin() {
         selectedCompanyDebt={selectedCompanyDebt}
         setSelectedCompanyDebt={setSelectedCompanyDebt}
         confirm={confirm}
-        triggerCloudBackup={triggerCloudBackup}
+        triggerCloudBackup={triggerCloudBackupAsync}
       />
 
       {/* Toast notification */}

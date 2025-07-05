@@ -187,7 +187,7 @@ const AdminStatsSidebar = ({
               </div>
               <div>
                 <span className="text-gray-600 dark:text-gray-400">{t.revenue || 'Revenue'}: </span>
-                <span className="font-bold text-green-600 dark:text-green-400">${stats.todaysRevenue}</span>
+                <span className="font-bold text-green-600 dark:text-green-400">${Number(stats.todaysRevenue).toFixed(2)}</span>
               </div>
               <div>
                 <span className="text-gray-600 dark:text-gray-400">{t.spending || 'Spending'}: </span>
@@ -212,7 +212,7 @@ const AdminStatsSidebar = ({
               <span className="text-lg">🏪</span>
               <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">{t.thisMonth || 'This Month'}</span>
             </div>
-            <span className="text-xl font-bold text-blue-500 dark:text-blue-300">${admin.monthlySales}</span>
+            <span className="text-xl font-bold text-blue-500 dark:text-blue-300">${Number(admin.monthlySales).toFixed(2)}</span>
           </div>
 
           {/* Total Profit */}
@@ -221,7 +221,7 @@ const AdminStatsSidebar = ({
               <span className="text-lg">💰</span>
               <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">{t.totalProfit || 'Total Profit'}</span>
             </div>
-            <span className="text-xl font-bold text-green-500 dark:text-green-300">${stats.totalProfit.toFixed(2)}</span>
+            <span className="text-xl font-bold text-green-500 dark:text-green-300">${Number(stats.totalProfit).toFixed(2)}</span>
           </div>
 
           {/* Inventory Value */}
@@ -230,7 +230,7 @@ const AdminStatsSidebar = ({
               <span className="text-lg">📦</span>
               <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">{t.inventoryValue}</span>
             </div>
-            <span className="text-xl font-bold text-purple-500 dark:text-purple-300">${admin.inventoryValue}</span>
+            <span className="text-xl font-bold text-purple-500 dark:text-purple-300">${Number(admin.inventoryValue).toFixed(2)}</span>
           </div>
 
           {/* Stock Alerts */}
@@ -265,7 +265,7 @@ const AdminStatsSidebar = ({
               <div className="space-y-1 text-sm">
                 <div>
                   <span className="text-gray-600 dark:text-gray-400">{t.outstanding || 'Outstanding'}: </span>
-                  <span className="font-bold text-red-600 dark:text-red-400">{outstandingDebtsCount} debts (${totalDebtAmount.toFixed(2)})</span>
+                  <span className="font-bold text-red-600 dark:text-red-400">{outstandingDebtsCount} debts (${Number(totalDebtAmount).toFixed(2)})</span>
                 </div>
                 {paidDebtsToday > 0 && (
                   <div>

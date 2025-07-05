@@ -437,11 +437,14 @@ async function autoBackupAfterChange(operationType = 'unknown') {
   try {
     if (cloudBackupService) {
       const dbPath = getDatabasePath();
-      await cloudBackupService.autoBackup(dbPath);
+      // Don't await - let backup run in background
+      cloudBackupService.autoBackup(dbPath).catch(error => {
+        console.error('Background backup failed:', error);
+      });
       return { success: true };
     }
   } catch (error) {
-    console.error('Auto backup failed:', error);
+    console.error('Auto backup trigger failed:', error);
     return { success: false, error: error.message };
   }
 }
