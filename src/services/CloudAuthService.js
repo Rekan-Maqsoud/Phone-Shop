@@ -117,12 +117,11 @@ class CloudAuthService {
   // Initialize authentication on app startup
   async initializeAuth() {
     try {
-      console.log('[CloudAuthService] Initializing authentication...');
+     
       
       // First check if there's an existing session
       const user = await this.account.get();
       if (user) {
-        console.log('[CloudAuthService] Found existing session for user:', user.email);
         this.currentUser = user;
         this.isAuthenticated = true;
         
@@ -134,11 +133,9 @@ class CloudAuthService {
         
         return true;
       } else {
-        console.log('[CloudAuthService] No existing session found');
         return false;
       }
-    } catch (error) {
-      console.log('[CloudAuthService] No authentication session available:', error.message);
+    } catch (error) {   
       this.isAuthenticated = false;
       this.currentUser = null;
       

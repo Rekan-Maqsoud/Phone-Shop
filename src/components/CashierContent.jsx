@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, memo } from 'react';
 
 export default function CashierContent({
   t,
@@ -58,14 +58,14 @@ export default function CashierContent({
         {/* Header */}
         <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
           <div className="flex items-center justify-between mb-4">
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
               {t.cashier}
             </h1>
             <div className="text-right">
-              <div className="text-sm text-gray-500 dark:text-gray-400">
+              <div className="text-base text-gray-500 dark:text-gray-400">
                 {clock.toLocaleDateString()}
               </div>
-              <div className="text-sm text-gray-500 dark:text-gray-400">
+              <div className="text-base text-gray-500 dark:text-gray-400">
                 {clock.toLocaleTimeString()}
               </div>
             </div>
@@ -82,7 +82,7 @@ export default function CashierContent({
 
         {/* Cart Items */}
         <div className="flex-1 overflow-y-auto p-6 min-h-0">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
+          <h2 className="text-2xl font-semibold text-gray-900 dark:text-gray-100 mb-4">
             {t.cart} ({items.length} {t.items})
           </h2>
           
@@ -97,7 +97,7 @@ export default function CashierContent({
                 <div key={item.uniqueId || index} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 border border-gray-200 dark:border-gray-600">
                   <div className="flex justify-between items-start mb-2">
                     <div className="flex-1 pr-2">
-                      <h3 className="font-medium text-gray-900 dark:text-gray-100 text-sm leading-tight">
+                      <h3 className="font-medium text-gray-900 dark:text-gray-100 text-lg leading-tight">
                         {item.name}
                       </h3>
                       {(item.brand || item.model || item.ram || item.storage) && (
@@ -132,7 +132,7 @@ export default function CashierContent({
                       ✕
                     </button>
                   </div>
-                  <div className="flex justify-between items-center text-sm">
+                  <div className="flex justify-between items-center text-base">
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => {
@@ -222,13 +222,13 @@ export default function CashierContent({
 
           {/* Payment Type */}
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-2">
               {t.paymentType}
             </label>
             <div className="flex gap-2">
               <button
                 onClick={() => setIsDebt(false)}
-                className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                className={`flex-1 px-3 py-2 rounded-lg text-base font-medium transition-colors ${
                   !isDebt
                     ? 'bg-green-600 text-white'
                     : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-500'
@@ -238,7 +238,7 @@ export default function CashierContent({
               </button>
               <button
                 onClick={() => setIsDebt(true)}
-                className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                className={`flex-1 px-3 py-2 rounded-lg text-base font-medium transition-colors ${
                   isDebt
                     ? 'bg-orange-600 text-white'
                     : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-500'
@@ -251,10 +251,10 @@ export default function CashierContent({
 
           {/* Total */}
           <div className="mb-4 text-center">
-            <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">
+            <div className="text-lg text-gray-500 dark:text-gray-400 mb-1">
               {t.total}
             </div>
-            <div className="text-3xl font-bold text-gray-900 dark:text-gray-100">
+            <div className="text-4xl font-bold text-gray-900 dark:text-gray-100">
               ${total.toFixed(2)}
             </div>
           </div>
@@ -263,7 +263,7 @@ export default function CashierContent({
           <button
             onClick={handleCompleteSale}
             disabled={items.length === 0 || !customerName.trim() || loading.sale}
-            className="w-full py-3 bg-blue-600 text-white rounded-lg font-semibold text-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+            className="w-full py-4 bg-blue-600 text-white rounded-lg font-semibold text-xl hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
           >
             {loading.sale 
               ? t.processing 
@@ -513,7 +513,7 @@ function ProductCardsGrid({ t, allItems, search, addOrUpdateItem, showToast }) {
           </div>
         ) : (
           <div className="h-full overflow-y-auto scrollbar-thin scrollbar-thumb-blue-400/40 scrollbar-track-transparent">
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-4 p-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-6 p-2">
               {filteredItems.map((item) => (
                 <ProductCard
                   key={item.uniqueId || `${item.id}-${item.brand}-${item.model}`}
@@ -531,8 +531,8 @@ function ProductCardsGrid({ t, allItems, search, addOrUpdateItem, showToast }) {
   );
 }
 
-// Individual Product Card Component - Compact design for wide layout
-function ProductCard({ item, t, addOrUpdateItem, showToast }) {
+// Individual Product Card Component - Memoized for performance
+const ProductCard = memo(function ProductCard({ item, t, addOrUpdateItem, showToast }) {
   const handleAddToCart = () => {
     if (item.stock <= 0) {
       showToast(t.outOfStock, 'error');
@@ -565,31 +565,37 @@ function ProductCard({ item, t, addOrUpdateItem, showToast }) {
       </div>
       
       {/* Item Name - Truncated */}
-      <h3 className="font-bold text-gray-900 dark:text-gray-100 mb-2 text-sm leading-tight h-8 overflow-hidden line-clamp-2">
+      <h3 className="font-bold text-gray-900 dark:text-gray-100 mb-2 text-lg leading-tight h-12 overflow-hidden line-clamp-2">
         {item.name}
       </h3>
       
-      {/* Key details - Only most important ones */}
-      <div className="space-y-1 mb-2 text-xs text-gray-600 dark:text-gray-400">
+      {/* Key details - Brand, RAM, Storage */}
+      <div className="space-y-1 mb-3 text-sm text-gray-600 dark:text-gray-400">
         {item.brand && (
-          <div className="truncate">
-            <span className="font-medium">{item.brand}</span>
-            {item.ram && <span className="ml-1">• {item.ram}</span>}
+          <div className="truncate font-medium text-gray-800 dark:text-gray-200">
+            {item.brand}
           </div>
         )}
-        {item.storage && (
-          <div className="text-xs text-gray-500">
-            {item.storage}
-          </div>
-        )}
+        <div className="flex flex-wrap gap-1">
+          {item.ram && (
+            <span className="text-xs bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 px-2 py-1 rounded">
+              {item.ram}
+            </span>
+          )}
+          {item.storage && (
+            <span className="text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 px-2 py-1 rounded">
+              {item.storage}
+            </span>
+          )}
+        </div>
       </div>
       
       {/* Price and Stock */}
-      <div className="flex justify-between items-center mb-2">
-        <span className="text-sm font-bold text-green-600 dark:text-green-400">
+      <div className="flex justify-between items-center mb-3">
+        <span className="text-lg font-bold text-green-600 dark:text-green-400">
           ${item.price || item.buying_price || 0}
         </span>
-        <span className={`text-xs font-semibold ${isOutOfStock ? 'text-red-500' : isLowStock ? 'text-orange-500' : 'text-blue-600 dark:text-blue-400'}`}>
+        <span className={`text-sm font-semibold ${isOutOfStock ? 'text-red-500' : isLowStock ? 'text-orange-500' : 'text-blue-600 dark:text-blue-400'}`}>
           {item.stock}
         </span>
       </div>
@@ -608,4 +614,4 @@ function ProductCard({ item, t, addOrUpdateItem, showToast }) {
       </button>
     </div>
   );
-}
+});

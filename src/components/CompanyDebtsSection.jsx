@@ -55,9 +55,9 @@ const CompanyDebtsSection = ({
           return <div className="text-center text-gray-400 py-6">{t.noCompanyDebts || 'No company debts'}</div>;
         }
 
-        // Group debts by company name
+        // Group debts by company name (normalize case)
         const groupedDebts = filteredDebts.reduce((groups, debt) => {
-          const companyName = debt.company_name;
+          const companyName = debt.company_name.charAt(0).toUpperCase() + debt.company_name.slice(1).toLowerCase();
           if (!groups[companyName]) {
             groups[companyName] = [];
           }

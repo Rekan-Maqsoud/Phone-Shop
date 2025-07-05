@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useLocale } from '../contexts/LocaleContext';
 
 export default function HistorySearchFilter({
   data = [],
@@ -10,6 +11,7 @@ export default function HistorySearchFilter({
   showTotals = false,
   calculateTotals = null // function to calculate totals from filtered data
 }) {
+  const { getMonthName } = useLocale();
   const [searchTerm, setSearchTerm] = useState('');
   const [searchType, setSearchType] = useState('preset'); // 'preset', 'single', 'week', 'range'
   const [presetPeriod, setPresetPeriod] = useState(''); // 'today', 'yesterday', 'thisWeek', 'lastWeek', 'thisMonth', 'lastMonth'
@@ -40,7 +42,7 @@ export default function HistorySearchFilter({
 
   const monthOptions = Array.from({ length: 12 }, (_, i) => ({
     value: i + 1,
-    label: new Date(2025, i).toLocaleDateString('en', { month: 'long' })
+    label: getMonthName(i)
   }));
 
   const currentYear = new Date().getFullYear();

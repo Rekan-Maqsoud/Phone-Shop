@@ -1,9 +1,11 @@
 import React from 'react';
+import { useLocale } from '../contexts/LocaleContext';
 
 const MonthlyReportsSection = ({ 
   t, 
   admin 
 }) => {
+  const { getMonthName } = useLocale();
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row gap-4 items-center justify-between mb-6">
@@ -71,10 +73,7 @@ const MonthlyReportsSection = ({
                     <span className="text-2xl">📅</span>
                     <div>
                       <h3 className="text-lg font-bold text-gray-800 dark:text-gray-100">
-                        {t.months && t.months[report.month - 1]
-                          ? `${t.months[report.month - 1]} (${report.month})`
-                          : `${new Date(report.year, report.month - 1).toLocaleDateString(undefined, { month: 'long' })} (${report.month})`}
-                        {' '}{report.year}
+                        {getMonthName(report.month - 1)} {report.year}
                       </h3>
                       <p className="text-sm text-gray-600 dark:text-gray-400">
                         {t.generated || 'generated'} {new Date(report.created_at).toLocaleDateString()}

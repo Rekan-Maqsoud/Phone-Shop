@@ -25,17 +25,14 @@ export default function ProductModal({
 
   // Clear model when brand changes
   const handleBrandChange = (value) => {
-    console.log('Brand changing from:', brand, 'to:', value);
     setBrand(value);
     if (value !== brand) {
       setModel(''); // Clear model when brand changes
-      console.log('Model cleared due to brand change');
     }
   };
 
   // Handle model change
   const handleModelChange = (value) => {
-    console.log('Model changing to:', value);
     setModel(value);
   };
 

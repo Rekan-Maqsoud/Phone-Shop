@@ -108,15 +108,15 @@ export default function BuyingHistoryTable({ buyingHistory, t, onAddPurchase, re
       {/* Main Table */}
       <div className="bg-white/60 dark:bg-gray-800/80 rounded-2xl shadow-2xl overflow-hidden border border-white/20">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full" dir="auto">
             <thead className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white">
               <tr>
-                <th className="px-6 py-4 text-left font-bold">{t?.date || 'Date'}</th>
-                <th className="px-6 py-4 text-left font-bold">{t?.companyName || 'Company'}</th>
-                <th className="px-6 py-4 text-left font-bold">{t?.amount || 'Amount'}</th>
-                <th className="px-6 py-4 text-left font-bold">{t?.description || 'Description'}</th>
-                <th className="px-6 py-4 text-left font-bold">{t?.items || 'Items'}</th>
-                <th className="px-6 py-4 text-left font-bold">{t?.actions || 'Actions'}</th>
+                <th className="px-6 py-4 text-right font-bold">{t?.date || 'Date'}</th>
+                <th className="px-6 py-4 text-right font-bold">{t?.companyName || 'Company'}</th>
+                <th className="px-6 py-4 text-right font-bold">{t?.amount || 'Amount'}</th>
+                <th className="px-6 py-4 text-right font-bold">{t?.description || 'Description'}</th>
+                <th className="px-6 py-4 text-right font-bold">{t?.items || 'Items'}</th>
+                <th className="px-6 py-4 text-right font-bold">{t?.actions || 'Actions'}</th>
               </tr>
             </thead>
             <tbody>
@@ -132,7 +132,7 @@ export default function BuyingHistoryTable({ buyingHistory, t, onAddPurchase, re
                       </div>
                     </td>
                     <td className="px-6 py-4 font-medium text-gray-900 dark:text-gray-100">
-                      {entry.company_name || '-'}
+                      {entry.company_name ? entry.company_name.charAt(0).toUpperCase() + entry.company_name.slice(1).toLowerCase() : '-'}
                     </td>
                     <td className="px-6 py-4 text-blue-600 dark:text-blue-400 font-bold">
                       ${entry.amount?.toFixed(2) || '-'}

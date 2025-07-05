@@ -102,7 +102,6 @@ export default function Cashier() {
   };
 
   const handleSuggestionClick = (product) => {
-    console.debug('[Cart] addOrUpdateItem (suggestion click):', { product, quantity });
     addOrUpdateItem(product, false, quantity);
     setSearch('');
     setQuantity(1);
@@ -332,7 +331,7 @@ export default function Cashier() {
       }
     };
     
-    debounceId = setTimeout(fetchSuggestions, 200); // debounce for 200ms
+    debounceId = setTimeout(fetchSuggestions, 150); // Reduced debounce for better responsiveness
     return () => {
       active = false;
       clearTimeout(debounceId);
@@ -340,9 +339,7 @@ export default function Cashier() {
   }, [search, allItems]); // Changed dependency from products to allItems
 
   useEffect(() => {
-    console.debug('[Cashier] API ready state changed:', apiReady);
     if (apiReady) {
-      console.debug('[Cashier] API is ready, fetching products and accessories');
       refreshProducts();
       refreshAccessories();
     }

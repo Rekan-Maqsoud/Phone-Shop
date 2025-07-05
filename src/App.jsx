@@ -46,14 +46,13 @@ function App() {
   useEffect(() => {
     const initializeAuth = async () => {
       try {
-        console.log('[App] Initializing authentication...');
         // Initialize CloudAuthService
         const isAuthenticated = await cloudAuthService.initializeAuth();
         
         // Give it a bit more time to ensure proper initialization
         await new Promise(resolve => setTimeout(resolve, 500));
         
-        console.log('[App] Authentication initialized, authenticated:', isAuthenticated);
+        
       } catch (error) {
         console.error('[App] Error during auth initialization:', error);
       } finally {

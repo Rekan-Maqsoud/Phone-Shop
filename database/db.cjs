@@ -118,7 +118,7 @@ try {
     CREATE INDEX IF NOT EXISTS idx_accessories_archived ON accessories(archived);
     CREATE INDEX IF NOT EXISTS idx_accessories_name ON accessories(name);
   `);
-  console.log('📊 Database indexes created/verified for performance');
+
 } catch (e) {
   console.warn('Database index creation warning:', e.message);
 }
@@ -581,7 +581,6 @@ try {
   
   if (!hasColumn) {
     db.exec('ALTER TABLE monthly_reports ADD COLUMN total_spent INTEGER DEFAULT 0');
-    console.log('Added total_spent column to monthly_reports table');
   }
 } catch (e) { 
   console.error('Error adding total_spent column:', e.message);
@@ -594,7 +593,7 @@ try {
   const debtIdColumn = tableInfo.find(col => col.name === 'company_debt_id');
   
   if (debtIdColumn && debtIdColumn.notnull === 1) {
-    console.log('Migrating buying_history table to allow NULL company_debt_id for paid purchases...');
+
     
     // Backup existing data
     const existingData = db.prepare('SELECT * FROM buying_history').all();
@@ -631,7 +630,7 @@ try {
     
     // Clean up backup table
     db.exec('DROP TABLE IF EXISTS buying_history_backup');
-    console.log('Migration completed successfully');
+
   }
 } catch (e) {
   console.log('Migration for buying_history table error:', e.message);
@@ -656,7 +655,7 @@ function resetAllData() {
     try {
       db.prepare('DELETE FROM sqlite_sequence WHERE name IN ("products", "sales", "sale_items", "debts", "customer_debts", "company_debts", "buying_history", "backups", "accessories", "monthly_reports")').run();
     } catch (e) {
-      console.log('No sqlite_sequence table:', e.message);
+ 
     }
     // Re-enable foreign key constraints
     db.prepare('PRAGMA foreign_keys = ON').run();
@@ -1021,7 +1020,7 @@ try {
     db.prepare('PRAGMA foreign_keys = ON').run();
   }
 } catch (e) {
-  console.log('Foreign key constraint migration skipped:', e.message);
+
 }
 
 // --- Accessory CRUD ---
@@ -1296,11 +1295,10 @@ try {
     // Drop old table and rename new one
     db.exec('DROP TABLE accessories');
     db.exec('ALTER TABLE accessories_new RENAME TO accessories');
-    
-    console.log('Removed price column from accessories table');
+
   }
 } catch (e) { 
-  console.log('Migration for accessories table error:', e.message); 
+
 }
 
 return {

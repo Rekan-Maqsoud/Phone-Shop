@@ -75,19 +75,19 @@ export default function SaleDetailsModal({ sale, t, onClose, onReturnItem }) {
                 <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">({products.length})</span>
               </h3>
               <div className="overflow-x-auto bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-                <table className="w-full text-left text-gray-800 dark:text-gray-100 text-sm">
+                <table className="w-full text-gray-800 dark:text-gray-100 text-sm" dir="auto">
                   <thead className="bg-gradient-to-r from-purple-600 to-pink-500 text-white">
                     <tr>
-                      <th className="px-3 py-3 font-medium">#</th>
-                      <th className="px-3 py-3 font-medium">{t.name}</th>
-                      <th className="px-3 py-3 font-medium">{t.ramSpecs || 'RAM'}</th>
-                      <th className="px-3 py-3 font-medium">{t.storageSpecs || 'Storage'}</th>
-                      <th className="px-3 py-3 font-medium">{t.sellingPrice || 'Selling Price'}</th>
-                      <th className="px-3 py-3 font-medium">{t.buyingPrice || 'Buying Price'}</th>
-                      <th className="px-3 py-3 font-medium">{t.qty || 'Qty'}</th>
-                      <th className="px-3 py-3 font-medium">{t.profit || 'Profit'}</th>
-                      {onReturnItem && <th className="px-3 py-3 font-medium">{t.returnQty || 'Return Qty'}</th>}
-                      {onReturnItem && <th className="px-3 py-3 font-medium">{t.action || 'Action'}</th>}
+                      <th className="px-3 py-3 font-medium text-right">#</th>
+                      <th className="px-3 py-3 font-medium text-right">{t.name}</th>
+                      <th className="px-3 py-3 font-medium text-right">{t.ramSpecs || 'RAM'}</th>
+                      <th className="px-3 py-3 font-medium text-right">{t.storageSpecs || 'Storage'}</th>
+                      <th className="px-3 py-3 font-medium text-right">{t.sellingPrice || 'Selling Price'}</th>
+                      <th className="px-3 py-3 font-medium text-right">{t.buyingPrice || 'Buying Price'}</th>
+                      <th className="px-3 py-3 font-medium text-right">{t.qty || 'Qty'}</th>
+                      <th className="px-3 py-3 font-medium text-right">{t.profit || 'Profit'}</th>
+                      {onReturnItem && <th className="px-3 py-3 font-medium text-right">{t.returnQty || 'Return Qty'}</th>}
+                      {onReturnItem && <th className="px-3 py-3 font-medium text-right">{t.action || 'Action'}</th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -151,18 +151,18 @@ export default function SaleDetailsModal({ sale, t, onClose, onReturnItem }) {
                 <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">({accessories.length})</span>
               </h3>
               <div className="overflow-x-auto bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-                <table className="w-full text-left text-gray-800 dark:text-gray-100 text-sm">
+                <table className="w-full text-gray-800 dark:text-gray-100 text-sm" dir="auto">
                   <thead className="bg-gradient-to-r from-green-600 to-emerald-500 text-white">
                     <tr>
-                      <th className="px-3 py-3 font-medium">#</th>
-                      <th className="px-3 py-3 font-medium">{t.name}</th>
-                      <th className="px-3 py-3 font-medium">{t.type || 'Type'}</th>
-                      <th className="px-3 py-3 font-medium">{t.sellingPrice || 'Selling Price'}</th>
-                      <th className="px-3 py-3 font-medium">{t.buyingPrice || 'Buying Price'}</th>
-                      <th className="px-3 py-3 font-medium">{t.qty || 'Qty'}</th>
-                      <th className="px-3 py-3 font-medium">{t.profit || 'Profit'}</th>
-                      {onReturnItem && <th className="px-3 py-3 font-medium">{t.returnQty || 'Return Qty'}</th>}
-                      {onReturnItem && <th className="px-3 py-3 font-medium">{t.action || 'Action'}</th>}
+                      <th className="px-3 py-3 font-medium text-right">#</th>
+                      <th className="px-3 py-3 font-medium text-right">{t.name}</th>
+                      <th className="px-3 py-3 font-medium text-right">{t.type || 'Type'}</th>
+                      <th className="px-3 py-3 font-medium text-right">{t.sellingPrice || 'Selling Price'}</th>
+                      <th className="px-3 py-3 font-medium text-right">{t.buyingPrice || 'Buying Price'}</th>
+                      <th className="px-3 py-3 font-medium text-right">{t.qty || 'Qty'}</th>
+                      <th className="px-3 py-3 font-medium text-right">{t.profit || 'Profit'}</th>
+                      {onReturnItem && <th className="px-3 py-3 font-medium text-right">{t.returnQty || 'Return Qty'}</th>}
+                      {onReturnItem && <th className="px-3 py-3 font-medium text-right">{t.action || 'Action'}</th>}
                     </tr>
                   </thead>
                   <tbody>

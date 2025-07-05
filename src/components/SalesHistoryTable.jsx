@@ -103,19 +103,19 @@ export default function SalesHistoryTable({ sales, t, onView, onPrintLast, onRet
 
         {/* Table of sales */}
         <div className="overflow-x-auto">
-          <table className="min-w-full text-left border rounded-lg text-gray-800 dark:text-gray-100">
+          <table className="min-w-full border rounded-lg text-gray-800 dark:text-gray-100" dir="auto">
             <thead className="bg-gray-100 dark:bg-gray-800">
               <tr>
-                <th className="px-4 py-2 text-gray-800 dark:text-white">#</th>
-                <th className="px-4 py-2 text-gray-800 dark:text-white cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700" onClick={() => setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')}>
+                <th className="px-4 py-2 text-gray-800 dark:text-white text-right">#</th>
+                <th className="px-4 py-2 text-gray-800 dark:text-white cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 text-right" onClick={() => setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')}>
                   {t.date} {sortOrder === 'desc' ? '↓' : '↑'}
                 </th>
-                <th className="px-4 py-2 text-gray-800 dark:text-white">{t.customer}</th>
-                <th className="px-4 py-2 text-gray-800 dark:text-white">{t.total}</th>
-                <th className="px-4 py-2 text-gray-800 dark:text-white">{t.buyingPrice}</th>
-                <th className="px-4 py-2 text-gray-800 dark:text-white">{t.sellingPrice}</th>
-                <th className="px-4 py-2 text-gray-800 dark:text-white">{t.profit}</th>
-                <th className="px-4 py-2 text-gray-800 dark:text-white">{t.action}</th>
+                <th className="px-4 py-2 text-gray-800 dark:text-white text-right">{t.customer}</th>
+                <th className="px-4 py-2 text-gray-800 dark:text-white text-right">{t.total}</th>
+                <th className="px-4 py-2 text-gray-800 dark:text-white text-right">{t.buyingPrice}</th>
+                <th className="px-4 py-2 text-gray-800 dark:text-white text-right">{t.sellingPrice}</th>
+                <th className="px-4 py-2 text-gray-800 dark:text-white text-right">{t.profit}</th>
+                <th className="px-4 py-2 text-gray-800 dark:text-white text-right">{t.action}</th>
               </tr>
             </thead>
             <tbody>
@@ -128,7 +128,7 @@ export default function SalesHistoryTable({ sales, t, onView, onPrintLast, onRet
               <tr key={s.id} className="border-b last:border-b-0 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-gray-700 transition group">
                 <td className="px-4 py-2">{idx + 1}</td>
                 <td className="px-4 py-2">{s.created_at ? s.created_at.slice(0, 19).replace('T', ' ') : ''}</td>
-                <td className="px-4 py-2">{s.customer_name || 'Unknown'}</td>
+                <td className="px-4 py-2">{s.customer_name ? s.customer_name.charAt(0).toUpperCase() + s.customer_name.slice(1).toLowerCase() : 'Unknown'}</td>
                 <td className="px-4 py-2">{fmt(s.total)}</td>
                 <td className="px-4 py-2">{fmt(totalBuying)}</td>
                 <td className="px-4 py-2">{fmt(totalSelling)}</td>

@@ -4,7 +4,6 @@ let isBackupInProgress = false;
 export const triggerCloudBackup = async () => {
   // Prevent multiple simultaneous backups
   if (isBackupInProgress) {
-    console.log('[triggerCloudBackup] Backup already in progress, skipping...');
     return { success: false, message: 'Backup already in progress' };
   }
 

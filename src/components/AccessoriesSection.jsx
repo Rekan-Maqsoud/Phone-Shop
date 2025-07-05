@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useData } from '../contexts/DataContext';
+import { getAccessoryEmoji } from '../utils/accessoryUtils';
 
 const AccessoriesSection = ({ 
   t, 
@@ -167,7 +168,12 @@ const AccessoriesSection = ({
               <tbody>
                 {filteredAccessories.map((accessory, idx) => (
                   <tr key={accessory.id} className={`border-b dark:border-gray-700 ${idx % 2 === 0 ? 'bg-gray-50 dark:bg-gray-900/50' : 'bg-white dark:bg-gray-800/50'} hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors`}>
-                    <td className="px-6 py-4 font-medium text-gray-900 dark:text-gray-100">{accessory.name}</td>
+                    <td className="px-6 py-4 font-medium text-gray-900 dark:text-gray-100">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">{getAccessoryEmoji(accessory.type)}</span>
+                        {accessory.name}
+                      </div>
+                    </td>
                     <td className="px-6 py-4 text-gray-700 dark:text-gray-300">{accessory.brand || '-'}</td>
                     <td className="px-6 py-4 text-gray-700 dark:text-gray-300">{accessory.type || '-'}</td>
                     <td className="px-6 py-4 text-blue-600 dark:text-blue-400 font-semibold">${accessory.buying_price || 0}</td>

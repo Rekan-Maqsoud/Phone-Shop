@@ -95,6 +95,18 @@ const translations = {
     // Keyboard shortcuts
     completeSaleNotImplemented: 'Complete sale (not implemented)',
     
+    // Missing translations
+    generated: 'Generated',
+    affectedItems: 'Affected Items',
+    selling: 'Selling',
+    cost: 'Cost',
+    loss: 'Loss',
+    totalLoss: 'Total Loss',
+    acknowledge: 'I UNDERSTAND',
+    reviewPricesBeforeProceeding: 'Please review prices before proceeding!',
+    buyingHistoryDesc: 'Track all your business purchases and expenses',
+    cashOnly: 'Cash Only',
+    
     // Cart messages
     stockEmptyIncrement: 'Stock is empty. Do you want to increment the stock by 1?',
     stockIncremented: 'Stock incremented by 1.',
@@ -938,6 +950,18 @@ const translations = {
     markPaid: 'نیشانکردنی وەک دراو',
     itemsCount: 'بڕگەکان',
     
+    // Missing translations in Kurdish
+    generated: 'دروستکراو',
+    affectedItems: 'بڕگە کاریگەرەکان',
+    selling: 'فرۆشتن',
+    cost: 'تێچوون',
+    loss: 'زیان',
+    totalLoss: 'کۆی زیان',
+    acknowledge: 'تێگەیشتم',
+    reviewPricesBeforeProceeding: 'تکایە نرخەکان پێداچوونەوە بکە پێش بەردەوامبوون!',
+    buyingHistoryDesc: 'شوێنکەوتنی هەموو کڕینە بازرگانییەکانت و خەرجییەکان',
+    cashOnly: 'تەنها پارە نەقد',
+    
     // Purchase modal
     selectModel: 'مۆدێل هەڵبژێرە یان بنووسە...',
     payLaterCreatesDebt: 'دواتر پارە بدە - قەرزی کۆمپانیا دروست دەکات',
@@ -1416,6 +1440,18 @@ const translations = {
     payLaterCreatesDebt: 'ادفع لاحقاً - ينشئ دين شركة',
     immediatePaymentHistory: 'الدفع الفوري - يذهب إلى تاريخ الشراء',
 
+    // Missing translations in Arabic
+    generated: 'تم إنشاؤه',
+    affectedItems: 'العناصر المتأثرة',
+    selling: 'البيع',
+    cost: 'التكلفة', 
+    loss: 'الخسارة',
+    totalLoss: 'إجمالي الخسارة',
+    acknowledge: 'أفهم',
+    reviewPricesBeforeProceeding: 'يرجى مراجعة الأسعار قبل المتابعة!',
+    buyingHistoryDesc: 'تتبع جميع مشترياتك التجارية والمصروفات',
+    cashOnly: 'نقداً فقط',
+
     // Sales history hardcoded text translations
     noSales: 'لا توجد مبيعات',
     returnSale: 'إرجاع',
@@ -1460,6 +1496,13 @@ export function LocaleProvider({ children }) {
       }
     });
   }, [lang]);
+  
+  const getMonthName = useMemo(() => {
+    return (monthIndex) => {
+      return monthNames[lang]?.[monthIndex] || monthNames['en'][monthIndex];
+    };
+  }, [lang]);
+  
   const isRTL = lang === 'ar' || lang === 'ku';
   const notoFont = (lang === 'ar' || lang === 'ku')
     ? { fontFamily: 'Noto Sans Arabic, Noto Naskh Arabic, Noto Sans Kurdish, Noto Sans, sans-serif' }
@@ -1471,7 +1514,7 @@ export function LocaleProvider({ children }) {
   }, [lang]);
 
   return (
-    <LocaleContext.Provider value={{ lang, setLang, t, isRTL, notoFont }}>
+    <LocaleContext.Provider value={{ lang, setLang, t, isRTL, notoFont, getMonthName }}>
       {children}
     </LocaleContext.Provider>
   );

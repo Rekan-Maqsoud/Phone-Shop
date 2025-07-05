@@ -18,7 +18,6 @@ async function initializeAutoBackup() {
     const autoBackupEnabled = await settings.get('autoBackup');
     const enabled = autoBackupEnabled !== undefined ? autoBackupEnabled : true;
     cloudBackupService.setAutoBackup(enabled);
-    console.log('[Main] Auto backup initialized:', enabled);
   } catch (error) {
     console.error('[Main] Failed to initialize auto backup:', error);
     // Default to enabled if error
@@ -39,12 +38,9 @@ function getDatabasePath() {
     if (!fs.existsSync(dbPath)) {
       const defaultDbPath = path.join(process.resourcesPath, 'database', 'shop.sqlite');
       try {
-        console.log('📂 Looking for default DB at:', defaultDbPath);
         if (fs.existsSync(defaultDbPath)) {
           fs.copyFileSync(defaultDbPath, dbPath);
-          console.log('📂 Copied default DB to userData:', dbPath);
         } else {
-          console.log('⚠️ Default DB not found, creating new one...');
           // Create a basic empty database if default doesn't exist
           const dbModule = require('../database/db.cjs');
           const tempDb = dbModule(dbPath);
@@ -147,7 +143,6 @@ function checkAndPerformMonthlyReset() {
   try {
     // Only run if database is initialized
     if (!db) {
-      console.log('Database not initialized yet, skipping monthly reset check');
       return;
     }
     
@@ -168,11 +163,9 @@ function checkAndPerformMonthlyReset() {
     
     // If we're in a new month, perform reset
     if (currentYear > lastYear || (currentYear === lastYear && currentMonth > lastMonth)) {
-      console.log('Performing monthly reset...');
       if (db.resetMonthlySalesAndProfit) {
         db.resetMonthlySalesAndProfit();
         settings.setSync('lastMonthlyResetDate', `${currentYear}-${currentMonth}`);
-        console.log('Monthly reset completed.');
       } else {
         console.warn('resetMonthlySalesAndProfit function not available');
       }
@@ -632,7 +625,6 @@ const initializeCurrentBackup = () => {
 const updateCurrentBackup = async () => {
   try {
     if (!currentBackupPath) {
-      console.log('[updateCurrentBackup] currentBackupPath not set, initializing...');
       initializeCurrentBackup();
       return;
     }
@@ -645,7 +637,6 @@ const updateCurrentBackup = async () => {
         log: `Current backup updated at ${new Date().toISOString()}`
       });
     }
-    console.log('[updateCurrentBackup] Backup file copied to', currentBackupPath);
   } catch (e) {
     console.error('[updateCurrentBackup] Failed to update current backup:', e);
   }
@@ -659,10 +650,8 @@ ipcMain.handle('createBackup', async () => {
     const documentsPath = path.join(os.homedir(), 'Documents');
     const backupDir = path.join(documentsPath, 'Mobile Roma BackUp');
     
-    console.log('Creating backup directory:', backupDir);
     if (!fs.existsSync(backupDir)) {
       fs.mkdirSync(backupDir, { recursive: true });
-      console.log('Backup directory created');
     }
     
     // Create backup filename with timestamp - always backup regardless of prefix
@@ -671,18 +660,14 @@ ipcMain.handle('createBackup', async () => {
     const backupFileName = `phone-shop-backup-${nowPrefix}.sqlite`;
     const backupPath = path.join(backupDir, backupFileName);
     
-    console.log('Creating backup at:', backupPath);
-    
     // Copy database file - use the same path resolution as the main app
     const dbPath = getDatabasePath(); // Use the function that handles both dev and production paths
-    console.log('Source database path:', dbPath);
     
     if (!fs.existsSync(dbPath)) {
       throw new Error(`Source database not found at: ${dbPath}`);
     }
     
     fs.copyFileSync(dbPath, backupPath);
-    console.log('Database file copied successfully');
     
     // Verify the backup file was created and is readable
     if (!fs.existsSync(backupPath)) {
@@ -690,7 +675,6 @@ ipcMain.handle('createBackup', async () => {
     }
     
     const backupStats = fs.statSync(backupPath);
-    console.log(`Backup file created successfully. Size: ${backupStats.size} bytes`);
     
     // Try to open the backup file to verify it's a valid SQLite database
     try {
@@ -698,7 +682,6 @@ ipcMain.handle('createBackup', async () => {
       if (testBuffer.length < 16 || !testBuffer.toString('utf8', 0, 15).startsWith('SQLite format 3')) {
         throw new Error('Backup file is not a valid SQLite database');
       }
-      console.log('Backup file validation successful');
     } catch (validationError) {
       console.error('Backup file validation failed:', validationError);
       throw new Error(`Backup created but validation failed: ${validationError.message}`);
@@ -749,8 +732,6 @@ ipcMain.handle('restoreBackup', async (event, filePath) => {
   const backupCurrentPath = dbPath + '.bak';
   
   try {
-    console.log('[Local Restore] Starting restore from:', filePath);
-    
     if (!fs.existsSync(filePath)) {
       console.error('[Local Restore] Backup file not found:', filePath);
       return { success: false, message: 'Backup file not found' };
@@ -770,7 +751,6 @@ ipcMain.handle('restoreBackup', async (event, filePath) => {
     // Close database connection
     try {
       db.db.close();
-      console.log('[Local Restore] Closed DB connection');
     } catch (e) {
       console.warn('[Local Restore] DB close failed (may already be closed):', e.message);
     }
@@ -778,13 +758,11 @@ ipcMain.handle('restoreBackup', async (event, filePath) => {
     // Create backup of current database
     if (fs.existsSync(dbPath)) {
       fs.copyFileSync(dbPath, backupCurrentPath);
-      console.log('[Local Restore] Backed up current DB to', backupCurrentPath);
+
     }
     
     // Copy backup file to current database location
     fs.copyFileSync(filePath, dbPath);
-    console.log('[Local Restore] Copied backup file to DB path:', dbPath);
-    
     // Reinitialize database connection
     try {
       // Clear require cache for db.cjs to force reload
@@ -794,7 +772,7 @@ ipcMain.handle('restoreBackup', async (event, filePath) => {
       
       // Test connection by running a simple query
       const testResult = db.getProducts();
-      console.log('[Local Restore] DB connection re-initialized and test query succeeded, got', testResult.length, 'products');
+
     } catch (e) {
       console.error('[Local Restore] DB re-initialization or test query failed:', e);
       // Rollback if DB cannot be opened
@@ -803,7 +781,6 @@ ipcMain.handle('restoreBackup', async (event, filePath) => {
         delete require.cache[require.resolve('../database/db.cjs')];
         const dbModule = require('../database/db.cjs');
         Object.assign(db, dbModule);
-        console.log('[Local Restore] Rolled back to previous DB');
       }
       throw new Error('Restored DB is invalid or corrupt. Rolled back to previous database.');
     }
@@ -889,7 +866,6 @@ ipcMain.handle('restoreFromCloudBackup', async (event, filePath) => {
   let dbPath = path.join(__dirname, '../database/shop.sqlite');
   let backupCurrentPath = dbPath + '.bak';
   try {
-    console.log('[Cloud Restore] Starting restore from:', filePath);
     
     if (!fs.existsSync(filePath)) {
       console.error('[Cloud Restore] Backup file not found:', filePath);
@@ -910,18 +886,17 @@ ipcMain.handle('restoreFromCloudBackup', async (event, filePath) => {
     // Close database connection
     try {
       db.db.close();
-      console.log('[Cloud Restore] Closed DB connection');
+
     } catch (e) {
       console.warn('[Cloud Restore] DB close failed (may already be closed):', e.message);
     }
     // Create backup of current database
     if (fs.existsSync(dbPath)) {
       fs.copyFileSync(dbPath, backupCurrentPath);
-      console.log('[Cloud Restore] Backed up current DB to', backupCurrentPath);
+
     }
     // Restore from backup
     fs.copyFileSync(filePath, dbPath);
-    console.log('[Cloud Restore] Copied backup file to DB path:', dbPath);
     // Reinitialize database connection
     let dbModule;
     try {
@@ -931,7 +906,6 @@ ipcMain.handle('restoreFromCloudBackup', async (event, filePath) => {
       Object.assign(db, dbModule);
       // Test connection by running a simple query
       const testResult = db.getProducts();
-      console.log('[Cloud Restore] DB connection re-initialized and test query succeeded, got', testResult.length, 'products');
     } catch (e) {
       console.error('[Restore] DB re-initialization or test query failed:', e);
       // Rollback if DB cannot be opened
@@ -940,7 +914,6 @@ ipcMain.handle('restoreFromCloudBackup', async (event, filePath) => {
         delete require.cache[require.resolve('../database/db.cjs')];
         dbModule = require('../database/db.cjs');
         Object.assign(db, dbModule);
-        console.log('[Restore] Rolled back to previous DB');
       }
       throw new Error('Restored DB is invalid or corrupt. Rolled back to previous database.');
     }
@@ -1029,7 +1002,6 @@ ipcMain.handle('setAutoBackup', async (event, enabled) => {
     cloudBackupService.setAutoBackup(enabled);
     // Save setting persistently
     await settings.set('autoBackup', enabled);
-    console.log('[IPC] Auto backup setting saved:', enabled);
     return { success: true };
   } catch (error) {
     console.error('[IPC] setAutoBackup error:', error);
@@ -1098,8 +1070,7 @@ ipcMain.handle('restoreFromFile', async (event, filePath) => {
   const backupCurrentPath = dbPath + '.bak';
   
   try {
-    console.log('[IPC] Starting restore from:', filePath);
-    
+
     if (!fs.existsSync(filePath)) {
       console.error('[IPC] Backup file not found:', filePath);
       return { success: false, message: 'Backup file not found' };
@@ -1119,13 +1090,11 @@ ipcMain.handle('restoreFromFile', async (event, filePath) => {
     // Backup current database
     if (fs.existsSync(dbPath)) {
       fs.copyFileSync(dbPath, backupCurrentPath);
-      console.log('[IPC] Backed up current DB to', backupCurrentPath);
     }
     
     // Replace database with backup
     fs.copyFileSync(filePath, dbPath);
-    console.log('[IPC] Copied backup file to DB path:', dbPath);
-    
+
     // Reinitialize database connection
     try {
       // Clear require cache for db.cjs to force reload
@@ -1135,7 +1104,7 @@ ipcMain.handle('restoreFromFile', async (event, filePath) => {
       
       // Test connection by running a simple query
       const testResult = db.getProducts();
-      console.log('[IPC] DB connection re-initialized and test query succeeded, got', testResult.length, 'products');
+
     } catch (e) {
       console.error('[IPC] DB re-initialization or test query failed:', e);
       // Rollback if DB cannot be opened
@@ -1144,7 +1113,6 @@ ipcMain.handle('restoreFromFile', async (event, filePath) => {
         delete require.cache[require.resolve('../database/db.cjs')];
         const dbModule = require('../database/db.cjs');
         Object.assign(db, dbModule);
-        console.log('[IPC] Rolled back to previous DB');
       }
       throw new Error('Restored DB is invalid or corrupt. Rolled back to previous database.');
     }
@@ -1178,10 +1146,8 @@ ipcMain.handle('createLocalBackup', async () => {
     const documentsPath = path.join(os.homedir(), 'Documents');
     const backupDir = path.join(documentsPath, 'Mobile Roma BackUp');
     
-    console.log('Creating local backup directory:', backupDir);
     if (!fs.existsSync(backupDir)) {
       fs.mkdirSync(backupDir, { recursive: true });
-      console.log('Local backup directory created');
     }
     
     // Create backup filename with timestamp
@@ -1190,18 +1156,14 @@ ipcMain.handle('createLocalBackup', async () => {
     const backupFileName = `phone-shop-backup-${nowPrefix}.sqlite`;
     const backupPath = path.join(backupDir, backupFileName);
     
-    console.log('Creating local backup at:', backupPath);
-    
     // Copy database file
     const dbPath = getDatabasePath();
-    console.log('Source database path:', dbPath);
     
     if (!fs.existsSync(dbPath)) {
       throw new Error(`Source database not found at: ${dbPath}`);
     }
     
     fs.copyFileSync(dbPath, backupPath);
-    console.log('Database file copied successfully');
     
     // Verify the backup file was created and is readable
     if (!fs.existsSync(backupPath)) {
@@ -1209,7 +1171,6 @@ ipcMain.handle('createLocalBackup', async () => {
     }
     
     const backupStats = fs.statSync(backupPath);
-    console.log(`Local backup file created successfully. Size: ${backupStats.size} bytes`);
     
     // Validate SQLite file
     try {
@@ -1217,7 +1178,6 @@ ipcMain.handle('createLocalBackup', async () => {
       if (testBuffer.length < 16 || !testBuffer.toString('utf8', 0, 15).startsWith('SQLite format 3')) {
         throw new Error('Backup file is not a valid SQLite database');
       }
-      console.log('Local backup file validation successful');
     } catch (validationError) {
       console.error('Local backup file validation failed:', validationError);
       throw new Error(`Backup created but validation failed: ${validationError.message}`);
@@ -1256,7 +1216,6 @@ ipcMain.handle('openBackupFolder', async () => {
     // Create backup directory if it doesn't exist
     if (!fs.existsSync(backupDir)) {
       fs.mkdirSync(backupDir, { recursive: true });
-      console.log('Backup directory created for opening');
     }
     
     // Open the backup directory in system explorer
@@ -1289,8 +1248,7 @@ async function performRestore(filePath) {
   const backupCurrentPath = dbPath + '.bak';
   
   try {
-    console.log('[Restore] Starting restore from:', filePath);
-    
+  
     if (!fs.existsSync(filePath)) {
       console.error('[Restore] Backup file not found:', filePath);
       return { success: false, message: 'Backup file not found' };
@@ -1298,7 +1256,6 @@ async function performRestore(filePath) {
     
     // Verify backup file is valid SQLite by checking header
     const fileStats = fs.statSync(filePath);
-    console.log('[Restore] File size:', fileStats.size, 'bytes');
     
     if (fileStats.size === 0) {
       console.error('[Restore] File is empty:', filePath);
@@ -1315,24 +1272,17 @@ async function performRestore(filePath) {
     const bytesRead = fs.readSync(fd, buffer, 0, buffer.length, 0);
     fs.closeSync(fd);
     
-    console.log('[Restore] Read', bytesRead, 'bytes from file');
-    console.log('[Restore] First 16 bytes as hex:', buffer.subarray(0, 16).toString('hex'));
-    
+   
     const header = buffer.toString('utf8', 0, Math.min(15, bytesRead));
-    console.log('[Restore] File header:', JSON.stringify(header));
-    console.log('[Restore] Header starts with SQLite format 3?', header.startsWith('SQLite format 3'));
-    
+ 
     // Try different encodings if the standard check fails
     if (!header.startsWith('SQLite format 3')) {
       // Check if it might be encoded differently
       const headerLatin1 = buffer.toString('latin1', 0, Math.min(15, bytesRead));
       const headerBinary = buffer.toString('binary', 0, Math.min(15, bytesRead));
       
-      console.log('[Restore] Header (latin1):', JSON.stringify(headerLatin1));
-      console.log('[Restore] Header (binary):', JSON.stringify(headerBinary));
-      
       if (headerLatin1.startsWith('SQLite format 3') || headerBinary.startsWith('SQLite format 3')) {
-        console.log('[Restore] File appears to be SQLite with different encoding');
+      
       } else {
         console.error('[Restore] Invalid SQLite file:', filePath);
         console.error('[Restore] First 32 bytes as hex:', buffer.subarray(0, Math.min(32, bytesRead)).toString('hex'));
@@ -1344,12 +1294,10 @@ async function performRestore(filePath) {
     // Backup current database
     if (fs.existsSync(dbPath)) {
       fs.copyFileSync(dbPath, backupCurrentPath);
-      console.log('[Restore] Backed up current DB to', backupCurrentPath);
     }
     
     // Replace database with backup
     fs.copyFileSync(filePath, dbPath);
-    console.log('[Restore] Copied backup file to DB path:', dbPath);
     
     // Reinitialize database connection
     try {
@@ -1360,7 +1308,6 @@ async function performRestore(filePath) {
       
       // Test connection by running a simple query
       const testResult = db.getProducts();
-      console.log('[Restore] DB connection re-initialized and test query succeeded, got', testResult.length, 'products');
     } catch (e) {
       console.error('[Restore] DB re-initialization or test query failed:', e);
       // Rollback if DB cannot be opened
@@ -1369,7 +1316,6 @@ async function performRestore(filePath) {
         delete require.cache[require.resolve('../database/db.cjs')];
         const dbModule = require('../database/db.cjs');
         db = dbModule(dbPath);
-        console.log('[Restore] Rolled back to previous DB');
       }
       throw new Error('Restored DB is invalid or corrupt. Rolled back to previous database.');
     }
@@ -1377,7 +1323,6 @@ async function performRestore(filePath) {
     // Remove backup file
     if (fs.existsSync(backupCurrentPath)) {
       fs.unlinkSync(backupCurrentPath);
-      console.log('[Restore] Removed backup file:', backupCurrentPath);
     }
     
     return { success: true, message: 'Database restored successfully', requiresRestart: false };
