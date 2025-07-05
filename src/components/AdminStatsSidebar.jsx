@@ -56,12 +56,12 @@ const AdminStatsSidebar = ({
       }, 0);
     }, 0);
 
-    // Today's spending (paid company debts)
-    const todaysSpending = (companyDebts || []).filter(debt => {
-      if (!debt.paid_at) return false;
-      const paidDate = new Date(debt.paid_at);
+    // Today's spending (from actual cash payments in buying history)
+    const todaysSpending = !admin.buyingHistory ? 0 : admin.buyingHistory.filter(entry => {
+      if (!entry.paid_at) return false;
+      const paidDate = new Date(entry.paid_at);
       return paidDate.toDateString() === currentDate.toDateString();
-    }).reduce((sum, debt) => sum + debt.amount, 0);
+    }).reduce((sum, entry) => sum + (entry.amount || 0), 0);
 
     // Net performance for today (revenue - spending)
     const todaysNetPerformance = todaysRevenue - todaysSpending;
@@ -122,7 +122,7 @@ const AdminStatsSidebar = ({
       recentSales,
       totalProfit
     };
-  }, [sales, products, companyDebts, admin.debts, admin.lowStockThreshold, refreshKey]);
+  }, [sales, products, companyDebts, admin.debts, admin.buyingHistory, admin.lowStockThreshold, refreshKey]);
 
   // Debt calculations - fixed to handle both paid_at and paid fields
   const totalDebtAmount = useMemo(() => {

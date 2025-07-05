@@ -200,11 +200,7 @@ export default function SettingsModal({
         <div className="flex flex-col gap-2 mb-2">
           <button
             className="w-full bg-red-600 text-white py-2 rounded hover:bg-red-700 transition font-semibold"
-            onClick={() => {
-          if (window.confirm(t.confirmReset || t.confirmResetAllData || 'Are you sure you want to reset all data? This will delete everything and cannot be undone!')) {
-            handleResetAllData();
-          }
-            }}
+            onClick={handleResetAllData}
           >
             {t.resetAllData || 'Reset All Data'}
           </button>

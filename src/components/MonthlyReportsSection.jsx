@@ -56,7 +56,7 @@ const MonthlyReportsSection = ({
                 (sale.items || []).forEach(item => {
                   if (item.is_accessory) {
                     totalAccessoriesSold += item.quantity || 1;
-                    accessoryProfit += (item.profit || ((item.price || 0) - (item.buying_price || 0))) * (item.quantity || 1);
+                    accessoryProfit += (item.profit);
                   } else {
                     totalProductsSold += item.quantity || 1;
                     productProfit += (item.profit || ((item.price || 0) - (item.buying_price || 0))) * (item.quantity || 1);

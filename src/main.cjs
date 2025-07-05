@@ -959,6 +959,26 @@ ipcMain.handle('returnSaleItem', async (event, saleId, itemId, quantity = null) 
   }
 });
 
+// Buying History Return handlers
+ipcMain.handle('returnBuyingHistoryEntry', async (event, entryId) => {
+  try {
+    const result = db.returnBuyingHistoryEntry(entryId);
+    await runAutoBackupAfterSale();
+    return { success: true, returnedAmount: result.returnedAmount };
+  } catch (e) {
+    return { success: false, message: e.message };
+  }
+});
+
+ipcMain.handle('returnBuyingHistoryItem', async (event, entryId, itemId, quantity = null) => {
+  try {
+    const result = db.returnBuyingHistoryItem(entryId, itemId, quantity);
+    await runAutoBackupAfterSale();
+    return { success: true, returnedAmount: result.returnedAmount, newTotal: result.newTotal };
+  } catch (e) {
+    return { success: false, message: e.message };
+  }
+});
 // Get current backup path for unified backup system
 ipcMain.handle('getCurrentBackupPath', async () => {
   try {

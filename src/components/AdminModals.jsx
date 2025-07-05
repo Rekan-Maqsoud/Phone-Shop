@@ -242,12 +242,8 @@ export default function AdminModals({
               // Refresh data from DataContext
               await refreshCompanyDebts();
               await refreshBuyingHistory();
-              if (admin.fetchProducts) {
-                await admin.fetchProducts();
-              }
-              if (admin.fetchAccessories) {
-                await admin.fetchAccessories();
-              }
+              await refreshProducts();
+              await refreshAccessories();
               
               setShowAddPurchase(); // This calls the close function
               setToast(t.purchaseAddedSuccessfully || 'Purchase added successfully!');

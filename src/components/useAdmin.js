@@ -171,45 +171,48 @@ export default function useAdmin() {
       
     }
   };
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
+
   const handleResetAllData = async () => {
-    if (window.confirm(t.confirmReset)) {
-      
-      try {
-        if (window.api?.resetAllData) {
-          const res = await window.api.resetAllData();
-          setToast(res.success ? 'All data reset successful!' : res.message || 'Reset failed.');
-          if (res.success) {
-            // Clear all state data immediately to ensure UI reflects reset
-            setProducts([]);
-            setAccessories([]);
-            setSales([]);
-            setDebts([]);
-            setDebtSales([]);
-            setCompanyDebts([]);
-            setBuyingHistory([]);
-            setMonthlyReports([]);
-            
-            // Wait a moment for state to clear, then refetch all data
-            await new Promise(resolve => setTimeout(resolve, 100));
-            
-            // Refetch all data to ensure UI is updated with fresh data
-            await Promise.all([
-              refreshProducts(),
-              refreshAccessories(),
-              refreshSales(),
-              refreshDebts(),
-              // debtSales handled by DataContext
-              refreshCompanyDebts(),
-              refreshBuyingHistory(),
-              refreshMonthlyReports()
-            ]);
-          }
+    setResetConfirmOpen(true);
+  };
+
+  const executeResetAllData = async () => {
+    try {
+      if (window.api?.resetAllData) {
+        const res = await window.api.resetAllData();
+        setToast(res.success ? 'All data reset successful!' : res.message || 'Reset failed.');
+        if (res.success) {
+          // Clear all state data immediately to ensure UI reflects reset
+          setProducts([]);
+          setAccessories([]);
+          setSales([]);
+          setDebts([]);
+          setDebtSales([]);
+          setCompanyDebts([]);
+          setBuyingHistory([]);
+          setMonthlyReports([]);
+          
+          // Wait a moment for state to clear, then refetch all data
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
+          // Refetch all data to ensure UI is updated with fresh data
+          await Promise.all([
+            refreshProducts(),
+            refreshAccessories(),
+            refreshSales(),
+            refreshDebts(),
+            // debtSales handled by DataContext
+            refreshCompanyDebts(),
+            refreshBuyingHistory(),
+            refreshMonthlyReports()
+          ]);
         }
-      } catch (e) {
-        setToast('Reset failed.');
-      } finally {
-        
       }
+    } catch (e) {
+      setToast('Reset failed.');
+    } finally {
+      
     }
   };
   const handleExportSales = async () => {
@@ -351,6 +354,9 @@ export default function useAdmin() {
     handleEditAccessory,
     handleRestoreBackup,
     handleResetAllData,
+    executeResetAllData,
+    resetConfirmOpen,
+    setResetConfirmOpen,
     handleExportSales,
     handleExportInventory,
     handleTestPrint,
@@ -366,7 +372,7 @@ export default function useAdmin() {
     goToAdmin,
   }), [
     products, accessories, sales, showProductModal, showAccessoryModal, editProduct, editAccessory, viewSale, debts, debtSales, companyDebts, buyingHistory, monthlyReports,
-    toast, dataLoading, notificationsEnabled, lowStockThreshold, adminModal, adminPassword, adminError
+    toast, dataLoading, notificationsEnabled, lowStockThreshold, adminModal, adminPassword, adminError, resetConfirmOpen
   ]); // Removed function dependencies and apiReady that change on every render
   return adminObject;
 }

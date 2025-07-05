@@ -259,6 +259,8 @@ const translations = {
     speaker: 'Speaker',
     smartwatch: 'Smart Watch',
     enterNameModel: 'Enter accessory name/model',
+    accessoryUpdated: 'Accessory updated',
+    productUpdated: 'Product updated',
     
     // Settings modal
     confirmResetAllData: 'Are you sure you want to delete ALL products, archived, and sales history? This cannot be undone!',
@@ -347,6 +349,14 @@ const translations = {
     
     // Sales History Section
     confirmReturnSale: 'Are you sure you want to return this entire sale? This will restore stock and remove the sale from records.',
+    returnEntry: 'Return',
+    confirmReturnEntry: 'Are you sure you want to return this purchase? This will decrease stock and refund the amount.',
+    returnItem: 'Return Item',
+    returnQuantity: 'Return Quantity',
+    refundAmount: 'Refund Amount',
+    returnSuccess: 'Return processed successfully!',
+    returnError: 'Failed to process return',
+    availableQuantity: 'Available Quantity',
     
     // Customer Debts Section
     customerDebtsDesc: 'Track money owed to you by customers',
@@ -735,6 +745,8 @@ const translations = {
     speaker: 'سپیکەر',
     smartwatch: 'کاتژمێری زیرەک',
     enterNameModel: 'ناو/مۆدێلی ئامێری یارمەتیدەر بنووسە',
+    accessoryUpdated: 'ئامێری یارمەتیدەر نوێکرایەوە',
+    productUpdated: 'بەرهەم نوێکرایەوە',
     
     // Settings modal
     confirmResetAllData: 'دڵنیایت کە دەتەوێت هەموو بەرهەمەکان، ئارشیو کراوەکان، و مێژووی فرۆشتن بسڕیتەوە؟ ئەمە ناگەڕێتەوە!',
@@ -822,6 +834,14 @@ const translations = {
     
     // Sales History Section
     confirmReturnSale: 'دڵنیایت کە دەتەوێت هەموو ئەم فرۆشتنە بگەڕێنیتەوە؟ ئەمە کۆگا دەگەڕێنێتەوە و فرۆشتنەکە لە تۆمارەکان لادەدات.',
+    returnEntry: 'گەڕاندنەوە',
+    confirmReturnEntry: 'دڵنیایت کە دەتەوێت ئەم کڕینە بگەڕێنیتەوە؟ ئەمە کۆگا کەم دەکاتەوە و پارەکە دەگەڕێنێتەوە.',
+    returnItem: 'گەڕاندنەوەی بابەت',
+    returnQuantity: 'ژمارەی گەڕاندنەوە',
+    refundAmount: 'بڕی گەڕاندنەوە',
+    returnSuccess: 'گەڕاندنەوە بە سەرکەوتوویی تەواو بوو!',
+    returnError: 'شکستی گەڕاندنەوە',
+    availableQuantity: 'ژمارەی بەردەست',
     
     // Customer Debts Section
     customerDebtsDesc: 'شوێنکەوتنی پارەی کڕیارەکان پێتان',
@@ -1220,6 +1240,8 @@ const translations = {
     speaker: 'المكبر',
     smartwatch: 'الساعة الذكية',
     enterNameModel: 'أدخل اسم/موديل الإكسسوار',
+    accessoryUpdated: 'تم تحديث الإكسسوار',
+    productUpdated: 'تم تحديث المنتج',
     
     // Settings modal
     confirmResetAllData: 'هل أنت متأكد من أنك تريد حذف جميع المنتجات والمؤرشفة وتاريخ المبيعات؟ لا يمكن التراجع عن هذا!',
@@ -1307,6 +1329,14 @@ const translations = {
     
     // Sales History Section
     confirmReturnSale: 'هل أنت متأكد من أنك تريد إرجاع هذا البيع بالكامل؟ سيتم استعادة المخزون وإزالة البيع من السجلات.',
+    returnEntry: 'إرجاع',
+    confirmReturnEntry: 'هل أنت متأكد من أنك تريد إرجاع هذا الشراء؟ سيتم تقليل المخزون وإرداد المبلغ.',
+    returnItem: 'إرجاع العنصر',
+    returnQuantity: 'كمية الإرجاع',
+    refundAmount: 'مبلغ الاسترداد',
+    returnSuccess: 'تم معالجة الإرجاع بنجاح!',
+    returnError: 'فشل في معالجة الإرجاع',
+    availableQuantity: 'الكمية المتاحة',
     
     // Customer Debts Section
     customerDebtsDesc: 'تتبع الأموال المستحقة لك من العملاء',
@@ -1390,7 +1420,7 @@ const translations = {
     createLocalBackup: 'إنشاء نسخة احتياطية محلية',
     refresh: 'تحديث',
     creating: 'جاري الإنشاء...',
-    cloudBackups: 'النسخ الاحتياطية السحابية',
+    cloudBackups: 'النسخ الاحتياطي السحابية',
     backups: 'نسخ احتياطية',
     noCloudBackupsFound: 'لم يتم العثور على نسخ احتياطية سحابية',
     fileName: 'اسم الملف',
@@ -1435,11 +1465,6 @@ const translations = {
     markPaid: 'تمييز كمدفوع',
     itemsCount: 'العناصر',
     
-    // Purchase modal
-    selectModel: 'اختر أو اكتب الموديل...',
-    payLaterCreatesDebt: 'ادفع لاحقاً - ينشئ دين شركة',
-    immediatePaymentHistory: 'الدفع الفوري - يذهب إلى تاريخ الشراء',
-
     // Missing translations in Arabic
     generated: 'تم إنشاؤه',
     affectedItems: 'العناصر المتأثرة',

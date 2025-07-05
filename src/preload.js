@@ -88,4 +88,7 @@ contextBridge.exposeInMainWorld('api', {
   // Return functionality
   returnSale: (saleId) => ipcRenderer.invoke('returnSale', saleId),
   returnSaleItem: (saleId, itemId, quantity) => ipcRenderer.invoke('returnSaleItem', saleId, itemId, quantity),
+  // Buying History Return functionality
+  returnBuyingHistoryEntry: (entryId) => ipcRenderer.invoke('returnBuyingHistoryEntry', entryId),
+  returnBuyingHistoryItem: (entryId, itemId, quantity) => ipcRenderer.invoke('returnBuyingHistoryItem', entryId, itemId, quantity),
 });

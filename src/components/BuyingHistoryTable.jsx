@@ -1,11 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import HistorySearchFilter from './HistorySearchFilter';
+import ConfirmModal from './ConfirmModal';
 
 // Enhanced table for buying history with item details support
 export default function BuyingHistoryTable({ buyingHistory, t, onAddPurchase, refreshBuyingHistory }) {
   const [expandedEntries, setExpandedEntries] = useState(new Set());
   const [filteredHistory, setFilteredHistory] = useState(buyingHistory || []);
   const [totals, setTotals] = useState(null);
+  const [showReturnModal, setShowReturnModal] = useState(false);
+  const [returnModalData, setReturnModalData] = useState(null);
+  const [confirmModal, setConfirmModal] = useState(null);
 
   // Calculate totals for filtered buying history
   const calculateTotals = (historyData) => {
@@ -22,11 +26,11 @@ export default function BuyingHistoryTable({ buyingHistory, t, onAddPurchase, re
     };
   };
 
-  // Handle filtered data change from search component
-  const handleFilteredDataChange = (filtered, calculatedTotals) => {
+  // Handle filtered data change from search component - wrapped with useCallback to prevent infinite re-renders
+  const handleFilteredDataChange = useCallback((filtered, calculatedTotals) => {
     setFilteredHistory(filtered);
     setTotals(calculatedTotals);
-  };
+  }, []);
 
   const toggleExpanded = (entryId) => {
     const newExpanded = new Set(expandedEntries);
@@ -36,6 +40,81 @@ export default function BuyingHistoryTable({ buyingHistory, t, onAddPurchase, re
       newExpanded.add(entryId);
     }
     setExpandedEntries(newExpanded);
+  };
+
+  // Handle return entry with confirmation modal
+  const handleReturnEntry = useCallback((entryId, amount) => {
+    setConfirmModal({
+      isOpen: true,
+      title: t?.returnEntry || 'Return Purchase',
+      message: t?.confirmReturnEntry || `Are you sure you want to return this purchase? You will get back $${amount.toFixed(2)}`,
+      onConfirm: async () => {
+        try {
+          const result = await window.api.returnBuyingHistoryEntry(entryId);
+          if (result.success) {
+            // Use ToastUnified instead of alert
+            if (window.showToast) {
+              window.showToast(t?.returnSuccess || `Purchase returned successfully! Amount refunded: $${result.returnedAmount.toFixed(2)}`, 'success');
+            }
+            refreshBuyingHistory();
+          } else {
+            if (window.showToast) {
+              window.showToast(t?.returnError || `Failed to return purchase: ${result.message}`, 'error');
+            }
+          }
+        } catch (error) {
+          console.error('Error returning purchase:', error);
+          if (window.showToast) {
+            window.showToast(t?.returnError || 'Failed to return purchase', 'error');
+          }
+        }
+        setConfirmModal(null);
+      },
+      onCancel: () => setConfirmModal(null)
+    });
+  }, [t, refreshBuyingHistory]);
+
+  // Handle return item with quantity
+  const handleReturnItem = (entryId, itemId, itemName, currentQuantity, unitPrice) => {
+    setReturnModalData({
+      entryId,
+      itemId,
+      itemName,
+      currentQuantity,
+      unitPrice,
+      maxReturnQuantity: currentQuantity
+    });
+    setShowReturnModal(true);
+  };
+
+  const executeItemReturn = async (quantity) => {
+    if (!returnModalData) return;
+
+    try {
+      const result = await window.api.returnBuyingHistoryItem(
+        returnModalData.entryId,
+        returnModalData.itemId,
+        quantity
+      );
+      
+      if (result.success) {
+        if (window.showToast) {
+          window.showToast(t?.returnSuccess || `Item returned successfully! Amount refunded: $${result.returnedAmount.toFixed(2)}`, 'success');
+        }
+        refreshBuyingHistory();
+        setShowReturnModal(false);
+        setReturnModalData(null);
+      } else {
+        if (window.showToast) {
+          window.showToast(t?.returnError || `Failed to return item: ${result.message}`, 'error');
+        }
+      }
+    } catch (error) {
+      console.error('Error returning item:', error);
+      if (window.showToast) {
+        window.showToast(t?.returnError || 'Failed to return item', 'error');
+      }
+    }
   };
 
   if (!buyingHistory || buyingHistory.length === 0) {
@@ -152,14 +231,23 @@ export default function BuyingHistoryTable({ buyingHistory, t, onAddPurchase, re
                       )}
                     </td>
                     <td className="px-6 py-4">
-                      {entry.has_items && (
+                      <div className="flex gap-2">
+                        {entry.has_items && (
+                          <button
+                            onClick={() => toggleExpanded(entry.id)}
+                            className="px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm"
+                          >
+                            {expandedEntries.has(entry.id) ? '🔼' : '🔽'} {t?.viewItems || 'View Items'}
+                          </button>
+                        )}
                         <button
-                          onClick={() => toggleExpanded(entry.id)}
-                          className="px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm"
+                          onClick={() => handleReturnEntry(entry.id, entry.amount)}
+                          className="px-3 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-sm"
+                          title={t?.returnEntry || 'Return this purchase'}
                         >
-                          {expandedEntries.has(entry.id) ? '🔼' : '🔽'} {t?.viewItems || 'View Items'}
+                          ↩️ {t?.returnEntry || 'Return'}
                         </button>
-                      )}
+                      </div>
                     </td>
                   </tr>
                   
@@ -176,14 +264,14 @@ export default function BuyingHistoryTable({ buyingHistory, t, onAddPurchase, re
                               <div key={itemIdx} className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-blue-200 dark:border-blue-700">
                                 <div className="flex items-center gap-2 mb-2">
                                   <span className="text-lg">{item.item_type === 'product' ? '📱' : '🎧'}</span>
-                                  <span className="font-medium text-gray-900 dark:text-gray-100">
+                                  <span className="font-medium text-gray-800 dark:text-gray-200">
                                     {item.item_name}
                                   </span>
                                 </div>
                                 <div className="text-sm space-y-1">
                                   <div className="flex justify-between">
                                     <span className="text-gray-600 dark:text-gray-400">{t?.quantity || 'Qty'}:</span>
-                                    <span className="font-semibold">{item.quantity}</span>
+                                    <span className="font-semibold text-gray-900 dark:text-gray-100">{item.quantity}</span>
                                   </div>
                                   <div className="flex justify-between">
                                     <span className="text-gray-600 dark:text-gray-400">{t?.unitPrice || 'Unit Price'}:</span>
@@ -196,21 +284,30 @@ export default function BuyingHistoryTable({ buyingHistory, t, onAddPurchase, re
                                   {item.ram && (
                                     <div className="flex justify-between">
                                       <span className="text-gray-600 dark:text-gray-400">{t.ram || 'RAM'}:</span>
-                                      <span className="text-xs bg-gray-100 dark:bg-gray-700 px-1 rounded">{item.ram}</span>
+                                      <span className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 px-1 rounded">{item.ram}</span>
                                     </div>
                                   )}
                                   {item.storage && (
                                     <div className="flex justify-between">
                                       <span className="text-gray-600 dark:text-gray-400">{t.storage || 'Storage'}:</span>
-                                      <span className="text-xs bg-gray-100 dark:bg-gray-700 px-1 rounded">{item.storage}</span>
+                                      <span className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 px-1 rounded">{item.storage}</span>
                                     </div>
                                   )}
                                   {item.brand && (
                                     <div className="flex justify-between">
                                       <span className="text-gray-600 dark:text-gray-400">{t.brand || 'Brand'}:</span>
-                                      <span className="text-xs bg-gray-100 dark:bg-gray-700 px-1 rounded">{item.brand}</span>
+                                      <span className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 px-1 rounded">{item.brand}</span>
                                     </div>
                                   )}
+                                  <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-600">
+                                    <button
+                                      onClick={() => handleReturnItem(entry.id, item.id, item.item_name, item.quantity, item.unit_price)}
+                                      className="w-full px-2 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700 transition"
+                                      title={t?.returnItem || 'Return this item'}
+                                    >
+                                      ↩️ {t?.returnItem || 'Return Item'}
+                                    </button>
+                                  </div>
                                 </div>
                               </div>
                             ))}
@@ -225,6 +322,107 @@ export default function BuyingHistoryTable({ buyingHistory, t, onAddPurchase, re
           </table>
         </div>
       </div>
+      
+      {/* Return Quantity Modal */}
+      {showReturnModal && returnModalData && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-96 max-w-md mx-4">
+            <h3 className="text-lg font-bold text-gray-800 dark:text-gray-100 mb-4">
+              {t?.returnItem || 'Return Item'}
+            </h3>
+            
+            <div className="space-y-4">
+              <div>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                  {t?.itemName || 'Item'}: <span className="font-medium">{returnModalData.itemName}</span>
+                </p>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                  {t?.availableQuantity || 'Available'}: <span className="font-medium">{returnModalData.currentQuantity}</span>
+                </p>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                  {t?.unitPrice || 'Unit Price'}: <span className="font-medium">${returnModalData.unitPrice}</span>
+                </p>
+              </div>
+              
+              <ReturnQuantityForm
+                maxQuantity={returnModalData.maxReturnQuantity}
+                unitPrice={returnModalData.unitPrice}
+                onReturn={executeItemReturn}
+                onCancel={() => {
+                  setShowReturnModal(false);
+                  setReturnModalData(null);
+                }}
+                t={t}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Confirmation Modal */}
+      {confirmModal && (
+        <ConfirmModal
+          open={confirmModal.isOpen}
+          message={confirmModal.message}
+          onConfirm={confirmModal.onConfirm}
+          onCancel={confirmModal.onCancel}
+          t={t}
+        />
+      )}
     </div>
+  );
+}
+
+// Return Quantity Form Component
+function ReturnQuantityForm({ maxQuantity, unitPrice, onReturn, onCancel, t }) {
+  const [quantity, setQuantity] = useState(1);
+  
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (quantity > 0 && quantity <= maxQuantity) {
+      onReturn(quantity);
+    }
+  };
+  
+  const totalRefund = quantity * unitPrice;
+  
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          {t?.returnQuantity || 'Return Quantity'}:
+        </label>
+        <input
+          type="number"
+          min="1"
+          max={maxQuantity}
+          value={quantity}
+          onChange={(e) => setQuantity(Math.min(maxQuantity, Math.max(1, parseInt(e.target.value) || 1)))}
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+        />
+      </div>
+      
+      <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg">
+        <p className="text-sm text-gray-700 dark:text-gray-300">
+          {t?.refundAmount || 'Refund Amount'}: <span className="font-bold text-green-600 dark:text-green-400">${totalRefund.toFixed(2)}</span>
+        </p>
+      </div>
+      
+      <div className="flex gap-3">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="flex-1 px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition"
+        >
+          {t?.cancel || 'Cancel'}
+        </button>
+        <button
+          type="submit"
+          className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
+        >
+          {t?.returnItem || 'Return'}
+        </button>
+      </div>
+    </form>
   );
 }

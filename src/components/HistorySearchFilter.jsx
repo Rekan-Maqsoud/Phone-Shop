@@ -180,7 +180,7 @@ export default function HistorySearchFilter({
     if (onFilteredDataChange) {
       onFilteredDataChange(filteredData, totals);
     }
-  }, [filteredData, totals, onFilteredDataChange]);
+  }, [filteredData, totals]);
 
   // Handle search type change
   const handleSearchTypeChange = (type) => {

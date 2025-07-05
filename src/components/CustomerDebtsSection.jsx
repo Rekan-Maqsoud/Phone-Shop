@@ -8,6 +8,7 @@ const CustomerDebtsSection = ({
   setDebtSearch, 
   showPaidDebts, 
   setShowPaidDebts, 
+  showConfirm,
   triggerCloudBackup 
 }) => {
   const { refreshDebts, refreshDebtSales, refreshSales } = useData();
@@ -326,33 +327,31 @@ const CustomerDebtsSection = ({
                                       onChange={async (e) => {
                                         e.stopPropagation();
                                         if (e.target.checked) {
-                                          const confirmed = window.confirm(
-                                            `${t.markDebtAsPaidConfirm || 'Are you sure you want to mark this debt as paid?'}\n\nAmount: ${formatCurrency(sale.total)}\nCustomer: ${originalCustomer}\n\nThis action cannot be undone.`
-                                          );
-                                          if (!confirmed) {
-                                            e.target.checked = false;
-                                            return;
-                                          }
-                                          try {
-                                            const result = await window.api?.markCustomerDebtPaid?.(debt.id, new Date().toISOString());
-                                            if (result && result.changes > 0) {
-                                              admin.setToast?.(`💰 Debt of ${formatCurrency(sale.total)} marked as paid for ${originalCustomer}`);
-                                              // Refresh all debt-related data
-                                              await Promise.all([
-                                                refreshDebts(),
-                                                refreshDebtSales(),
-                                                refreshSales() // Also refresh sales since paid debt moves to sales history
-                                              ]);
-                                              triggerCloudBackup();
-                                            } else {
-                                              admin.setToast?.('❌ Failed to mark debt as paid');
-                                              e.target.checked = false;
+                                          showConfirm(
+                                            `${t.markDebtAsPaidConfirm || 'Are you sure you want to mark this debt as paid?'}\n\nAmount: ${formatCurrency(sale.total)}\nCustomer: ${originalCustomer}\n\nThis action cannot be undone.`,
+                                            async () => {
+                                              try {
+                                                const result = await window.api?.markCustomerDebtPaid?.(debt.id, new Date().toISOString());
+                                                if (result && result.changes > 0) {
+                                                  admin.setToast?.(`💰 Debt of ${formatCurrency(sale.total)} marked as paid for ${originalCustomer}`);
+                                                  // Refresh all debt-related data
+                                                  await Promise.all([
+                                                    refreshDebts(),
+                                                    refreshDebtSales(),
+                                                    refreshSales() // Also refresh sales since paid debt moves to sales history
+                                                  ]);
+                                                  triggerCloudBackup();
+                                                } else {
+                                                  admin.setToast?.('❌ Failed to mark debt as paid');
+                                                }
+                                              } catch (error) {
+                                                console.error('Error marking debt as paid:', error);
+                                                admin.setToast?.('❌ Error marking debt as paid');
+                                              }
                                             }
-                                          } catch (error) {
-                                            console.error('Error marking debt as paid:', error);
-                                            admin.setToast?.('❌ Error marking debt as paid');
-                                            e.target.checked = false;
-                                          }
+                                          );
+                                          // Uncheck immediately, will be checked again only if confirmed
+                                          e.target.checked = false;
                                         }
                                       }}
                                     />

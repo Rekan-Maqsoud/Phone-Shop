@@ -24,3 +24,8 @@ Past issues involved state loops and render flooding. Ensure all state updates a
 Test in Production Mode
 Some bugs only appear in production. Always test your changes using production build (vite build + Electron run) before considering them complete.
 
+
+
+......................
+
+write their path and line of code here :

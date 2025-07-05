@@ -12,7 +12,7 @@ const CompanyDebtsSection = ({
   triggerCloudBackup 
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
-  const { companyDebts, refreshCompanyDebts } = useData();
+  const { companyDebts, refreshCompanyDebts, refreshBuyingHistory } = useData();
 
   return (
     <div className="space-y-6">
@@ -199,9 +199,8 @@ const CompanyDebtsSection = ({
                                           if (result && result.changes > 0) {
                                             admin.setToast?.(`✅ Company debt of $${debt.amount.toFixed(2)} marked as paid for ${debt.company_name}`);
                                             // Refresh all company debt related data
-                                            if (admin.fetchCompanyDebts) admin.fetchCompanyDebts();
-                                            if (admin.fetchBuyingHistory) admin.fetchBuyingHistory();
-                                            if (refreshCompanyDebts) refreshCompanyDebts();
+                                            await refreshCompanyDebts();
+                                            await refreshBuyingHistory();
                                             triggerCloudBackup();
                                           } else {
                                             admin.setToast?.('❌ Failed to mark company debt as paid');

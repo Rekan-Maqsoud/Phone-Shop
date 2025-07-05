@@ -868,10 +868,9 @@ function createMonthlyReport(month, year) {
 
   // Profits by type
   const profitRows = db.prepare(`
-    SELECT si.profit, a.id as accessory_id
+    SELECT si.profit, si.is_accessory
     FROM sale_items si
     JOIN sales s ON si.sale_id = s.id
-    LEFT JOIN accessories a ON si.product_id = a.id
     WHERE s.created_at >= ? AND s.created_at < ? AND s.is_debt = 0
   `).all(startDate, endDate);
 
@@ -881,7 +880,7 @@ function createMonthlyReport(month, year) {
   let totalAccessoriesSold = 0;
   // Use quantity for correct totals
   profitRows.forEach(row => {
-    if (row.accessory_id) {
+    if (row.is_accessory) {
       accessoryProfit += row.profit;
     } else {
       productProfit += row.profit;
@@ -890,16 +889,15 @@ function createMonthlyReport(month, year) {
 
   // For accurate quantities, sum quantities for each type
   const qtyRows = db.prepare(`
-    SELECT si.quantity, a.id as accessory_id
+    SELECT si.quantity, si.is_accessory
     FROM sale_items si
     JOIN sales s ON si.sale_id = s.id
-    LEFT JOIN accessories a ON si.product_id = a.id
     WHERE s.created_at >= ? AND s.created_at < ? AND s.is_debt = 0
   `).all(startDate, endDate);
   totalProductsSold = 0;
   totalAccessoriesSold = 0;
   qtyRows.forEach(row => {
-    if (row.accessory_id) {
+    if (row.is_accessory) {
       totalAccessoriesSold += row.quantity;
     } else {
       totalProductsSold += row.quantity;
@@ -1170,53 +1168,167 @@ function returnSaleItem(saleId, itemId, returnQuantity = null) {
   return transaction();
 }
 
-// --- Direct Purchase functions (for immediate payments) ---
-function addDirectPurchase({ company_name, amount, description }) {
-  const paidTime = new Date().toISOString();
-  const result = db.prepare(`
-    INSERT INTO buying_history (company_debt_id, company_name, amount, description, has_items, paid_at)
-    VALUES (NULL, ?, ?, ?, 0, ?)
-  `).run(company_name, amount, description || null, paidTime);
-  return result;
+// Return functions for buying history
+function returnBuyingHistoryEntry(entryId) {
+  const transaction = db.transaction(() => {
+    // Get the buying history entry
+    const entry = db.prepare('SELECT * FROM buying_history WHERE id = ?').get(entryId);
+    if (!entry) {
+      throw new Error('Buying history entry not found');
+    }
+
+    // If entry has items, restore stock by decreasing it
+    if (entry.has_items && entry.company_debt_id) {
+      const items = db.prepare('SELECT * FROM company_debt_items WHERE debt_id = ?').all(entry.company_debt_id);
+      
+      for (const item of items) {
+        const qty = Number(item.quantity) || 1;
+        if (item.item_type === 'accessory') {
+          // Decrease accessory stock (opposite of sales return)
+          db.prepare('UPDATE accessories SET stock = stock - ? WHERE name = ?').run(qty, item.item_name);
+        } else {
+          // Decrease product stock (opposite of sales return)
+          const productUpdate = db.prepare(`
+            UPDATE products 
+            SET stock = stock - ? 
+            WHERE name = ? AND model = ? AND ram = ? AND storage = ?
+          `);
+          productUpdate.run(qty, item.item_name, item.model || '', item.ram || '', item.storage || '');
+        }
+      }
+    }
+
+    // Delete the buying history entry
+    db.prepare('DELETE FROM buying_history WHERE id = ?').run(entryId);
+    
+    return { success: true, returnedAmount: entry.amount };
+  });
+  
+  return transaction();
 }
 
-function addDirectPurchaseWithItems({ company_name, description, items }) {
+function returnBuyingHistoryItem(entryId, itemId, returnQuantity = null) {
+  const transaction = db.transaction(() => {
+    // Get the buying history entry
+    const entry = db.prepare('SELECT * FROM buying_history WHERE id = ?').get(entryId);
+    if (!entry) {
+      throw new Error('Buying history entry not found');
+    }
+
+    if (!entry.has_items || !entry.company_debt_id) {
+      throw new Error('Buying history entry has no items');
+    }
+
+    // Get the specific item
+    const item = db.prepare('SELECT * FROM company_debt_items WHERE id = ? AND debt_id = ?').get(itemId, entry.company_debt_id);
+    if (!item) {
+      throw new Error('Item not found in buying history');
+    }
+
+    const currentQuantity = Number(item.quantity) || 1;
+    const returnQty = returnQuantity !== null ? Math.min(returnQuantity, currentQuantity) : currentQuantity;
+    
+    if (returnQty <= 0) {
+      throw new Error('Invalid return quantity');
+    }
+
+    // Decrease stock (opposite of sales return)
+    if (item.item_type === 'accessory') {
+      db.prepare('UPDATE accessories SET stock = stock - ? WHERE name = ?').run(returnQty, item.item_name);
+    } else {
+      const productUpdate = db.prepare(`
+        UPDATE products 
+        SET stock = stock - ? 
+        WHERE name = ? AND model = ? AND ram = ? AND storage = ?
+      `);
+      productUpdate.run(returnQty, item.item_name, item.model || '', item.ram || '', item.storage || '');
+    }
+
+    const newQuantity = currentQuantity - returnQty;
+    const returnedAmount = item.unit_price * returnQty;
+    
+    if (newQuantity <= 0) {
+      // Remove the item completely
+      db.prepare('DELETE FROM company_debt_items WHERE id = ?').run(itemId);
+    } else {
+      // Update the item quantity and total price
+      const newTotalPrice = item.unit_price * newQuantity;
+      db.prepare('UPDATE company_debt_items SET quantity = ?, total_price = ? WHERE id = ?').run(newQuantity, newTotalPrice, itemId);
+    }
+    
+    // Recalculate buying history entry total
+    const remainingItems = db.prepare('SELECT * FROM company_debt_items WHERE debt_id = ?').all(entry.company_debt_id);
+    const newTotal = remainingItems.reduce((sum, item) => sum + item.total_price, 0);
+    
+    if (remainingItems.length === 0) {
+      // No items left, delete the entire entry
+      db.prepare('DELETE FROM buying_history WHERE id = ?').run(entryId);
+    } else {
+      // Update entry total
+      db.prepare('UPDATE buying_history SET amount = ? WHERE id = ?').run(newTotal, entryId);
+    }
+    
+    return { success: true, returnedAmount, newTotal: remainingItems.length > 0 ? newTotal : 0 };
+  });
+  
+  return transaction();
+}
+
+// Direct Purchase functions
+function addDirectPurchase(purchaseData) {
+  const { company_name, amount, description, paid_at } = purchaseData;
+  
+  const transaction = db.transaction(() => {
+    // Insert into buying_history without items
+    const insertPurchase = db.prepare(`
+      INSERT INTO buying_history (company_name, amount, description, has_items, paid_at)
+      VALUES (?, ?, ?, 0, ?)
+    `);
+    
+    const result = insertPurchase.run(company_name, amount, description || '', paid_at || new Date().toISOString());
+    return { success: true, id: result.lastInsertRowid };
+  });
+  
+  return transaction();
+}
+
+function addDirectPurchaseWithItems(purchaseData) {
+  const { company_name, description, items, paid_at } = purchaseData;
+  
   const transaction = db.transaction(() => {
     // Calculate total amount from items
-    const total_amount = items.reduce((sum, item) => sum + (item.total_price || (item.unit_price * item.quantity)), 0);
-    const paidTime = new Date().toISOString();
+    const totalAmount = items.reduce((sum, item) => sum + (item.total_price || 0), 0);
     
-    // Insert directly into buying history
-    const historyResult = db.prepare(`
-      INSERT INTO buying_history (company_debt_id, company_name, amount, description, has_items, paid_at)
-      VALUES (NULL, ?, ?, ?, 1, ?)
-    `).run(company_name, total_amount, description || null, paidTime);
+    // Create a company debt first to link items
+    const insertDebt = db.prepare(`
+      INSERT INTO company_debts (company_name, amount, description, created_at, paid_at)
+      VALUES (?, ?, ?, ?, ?)
+    `);
     
-    // We need to create a temporary debt record to store the items, then mark it as paid
-    // This allows us to maintain the relationship between buying_history and company_debt_items
-    const debtResult = db.prepare('INSERT INTO company_debts (company_name, amount, description, has_items, paid_at) VALUES (?, ?, ?, 1, ?)')
-      .run(company_name, total_amount, description || null, paidTime);
+    const debtResult = insertDebt.run(
+      company_name,
+      totalAmount,
+      description || '',
+      new Date().toISOString(),
+      paid_at || new Date().toISOString()
+    );
     
     const debtId = debtResult.lastInsertRowid;
     
-    // Update the buying history entry with the debt ID
-    db.prepare('UPDATE buying_history SET company_debt_id = ? WHERE id = ?').run(debtId, historyResult.lastInsertRowid);
-    
-    // Insert each item
+    // Insert items into company_debt_items
     const insertItem = db.prepare(`
       INSERT INTO company_debt_items (debt_id, item_type, item_name, quantity, unit_price, total_price, buying_price, ram, storage, model, brand, type)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     
-    items.forEach(item => {
-      const total_price = item.total_price || (item.unit_price * item.quantity);
+    for (const item of items) {
       insertItem.run(
         debtId,
-        item.item_type,
+        item.item_type || 'product',
         item.item_name,
         item.quantity,
         item.unit_price,
-        total_price,
+        item.total_price,
         item.buying_price || item.unit_price,
         item.ram || null,
         item.storage || null,
@@ -1225,80 +1337,34 @@ function addDirectPurchaseWithItems({ company_name, description, items }) {
         item.type || null
       );
       
-      // Update or create inventory
-      if (item.item_type === 'product') {
-        // Check if product exists
-        const existingProduct = db.prepare('SELECT id, stock FROM products WHERE name = ? AND (ram = ? OR ram IS NULL) AND (storage = ? OR storage IS NULL)').get(item.item_name, item.ram || null, item.storage || null);
-        
-        if (existingProduct) {
-          // Update existing product stock
-          db.prepare('UPDATE products SET stock = stock + ?, buying_price = ? WHERE id = ?')
-            .run(item.quantity, item.buying_price || item.unit_price, existingProduct.id);
-        } else {
-          // Create new product
-          db.prepare(`
-            INSERT INTO products (name, price, buying_price, stock, ram, storage, model, category)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 'phones')
-          `).run(item.item_name, item.unit_price, item.buying_price || item.unit_price, item.quantity, item.ram || null, item.storage || null, item.model || null);
-        }
-      } else if (item.item_type === 'accessory') {
-        // Check if accessory exists
-        const existingAccessory = db.prepare('SELECT id, stock FROM accessories WHERE name = ? AND (brand = ? OR brand IS NULL) AND (type = ? OR type IS NULL)').get(item.item_name, item.brand || null, item.type || null);
-        
-        if (existingAccessory) {
-          // Update existing accessory stock
-          db.prepare('UPDATE accessories SET stock = stock + ?, buying_price = ? WHERE id = ?')
-            .run(item.quantity, item.buying_price || item.unit_price, existingAccessory.id);
-        } else {
-          // Create new accessory
-          db.prepare(`
-            INSERT INTO accessories (name, price, buying_price, stock, brand, type, model)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-          `).run(item.item_name, item.unit_price, item.buying_price || item.unit_price, item.quantity, item.brand || null, item.type || null, item.model || null);
-        }
+      // Update stock for products/accessories
+      const qty = Number(item.quantity) || 1;
+      if (item.item_type === 'accessory') {
+        // Find accessory by name and update stock
+        db.prepare('UPDATE accessories SET stock = stock + ? WHERE name = ?').run(qty, item.item_name);
+      } else {
+        // Find product by matching criteria and update stock
+        const productUpdate = db.prepare(`
+          UPDATE products 
+          SET stock = stock + ? 
+          WHERE name = ? AND model = ? AND ram = ? AND storage = ?
+        `);
+        productUpdate.run(qty, item.item_name, item.model || '', item.ram || '', item.storage || '');
       }
-    });
+    }
     
-    return historyResult;
+    // Insert into buying_history
+    const insertPurchase = db.prepare(`
+      INSERT INTO buying_history (company_debt_id, company_name, amount, description, has_items, paid_at)
+      VALUES (?, ?, ?, ?, 1, ?)
+    `);
+    
+    const purchaseResult = insertPurchase.run(debtId, company_name, totalAmount, description || '', paid_at || new Date().toISOString());
+    
+    return { success: true, id: purchaseResult.lastInsertRowid, debtId };
   });
   
   return transaction();
-}
-
-// Remove price column from accessories table if it exists (issue #2 fix)
-try {
-  // Check if the price column exists
-  const columns = db.pragma('table_info(accessories)');
-  const hasPriceColumn = columns.some(col => col.name === 'price');
-  
-  if (hasPriceColumn) {
-    // Create new table without price column
-    db.exec(`
-      CREATE TABLE accessories_new (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        buying_price INTEGER DEFAULT 0,
-        stock INTEGER NOT NULL,
-        archived INTEGER DEFAULT 0,
-        brand TEXT,
-        model TEXT,
-        type TEXT
-      );
-    `);
-    
-    // Copy data from old table to new (excluding price column)
-    db.exec(`
-      INSERT INTO accessories_new (id, name, buying_price, stock, archived, brand, model, type)
-      SELECT id, name, buying_price, stock, archived, brand, model, type FROM accessories;
-    `);
-    
-    // Drop old table and rename new one
-    db.exec('DROP TABLE accessories');
-    db.exec('ALTER TABLE accessories_new RENAME TO accessories');
-
-  }
-} catch (e) { 
-
 }
 
 return {
@@ -1347,8 +1413,8 @@ return {
   // Return functions
   returnSale,
   returnSaleItem,
-  // Direct Purchase functions
-  addDirectPurchase,
-  addDirectPurchaseWithItems,
+  // Buying History Return functions
+  returnBuyingHistoryEntry,
+  returnBuyingHistoryItem,
   };
 };

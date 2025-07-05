@@ -208,7 +208,7 @@ export default function Admin() {
     } finally {
       setLoading(false);
     }
-  }, [admin.setToast, admin.fetchAccessories, admin.fetchProducts, t, setLoading]);
+  }, [admin.setToast, admin.setAccessories, admin.setProducts, t, setLoading]);
 
   // Helper to open product modal for editing
   const handleEditProduct = useCallback((product) => {
@@ -332,6 +332,7 @@ export default function Admin() {
                 setDebtSearch={setDebtSearch}
                 showPaidDebts={showPaidDebts}
                 setShowPaidDebts={setShowPaidDebts}
+                showConfirm={showConfirm}
                 triggerCloudBackup={triggerCloudBackupAsync}
               />
             )}
@@ -387,6 +388,38 @@ export default function Admin() {
         confirm={confirm}
         triggerCloudBackup={triggerCloudBackupAsync}
       />
+
+      {/* Reset Confirmation Modal */}
+      {admin.resetConfirmOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg max-w-md w-full mx-4">
+            <h3 className="text-lg font-bold text-gray-800 dark:text-gray-100 mb-4">
+              {t.confirmReset || 'Are you sure you want to reset all data? This will delete everything and cannot be undone!'}
+            </h3>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => {
+                  playModalCloseSound();
+                  admin.setResetConfirmOpen(false);
+                }}
+                className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
+              >
+                {t.cancel || 'Cancel'}
+              </button>
+              <button
+                onClick={async () => {
+                  playActionSound();
+                  admin.setResetConfirmOpen(false);
+                  await admin.executeResetAllData();
+                }}
+                className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+              >
+                {t.ok || 'OK'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Toast notification */}
       {admin.toast && admin.toast.msg && (
