@@ -1,6 +1,7 @@
 import React, { useMemo, useEffect, useState } from 'react';
 import OfflineIndicator from './OfflineIndicator';
 import { useData } from '../contexts/DataContext';
+import { playNavigationSound, playActionSound } from '../utils/sounds';
 
 const AdminStatsSidebar = ({ 
   admin, 
@@ -282,7 +283,14 @@ const AdminStatsSidebar = ({
           {navItems.map(item => (
             <button
               key={item.key}
-              onClick={() => handleNavClick(item)}
+              onClick={() => {
+                if (item.key === 'settings') {
+                  playActionSound();
+                } else {
+                  playNavigationSound();
+                }
+                handleNavClick(item);
+              }}
               disabled={item.disabled}
               className={`flex items-center gap-3 px-4 py-4 rounded-xl font-semibold text-lg transition shadow-md
                 ${item.isLogout

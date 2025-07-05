@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import ConfirmModal from '../components/ConfirmModal';
 import ProductSelectModal from '../components/ProductSelectModal';
 import CashierContent from '../components/CashierContent';
+import UnderCostWarning from '../components/UnderCostWarning';
 import useCart from '../components/hooks/useCart';
 import useAdmin from '../components/useAdmin';
 import useProductLookup from '../components/hooks/useProductLookup';
@@ -12,7 +13,16 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useLocale } from '../contexts/LocaleContext';
 import { useData } from '../contexts/DataContext';
 import ToastUnified from '../components/ToastUnified';
-import { playWarningSound } from '../utils/sounds';
+import { 
+  playWarningSound, 
+  playSaleCompleteSound, 
+  playActionSound, 
+  playSuccessSound, 
+  playErrorSound, 
+  playModalOpenSound,
+  playDeleteSound,
+  playFormSubmitSound
+} from '../utils/sounds';
 
 // Redesigned Cashier page with stunning modern UI
 export default function Cashier() {
@@ -37,14 +47,14 @@ export default function Cashier() {
   const { isOnline } = useOnlineStatus();
 
   // Hooks
-  const showToast = (msg, type = 'success') => {
-    setToast({ msg, type });
+  const showToast = (msg, type = 'success', duration = 3000) => {
+    setToast({ msg, type, duration });
   };
   const showConfirm = (message, onConfirm) => {
     setConfirm({ open: true, message, onConfirm });
   };
   const { items, addOrUpdateItem, deleteItem, clearCart, total, setItems } = useCart((msg, type) => {
-    setToast({ msg, type });
+    setToast({ msg, type, duration: 3000 });
   }, showConfirm, t);
   const admin = useAdmin(navigate);
 
@@ -184,8 +194,7 @@ export default function Cashier() {
       }).join(', ');
       
       // Play warning sound
-      const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmgiBhSBzvTBaCYJLYHM8d2NOwgYYK3u6qJUEAhOqOPwtWMcBjiS2vLNeSsFJH/K8dmJOAgZYLLr6axXFAhOp+PoumMcBzuV2vHKeisGI3/L8d6NOwgZYrnp55tOEAhOp+Hju2EeBTmS2PDAaSMGLYHO8diKNwcbZK7s6KdXFAlBn9vou2MdBDqU2vHOeysGJXzJ8NqMOAcZYrPk66JUFB+MzO/YhikGKJ7A9dl+JQkWe8Hx3I5AEAhOqOHwtWMcBjiS2vLNeSwFJX/K8N6NOwgZYbrp55xOEAhOp+Hju2MeBTuV2vHKeisGI3/L8d6NOwgZYbvn6JtOEAlGqOPwtWMcBzmS2vLNeSsFJYDK8N6NOwcZYrTp6KNTEg5BqOPvuGQdBDuS2vHOeSsFJYDL8N2OOgcZY7Lr56BMEAJJ');
-      audio.play().catch(() => {}); // Ignore if audio fails
+      playWarningSound();
       
       const confirmed = await new Promise((resolve) => {
         showConfirm(
@@ -209,16 +218,19 @@ export default function Cashier() {
     
     // Don't allow negative totals for regular sales 
     if (total < 0) {
+      playErrorSound();
       showToast(t.cannotCompleteNegativeTotal, 'error');
       return;
     }
     
     // Customer name is now required for ALL sales (both cash and debt)
     if (!customerName.trim()) {
+      playErrorSound();
       showToast(t.pleaseEnterCustomerName, 'error');
       return;
     }
     
+    playModalOpenSound();
     showConfirm(
       isDebt
         ? t.confirmDebtSale
@@ -228,6 +240,7 @@ export default function Cashier() {
         
         // Double-check customer name is provided
         if (!customerName.trim()) {
+          playErrorSound();
           showToast(t.customerNameRequired, 'error');
           setLoading(l => ({ ...l, sale: false }));
           return;
@@ -268,6 +281,7 @@ export default function Cashier() {
           }
           setLoading(l => ({ ...l, sale: false }));
           if (res.success) {
+            playSaleCompleteSound();
             setItems([]);
             setSearch('');
             setIsDebt(false);
@@ -280,10 +294,12 @@ export default function Cashier() {
             
             showToast(isDebt ? t.debtSaleSuccess : t.saleSuccess);
           } else {
+            playErrorSound();
             showToast(res.message || t.saleFailed, 'error');
           }
         } else {
           setLoading(l => ({ ...l, sale: false }));
+          playErrorSound();
           showToast(t.saleApiUnavailable, 'error');
         }
       }
@@ -372,8 +388,22 @@ export default function Cashier() {
         allItems={allItems}
         addOrUpdateItem={addOrUpdateItem}
       />
+      
+      {/* Under Cost Warning */}
+      <UnderCostWarning 
+        items={items}
+        allItems={allItems}
+        t={t}
+      />
+      
       {/* Toast */}
-      <ToastUnified message={toast?.msg || ''} type={toast?.type || 'success'} onClose={() => setToast(null)} />
+      <ToastUnified 
+        message={toast?.msg || ''} 
+        type={toast?.type || 'success'} 
+        duration={toast?.duration || 3000}
+        onClose={() => setToast(null)} 
+      />
+      
       {/* Modals */}
       <ConfirmModal open={confirm.open} message={confirm.message} onConfirm={confirm.onConfirm} onCancel={() => setConfirm({ open: false, message: '', onConfirm: null })} t={t} />
       <ProductSelectModal

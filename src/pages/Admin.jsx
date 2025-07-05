@@ -4,6 +4,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useLocale } from '../contexts/LocaleContext';
 import { useData } from '../contexts/DataContext';
 import { triggerCloudBackup } from '../utils/cloudBackup';
+import { playNavigationSound, playActionSound, playModalOpenSound, playModalCloseSound, playSuccessSound, playErrorSound } from '../utils/sounds';
 import useAdmin from '../components/useAdmin';
 import AdminStatsSidebar from '../components/AdminStatsSidebar';
 import AdminDashboard from '../components/AdminDashboard';
@@ -38,6 +39,7 @@ export default function Admin() {
 
   // Helper function for showing confirm modals - use memoized callback
   const showConfirm = useCallback((message, onConfirm) => {
+    playModalOpenSound();
     setConfirm({ open: true, message, onConfirm });
   }, []);
 
@@ -157,10 +159,13 @@ export default function Admin() {
   // UseCallback for nav click handler - optimize dependencies
   const handleNavClick = useCallback((item) => {
     if (item.key === 'settings') {
+      playModalOpenSound();
       setShowSettingsModal(true);
     } else if (item.action) {
+      playActionSound();
       item.action();
     } else {
+      playNavigationSound();
       setSection(item.key);
     }
   }, []);
@@ -183,8 +188,10 @@ export default function Admin() {
       
       const res = await apiCall?.(updated); 
       if (!res || !res.success) {
+        playErrorSound();
         admin.setToast(res?.message || t.archiveUnarchiveFailed);
       } else {
+        playSuccessSound();
         admin.setToast(archive ? t.productArchived : t.productUnarchived);
         
         // Optimized: Update state locally instead of refetching all data
@@ -196,6 +203,7 @@ export default function Admin() {
       }
     } catch (e) {
       console.error('Archive toggle error:', e);
+      playErrorSound();
       admin.setToast(archive ? t.archiveFailed : t.unarchiveFailed);
     } finally {
       setLoading(false);
@@ -385,7 +393,7 @@ export default function Admin() {
         <ToastUnified
           message={admin.toast.msg}
           type={admin.toast.type}
-          duration={admin.toast.duration}
+          duration={admin.toast.duration || 3000}
           onClose={() => admin.setToast(null)}
         />
       )}

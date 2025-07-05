@@ -1,7 +1,7 @@
 {
   "name": "mobile-roma",
   "private": true,
-  "version": "1.0.38",
+  "version": "1.0.40",
   "main": "src/main.cjs",
   "author": "",
   "license": "MIT",
@@ -13,7 +13,8 @@
     "postinstall": "electron-builder install-app-deps",
     "lint": "eslint .",
     "preview": "vite preview",
-    "electron": "electron ."
+    "electron": "electron .",
+    "add-sample-data": "node add-sample-data.cjs"
   },
   "dependencies": {
     "appwrite": "^18.1.1",

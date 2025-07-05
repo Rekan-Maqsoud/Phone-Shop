@@ -227,7 +227,11 @@ const CustomerDebtsSection = ({
             {/* Customer List */}
             <div className="space-y-4">
               {filteredGroups.map(([normalizedCustomer, data]) => {
-                const customer = data.displayName; // Use the original display name
+                // Capitalize first letter, rest lowercase for formal display
+                // Capitalize first letter, rest lowercase for formal display, but keep multi-word names correct
+                const customer = data.displayName
+                  ? data.displayName.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ')
+                  : '';
                 const isExpanded = expandedCustomers.has(normalizedCustomer);
                 
                 return (

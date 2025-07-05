@@ -292,7 +292,7 @@ export default function BackupManager({ show, onClose, t }) {
           </h2>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 text-2xl font-bold w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
+            className="text-gray-500 hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-300 text-2xl font-bold w-8 h-8 flex items-center justify-center rounded-full bg-gray-200 hover:bg-gray-300 dark:bg-black/20 dark:hover:bg-black/30 transition-colors"
             aria-label="Close"
           >
             ×

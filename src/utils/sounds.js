@@ -1,87 +1,207 @@
-// Sound utility for the app
-export const playWarningSound = () => {
+// Professional Sound Effects System for Phone Shop App
+
+// Sound settings management
+const SOUND_SETTINGS_KEY = 'phoneShopSoundSettings';
+
+const getDefaultSoundSettings = () => ({
+  enabled: true,
+  volume: 0.7,
+  enabledTypes: {
+    success: true,
+    warning: true,
+    error: true,
+    action: true,
+    notification: true,
+    system: true
+  }
+});
+
+export const getSoundSettings = () => {
   try {
-    // Create a more noticeable warning sound using Web Audio API
-    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    
-    // Create oscillator for beep sound
-    const oscillator = audioContext.createOscillator();
-    const gainNode = audioContext.createGain();
-    
-    oscillator.connect(gainNode);
-    gainNode.connect(audioContext.destination);
-    
-    // Set frequency and type for warning sound
-    oscillator.frequency.setValueAtTime(800, audioContext.currentTime); // High pitch
-    oscillator.type = 'square'; // Sharp sound
-    
-    // Set volume
-    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-    
-    // Play 3 quick beeps
-    oscillator.start(audioContext.currentTime);
-    oscillator.stop(audioContext.currentTime + 0.1);
-    
-    // Second beep
-    setTimeout(() => {
-      const osc2 = audioContext.createOscillator();
-      const gain2 = audioContext.createGain();
-      osc2.connect(gain2);
-      gain2.connect(audioContext.destination);
-      osc2.frequency.setValueAtTime(800, audioContext.currentTime);
-      osc2.type = 'square';
-      gain2.gain.setValueAtTime(0.3, audioContext.currentTime);
-      osc2.start(audioContext.currentTime);
-      osc2.stop(audioContext.currentTime + 0.1);
-    }, 150);
-    
-    // Third beep
-    setTimeout(() => {
-      const osc3 = audioContext.createOscillator();
-      const gain3 = audioContext.createGain();
-      osc3.connect(gain3);
-      gain3.connect(audioContext.destination);
-      osc3.frequency.setValueAtTime(800, audioContext.currentTime);
-      osc3.type = 'square';
-      gain3.gain.setValueAtTime(0.3, audioContext.currentTime);
-      osc3.start(audioContext.currentTime);
-      osc3.stop(audioContext.currentTime + 0.1);
-    }, 300);
-    
-  } catch (error) {
-    // Fallback to system beep if Web Audio API fails
-    console.warn('Warning sound failed:', error);
-    // Create a simple beep using data URL
-    try {
-      const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmgiBhSBzvTBaCYJLYHM8d2NOwgYYK3u6qJUEAhOqOPwtWMcBjiS2vLNeSsFJH/K8dmJOAgZYLLr6axXFAhOp+PoumMcBzuV2vHKeisGI3/L8d6NOwgZYrnp55tOEAhOp+Hju2EeBTmS2PDAaSMGLYHO8diKNwcbZK7s6KdXFAlBn9vou2MdBDqU2vHOeysGJXzJ8NqMOAcZYrPk66JUFB');
-      audio.play().catch(() => {}); // Ignore if fails
-    } catch (e) {
-      console.warn('Fallback audio also failed');
-    }
+    const saved = localStorage.getItem(SOUND_SETTINGS_KEY);
+    return saved ? { ...getDefaultSoundSettings(), ...JSON.parse(saved) } : getDefaultSoundSettings();
+  } catch {
+    return getDefaultSoundSettings();
   }
 };
 
-export const playSuccessSound = () => {
+export const setSoundSettings = (settings) => {
   try {
-    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    
-    const oscillator = audioContext.createOscillator();
-    const gainNode = audioContext.createGain();
-    
-    oscillator.connect(gainNode);
-    gainNode.connect(audioContext.destination);
-    
-    // Pleasant success sound
-    oscillator.frequency.setValueAtTime(523.25, audioContext.currentTime); // C5 note
-    oscillator.type = 'sine';
-    
-    gainNode.gain.setValueAtTime(0.2, audioContext.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
-    
-    oscillator.start(audioContext.currentTime);
-    oscillator.stop(audioContext.currentTime + 0.3);
-    
+    localStorage.setItem(SOUND_SETTINGS_KEY, JSON.stringify(settings));
   } catch (error) {
-    console.warn('Success sound failed:', error);
+    console.warn('Failed to save sound settings:', error);
   }
 };
+
+// Professional sound generation using Web Audio API
+class SoundEffectGenerator {
+  constructor() {
+    this.audioContext = null;
+    this.initialized = false;
+  }
+
+  async initializeAudio() {
+    if (this.initialized) return true;
+    
+    try {
+      this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      
+      // Handle audio context suspension (required by some browsers)
+      if (this.audioContext.state === 'suspended') {
+        await this.audioContext.resume();
+      }
+      
+      this.initialized = true;
+      return true;
+    } catch (error) {
+      console.warn('Audio context initialization failed:', error);
+      return false;
+    }
+  }
+
+  createTone(frequency, duration, waveType = 'sine', volume = 0.3) {
+    if (!this.audioContext) return null;
+
+    const oscillator = this.audioContext.createOscillator();
+    const gainNode = this.audioContext.createGain();
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(this.audioContext.destination);
+    
+    oscillator.frequency.setValueAtTime(frequency, this.audioContext.currentTime);
+    oscillator.type = waveType;
+    
+    // Apply volume with smooth fade out
+    gainNode.gain.setValueAtTime(volume, this.audioContext.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + duration);
+    
+    return { oscillator, gainNode };
+  }
+
+  async playTone(frequency, duration, waveType = 'sine', volume = 0.3) {
+    await this.initializeAudio();
+    if (!this.audioContext) return;
+
+    const { oscillator } = this.createTone(frequency, duration, waveType, volume);
+    if (!oscillator) return;
+
+    oscillator.start(this.audioContext.currentTime);
+    oscillator.stop(this.audioContext.currentTime + duration);
+  }
+
+  async playSequence(notes, baseVolume = 0.3) {
+    await this.initializeAudio();
+    if (!this.audioContext) return;
+
+    notes.forEach(({ frequency, duration, waveType = 'sine', delay = 0 }) => {
+      setTimeout(() => {
+        this.playTone(frequency, duration, waveType, baseVolume);
+      }, delay);
+    });
+  }
+}
+
+const soundGenerator = new SoundEffectGenerator();
+
+// High-level sound functions with settings integration
+const playSoundEffect = async (soundType, soundFunction) => {
+  const settings = getSoundSettings();
+  
+  if (!settings.enabled || !settings.enabledTypes[soundType]) {
+    return;
+  }
+  
+  try {
+    await soundFunction(settings.volume);
+  } catch (error) {
+    console.warn(`Sound effect failed for ${soundType}:`, error);
+  }
+};
+
+// Professional sound effects for different actions
+export const playSuccessSound = () => playSoundEffect('success', async (volume) => {
+  // Pleasant ascending chord progression
+  await soundGenerator.playSequence([
+    { frequency: 523.25, duration: 0.15, waveType: 'sine' }, // C5
+    { frequency: 659.25, duration: 0.15, waveType: 'sine', delay: 100 }, // E5
+    { frequency: 783.99, duration: 0.25, waveType: 'sine', delay: 200 }, // G5
+  ], volume * 0.6);
+});
+
+export const playWarningSound = () => playSoundEffect('warning', async (volume) => {
+  // Attention-grabbing triple beep
+  await soundGenerator.playSequence([
+    { frequency: 800, duration: 0.1, waveType: 'square' },
+    { frequency: 800, duration: 0.1, waveType: 'square', delay: 150 },
+    { frequency: 800, duration: 0.1, waveType: 'square', delay: 300 },
+  ], volume * 0.8);
+});
+
+export const playErrorSound = () => playSoundEffect('error', async (volume) => {
+  // Descending error tone
+  await soundGenerator.playSequence([
+    { frequency: 440, duration: 0.2, waveType: 'square' },
+    { frequency: 330, duration: 0.2, waveType: 'square', delay: 200 },
+    { frequency: 220, duration: 0.3, waveType: 'square', delay: 400 },
+  ], volume * 0.7);
+});
+
+export const playActionSound = () => playSoundEffect('action', async (volume) => {
+  // Subtle click sound for button presses
+  await soundGenerator.playTone(1000, 0.05, 'sine', volume * 0.4);
+});
+
+export const playNotificationSound = () => playSoundEffect('notification', async (volume) => {
+  // Gentle notification chime
+  await soundGenerator.playSequence([
+    { frequency: 659.25, duration: 0.2, waveType: 'sine' }, // E5
+    { frequency: 523.25, duration: 0.3, waveType: 'sine', delay: 100 }, // C5
+  ], volume * 0.5);
+});
+
+export const playSystemSound = () => playSoundEffect('system', async (volume) => {
+  // System startup/ready sound
+  await soundGenerator.playSequence([
+    { frequency: 440, duration: 0.1, waveType: 'sine' },
+    { frequency: 554.37, duration: 0.1, waveType: 'sine', delay: 100 },
+    { frequency: 659.25, duration: 0.2, waveType: 'sine', delay: 200 },
+  ], volume * 0.6);
+});
+
+export const playSaleCompleteSound = () => playSoundEffect('success', async (volume) => {
+  // Cash register-like completion sound
+  await soundGenerator.playSequence([
+    { frequency: 523.25, duration: 0.1, waveType: 'sine' }, // C5
+    { frequency: 659.25, duration: 0.1, waveType: 'sine', delay: 50 }, // E5
+    { frequency: 783.99, duration: 0.1, waveType: 'sine', delay: 100 }, // G5
+    { frequency: 1046.50, duration: 0.3, waveType: 'sine', delay: 150 }, // C6
+  ], volume * 0.7);
+});
+
+export const playDeleteSound = () => playSoundEffect('warning', async (volume) => {
+  // Soft delete confirmation
+  await soundGenerator.playTone(440, 0.15, 'sine', volume * 0.5);
+});
+
+export const playNavigationSound = () => playSoundEffect('action', async (volume) => {
+  // Subtle navigation sound
+  await soundGenerator.playTone(880, 0.03, 'sine', volume * 0.3);
+});
+
+export const playFormSubmitSound = () => playSoundEffect('action', async (volume) => {
+  // Form submission confirmation
+  await soundGenerator.playSequence([
+    { frequency: 659.25, duration: 0.08, waveType: 'sine' },
+    { frequency: 783.99, duration: 0.12, waveType: 'sine', delay: 80 },
+  ], volume * 0.5);
+});
+
+export const playModalOpenSound = () => playSoundEffect('system', async (volume) => {
+  // Modal opening sound
+  await soundGenerator.playTone(698.46, 0.06, 'sine', volume * 0.3);
+});
+
+export const playModalCloseSound = () => playSoundEffect('system', async (volume) => {
+  // Modal closing sound
+  await soundGenerator.playTone(523.25, 0.06, 'sine', volume * 0.3);
+});

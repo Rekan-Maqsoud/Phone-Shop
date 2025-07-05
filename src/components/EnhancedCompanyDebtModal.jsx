@@ -173,8 +173,16 @@ export default function EnhancedCompanyDebtModal({ show, onClose, debt, onMarkPa
                                   <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
                                     {item.item_name}
                                   </div>
-                                  <div className="text-xs text-gray-500 dark:text-gray-400">
-                                    {item.item_type === 'product' ? (t?.product || 'Product') : (t?.accessory || 'Accessory')}
+                                  <div className="text-xs">
+                                    {item.item_type === 'product' ? (
+                                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                                        {t?.product || 'Product'}
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+                                        {t?.accessory || 'Accessory'}
+                                      </span>
+                                    )}
                                   </div>
                                 </div>
                               </div>
@@ -257,7 +265,7 @@ export default function EnhancedCompanyDebtModal({ show, onClose, debt, onMarkPa
         <div className="flex justify-end pt-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-6 rounded-lg">
           <button
             onClick={onClose}
-            className="px-6 py-2 rounded-lg bg-gray-300 dark:bg-gray-600 text-gray-800 dark:text-gray-200 hover:bg-gray-400 dark:hover:bg-gray-500 transition font-medium"
+            className="px-6 py-2 rounded-lg bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-500 transition font-medium"
           >
             {t?.close || 'Close'}
           </button>

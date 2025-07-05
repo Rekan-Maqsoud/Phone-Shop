@@ -71,7 +71,10 @@ const MonthlyReportsSection = ({
                     <span className="text-2xl">📅</span>
                     <div>
                       <h3 className="text-lg font-bold text-gray-800 dark:text-gray-100">
-                        {new Date(report.year, report.month - 1).toLocaleDateString(undefined, { year: 'numeric', month: 'long' })}
+                        {t.months && t.months[report.month - 1]
+                          ? `${t.months[report.month - 1]} (${report.month})`
+                          : `${new Date(report.year, report.month - 1).toLocaleDateString(undefined, { month: 'long' })} (${report.month})`}
+                        {' '}{report.year}
                       </h3>
                       <p className="text-sm text-gray-600 dark:text-gray-400">
                         {t.generated || 'generated'} {new Date(report.created_at).toLocaleDateString()}

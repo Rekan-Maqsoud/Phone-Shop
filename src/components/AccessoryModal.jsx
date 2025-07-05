@@ -31,17 +31,26 @@ export default function AccessoryModal({
       type: formData.get('type') || null,
     };
 
-    if (isEdit) {
-      accessoryData.id = accessory.id;
-      accessoryData.archived = accessory.archived || 0;
-      await onUpdate(accessoryData);
-    } else {
-      await onSave(accessoryData);
+    try {
+      if (isEdit) {
+        accessoryData.id = accessory.id;
+        accessoryData.archived = accessory.archived || 0;
+        await onUpdate(accessoryData);
+      } else {
+        await onSave(accessoryData);
+      }
+      
+      // Reset form and close modal after successful submission
+      e.target.reset();
+      onClose();
+    } catch (error) {
+      console.error('Error saving accessory:', error);
+      // Don't close the modal if there was an error
     }
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 animate-fade-in">
+    <div className="fixed inset-0 bg-gray-900/50 dark:bg-black/60 flex items-center justify-center z-50 animate-fade-in">
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-8 w-full max-w-md border border-white/20">
         <h2 className="text-2xl font-bold mb-6 text-gray-800 dark:text-gray-100">
           {isEdit ? `${t.edit || 'Edit'} ${t.accessory || 'Accessory'}` : `${t.add || 'Add'} ${t.accessory || 'Accessory'}`}
@@ -134,7 +143,7 @@ export default function AccessoryModal({
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 bg-gray-300 dark:bg-gray-600 text-gray-800 dark:text-gray-100 px-4 py-3 rounded-xl font-semibold hover:bg-gray-400 dark:hover:bg-gray-500 transition"
+              className="flex-1 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-100 px-4 py-3 rounded-xl font-semibold hover:bg-gray-300 dark:hover:bg-gray-500 transition"
             >
               {t.cancel || 'Cancel'}
             </button>

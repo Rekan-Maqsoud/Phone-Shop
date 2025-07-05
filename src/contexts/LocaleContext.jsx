@@ -1,3 +1,18 @@
+// Month names for filters and reports
+const monthNames = {
+  en: [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ],
+  ku: [
+    'کانونی یەکەم', 'شوبات', 'ئازار', 'نیسان', 'ئایار', 'حوزەیران',
+    'تەمموز', 'ئاب', 'ئەیلوول', 'تشرینی یەکەم', 'تشرینی دووەم', 'کانونی دووەم'
+  ],
+  ar: [
+    'يناير', 'فبراير', 'مارس', 'ابريل', 'مايو', 'يونيو',
+    'يوليو', 'اغسطس', 'سبتمبر', 'اكتوبر', 'نوفمبر', 'ديسمبر'
+  ]
+};
 import React, { createContext, useContext, useState, useMemo } from 'react';
 
 // Move the full translations object here from Admin.jsx
@@ -235,6 +250,21 @@ const translations = {
     
     // Settings modal
     confirmResetAllData: 'Are you sure you want to delete ALL products, archived, and sales history? This cannot be undone!',
+    confirmReset: 'Are you sure you want to reset all data? This will delete everything and cannot be undone!',
+    
+    // Sound settings
+    soundSettings: 'Sound Settings',
+    enableSounds: 'Enable Sounds',
+    volume: 'Volume',
+    soundTypes: 'Sound Types',
+    actionSounds: 'Action Sounds',
+    systemSounds: 'System Sounds',
+    modalSounds: 'Modal Sounds',
+    successSounds: 'Success Sounds',
+    errorSounds: 'Error Sounds',
+    WarningSounds: 'Warning Sounds',
+    NotificationSounds: 'Notification Sounds',
+    
    
     // Cloud backup service
     cloudBackupService: 'Cloud Backup Service',
@@ -431,6 +461,7 @@ const translations = {
     customerAZ: 'Customer A-Z',
     customerZA: 'Customer Z-A',
     debtsPaid: 'Paid Debts',
+    paidDebts: 'Paid Debts',
     markPaid: 'Mark Paid',
     itemsCount: 'items',
     
@@ -442,6 +473,25 @@ const translations = {
     // Sales history hardcoded text translations
     noSales: 'No sales',
     returnSale: 'Return',
+    totalProducts: 'Total Products',
+    totalSales: 'Total Sales',
+    totalRevenue: 'Total Revenue',
+
+    // Missing translations
+    showingResults: 'Showing Results',
+    entries: 'entries',
+    lastMonth: 'Last Month',
+    purchasedItems: 'Purchased Items',
+    companyDebtDetails: 'Company Debt Details',
+    SPECIFICATIONS: 'SPECIFICATIONS',
+    ITEM: 'ITEM',
+    hideItems: 'Hide Items',
+    status: 'Status',
+    createdAt: 'Created At',
+    selectDate: 'Select Date',
+    withItems: 'With Items',
+    viewItems: 'View Items',
+    weekStartDate: 'Week Start Date',
 
   },
   ku: {
@@ -676,6 +726,20 @@ const translations = {
     
     // Settings modal
     confirmResetAllData: 'دڵنیایت کە دەتەوێت هەموو بەرهەمەکان، ئارشیو کراوەکان، و مێژووی فرۆشتن بسڕیتەوە؟ ئەمە ناگەڕێتەوە!',
+    confirmReset: 'دڵنیایت کە دەتەوێت هەموو زانیاریەکان ڕیسێت بکەیت؟ ئەمە هەموو شتێک دەسڕێتەوە و ناگەڕێتەوە!',
+    
+    // Sound settings
+    soundSettings: 'ڕێکخستنی دەنگ',
+    enableSounds: 'چالاکردنی دەنگەکان',
+    volume: 'ئاستی دەنگ',
+    soundTypes: 'جۆرەکانی دەنگ',
+    actionSounds: 'دەنگی کردارەکان',
+    systemSounds: 'دەنگی سیستەم',
+    modalSounds: 'دەنگی پەنجەرەکان',
+    successSounds: 'دەنگی سەرکەوتن',
+    errorSounds: 'دەنگی هەڵە',
+    WarningSounds: 'دەنگی ئاگادارکردنەوە',
+    NotificationSounds: 'دەنگی ئاگاداری',
    
     // Cloud backup service
     cloudBackupService: 'خزمەتی پاشەکەوتی کلاود',
@@ -870,6 +934,7 @@ const translations = {
     customerAZ: 'کڕیار A-Z',
     customerZA: 'کڕیار Z-A',
     debtsPaid: 'قەرزە دراوەکان',
+    paidDebts: 'قەرزە دراوەکان',
     markPaid: 'نیشانکردنی وەک دراو',
     itemsCount: 'بڕگەکان',
     
@@ -881,6 +946,25 @@ const translations = {
     // Sales history hardcoded text translations
     noSales: 'هیچ فرۆشتنێک نییە',
     returnSale: 'گەڕاندنەوە',
+    totalProducts: 'کۆی بەرهەمەکان',
+    totalSales: 'کۆی فرۆشتنەکان',
+    totalRevenue: 'کۆی داهات',
+
+    // Missing translations
+    showingResults: 'ئەنجامەکان نیشان دەدرێن',
+    entries: 'تۆمارەکان',
+    lastMonth: 'مانگی پێشوو',
+    purchasedItems: 'بڕگەی کڕراو',
+    companyDebtDetails: 'وردەکاری قەرزی کۆمپانیا',
+    SPECIFICATIONS: 'تایبەتمەندییەکان',
+    ITEM: 'بڕگە',
+    hideItems: 'شاردنەوەی بڕگەکان',
+    status: 'دۆخ',
+    createdAt: 'دروستکراوە',
+    selectDate: 'بەروار هەڵبژێرە',
+    withItems: 'لەگەڵ بڕگەکان',
+    viewItems: 'بینینی بڕگەکان',
+    weekStartDate: 'دەستپێکی هەفتە',
 
   },
   ar: {
@@ -1115,6 +1199,20 @@ const translations = {
     
     // Settings modal
     confirmResetAllData: 'هل أنت متأكد من أنك تريد حذف جميع المنتجات والمؤرشفة وتاريخ المبيعات؟ لا يمكن التراجع عن هذا!',
+    confirmReset: 'هل أنت متأكد من أنك تريد إعادة تعيين جميع البيانات؟ سيؤدي هذا إلى حذف كل شيء ولا يمكن التراجع عنه!',
+    
+    // Sound settings
+    soundSettings: 'إعدادات الصوت',
+    enableSounds: 'تمكين الأصوات',
+    volume: 'مستوى الصوت',
+    soundTypes: 'أنواع الأصوات',
+    actionSounds: 'أصوات الإجراءات',
+    systemSounds: 'أصوات النظام',
+    modalSounds: 'أصوات النوافذ',
+    successSounds: 'أصوات النجاح',
+    errorSounds: 'أصوات الخطأ',
+    WarningSounds: 'أصوات التحذير',
+    NotificationSounds: 'أصوات الإشعارات',
    
     // Cloud backup service
     cloudBackupService: 'خدمة النسخ الاحتياطي السحابي',
@@ -1309,6 +1407,7 @@ const translations = {
     customerAZ: 'العميل أ-ي',
     customerZA: 'العميل ي-أ',
     debtsPaid: 'الديون المدفوعة',
+    paidDebts: 'الديون المدفوعة',
     markPaid: 'تمييز كمدفوع',
     itemsCount: 'العناصر',
     
@@ -1320,6 +1419,25 @@ const translations = {
     // Sales history hardcoded text translations
     noSales: 'لا توجد مبيعات',
     returnSale: 'إرجاع',
+    totalProducts: 'إجمالي المنتجات',
+    totalSales: 'إجمالي المبيعات',
+    totalRevenue: 'إجمالي الإيرادات',
+
+    // Missing translations
+    showingResults: 'عرض النتائج',
+    entries: 'إدخالات',
+    lastMonth: 'الشهر الماضي',
+    purchasedItems: 'العناصر المشتراة',
+    companyDebtDetails: 'تفاصيل دين الشركة',
+    SPECIFICATIONS: 'المواصفات',
+    ITEM: 'عنصر',
+    hideItems: 'إخفاء العناصر',
+    status: 'الحالة',
+    createdAt: 'تاريخ الإنشاء',
+    selectDate: 'اختر التاريخ',
+    withItems: 'مع العناصر',
+    viewItems: 'عرض العناصر',
+    weekStartDate: 'تاريخ بدء الأسبوع',
 
   },
 };
