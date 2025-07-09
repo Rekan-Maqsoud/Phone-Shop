@@ -1,8 +1,7 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { useData } from '../contexts/DataContext';
 import SettingsModal from './SettingsModal';
 import ProductModal from './ProductModal';
-import AccessoryModal from './AccessoryModal';
 import SaleDetailsModal from './SaleDetailsModal';
 import BackupManager from './BackupManager';
 import AddPurchaseModal from './AddPurchaseModal';
@@ -78,6 +77,7 @@ export default function AdminModals({
       {/* Product Modal */}
       {typeof ProductModal !== 'undefined' ? (
         <ProductModal
+          key={admin.editProduct?.id || 'new'} // Force re-render when product changes
           show={admin.showProductModal}
           initialProduct={admin.editProduct}
           onSubmit={admin.editProduct ? admin.handleEditProduct : admin.handleAddProduct}
@@ -91,19 +91,6 @@ export default function AdminModals({
       ) : (
         <div className="text-red-600 font-bold p-4">ProductModal component not found or failed to import.</div>
       )}
-
-      {/* Accessory Modal */}
-      <AccessoryModal
-        show={admin.showAccessoryModal}
-        accessory={admin.editAccessory}
-        onSave={admin.handleAddAccessory}
-        onUpdate={admin.handleEditAccessory}
-        onClose={() => {
-          admin.setShowAccessoryModal(false);
-          admin.setEditAccessory(null);
-        }}
-        t={t}
-      />
 
       {/* Sale Details Modal */}
       <SaleDetailsModal
@@ -177,11 +164,41 @@ export default function AdminModals({
                 // Direct purchase - goes to buying history immediately
                 if (purchaseData.type === 'simple') {
                   if (window.api?.addDirectPurchase) {
-                    result = await window.api.addDirectPurchase({
-                      company_name: purchaseData.company_name,
-                      amount: purchaseData.amount,
-                      description: purchaseData.description
-                    });
+                    // Handle multi-currency purchases
+                    if (purchaseData.multi_currency && purchaseData.multi_currency.enabled) {
+                      // For multi-currency, create separate entries for each currency
+                      if (purchaseData.multi_currency.usdAmount > 0) {
+                        await window.api.addDirectPurchase({
+                          item_name: purchaseData.description || 'Purchase',
+                          quantity: 1,
+                          unit_price: purchaseData.multi_currency.usdAmount,
+                          supplier: purchaseData.company_name,
+                          date: new Date().toISOString(),
+                          currency: 'USD'
+                        });
+                      }
+                      if (purchaseData.multi_currency.iqdAmount > 0) {
+                        await window.api.addDirectPurchase({
+                          item_name: purchaseData.description || 'Purchase',
+                          quantity: 1,
+                          unit_price: purchaseData.multi_currency.iqdAmount,
+                          supplier: purchaseData.company_name,
+                          date: new Date().toISOString(),
+                          currency: 'IQD'
+                        });
+                      }
+                      result = { success: true };
+                    } else {
+                      // Single currency purchase
+                      result = await window.api.addDirectPurchase({
+                        item_name: purchaseData.description || 'Purchase',
+                        quantity: 1,
+                        unit_price: purchaseData.amount || 0,
+                        supplier: purchaseData.company_name,
+                        date: new Date().toISOString(),
+                        currency: purchaseData.currency || 'USD'
+                      });
+                    }
                     if (!result || result.error) {
                       throw new Error(result?.error || 'Failed to add direct purchase');
                     }
@@ -192,9 +209,10 @@ export default function AdminModals({
                 } else if (purchaseData.type === 'withItems') {
                   if (window.api?.addDirectPurchaseWithItems) {
                     result = await window.api.addDirectPurchaseWithItems({
-                      company_name: purchaseData.company_name,
-                      description: purchaseData.description,
-                      items: purchaseData.items
+                      supplier: purchaseData.company_name,
+                      date: new Date().toISOString(),
+                      items: purchaseData.items || [],
+                      currency: purchaseData.currency || 'USD'
                     });
                     if (!result || result.error) {
                       throw new Error(result?.error || 'Failed to add direct purchase with items');
@@ -211,7 +229,9 @@ export default function AdminModals({
                     result = await window.api.addCompanyDebt({
                       company_name: purchaseData.company_name,
                       amount: purchaseData.amount,
-                      description: purchaseData.description
+                      description: purchaseData.description,
+                      currency: purchaseData.currency,
+                      multi_currency: purchaseData.multi_currency
                     });
                     if (!result || (!result.lastInsertRowid && !result.success)) {
                       throw new Error(result?.message || 'Failed to add company debt');
@@ -226,7 +246,9 @@ export default function AdminModals({
                     result = await window.api.addCompanyDebtWithItems({
                       company_name: purchaseData.company_name,
                       description: purchaseData.description,
-                      items: purchaseData.items
+                      items: purchaseData.items,
+                      currency: purchaseData.currency,
+                      multi_currency: purchaseData.multi_currency
                     });
                     if (!result || (!result.lastInsertRowid && !result.success)) {
                       throw new Error(result?.message || 'Failed to add company debt with items');
@@ -277,10 +299,56 @@ export default function AdminModals({
             setSelectedCompanyDebt(null);
           }}
           debt={selectedCompanyDebt}
-          onMarkPaid={async (debtId) => {
+          onMarkPaid={async (debtId, multiCurrency) => {
             try {
               setLoading(true);
-              await window.api?.markCompanyDebtPaid?.(debtId);
+              
+              const paid_at = new Date().toISOString();
+              let payment_currency_used = 'USD';
+              let payment_usd_amount = 0;
+              let payment_iqd_amount = 0;
+              
+              // Get the actual debt being paid
+              const debt = selectedCompanyDebt;
+              
+              if (multiCurrency && multiCurrency.enabled) {
+                payment_currency_used = multiCurrency.deductCurrency || 'USD';
+                // If it's a multi-currency debt, use the actual debt amounts
+                if (debt.currency === 'MULTI') {
+                  payment_usd_amount = debt.usd_amount || 0;
+                  payment_iqd_amount = debt.iqd_amount || 0;
+                } else if (payment_currency_used === 'USD') {
+                  payment_usd_amount = debt.amount || 0;
+                  payment_iqd_amount = 0;
+                } else {
+                  payment_usd_amount = 0;
+                  payment_iqd_amount = debt.amount || 0;
+                }
+              } else {
+                // Single currency payment - use the debt amount in its original currency
+                if (debt.currency === 'MULTI') {
+                  // For multi-currency debts, default to USD portion
+                  payment_usd_amount = debt.usd_amount || 0;
+                  payment_iqd_amount = debt.iqd_amount || 0;
+                } else if (debt.currency === 'USD') {
+                  payment_currency_used = 'USD';
+                  payment_usd_amount = debt.amount || 0;
+                } else {
+                  payment_currency_used = 'IQD';
+                  payment_iqd_amount = debt.amount || 0;
+                }
+              }
+              
+              await window.api?.markCompanyDebtPaid?.(
+                debtId, 
+                {
+                  paid_at,
+                  payment_currency_used,
+                  payment_usd_amount,
+                  payment_iqd_amount
+                }
+              );
+              
               await refreshCompanyDebts();
               await refreshBuyingHistory();
               setShowEnhancedCompanyDebtModal(false);

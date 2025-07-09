@@ -12,12 +12,15 @@ import CustomerDebtsSection from '../components/CustomerDebtsSection';
 import CompanyDebtsSection from '../components/CompanyDebtsSection';
 import AccessoriesSection from '../components/AccessoriesSection';
 import MonthlyReportsSection from '../components/MonthlyReportsSection';
+import MultiCurrencyDashboard from '../components/MultiCurrencyDashboard';
+import PersonalLoansSection from '../components/PersonalLoansSection';
 import ArchivedItemsSection from '../components/ArchivedItemsSection';
 import ProductsSection from '../components/ProductsSection';
 import SalesHistorySection from '../components/SalesHistorySection';
 import BuyingHistorySection from '../components/BuyingHistorySection';
 import AdminModals from '../components/AdminModals';
 import ToastUnified from '../components/ToastUnified';
+import AdvancedAnalytics from '../components/AdvancedAnalytics';
 
 export default function Admin() {
   const admin = useAdmin();
@@ -116,6 +119,8 @@ export default function Admin() {
   // Memoize nav items for performance
   const navItems = useMemo(() => [
     { key: 'dashboard', label: t.dashboard, icon: '📊', accent: 'bg-blue-600' },
+    { key: 'multiCurrencyDashboard', label: t.multiCurrencyDashboard || 'Multi-Currency Dashboard', icon: '💱', accent: 'bg-indigo-600' },
+    { key: 'advancedAnalytics', label: t.advancedAnalytics || 'Advanced Analytics', icon: '📈', accent: 'bg-emerald-600' },
     { key: 'active', label: t.products, icon: '📦', accent: 'bg-purple-600' },
     { key: 'accessories', label: t.accessories, icon: '🎧', accent: 'bg-green-600' },
     { key: 'archived', label: t.archivedProducts, icon: '🗃️' },
@@ -123,6 +128,7 @@ export default function Admin() {
     { key: 'buyingHistory', label: t.buyingHistory, icon: '🛒' },
     { key: 'customerDebts', label: t.customerDebts, icon: '💳' },
     { key: 'companyDebts', label: t.companyDebts, icon: '💸' },
+    { key: 'personalLoans', label: t.personalLoans || 'Personal Loans', icon: '🤝', accent: 'bg-cyan-600' },
     { key: 'monthlyReports', label: t.monthlyReports, icon: '📊' },
     { key: 'backup', label: t.cloudBackup, icon: '☁️', action: () => setShowBackupManager(true) },
     { key: 'settings', label: t.settings, icon: '⚙️' },
@@ -275,6 +281,7 @@ export default function Admin() {
                 criticalStockProducts={criticalStockProducts}
                 lowStockProducts={lowStockProducts}
                 setSection={setSection}
+                setShowSettingsModal={setShowSettingsModal}
               />
             )}
 
@@ -353,6 +360,30 @@ export default function Admin() {
             {/* Monthly Reports Section */}
             {section === 'monthlyReports' && (
               <MonthlyReportsSection 
+                t={t}
+                admin={admin}
+              />
+            )}
+
+            {/* Multi-Currency Dashboard Section */}
+            {section === 'multiCurrencyDashboard' && (
+              <MultiCurrencyDashboard 
+                t={t}
+                admin={admin}
+              />
+            )}
+
+            {/* Advanced Analytics Section */}
+            {section === 'advancedAnalytics' && (
+              <AdvancedAnalytics 
+                t={t}
+                admin={admin}
+              />
+            )}
+
+            {/* Personal Loans Section */}
+            {section === 'personalLoans' && (
+              <PersonalLoansSection 
                 t={t}
                 admin={admin}
               />

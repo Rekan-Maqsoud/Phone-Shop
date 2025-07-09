@@ -29,9 +29,7 @@ export default function useAdmin() {
   
   // UI state
   const [showProductModal, setShowProductModal] = useState(false);
-  const [showAccessoryModal, setShowAccessoryModal] = useState(false);
   const [editProduct, setEditProduct] = useState(null);
-  const [editAccessory, setEditAccessory] = useState(null);
   const [viewSale, setViewSale] = useState(null);
   // Toast state
   const [toast, setToastState] = useState(null);
@@ -83,6 +81,8 @@ export default function useAdmin() {
         if (res.success) {
           setToast(`${t.productAdded} ${product.name}`);
           await refreshProducts();
+          setShowProductModal(false); // Close modal on success
+          setEditProduct(null); // Clear edit state
         } else {
           setToast(res.message || t.addProductFailed || 'Add product failed.');
         }
@@ -117,6 +117,8 @@ export default function useAdmin() {
         if (res.success) {
           setToast(`${t.productUpdated} ${product.name}`);
           await refreshProducts();
+          setShowProductModal(false); // Close modal on success
+          setEditProduct(null); // Clear edit state
         } else {
           setToast(res.message || t.updateProductFailed || 'Update product failed.');
         }
@@ -284,12 +286,18 @@ export default function useAdmin() {
     }
   };
 
-  // Company Debt: Mark as Paid
-  const handleMarkCompanyDebtPaid = async (id, paid_at) => {
-    
+  // Company Debt: Mark as Paid with multi-currency support
+  const handleMarkCompanyDebtPaid = async (id, multiCurrencyPayment) => {
     try {
       if (window.api?.markCompanyDebtPaid) {
-        await window.api.markCompanyDebtPaid(id, paid_at);
+        const paymentData = {
+          paid_at: new Date().toISOString(),
+          payment_usd_amount: multiCurrencyPayment?.usdAmount || 0,
+          payment_iqd_amount: multiCurrencyPayment?.iqdAmount || 0,
+          payment_currency_used: multiCurrencyPayment?.deductCurrency || 'USD'
+        };
+        
+        await window.api.markCompanyDebtPaid(id, paymentData);
         refreshCompanyDebts();
         refreshBuyingHistory();
         refreshProducts();
@@ -329,12 +337,8 @@ export default function useAdmin() {
     setSales,
     showProductModal,
     setShowProductModal,
-    showAccessoryModal,
-    setShowAccessoryModal,
     editProduct,
     setEditProduct,
-    editAccessory,
-    setEditAccessory,
     viewSale,
     setViewSale,
     debts,
@@ -371,7 +375,7 @@ export default function useAdmin() {
     adminModal, setAdminModal, openAdminModal, adminPassword, setAdminPassword, adminError, handleAdminAccess,
     goToAdmin,
   }), [
-    products, accessories, sales, showProductModal, showAccessoryModal, editProduct, editAccessory, viewSale, debts, debtSales, companyDebts, buyingHistory, monthlyReports,
+    products, accessories, sales, showProductModal, editProduct, viewSale, debts, debtSales, companyDebts, buyingHistory, monthlyReports,
     toast, dataLoading, notificationsEnabled, lowStockThreshold, adminModal, adminPassword, adminError, resetConfirmOpen
   ]); // Removed function dependencies and apiReady that change on every render
   return adminObject;

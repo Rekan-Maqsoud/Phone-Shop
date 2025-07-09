@@ -9,10 +9,13 @@ export default function HistorySearchFilter({
   dateField = 'created_at', // default date field
   showNameSearch = true,
   showTotals = false,
-  calculateTotals = null // function to calculate totals from filtered data
+  calculateTotals = null, // function to calculate totals from filtered data
+  showBrandFilter = false, // new prop to show brand filter
+  getBrandFromItem = null // function to extract brand from item
 }) {
   const { getMonthName } = useLocale();
   const [searchTerm, setSearchTerm] = useState('');
+  const [brandFilter, setBrandFilter] = useState('');
   const [searchType, setSearchType] = useState('preset'); // 'preset', 'single', 'week', 'range'
   const [presetPeriod, setPresetPeriod] = useState(''); // 'today', 'yesterday', 'thisWeek', 'lastWeek', 'thisMonth', 'lastMonth'
   
@@ -47,6 +50,19 @@ export default function HistorySearchFilter({
 
   const currentYear = new Date().getFullYear();
   const yearOptions = Array.from({ length: 10 }, (_, i) => currentYear - i + 5); // 5 years future, 5 years past
+
+  // Get unique brands for filter dropdown
+  const availableBrands = useMemo(() => {
+    if (!showBrandFilter || !getBrandFromItem) return [];
+    
+    const brands = new Set();
+    data.forEach(item => {
+      const brand = getBrandFromItem(item);
+      if (brand) brands.add(brand);
+    });
+    
+    return Array.from(brands).sort();
+  }, [data, showBrandFilter, getBrandFromItem]);
 
   // Helper to format date for comparison
   const formatDateForComparison = (day, month, year) => {
@@ -121,6 +137,14 @@ export default function HistorySearchFilter({
       });
     }
 
+    // Brand filtering
+    if (showBrandFilter && brandFilter && getBrandFromItem) {
+      filtered = filtered.filter(item => {
+        const brand = getBrandFromItem(item);
+        return brand && brand.toLowerCase().includes(brandFilter.toLowerCase());
+      });
+    }
+
     // Date filtering
     if (searchType === 'preset' && presetPeriod) {
       const dateRange = getPresetDateRange(presetPeriod);
@@ -165,7 +189,7 @@ export default function HistorySearchFilter({
     }
 
     return filtered;
-  }, [data, searchTerm, searchType, presetPeriod, singleDay, singleMonth, singleYear, startDay, startMonth, startYear, endDay, endMonth, endYear, searchFields, dateField, showNameSearch]);
+  }, [data, searchTerm, brandFilter, searchType, presetPeriod, singleDay, singleMonth, singleYear, startDay, startMonth, startYear, endDay, endMonth, endYear, searchFields, dateField, showNameSearch, showBrandFilter, getBrandFromItem]);
 
   // Calculate totals if function provided
   const totals = useMemo(() => {
@@ -175,12 +199,10 @@ export default function HistorySearchFilter({
     return null;
   }, [filteredData, showTotals, calculateTotals]);
 
-  // Notify parent of filtered data changes
+  // Notify parent of filtered data changes - memoize the effect to prevent infinite loops
   React.useEffect(() => {
-    if (onFilteredDataChange) {
-      onFilteredDataChange(filteredData, totals);
-    }
-  }, [filteredData, totals]);
+    onFilteredDataChange?.(filteredData, totals);
+  }, [filteredData, totals, onFilteredDataChange]);
 
   // Handle search type change
   const handleSearchTypeChange = (type) => {
@@ -201,6 +223,7 @@ export default function HistorySearchFilter({
   // Clear all filters
   const clearFilters = () => {
     setSearchTerm('');
+    setBrandFilter('');
     setPresetPeriod('');
     setSingleDay('');
     setSingleMonth('');
@@ -241,6 +264,25 @@ export default function HistorySearchFilter({
               />
               <span className="absolute left-3 top-2.5 text-gray-400">🔍</span>
             </div>
+          </div>
+        )}
+
+        {/* Brand Filter */}
+        {showBrandFilter && availableBrands.length > 0 && (
+          <div className="flex gap-2 items-center">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 min-w-fit">
+              {t?.brand || 'Brand'}:
+            </label>
+            <select
+              value={brandFilter}
+              onChange={(e) => setBrandFilter(e.target.value)}
+              className="border rounded-xl px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400 min-w-40"
+            >
+              <option value="">{t?.allBrands || 'All Brands'}</option>
+              {availableBrands.map(brand => (
+                <option key={brand} value={brand}>{brand}</option>
+              ))}
+            </select>
           </div>
         )}
 
@@ -470,20 +512,36 @@ export default function HistorySearchFilter({
 
         {/* Totals Display */}
         {showTotals && totals && (
-          <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-            {totals.totalProfit !== undefined && (
+          <div className="mt-4 grid grid-cols-2 md:grid-cols-6 gap-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+            {totals.totalProfitUSD !== undefined && totals.totalProfitUSD > 0 && (
               <div className="text-center">
-                <div className="text-xs text-gray-600 dark:text-gray-400">{t?.totalProfit || 'Total Profit'}</div>
+                <div className="text-xs text-gray-600 dark:text-gray-400">{t?.totalProfitUSD || 'Total Profit USD'}</div>
                 <div className="text-lg font-bold text-green-600 dark:text-green-400">
-                  ${totals.totalProfit.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  ${totals.totalProfitUSD.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                 </div>
               </div>
             )}
-            {totals.totalRevenue !== undefined && (
+            {totals.totalProfitIQD !== undefined && totals.totalProfitIQD > 0 && (
               <div className="text-center">
-                <div className="text-xs text-gray-600 dark:text-gray-400">{t?.totalRevenue || 'Total Revenue'}</div>
+                <div className="text-xs text-gray-600 dark:text-gray-400">{t?.totalProfitIQD || 'Total Profit IQD'}</div>
+                <div className="text-lg font-bold text-green-600 dark:text-green-400">
+                  د.ع{totals.totalProfitIQD.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                </div>
+              </div>
+            )}
+            {totals.totalRevenueUSD !== undefined && totals.totalRevenueUSD > 0 && (
+              <div className="text-center">
+                <div className="text-xs text-gray-600 dark:text-gray-400">{t?.totalRevenueUSD || 'Total Revenue USD'}</div>
                 <div className="text-lg font-bold text-blue-600 dark:text-blue-400">
-                  ${totals.totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  ${totals.totalRevenueUSD.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                </div>
+              </div>
+            )}
+            {totals.totalRevenueIQD !== undefined && totals.totalRevenueIQD > 0 && (
+              <div className="text-center">
+                <div className="text-xs text-gray-600 dark:text-gray-400">{t?.totalRevenueIQD || 'Total Revenue IQD'}</div>
+                <div className="text-lg font-bold text-blue-600 dark:text-blue-400">
+                  د.ع{totals.totalRevenueIQD.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                 </div>
               </div>
             )}

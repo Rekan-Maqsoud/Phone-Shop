@@ -1,12 +1,11 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ConfirmModal from '../components/ConfirmModal';
 import ProductSelectModal from '../components/ProductSelectModal';
 import CashierContent from '../components/CashierContent';
-import UnderCostWarning from '../components/UnderCostWarning';
+import { BackupProgressOverlay } from '../contexts/BackupProgressContext';
 import useCart from '../components/hooks/useCart';
 import useAdmin from '../components/useAdmin';
-import useProductLookup from '../components/hooks/useProductLookup';
 import useOnlineStatus from '../components/hooks/useOnlineStatus';
 import useCashierKeyboard from '../components/hooks/useCashierKeyboard';
 import { useTheme } from '../contexts/ThemeContext';
@@ -14,19 +13,13 @@ import { useLocale } from '../contexts/LocaleContext';
 import { useData } from '../contexts/DataContext';
 import ToastUnified from '../components/ToastUnified';
 import { 
-  playWarningSound, 
   playSaleCompleteSound, 
-  playActionSound, 
-  playSuccessSound, 
   playErrorSound, 
-  playModalOpenSound,
-  playDeleteSound,
-  playFormSubmitSound
+  playModalOpenSound
 } from '../utils/sounds';
+import { formatCurrency } from '../utils/exchangeRates';
 
-// Redesigned Cashier page with stunning modern UI
 export default function Cashier() {
-  // --- State Initialization Fixes ---
   const [search, setSearch] = useState('');
   const [suggestions, setSuggestions] = useState([]);
   const [isDebt, setIsDebt] = useState(false);
@@ -40,22 +33,37 @@ export default function Cashier() {
   const [quantity, setQuantity] = useState(1);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1);
+  const [currency, setCurrency] = useState('USD');
+  const [discount, setDiscount] = useState(null);
   const inputRef = useRef();
   const navigate = useNavigate();
-  const { theme } = useTheme();
-  const { t, lang, isRTL, notoFont } = useLocale();
   const { isOnline } = useOnlineStatus();
 
-  // Hooks
+  const { t, isRTL, notoFont } = useLocale();
+
   const showToast = (msg, type = 'success', duration = 3000) => {
     setToast({ msg, type, duration });
   };
+
   const showConfirm = (message, onConfirm) => {
     setConfirm({ open: true, message, onConfirm });
   };
-  const { items, addOrUpdateItem, deleteItem, clearCart, total, setItems } = useCart((msg, type) => {
+  
+  const { items, addOrUpdateItem, deleteItem, total: baseTotal, setItems } = useCart((msg, type) => {
     setToast({ msg, type, duration: 3000 });
   }, showConfirm, t);
+  
+  // Calculate discounted total
+  const total = useMemo(() => {
+    if (!discount || !discount.discount_value) return baseTotal;
+    
+    if (discount.discount_type === 'percentage') {
+      return baseTotal * (1 - discount.discount_value / 100);
+    } else {
+      return Math.max(0, baseTotal - discount.discount_value);
+    }
+  }, [baseTotal, discount]);
+  
   const admin = useAdmin(navigate);
 
   // Get data from DataContext
@@ -70,15 +78,14 @@ export default function Cashier() {
     refreshSales 
   } = useData();
 
-  // Data is automatically fetched by DataContext, no need for manual fetch calls
-  
   // Memoize derived values
   const products = useMemo(() => Array.isArray(allProducts) ? allProducts.filter(p => !p.archived) : [], [allProducts]);
   const accessories = useMemo(() => Array.isArray(allAccessories) ? allAccessories.filter(a => !a.archived) : [], [allAccessories]);
+  
   // Add unique identifiers to differentiate products and accessories
   const allItems = useMemo(() => [
-    ...products.map(p => ({ ...p, itemType: 'product', uniqueId: `product_${p.id}` })), 
-    ...accessories.map(a => ({ ...a, itemType: 'accessory', uniqueId: `accessory_${a.id}` }))
+    ...products.map(p => ({ ...p, itemType: 'product', category: p.category || 'phones', uniqueId: `product_${p.id}` })), 
+    ...accessories.map(a => ({ ...a, itemType: 'accessory', category: 'accessories', uniqueId: `accessory_${a.id}` }))
   ], [products, accessories]);
 
   useEffect(() => {
@@ -86,16 +93,18 @@ export default function Cashier() {
     return () => clearInterval(timer);
   }, []);
 
-  // Ensure we fetch accessories for the cashier
   useEffect(() => {
-    refreshAccessories();
-  }, [refreshAccessories]);
+    if (apiReady) {
+      refreshProducts();
+      refreshAccessories();
+    }
+  }, [apiReady, refreshProducts, refreshAccessories]);
 
   const handleSearchInput = (e) => {
     setSearch(e.target.value);
-    setSelectedSuggestionIndex(-1); // Reset selection when typing
-    // Removed fetchProducts from here to avoid infinite loop/blank screen
+    setSelectedSuggestionIndex(-1);
   };
+  
   const handleQuantityInput = (e) => {
     const val = Math.max(1, parseInt(e.target.value) || 1);
     setQuantity(val);
@@ -121,7 +130,7 @@ export default function Cashier() {
     
     setLoading(l => ({ ...l, price: true }));
     
-    // Name search (case-insensitive, partial match, for normal sales only show items with stock > 0)
+    // Name search (case-insensitive, partial match)
     let matches = allItems.filter(p => 
       p.stock > 0 && 
       p.name.toLowerCase().includes(search.toLowerCase())
@@ -143,6 +152,14 @@ export default function Cashier() {
     }
   };
 
+  const handleSelectProductVariant = (product) => {
+    addOrUpdateItem(product, false, quantity);
+    setShowProductSelect(false);
+    setProductOptions([]);
+    setSearch('');
+    setQuantity(1);
+  };
+
   // Use keyboard hook for handling all keyboard interactions
   useCashierKeyboard({
     showProductSelect,
@@ -159,51 +176,61 @@ export default function Cashier() {
     setShowSuggestions,
     handleSearchSubmit
   });
-
-  const handleSelectProductVariant = (product) => {
-    addOrUpdateItem(product, false, quantity);
-    setShowProductSelect(false);
-    setProductOptions([]);
-    setSearch('');
-    setQuantity(1);
-  };
-
+  
   // Cloud backup is now handled automatically by the unified backup system
   
-  const handleCompleteSale = async () => {
+  const handleCompleteSale = async (saleDiscount = null, discountedTotal = null, multiCurrency = null) => {
     if (!items.length) return;
     
-    // Check if offline and warn user
-    if (!isOnline) {
-      showToast(t.offlineWarning, 'warning');
+    const finalTotal = discountedTotal !== null ? discountedTotal : total;
+    
+    // Check for insufficient payment (both single and multi-currency)
+    let insufficientPayment = false;
+    let warningDetails = '';
+    
+    if (multiCurrency && (multiCurrency.usdAmount > 0 || multiCurrency.iqdAmount > 0)) {
+      const totalPaidUSD = multiCurrency.totalPaidUSD || 0;
+      const requiredAmount = currency === 'USD' ? finalTotal : finalTotal / 1440;
+      
+      if (totalPaidUSD < requiredAmount) {
+        insufficientPayment = true;
+        warningDetails = `${t.insufficientPayment || 'Insufficient payment'}.\n` +
+                        `${t.required || 'Required'}: ${formatCurrency(requiredAmount, 'USD')}\n` +
+                        `${t.provided || 'Provided'}: ${formatCurrency(totalPaidUSD, 'USD')}`;
+      }
+    } else if (currency === 'IQD') {
+      const usdItems = items.filter(item => {
+        const product = allItems.find(p => p.uniqueId === item.uniqueId || p.id === item.product_id);
+        return product && (product.currency === 'USD' || !product.currency);
+      });
+      
+      if (usdItems.length > 0) {
+        const totalUSDValue = usdItems.reduce((sum, item) => {
+          const product = allItems.find(p => p.uniqueId === item.uniqueId || p.id === item.product_id);
+          const sellingPriceUSD = item.selling_price || item.price || 0;
+          return sum + (sellingPriceUSD * item.quantity);
+        }, 0);
+        
+        const requiredIQD = totalUSDValue * 1440;
+        if (finalTotal < requiredIQD) {
+          insufficientPayment = true;
+          warningDetails = `${t.warningInsufficientIQDPayment || 'Warning: Insufficient IQD payment for USD items'}\n` +
+                          `${t.requiredIQD || 'Required IQD'}: ${requiredIQD.toFixed(2)}\n` +
+                          `${t.providedIQD || 'Provided IQD'}: ${finalTotal.toFixed(2)}\n` +
+                          `${t.exchangeRate || 'Exchange Rate'}: 1 USD = 1440 IQD`;
+        }
+      }
     }
     
-    // Check for low price warning (selling below buying price)
-    const belowCostItems = items.filter(item => {
-      const product = allItems.find(p => p.uniqueId === item.uniqueId || p.id === item.product_id);
-      if (!product) return false;
-      const buyingPrice = product.buying_price || product.price;
-      return item.selling_price < buyingPrice;
-    });
-    
-    if (belowCostItems.length > 0) {
-      const itemNames = belowCostItems.map(item => {
-        const product = allItems.find(p => p.uniqueId === item.uniqueId || p.id === item.product_id);
-        return product ? product.name : t.unknown;
-      }).join(', ');
-      
-      // Play warning sound
-      playWarningSound();
-      
+    if (insufficientPayment) {
       const confirmed = await new Promise((resolve) => {
         showConfirm(
-          `${t.warningSellingBelowCost}\nItems: ${itemNames}\n${t.continueAnyway}`,
+          warningDetails + '\n' + t.continueAnyway,
           () => {
             setConfirm({ open: false, message: '', onConfirm: null });
             resolve(true);
           }
         );
-        // Add a timeout to auto-resolve as false if no action after 30 seconds
         setTimeout(() => {
           setConfirm({ open: false, message: '', onConfirm: null });
           resolve(false);
@@ -215,14 +242,14 @@ export default function Cashier() {
       }
     }
     
-    // Don't allow negative totals for regular sales 
-    if (total < 0) {
+    // Don't allow negative totals
+    if (finalTotal < 0) {
       playErrorSound();
       showToast(t.cannotCompleteNegativeTotal, 'error');
       return;
     }
     
-    // Customer name is now required for ALL sales (both cash and debt)
+    // Customer name is required for ALL sales
     if (!customerName.trim()) {
       playErrorSound();
       showToast(t.pleaseEnterCustomerName, 'error');
@@ -247,22 +274,24 @@ export default function Cashier() {
         
         setLoading(l => ({ ...l, sale: true }));
         const saleItems = items.map(item => {
-          const { id, ...rest } = item;
           return {
-            ...rest,
+            ...item,
             product_id: item.product_id || item.id,
           };
         });
         
         const sale = {
           items: saleItems,
-          total,
+          total: finalTotal,
           created_at: new Date().toISOString(),
           is_debt: isDebt ? 1 : 0,
           customer_name: customerName.trim() || null,
+          currency: currency,
+          discount: saleDiscount,
+          multi_currency: multiCurrency || null
         };
+        
         if (window.api?.saveSale) {
-          
           const res = await window.api.saveSale(sale);
           
           if (res.success && isDebt) {
@@ -289,8 +318,6 @@ export default function Cashier() {
             await refreshAccessories();
             await refreshSales();
             
-            // Auto backup is now handled automatically by the unified backup system
-            
             showToast(isDebt ? t.debtSaleSuccess : t.saleSuccess);
           } else {
             playErrorSound();
@@ -305,7 +332,7 @@ export default function Cashier() {
     );
   };
 
-  // --- Debounced Suggestions Effect ---
+  // Debounced Suggestions Effect
   useEffect(() => {
     let active = true;
     let debounceId;
@@ -318,7 +345,6 @@ export default function Cashier() {
       }
       
       const safeProducts = Array.isArray(allItems) ? allItems : [];
-      // Show all items with stock > 0, case-insensitive partial name match
       let matches = safeProducts.filter(p => 
         p.stock > 0 && 
         p.name.toLowerCase().includes(search.toLowerCase())
@@ -327,26 +353,18 @@ export default function Cashier() {
       if (active) {
         setSuggestions(matches.slice(0, 7));
         setShowSuggestions(matches.length > 0);
-        setSelectedSuggestionIndex(-1); // Reset selection when suggestions change
+        setSelectedSuggestionIndex(-1);
       }
     };
     
-    debounceId = setTimeout(fetchSuggestions, 150); // Reduced debounce for better responsiveness
+    debounceId = setTimeout(fetchSuggestions, 150);
     return () => {
       active = false;
       clearTimeout(debounceId);
     };
-  }, [search, allItems]); // Changed dependency from products to allItems
+  }, [search, allItems]);
 
-  useEffect(() => {
-    if (apiReady) {
-      refreshProducts();
-      refreshAccessories();
-    }
-  }, [apiReady, refreshProducts, refreshAccessories]);
-  
-
-  // --- Redesigned UI ---
+  // UI
   return (
     <div
       className={`min-h-screen h-screen w-screen flex flex-col md:flex-row bg-gradient-to-br from-[#f8fafc] via-[#e0e7ef] to-[#c7d2fe] dark:from-[#1e293b] dark:via-[#0f172a] dark:to-[#0e7490] transition-colors duration-300`}
@@ -355,11 +373,7 @@ export default function Cashier() {
     >
       <CashierContent
         t={t}
-        theme={theme}
-        admin={admin}
-        products={products}
         clock={clock}
-        total={total}
         items={items}
         loading={loading}
         isDebt={isDebt}
@@ -380,17 +394,11 @@ export default function Cashier() {
         setItems={setItems}
         deleteItem={deleteItem}
         showToast={showToast}
-        isRTL={isRTL}
-        notoFont={notoFont}
         allItems={allItems}
         addOrUpdateItem={addOrUpdateItem}
-      />
-      
-      {/* Under Cost Warning */}
-      <UnderCostWarning 
-        items={items}
-        allItems={allItems}
-        t={t}
+        currency={currency}
+        setCurrency={setCurrency}
+        setDiscount={setDiscount}
       />
       
       {/* Toast */}
@@ -400,6 +408,9 @@ export default function Cashier() {
         duration={toast?.duration || 3000}
         onClose={() => setToast(null)} 
       />
+
+      {/* Backup Progress Overlay */}
+      <BackupProgressOverlay />
       
       {/* Modals */}
       <ConfirmModal open={confirm.open} message={confirm.message} onConfirm={confirm.onConfirm} onCancel={() => setConfirm({ open: false, message: '', onConfirm: null })} t={t} />

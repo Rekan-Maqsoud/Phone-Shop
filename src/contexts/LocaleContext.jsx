@@ -52,6 +52,63 @@ const translations = {
     completeSale: 'Complete Sale',
     searchProducts: 'Search products...',
     
+    // Multi-currency support
+    currency: 'Currency',
+    multiCurrencyPayment: 'Multi-Currency Payment',
+    exchangeRate: 'Exchange Rate',
+    convertUSDToIQD: 'USD → IQD',
+    convertIQDToUSD: 'IQD → USD',
+    totalBeingPaid: 'Total being paid',
+    equivalentInUSD: 'Equivalent in USD',
+    equivalentInIQD: 'Equivalent in IQD',
+    clearAmounts: 'Clear Amounts',
+    invalidNegativeAmount: 'Invalid negative amount entered',
+    insufficientPayment: 'Insufficient payment',
+    required: 'Required',
+    provided: 'Provided',
+    warningInsufficientIQDPayment: 'Warning: Insufficient IQD payment for USD items',
+    requiredIQD: 'Required IQD',
+    providedIQD: 'Provided IQD',
+    
+    // Discount
+    discount: 'Discount',
+    percentage: 'Percentage',
+    amount: 'Amount',
+    originalTotal: 'Original',
+    noDiscount: 'No Discount',
+    fixedAmount: 'Fixed Amount',
+    applyDiscount: 'Apply Discount',
+    
+    // Customer and UI
+    customerInfo: 'Customer Information',
+    cashSale: 'Cash Sale',
+    debtSale: 'Debt Sale',
+    enabled: 'Enabled',
+    disabled: 'Disabled',
+    usdAmount: 'USD Amount',
+    iqdAmount: 'IQD Amount',
+    totalPaid: 'Total Paid',
+    
+    // Multi-currency debt payment
+    deductFrom: 'Deduct Payment From',
+    deductFromUSD: 'Deduct from USD balance',
+    deductFromIQD: 'Deduct from IQD balance',
+    deductionNote: 'Payment will be deducted from selected currency balance. Make sure you have sufficient funds.',
+    
+    // Multi-currency product pricing
+    multiCurrencyPricing: 'Multi-Currency Pricing',
+    multiCurrencyNote: 'Set prices in both USD and IQD. The system will use the appropriate price based on the selected currency during sales.',
+    pleaseSetPrices: 'Please set at least one selling price',
+    
+    // Additional translations...
+    subtotal: 'Subtotal',
+    remove: 'Remove',
+    logout: 'Logout',
+    searching: 'Searching...',
+    remaining: 'Remaining',
+    change: 'Change',
+    enterNewExchangeRate: 'Enter new exchange rate',
+    
     // Product messages
     pleaseEnterProductName: 'Please enter a product name',
     productNotFoundOrInvalid: 'Product not found or invalid',
@@ -107,6 +164,35 @@ const translations = {
     buyingHistoryDesc: 'Track all your business purchases and expenses',
     cashOnly: 'Cash Only',
     
+    // Additional missing translations
+    revenueUSD: 'Revenue USD',
+    revenueIQD: 'Revenue IQD',
+    spentUSD: 'Spent USD',
+    spentIQD: 'Spent IQD',
+    netUSD: 'Net USD',
+    netIQD: 'Net IQD',      paidToday: 'Paid Today',
+      critical: 'Critical',
+    
+    // Company debts translations
+    totalCompanyDebtUSD: 'Total Company Debt USD',
+    totalCompanyDebtIQD: 'Total Company Debt IQD',
+    noOutstandingDebts: 'No outstanding company debts',
+    unpaidDebts: 'Unpaid Debts',
+    outstandingDebts: 'Outstanding Debts',
+    paidCompanyDebts: 'Paid Company Debts',
+    
+    // Personal loans section
+    balanceAndTransactions: 'Balance and Transactions',
+    addPersonalLoan: 'Add Personal Loan',
+    loansAddedToday: 'Loans Added Today',
+    loansRepaidToday: 'Loans Repaid Today',
+    totalLoanBalance: 'Total Loan Balance',
+    manageLoan: 'Manage Loan',
+    loanPaidSuccessfully: 'Loan paid successfully!',
+    failedToPayLoan: 'Failed to pay loan',
+    loanAddedSuccessfully: 'Loan added successfully!',
+    failedToAddLoan: 'Failed to add loan',
+    
     // Cart messages
     stockEmptyIncrement: 'Stock is empty. Do you want to increment the stock by 1?',
     stockIncremented: 'Stock incremented by 1.',
@@ -117,6 +203,7 @@ const translations = {
     dashboard: 'Dashboard',
     products: 'Products',
     archivedProducts: 'Archived',
+    archivedItems: 'Archived Items',
     salesHistory: 'Sales',
     buyingHistory: 'Buying History',
     customerDebts: 'Customer Debts',
@@ -124,7 +211,18 @@ const translations = {
     monthlyReports: 'Monthly Reports',
     cloudBackup: 'Cloud Backup',
     settings: 'Settings',
-    logout: 'Log out',
+    personalLoans: 'Personal Loans',
+    multiCurrencyDashboard: 'Multi-Currency Dashboard',
+    advancedAnalytics: 'Advanced Analytics',
+    
+    // Personal loans
+    loanAmount: 'Loan Amount',
+    personName: 'Person Name',
+    addLoan: 'Add Loan',
+    loanDescription: 'Loan Description (optional)',
+    outstandingLoans: 'Outstanding Loans',
+    totalOutstandingUSD: 'Total Outstanding USD',
+    totalOutstandingIQD: 'Total Outstanding IQD',
     
     // Admin Dashboard - Today's Performance
     adminDashboard: 'Admin Dashboard',
@@ -135,6 +233,8 @@ const translations = {
     salesWillAppearHere: 'Sales will appear here',
     thisMonth: 'This Month',
     totalProfit: 'Total Profit',
+    profitUSD: 'Profit USD',
+    profitIQD: 'Profit IQD',
     inventoryValue: 'Inventory Value',
     debts: 'Debts',
 
@@ -160,7 +260,6 @@ const translations = {
     thisWeek: 'This Week',
     weeklyRevenue: 'Weekly Revenue',
     outstanding: 'Outstanding',
-    unpaidDebts: 'unpaid debts',
     inventory: 'Inventory',
     lowStockText: 'low stock',
     allStocksHealthy: 'All stocks healthy',
@@ -233,7 +332,6 @@ const translations = {
     justAmount: 'Just specify the amount',
     purchaseWithItems: 'Purchase with Items',
     addItemsToInventory: 'Add items to inventory',
-    amount: 'Amount',
     itemsList: 'Items',
     noItemsAdded: 'No items added yet',
     clickAddButtons: 'Click the buttons above to add items',
@@ -244,6 +342,19 @@ const translations = {
     paymentStatus: 'Payment Status',
     purchaseAddedSuccessfully: 'Purchase added successfully!',
     errorAddingPurchase: 'Error adding purchase',
+    
+    // Multi-currency dashboard
+    realTimeBusinessMetrics: 'Real-time business metrics across USD & IQD',
+    currentBalance: 'Current Balance',
+    usdBalance: 'USD Balance',
+    iqdBalance: 'IQD Balance',
+    todayUSD: 'Today USD',
+    todayIQD: 'Today IQD',
+    weeklyUSD: 'Weekly USD',
+    weeklyIQD: 'Weekly IQD',
+    salesRevenue: 'Sales Revenue',
+    usDollars: 'US Dollars',
+    iraqiDinars: 'Iraqi Dinars',
     
     // Accessory modal dropdowns
 
@@ -341,11 +452,8 @@ const translations = {
     noAccessoriesFound: 'No accessories found',
     tryDifferentSearch: 'Try different search criteria',
     noAccessories: 'No accessories yet',
-    addFirstAccessory: 'Add your first accessory to get started',
-    
-    // Archived Items Section
-    archivedItems: 'Archived Items',
-    archivedAccessories: 'Archived Accessories',
+    addFirstAccessory: 'Add your first accessory to get started',      // Archived Items Section
+      archivedAccessories: 'Archived Accessories',
     
     // Sales History Section
     confirmReturnSale: 'Are you sure you want to return this entire sale? This will restore stock and remove the sale from records.',
@@ -466,12 +574,18 @@ const translations = {
     totalCompanyDebt: 'Total Company Debt',
     unpaidDebt: 'unpaid debt',
     paidDebt: 'paid debt',
+    selectPaymentCurrency: 'Select Payment Currency',
+    markingDebtPaidFor: 'Marking debt as paid for',
+    markingLoanPaidFor: 'Marking loan as paid for',
+    debtAmount: 'Debt Amount',
+    selectCurrencyToDeduct: 'Select which currency to deduct from your balance:',
+    selectCurrencyToAdd: 'Select which currency to add to your balance:',
+    insufficientFunds: 'Insufficient funds',
     
     // Sales history section
     salesHistoryTitle: 'Sales History',
     
     // Customer debts section  
-    totalPaid: 'Total Paid',
     totalOutstanding: 'Total Outstanding',
     paidAmount: 'Paid Amount',
     outstandingAmount: 'Outstanding',
@@ -482,8 +596,6 @@ const translations = {
     lowestAmount: 'Lowest Amount',
     customerAZ: 'Customer A-Z',
     customerZA: 'Customer Z-A',
-    debtsPaid: 'Paid Debts',
-    paidDebts: 'Paid Debts',
     markPaid: 'Mark Paid',
     itemsCount: 'items',
     
@@ -551,6 +663,63 @@ const translations = {
     completeSale: 'تەواوکردنی فرۆشتن',
     searchProducts: 'گەڕان بە دوای بەرهەمەکان...',
     
+    // Multi-currency support
+    currency: 'جۆری دراو',
+    multiCurrencyPayment: 'پارەدانی چەند دراویی',
+    exchangeRate: 'ئاستی گۆڕینی پارە',
+    convertUSDToIQD: 'USD → IQD',
+    convertIQDToUSD: 'IQD → USD',
+    totalBeingPaid: 'کۆی پارەی ئەدرێت',
+    equivalentInUSD: 'هاوتای لە دۆلار',
+    equivalentInIQD: 'هاوتای لە دینار',
+    clearAmounts: 'پاکردنەوەی بڕەکان',
+    invalidNegativeAmount: 'بڕی نەرێنی نادروست تێکرا',
+    insufficientPayment: 'پارە بەس نییە',
+    required: 'پێویست',
+    provided: 'دابینکراو',
+    warningInsufficientIQDPayment: 'ئاگاداری: پارەی دینار بەس نییە بۆ کاڵای دۆلاری',
+    requiredIQD: 'دیناری پێویست',
+    providedIQD: 'دیناری دابینکراو',
+    
+    // Discount
+    discount: 'داشکاندن',
+    percentage: 'ڕێژە',
+    amount: 'بڕ',
+    originalTotal: 'ڕەسەن',
+    noDiscount: 'داشکاندن نییە',
+    fixedAmount: 'بڕی دیاریکراو',
+    applyDiscount: 'جێبەجێکردنی داشکاندن',
+    
+    // Customer and UI
+    customerInfo: 'زانیاری کڕیار',
+    cashSale: 'فرۆشتنی کاش',
+    debtSale: 'فرۆشتنی قەرز',
+    enabled: 'چالاک',
+    disabled: 'ناچالاک',
+    usdAmount: 'بڕی دۆلار',
+    iqdAmount: 'بڕی دینار',
+    totalPaid: 'کۆی پارەدراو',
+    
+    // Multi-currency debt payment
+    deductFrom: 'کەمکردنەوەی پارە لە',
+    deductFromUSD: 'کەمکردنەوە لە تێچوونی دۆلار',
+    deductFromIQD: 'کەمکردنەوە لە تێچوونی دینار',
+    deductionNote: 'پارەکە لە تێچوونی دیاری کراوە کەم دەکرێت. دڵنیایت کە پارەی کافیت هەیە.',
+    
+    // Multi-currency product pricing
+    multiCurrencyPricing: 'نرخە چەند دراوییەکان',
+    multiCurrencyNote: 'نرخی بەرهەمەکان لە هەردوودەنگی دۆلار و دینار دیاری بکە. سیستەم لە کاتی فرۆشتنەوە نرخی گونجاو بە هەڵبژاردنی دراویەوە بەکار دەهێنێت.',
+    pleaseSetPrices: 'تکایە بڕی فرۆشتنێک دیاری بکە',
+    
+    // Additional translations...
+    subtotal: 'کۆی ژێرەوە',
+    remove: 'لابردن',
+    logout: 'چوونەدەرەوە',
+    searching: 'گەڕان...',
+    remaining: 'ماوە',
+    change: 'گۆڕین',
+    enterNewExchangeRate: 'ڕێژەی گۆڕینی نوێ بنووسە',
+    
     // Product messages
     pleaseEnterProductName: 'تکایە ناوی بەرهەمێک بنووسە',
     productNotFoundOrInvalid: 'بەرهەم نەدۆزرایەوە یان نادروستە',
@@ -568,7 +737,6 @@ const translations = {
     allBrands: 'هەموو جۆرەکان',
     allCategories: 'هەموو پۆلەکان',
     phones: 'تەلەفۆنەکان',
-    accessories: 'ئامێرە یارمەتیدەرەکان',
     noItemsFound: 'هیچ بڕگەیەک نەدۆزرایەوە',
     tryDifferentFilters: 'هەوڵی گۆڕینی گەڕان یان فلتەرەکان بدە',
     
@@ -611,7 +779,10 @@ const translations = {
     monthlyReports: 'ڕاپۆرتی مانگانە',
     cloudBackup: 'پاشەکەوتی کلاود',
     settings: 'ڕێکخستنەکان',
-    logout: 'چوونەدەرەوە',
+    accessories: 'ئامێرە یارمەتیدەرەکان',
+    personalLoans: 'قەرزە کەسییەکان',
+    multiCurrencyDashboard: 'داشبۆردی چەند دراویی',
+    advancedAnalytics: 'شیکاری پێشکەوتوو',
     
     // Admin Dashboard - Today's Performance
     adminDashboard: 'داشبۆردی ئەدمین',
@@ -622,6 +793,8 @@ const translations = {
     salesWillAppearHere: 'فرۆشتنەکان لێرە دەردەکەون',
     thisMonth: 'ئەم مانگە',
     totalProfit: 'کۆی قازانج',
+    profitUSD: 'قازانجی دۆلار',
+    profitIQD: 'قازانجی دینار',
     inventoryValue: 'بەهای کۆگا',
     debts: 'قەرزەکان',
 
@@ -647,7 +820,7 @@ const translations = {
     thisWeek: 'ئەم هەفتەیە',
     weeklyRevenue: 'داهاتی هەفتانە',
     outstanding: 'مایەوە',
-    unpaidDebts: 'قەرزی نەدراو',
+    outstandingDebts: 'قەرزی نەدراو',
     inventory: 'کۆگا',
     lowStockText: 'کۆگای کەم',
     allStocksHealthy: 'هەموو کۆگاکان باشن',
@@ -720,7 +893,6 @@ const translations = {
     justAmount: 'تەنها بڕی پارە دیاری بکە',
     purchaseWithItems: 'کڕین لەگەڵ بڕگەکان',
     addItemsToInventory: 'بڕگەکان زیاد بکە بۆ کۆگا',
-    amount: 'بڕی پارە',
     itemsList: 'بڕگەکان',
     noItemsAdded: 'هێشتا بڕگەیەک زیاد نەکراوە',
     clickAddButtons: 'لە دوگمەکانی سەرەوە کلیک بکە بۆ زیادکردنی بڕگە',
@@ -731,6 +903,38 @@ const translations = {
     paymentStatus: 'دۆخی پارەدان',
     purchaseAddedSuccessfully: 'کڕین بە سەرکەوتوویی زیاد کرا!',
     errorAddingPurchase: 'هەڵە لە زیادکردنی کڕین',
+    
+    // Multi-currency dashboard
+    realTimeBusinessMetrics: 'پێوەرەکانی بازرگانی لە کاتی ڕاستەقینەدا بە USD و IQD',
+    currentBalance: 'تەواوی ئێستا',
+    usdBalance: 'تەواوی USD',
+    iqdBalance: 'تەواوی IQD',
+    todayUSD: 'ئەمڕۆ USD',
+    todayIQD: 'ئەمڕۆ IQD',
+    weeklyUSD: 'هەفتانە USD',
+    weeklyIQD: 'هەفتانە IQD',
+    salesRevenue: 'داهاتی فرۆشتن',
+    usDollars: 'دۆلاری ئەمریکی',
+    iraqiDinars: 'دیناری عێراقی',
+    
+    // Personal loans
+    loanAmount: 'بڕی قەرز',
+    personName: 'ناوی کەس',
+    addLoan: 'زیادکردنی قەرز',
+    loanDescription: 'وەسفی قەرز (ئیختیاری)',
+    outstandingLoans: 'قەرزە باوەڕپێکراوەکان',
+    totalOutstandingUSD: 'کۆی ماوە USD',
+    totalOutstandingIQD: 'کۆی ماوە IQD',
+    balanceAndTransactions: 'تەواو و مامەڵەکان',
+    addPersonalLoan: 'زیادکردنی قەرزی کەسی',
+    loansAddedToday: 'قەرزەکانی ئەمڕۆ زیادکراو',
+    loansRepaidToday: 'قەرزەکانی ئەمڕۆ پارەدراوەتەوە',
+    totalLoanBalance: 'کۆی تەواوی قەرز',
+    manageLoan: 'بەڕێوەبردنی قەرز',
+    loanPaidSuccessfully: 'قەرز بە سەرکەوتوویی پارەدرایەوە!',
+    failedToPayLoan: 'شکستی هێنا لە پارەدانەوەی قەرز',
+    loanAddedSuccessfully: 'قەرز بە سەرکەوتوویی زیاد کرا!',
+    failedToAddLoan: 'شکستی هێنا لە زیادکردنی قەرز',
     
     // Accessory modal dropdowns
     selectType: 'جۆر هەڵبژێرە',
@@ -826,11 +1030,11 @@ const translations = {
     noAccessoriesFound: 'هیچ ئامێری یارمەتیدەرێک نەدۆزرایەوە',
     tryDifferentSearch: 'هەوڵی پێوەری گەڕانی جیاواز بدە',
     noAccessories: 'هێشتا ئامێری یارمەتیدەر نییە',
-    addFirstAccessory: 'یەکەم ئامێری یارمەتیدەرت زیاد بکە بۆ دەستپێکردن',
+    addFirstAccessory: 'یەکەم ئامێری یارمەتیدەر زیاد بکە بۆ دەستپێکردن',
     
     // Archived Items Section
-    archivedItems: 'بڕگە ئارشیو کراوەکان',
-    archivedAccessories: 'ئامێری یارمەتیدەرە ئارشیو کراوەکان',
+    archivedItems: 'بڕگە ئارشیوکراوەکان',
+    archivedAccessories: 'ئامێری یارمەتیدەری ئارشیوکراو',
     
     // Sales History Section
     confirmReturnSale: 'دڵنیایت کە دەتەوێت هەموو ئەم فرۆشتنە بگەڕێنیتەوە؟ ئەمە کۆگا دەگەڕێنێتەوە و فرۆشتنەکە لە تۆمارەکان لادەدات.',
@@ -944,28 +1148,33 @@ const translations = {
     restoreFromFile: 'گەڕاندنەوە لە فایل',
     
     // Company debts section
-    markAsPaid: 'نیشانکردن وەک پارە دراو',
-    viewDetails: 'بینینی وردەکاری',
+    markAsPaid: 'نیشانکردن وەک پارەدراو',
+    viewDetails: 'بینینی وردەکارییەکان',
     totalCompanyDebt: 'کۆی قەرزی کۆمپانیا',
     unpaidDebt: 'قەرزی نەدراو',
     paidDebt: 'قەرزی دراو',
+    selectPaymentCurrency: 'دیاریکردنی جۆری پارە بۆ پارەدان',
+    markingDebtPaidFor: 'نیشانکردنی قەرز وەک دراو بۆ',
+    markingLoanPaidFor: 'نیشانکردنی قەرض وەک دراو بۆ',
+    debtAmount: 'ڕێژەی قەرز',
+    selectCurrencyToDeduct: 'دیاری بکە کام جۆری پارە لە باڵانسەکەت کەم بکرێتەوە:',
+    selectCurrencyToAdd: 'دیاری بکە کام جۆری پارە بۆ باڵانسەکەت زیاد بکرێت:',
+    insufficientFunds: 'پارە بەس نییە',
     
     // Sales history section
-    salesHistoryTitle: 'مێژووی فرۆشتن',
+    salesHistoryTitle: 'Sales History',
     
     // Customer debts section  
-    totalPaid: 'کۆی پارە دراو',
-    totalOutstanding: 'کۆی ماوە',
-    paidAmount: 'بڕی پارە دراو',
-    outstandingAmount: 'بڕی ماوە',
-    singleTransaction: 'مامەڵە',
-    newestFirst: 'نوێترین یەکەم',
-    oldestFirst: 'کۆنترین یەکەم',
-    highestAmount: 'بەرزترین بڕ',
-    lowestAmount: 'نزمترین بڕ',
-    customerAZ: 'کڕیار A-Z',
-    customerZA: 'کڕیار Z-A',
-    debtsPaid: 'قەرزە دراوەکان',
+    totalOutstanding: 'Total Outstanding',
+    paidAmount: 'Paid Amount',
+    outstandingAmount: 'Outstanding',
+    singleTransaction: 'transaction',
+    newestFirst: 'Newest First',
+    oldestFirst: 'Oldest First',
+    highestAmount: 'Highest Amount',
+    lowestAmount: 'Lowest Amount',
+    customerAZ: 'Customer A-Z',
+    customerZA: 'Customer Z-A',
     paidDebts: 'قەرزە دراوەکان',
     markPaid: 'نیشانکردنی وەک دراو',
     itemsCount: 'بڕگەکان',
@@ -982,34 +1191,22 @@ const translations = {
     buyingHistoryDesc: 'شوێنکەوتنی هەموو کڕینە بازرگانییەکانت و خەرجییەکان',
     cashOnly: 'تەنها پارە نەقد',
     
-    // Purchase modal
-    selectModel: 'مۆدێل هەڵبژێرە یان بنووسە...',
-    payLaterCreatesDebt: 'دواتر پارە بدە - قەرزی کۆمپانیا دروست دەکات',
-    immediatePaymentHistory: 'پارەدانی ڕاستەوخۆ - دەچێتە مێژووی کڕین',
-
-    // Sales history hardcoded text translations
-    noSales: 'هیچ فرۆشتنێک نییە',
-    returnSale: 'گەڕاندنەوە',
-    totalProducts: 'کۆی بەرهەمەکان',
-    totalSales: 'کۆی فرۆشتنەکان',
-    totalRevenue: 'کۆی داهات',
-
-    // Missing translations
-    showingResults: 'ئەنجامەکان نیشان دەدرێن',
-    entries: 'تۆمارەکان',
-    lastMonth: 'مانگی پێشوو',
-    purchasedItems: 'بڕگەی کڕراو',
-    companyDebtDetails: 'وردەکاری قەرزی کۆمپانیا',
-    SPECIFICATIONS: 'تایبەتمەندییەکان',
-    ITEM: 'بڕگە',
-    hideItems: 'شاردنەوەی بڕگەکان',
-    status: 'دۆخ',
-    createdAt: 'دروستکراوە',
-    selectDate: 'بەروار هەڵبژێرە',
-    withItems: 'لەگەڵ بڕگەکان',
-    viewItems: 'بینینی بڕگەکان',
-    weekStartDate: 'دەستپێکی هەفتە',
-
+    // Additional missing translations
+    revenueUSD: 'داهاتی USD',
+    revenueIQD: 'داهاتی IQD',
+    spentUSD: 'خەرجی USD',
+    spentIQD: 'خەرجی IQD',
+    netUSD: 'سوودی USD',
+    netIQD: 'سوودی IQD',
+    paidToday: 'ئەمڕۆ پارەدراو',
+    critical: 'گرنگ',
+    
+    // Company debts translations
+    totalCompanyDebtUSD: 'کۆی قەرزی کۆمپانیا USD',
+    totalCompanyDebtIQD: 'کۆی قەرزی کۆمپانیا IQD',
+    noOutstandingDebts: 'قەرزی باوەڕپێنەکراو نییە',
+    unpaidDebts: 'قەرزە نەدراوەکان',
+    paidCompanyDebts: 'قەرزە دراوەکان',
   },
   ar: {
     // Common
@@ -1045,6 +1242,63 @@ const translations = {
     addToCredit: 'إضافة للآجل',
     completeSale: 'إتمام البيع',
     searchProducts: 'البحث عن المنتجات...',
+    
+    // Multi-currency support
+    currency: 'العملة',
+    multiCurrencyPayment: 'الدفع متعدد العملات',
+    exchangeRate: 'سعر الصرف',
+    convertUSDToIQD: 'USD → IQD',
+    convertIQDToUSD: 'IQD → USD',
+    totalBeingPaid: 'إجمالي المدفوع',
+    equivalentInUSD: 'المعادل بالدولار',
+    equivalentInIQD: 'المعادل بالدينار',
+    clearAmounts: 'مسح المبالغ',
+    invalidNegativeAmount: 'تم إدخال مبلغ سالب غير صالح',
+    insufficientPayment: 'الدفع غير كافي',
+    required: 'مطلوب',
+    provided: 'مقدم',
+    warningInsufficientIQDPayment: 'تحذير: الدفع بالدينار غير كافي للعناصر بالدولار',
+    requiredIQD: 'الدينار المطلوب',
+    providedIQD: 'الدينار المقدم',
+    
+    // Discount
+    discount: 'خصم',
+    percentage: 'نسبة مئوية',
+    amount: 'مبلغ',
+    originalTotal: 'الأصلي',
+    noDiscount: 'بدون خصم',
+    fixedAmount: 'مبلغ ثابت',
+    applyDiscount: 'تطبيق الخصم',
+    
+    // Customer and UI
+    customerInfo: 'معلومات العميل',
+    cashSale: 'بيع نقدي',
+    debtSale: 'بيع آجل',
+    enabled: 'مفعل',
+    disabled: 'معطل',
+    usdAmount: 'مبلغ الدولار',
+    iqdAmount: 'مبلغ الدينار',
+    totalPaid: 'إجمالي المدفوع',
+    
+    // Multi-currency debt payment
+    deductFrom: 'خصم الدفع من',
+    deductFromUSD: 'خصم من رصيد الدولار',
+    deductFromIQD: 'خصم من رصيد الدينار',
+    deductionNote: 'سيتم خصم الدفع من رصيد العملة المحددة. تأكد من أن لديك أموال كافية.',
+    
+    // Multi-currency product pricing
+    multiCurrencyPricing: 'تسعير متعدد العملات',
+    multiCurrencyNote: 'قم بتعيين الأسعار بالدولار والدينار. سيستخدم النظام السعر المناسب بناءً على العملة المحددة أثناء المبيعات.',
+    pleaseSetPrices: 'يرجى تعيين سعر بيع واحد على الأقل',
+    
+    // Additional translations...
+    subtotal: 'المجموع الفرعي',
+    remove: 'إزالة',
+    logout: 'تسجيل الخروج',
+    searching: 'البحث...',
+    remaining: 'المتبقي',
+    change: 'تغيير',
+    enterNewExchangeRate: 'أدخل سعر الصرف الجديد',
     
     // Product messages
     pleaseEnterProductName: 'يرجى إدخال اسم المنتج',
@@ -1106,7 +1360,6 @@ const translations = {
     monthlyReports: 'التقارير الشهرية',
     cloudBackup: 'النسخ الاحتياطي السحابي',
     settings: 'الإعدادات',
-    logout: 'تسجيل الخروج',
     
     // Admin Dashboard - Today's Performance
     adminDashboard: 'لوحة تحكم الإدارة',
@@ -1117,6 +1370,8 @@ const translations = {
     salesWillAppearHere: 'ستظهر المبيعات هنا',
     thisMonth: 'هذا الشهر',
     totalProfit: 'إجمالي الربح',
+    profitUSD: 'ربح الدولار',
+    profitIQD: 'ربح الدينار',
     inventoryValue: 'قيمة المخزون',
     debts: 'الديون',
 
@@ -1142,7 +1397,7 @@ const translations = {
     thisWeek: 'هذا الأسبوع',
     weeklyRevenue: 'الإيرادات الأسبوعية',
     outstanding: 'المستحق',
-    unpaidDebts: 'الديون غير المدفوعة',
+    outstandingDebts: 'الديون غير المدفوعة',
     inventory: 'المخزون',
     lowStockText: 'مخزون منخفض',
     allStocksHealthy: 'جميع المخزونات صحية',
@@ -1215,7 +1470,6 @@ const translations = {
     justAmount: 'فقط حدد المبلغ',
     purchaseWithItems: 'شراء مع العناصر',
     addItemsToInventory: 'إضافة العناصر للمخزون',
-    amount: 'المبلغ',
     itemsList: 'العناصر',
     noItemsAdded: 'لم يتم إضافة عناصر بعد',
     clickAddButtons: 'انقر على الأزرار أعلاه لإضافة العناصر',
@@ -1334,7 +1588,7 @@ const translations = {
     returnItem: 'إرجاع العنصر',
     returnQuantity: 'كمية الإرجاع',
     refundAmount: 'مبلغ الاسترداد',
-    returnSuccess: 'تم معالجة الإرجاع بنجاح!',
+    returnSuccess: 'تمت معالجة الإرجاع بنجاح!',
     returnError: 'فشل في معالجة الإرجاع',
     availableQuantity: 'الكمية المتاحة',
     
@@ -1444,12 +1698,18 @@ const translations = {
     totalCompanyDebt: 'إجمالي دين الشركة',
     unpaidDebt: 'دين غير مدفوع',
     paidDebt: 'دين مدفوع',
+    selectPaymentCurrency: 'اختر عملة الدفع',
+    markingDebtPaidFor: 'تمييز الدين كمدفوع لـ',
+    markingLoanPaidFor: 'تمييز القرض كمدفوع لـ',
+    debtAmount: 'مبلغ الدين',
+    selectCurrencyToDeduct: 'اختر العملة التي سيتم الخصم منها من رصيدك:',
+    selectCurrencyToAdd: 'اختر العملة التي سيتم إضافتها إلى رصيدك:',
+    insufficientFunds: 'أموال غير كافية',
     
     // Sales history section
     salesHistoryTitle: 'تاريخ المبيعات',
     
     // Customer debts section  
-    totalPaid: 'إجمالي المدفوع',
     totalOutstanding: 'إجمالي المستحق',
     paidAmount: 'المبلغ المدفوع',
     outstandingAmount: 'المبلغ المستحق',
@@ -1460,7 +1720,6 @@ const translations = {
     lowestAmount: 'أقل مبلغ',
     customerAZ: 'العميل أ-ي',
     customerZA: 'العميل ي-أ',
-    debtsPaid: 'الديون المدفوعة',
     paidDebts: 'الديون المدفوعة',
     markPaid: 'تمييز كمدفوع',
     itemsCount: 'العناصر',
@@ -1476,30 +1735,70 @@ const translations = {
     reviewPricesBeforeProceeding: 'يرجى مراجعة الأسعار قبل المتابعة!',
     buyingHistoryDesc: 'تتبع جميع مشترياتك التجارية والمصروفات',
     cashOnly: 'نقداً فقط',
-
-    // Sales history hardcoded text translations
-    noSales: 'لا توجد مبيعات',
-    returnSale: 'إرجاع',
-    totalProducts: 'إجمالي المنتجات',
-    totalSales: 'إجمالي المبيعات',
-    totalRevenue: 'إجمالي الإيرادات',
-
-    // Missing translations
-    showingResults: 'عرض النتائج',
-    entries: 'إدخالات',
-    lastMonth: 'الشهر الماضي',
-    purchasedItems: 'العناصر المشتراة',
-    companyDebtDetails: 'تفاصيل دين الشركة',
-    SPECIFICATIONS: 'المواصفات',
-    ITEM: 'عنصر',
-    hideItems: 'إخفاء العناصر',
-    status: 'الحالة',
-    createdAt: 'تاريخ الإنشاء',
-    selectDate: 'اختر التاريخ',
-    withItems: 'مع العناصر',
-    viewItems: 'عرض العناصر',
-    weekStartDate: 'تاريخ بدء الأسبوع',
-
+    
+    // Additional missing translations
+    revenueUSD: 'إيرادات الدولار',
+    revenueIQD: 'إيرادات الدينار',
+    spentUSD: 'مصروف الدولار',
+    spentIQD: 'مصروف الدينار',
+    netUSD: 'صافي الدولار',
+    netIQD: 'صافي الدينار',
+    paidToday: 'مدفوع اليوم',
+    critical: 'حرج',
+    
+    // Company debts translations
+    totalCompanyDebtUSD: 'إجمالي دين الشركة USD',
+    totalCompanyDebtIQD: 'إجمالي دين الشركة IQD',
+    noOutstandingDebts: 'لا توجد ديون شركات مستحقة',
+    unpaidDebts: 'ديون غير مدفوعة',
+    paidCompanyDebts: 'ديون مدفوعة',
+    
+    // Multi-currency dashboard
+    multiCurrencyDashboard: 'لوحة العملات المتعددة',
+    realTimeBusinessMetrics: 'مقاييس الأعمال في الوقت الفعلي عبر USD و IQD',
+    currentBalance: 'الرصيد الحالي',
+    usdBalance: 'رصيد USD',
+    iqdBalance: 'رصيد IQD',
+    todayUSD: 'اليوم USD',
+    todayIQD: 'اليوم IQD',
+    weeklyUSD: 'أسبوعي USD',
+    weeklyIQD: 'أسبوعي IQD',
+    salesRevenue: 'إيرادات المبيعات',
+    usDollars: 'الدولار الأمريكي',
+    iraqiDinars: 'الدينار العراقي',
+    
+    // Personal loans
+    personalLoans: 'القروض الشخصية',
+    loanAmount: 'مبلغ القرض',
+    personName: 'اسم الشخص',
+    addLoan: 'إضافة قرض',
+    loanDescription: 'وصف القرض (اختياري)',
+    outstandingLoans: 'القروض المستحقة',
+    totalOutstandingUSD: 'إجمالي المستحق USD',
+    totalOutstandingIQD: 'إجمالي المستحق IQD',
+    balanceAndTransactions: 'الرصيد والمعاملات',
+    addPersonalLoan: 'إضافة قرض شخصي',
+    loansAddedToday: 'القروض المضافة اليوم',
+    loansRepaidToday: 'القروض المسددة اليوم',
+    totalLoanBalance: 'إجمالي رصيد القروض',
+    manageLoan: 'إدارة القرض',
+    loanPaidSuccessfully: 'تم سداد القرض بنجاح!',
+    failedToPayLoan: 'فشل في سداد القرض',
+    loanAddedSuccessfully: 'تم إضافة القرض بنجاح!',
+    failedToAddLoan: 'فشل في إضافة القرض',
+    
+    // Advanced Analytics
+    advancedAnalytics: 'التحليلات المتقدمة',
+    analytics: 'التحليلات',
+    dataAnalysis: 'تحليل البيانات',
+    businessInsights: 'رؤى الأعمال',
+    performanceMetrics: 'مقاييس الأداء',
+    growthTrends: 'اتجاهات النمو',
+    profitAnalysis: 'تحليل الربح',
+    salesAnalytics: 'تحليلات المبيعات',
+    inventoryAnalytics: 'تحليلات المخزون',
+    customerAnalytics: 'تحليلات العملاء',
+    financialReports: 'التقارير المالية',
   },
 };
 
@@ -1508,6 +1807,7 @@ const LocaleContext = createContext();
 function getTranslation(lang, key) {
   if (translations[lang] && translations[lang][key]) return translations[lang][key];
   if (translations['en'] && translations['en'][key]) return translations['en'][key];
+
   return key;
 }
 

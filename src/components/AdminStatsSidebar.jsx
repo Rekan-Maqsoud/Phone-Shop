@@ -2,6 +2,7 @@ import React, { useMemo, useEffect, useState } from 'react';
 import OfflineIndicator from './OfflineIndicator';
 import { useData } from '../contexts/DataContext';
 import { playNavigationSound, playActionSound } from '../utils/sounds';
+import { formatCurrency, EXCHANGE_RATES } from '../utils/exchangeRates';
 
 const AdminStatsSidebar = ({ 
   admin, 
@@ -10,7 +11,7 @@ const AdminStatsSidebar = ({
   section, 
   handleNavClick 
 }) => {
-  const { products, sales, companyDebts } = useData();
+  const { products, sales, accessories, buyingHistory, companyDebts } = useData();
   const [refreshKey, setRefreshKey] = useState(0);
   
   // Set up midnight refresh timer
@@ -42,29 +43,74 @@ const AdminStatsSidebar = ({
     const currentMonth = currentDate.getMonth();
     const currentYear = currentDate.getFullYear();
     
-    // Today's sales
+    // Today's sales by currency
     const todaysSales = sales.filter(sale => {
       const saleDate = new Date(sale.created_at);
       return saleDate.toDateString() === currentDate.toDateString();
     });
     
-    const todaysRevenue = todaysSales.reduce((sum, sale) => sum + (sale.total || 0), 0);
-    const todaysProfit = todaysSales.reduce((sum, sale) => {
+    const todaysRevenueUSD = todaysSales.filter(sale => (sale.currency || 'USD') === 'USD').reduce((sum, sale) => sum + (sale.total || 0), 0);
+    const todaysRevenueIQD = todaysSales.filter(sale => sale.currency === 'IQD').reduce((sum, sale) => sum + (sale.total || 0), 0);
+    
+    const todaysProfitUSD = todaysSales.filter(sale => (sale.currency || 'USD') === 'USD').reduce((sum, sale) => {
       if (!sale.items) return sum;
       return sum + sale.items.reduce((itemSum, item) => {
-        return itemSum + (item.profit || 0);
+        // Ensure profit calculation considers both purchase and sale currencies
+        const buyingPrice = item.buying_price || 0;
+        const sellingPrice = item.selling_price || item.price || 0;
+        const quantity = item.quantity || 1;
+        
+        // Calculate profit in the sale currency
+        let profit = (sellingPrice - buyingPrice) * quantity;
+        
+        // If item was bought in IQD but sold in USD, convert buying price
+        if (item.purchase_currency === 'IQD' && sale.currency === 'USD') {
+          const buyingPriceUSD = buyingPrice / EXCHANGE_RATES.USD_TO_IQD; // Use dynamic exchange rate
+          profit = (sellingPrice - buyingPriceUSD) * quantity;
+        }
+        
+        return itemSum + profit ;
+      }, 0);
+    }, 0);
+    
+    const todaysProfitIQD = todaysSales.filter(sale => sale.currency === 'IQD').reduce((sum, sale) => {
+      if (!sale.items) return sum;
+      return sum + sale.items.reduce((itemSum, item) => {
+        // Ensure profit calculation considers both purchase and sale currencies
+        const buyingPrice = item.buying_price || 0;
+        const sellingPrice = item.selling_price || item.price || 0;
+        const quantity = item.quantity || 1;
+        
+        // Calculate profit in the sale currency
+        let profit = (sellingPrice - buyingPrice) * quantity;
+        
+        // If item was bought in USD but sold in IQD, convert buying price
+        if (item.purchase_currency === 'USD' && sale.currency === 'IQD') {
+          const buyingPriceIQD = buyingPrice * EXCHANGE_RATES.USD_TO_IQD; // Use dynamic exchange rate
+          profit = (sellingPrice - buyingPriceIQD) * quantity;
+        }
+        
+        return itemSum + profit;
       }, 0);
     }, 0);
 
-    // Today's spending (from actual cash payments in buying history)
-    const todaysSpending = !admin.buyingHistory ? 0 : admin.buyingHistory.filter(entry => {
-      if (!entry.paid_at) return false;
-      const paidDate = new Date(entry.paid_at);
-      return paidDate.toDateString() === currentDate.toDateString();
-    }).reduce((sum, entry) => sum + (entry.amount || 0), 0);
+    // Today's spending by currency (from buying history)
+    const todaysSpendingUSD = buyingHistory.filter(entry => {
+      const entryDate = new Date(entry.date);
+      return entryDate.toDateString() === currentDate.toDateString() && (entry.currency === 'USD' || (!entry.currency && typeof entry.total_price === 'number'));
+    }).reduce((sum, entry) => {
+      // If no currency specified, assume it's the original entry which should be in USD
+      return sum + (entry.currency === 'USD' || !entry.currency ? (entry.total_price || 0) : 0);
+    }, 0);
+    
+    const todaysSpendingIQD = buyingHistory.filter(entry => {
+      const entryDate = new Date(entry.date);
+      return entryDate.toDateString() === currentDate.toDateString() && entry.currency === 'IQD';
+    }).reduce((sum, entry) => sum + (entry.total_price || 0), 0);
 
-    // Net performance for today (revenue - spending)
-    const todaysNetPerformance = todaysRevenue - todaysSpending;
+    // Net performance for today by currency (revenue - spending)
+    const todaysNetPerformanceUSD = todaysRevenueUSD - todaysSpendingUSD;
+    const todaysNetPerformanceIQD = todaysRevenueIQD - todaysSpendingIQD;
 
     // Low stock products (critical alerts)
     const criticalStockProducts = products.filter(p => p.stock <= 2 && !p.archived);
@@ -93,12 +139,12 @@ const AdminStatsSidebar = ({
       .slice(0, 5);
 
     // Recent sales for quick overview
-    const recentSales = [...admin.sales]
+    const recentSales = [...sales]
       .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
       .slice(0, 5);
 
-    // Calculate total profit (fixed calculation)
-    const totalProfit = admin.sales.reduce((sum, sale) => {
+    // Calculate total profit by currency (fixed calculation with proper currency handling)
+    const totalProfitUSD = sales.filter(sale => (sale.currency || 'USD') === 'USD').reduce((sum, sale) => {
       if (!sale.items) return sum;
       // For debt sales, check if the debt is paid by looking up in debts array
       if (sale.is_debt) {
@@ -106,26 +152,71 @@ const AdminStatsSidebar = ({
         if (!debt || (!debt.paid_at && !debt.paid)) return sum; // Skip unpaid debts - check both fields
       }
       return sum + sale.items.reduce((itemSum, item) => {
-        return itemSum + (item.profit || 0);
+        // Ensure profit calculation considers both purchase and sale currencies
+        const buyingPrice = item.buying_price || 0;
+        const sellingPrice = item.selling_price || item.price || 0;
+        const quantity = item.quantity || 1;
+        
+        // Calculate profit in the sale currency
+        let profit = (sellingPrice - buyingPrice) * quantity;
+        
+        // If item was bought in IQD but sold in USD, convert buying price
+        if (item.purchase_currency === 'IQD' && sale.currency === 'USD') {
+          const buyingPriceUSD = buyingPrice / EXCHANGE_RATES.USD_TO_IQD; // Use dynamic exchange rate
+          profit = (sellingPrice - buyingPriceUSD) * quantity;
+        }
+        
+        return itemSum + profit ;
+      }, 0);
+    }, 0);
+    
+    const totalProfitIQD = sales.filter(sale => sale.currency === 'IQD').reduce((sum, sale) => {
+      if (!sale.items) return sum;
+      // For debt sales, check if the debt is paid by looking up in debts array
+      if (sale.is_debt) {
+        const debt = admin.debts?.find(d => d.sale_id === sale.id);
+        if (!debt || (!debt.paid_at && !debt.paid)) return sum; // Skip unpaid debts - check both fields
+      }
+      return sum + sale.items.reduce((itemSum, item) => {
+        // Ensure profit calculation considers both purchase and sale currencies
+        const buyingPrice = item.buying_price || 0;
+        const sellingPrice = item.selling_price || item.price || 0;
+        const quantity = item.quantity || 1;
+        
+        // Calculate profit in the sale currency
+        let profit = (sellingPrice - buyingPrice) * quantity;
+        
+        // If item was bought in USD but sold in IQD, convert buying price
+        if (item.purchase_currency === 'USD' && sale.currency === 'IQD') {
+          const buyingPriceIQD = buyingPrice * EXCHANGE_RATES.USD_TO_IQD; // Use dynamic exchange rate
+          profit = (sellingPrice - buyingPriceIQD) * quantity;
+        }
+        
+        return itemSum + profit;
       }, 0);
     }, 0);
 
     return {
       todaysSales,
-      todaysRevenue,
-      todaysProfit,
-      todaysSpending,
-      todaysNetPerformance,
+      todaysRevenueUSD,
+      todaysRevenueIQD,
+      todaysProfitUSD,
+      todaysProfitIQD,
+      todaysSpendingUSD,
+      todaysSpendingIQD,
+      todaysNetPerformanceUSD,
+      todaysNetPerformanceIQD,
       criticalStockProducts,
       lowStockProducts,
       topSellingProducts,
       recentSales,
-      totalProfit
+      totalProfitUSD,
+      totalProfitIQD
     };
-  }, [sales, products, companyDebts, admin.debts, admin.buyingHistory, admin.lowStockThreshold, refreshKey]);
+  }, [sales, products, accessories, buyingHistory, admin.debts, admin.lowStockThreshold, refreshKey]);
 
-  // Debt calculations - fixed to handle both paid_at and paid fields
-  const totalDebtAmount = useMemo(() => {
+  // Customer Debt calculations - fixed to handle both paid_at and paid fields
+  const totalCustomerDebtAmount = useMemo(() => {
     return (admin.debts || [])
       .filter(debt => !debt.paid_at && !debt.paid) // Check both paid_at and paid fields
       .reduce((sum, debt) => {
@@ -139,11 +230,43 @@ const AdminStatsSidebar = ({
       }, 0);
   }, [admin.debts, sales]);
 
-  const outstandingDebtsCount = useMemo(() => {
+  // Company Debt calculations - get data from DataContext
+  
+  const totalCompanyDebtAmountUSD = useMemo(() => {
+    return (companyDebts || [])
+      .filter(debt => !debt.paid_at)
+      .reduce((sum, debt) => {
+        if (debt.currency === 'MULTI') {
+          return sum + (debt.usd_amount || 0);
+        } else if (debt.currency === 'USD' || !debt.currency) {
+          return sum + (debt.amount || 0);
+        }
+        return sum;
+      }, 0);
+  }, [companyDebts]);
+
+  const totalCompanyDebtAmountIQD = useMemo(() => {
+    return (companyDebts || [])
+      .filter(debt => !debt.paid_at)
+      .reduce((sum, debt) => {
+        if (debt.currency === 'MULTI') {
+          return sum + (debt.iqd_amount || 0);
+        } else if (debt.currency === 'IQD') {
+          return sum + (debt.amount || 0);
+        }
+        return sum;
+      }, 0);
+  }, [companyDebts]);
+
+  const outstandingCustomerDebtsCount = useMemo(() => {
     return (admin.debts || []).filter(debt => !debt.paid_at && !debt.paid).length;
   }, [admin.debts]);
 
-  const paidDebtsToday = useMemo(() => {
+  const outstandingCompanyDebtsCount = useMemo(() => {
+    return (companyDebts || []).filter(debt => !debt.paid_at).length;
+  }, [companyDebts]);
+
+  const paidCustomerDebtsToday = useMemo(() => {
     const today = new Date().toDateString();
     return (admin.debts || [])
       .filter(debt => {
@@ -156,6 +279,18 @@ const AdminStatsSidebar = ({
       })
       .length;
   }, [admin.debts]);
+
+  const paidCompanyDebtsToday = useMemo(() => {
+    const today = new Date().toDateString();
+    return (companyDebts || [])
+      .filter(debt => {
+        if (debt.paid_at) {
+          return new Date(debt.paid_at).toDateString() === today;
+        }
+        return false;
+      })
+      .length;
+  }, [companyDebts]);
 
   return (
     <aside className="w-full md:w-[370px] h-full flex flex-col justify-between p-8 bg-white/30 dark:bg-gray-900/60 backdrop-blur-xl shadow-2xl border-r border-white/10 relative z-10 overflow-y-auto" aria-label="Admin navigation">
@@ -180,27 +315,45 @@ const AdminStatsSidebar = ({
               <span className="text-lg">📈</span>
               <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">{t.todaysPerformance || 'Today\'s Performance'}</span>
             </div>
-            <div className="grid grid-cols-2 gap-2 text-sm">
+            <div className="grid grid-cols-1 gap-2 text-sm">
               <div>
                 <span className="text-gray-600 dark:text-gray-400">{t.sales || 'Sales'}: </span>
                 <span className="font-bold text-blue-600 dark:text-blue-400">{stats.todaysSales.length}</span>
               </div>
               <div>
-                <span className="text-gray-600 dark:text-gray-400">{t.revenue || 'Revenue'}: </span>
-                <span className="font-bold text-green-600 dark:text-green-400">${Number(stats.todaysRevenue).toFixed(2)}</span>
+                <span className="text-gray-600 dark:text-gray-400">{t.revenueUSD || 'Revenue USD'}: </span>
+                <span className="font-bold text-green-600 dark:text-green-400">{formatCurrency(stats.todaysRevenueUSD, 'USD')}</span>
               </div>
               <div>
-                <span className="text-gray-600 dark:text-gray-400">{t.spending || 'Spending'}: </span>
-                <span className="font-bold text-red-600 dark:text-red-400">${stats.todaysSpending.toFixed(2)}</span>
+                <span className="text-gray-600 dark:text-gray-400">{t.revenueIQD || 'Revenue IQD'}: </span>
+                <span className="font-bold text-green-600 dark:text-green-400">{formatCurrency(stats.todaysRevenueIQD, 'IQD')}</span>
               </div>
               <div>
-                <span className="text-gray-600 dark:text-gray-400">{t.profit || 'Profit'}: </span>
-                <span className="font-bold text-emerald-600 dark:text-emerald-400">${stats.todaysProfit.toFixed(2)}</span>
+                <span className="text-gray-600 dark:text-gray-400">{t.profitUSD || 'Profit USD'}: </span>
+                <span className="font-bold text-green-600 dark:text-green-400">{formatCurrency(stats.todaysProfitUSD, 'USD')}</span>
               </div>
-              <div className="col-span-2">
-                <span className="text-gray-600 dark:text-gray-400">{t.netPerformance || 'Net Performance'}: </span>
-                <span className={`font-bold ${stats.todaysNetPerformance >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                  ${stats.todaysNetPerformance.toFixed(2)}
+              <div>
+                <span className="text-gray-600 dark:text-gray-400">{t.profitIQD || 'Profit IQD'}: </span>
+                <span className="font-bold text-green-600 dark:text-green-400">{formatCurrency(stats.todaysProfitIQD, 'IQD')}</span>
+              </div>
+              <div>
+                <span className="text-gray-600 dark:text-gray-400">{t.spentUSD || 'Spent USD'}: </span>
+                <span className="font-bold text-red-600 dark:text-red-400">{formatCurrency(stats.todaysSpendingUSD, 'USD')}</span>
+              </div>
+              <div>
+                <span className="text-gray-600 dark:text-gray-400">{t.spentIQD || 'Spent IQD'}: </span>
+                <span className="font-bold text-red-600 dark:text-red-400">{formatCurrency(stats.todaysSpendingIQD, 'IQD')}</span>
+              </div>
+              <div>
+                <span className="text-gray-600 dark:text-gray-400">{t.netUSD || 'Net USD'}: </span>
+                <span className={`font-bold ${stats.todaysNetPerformanceUSD >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                  {formatCurrency(stats.todaysNetPerformanceUSD, 'USD')}
+                </span>
+              </div>
+              <div>
+                <span className="text-gray-600 dark:text-gray-400">{t.netIQD || 'Net IQD'}: </span>
+                <span className={`font-bold ${stats.todaysNetPerformanceIQD >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                  {formatCurrency(stats.todaysNetPerformanceIQD, 'IQD')}
                 </span>
               </div>
             </div>
@@ -212,7 +365,30 @@ const AdminStatsSidebar = ({
               <span className="text-lg">🏪</span>
               <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">{t.thisMonth || 'This Month'}</span>
             </div>
-            <span className="text-xl font-bold text-blue-500 dark:text-blue-300">${Number(admin.monthlySales).toFixed(2)}</span>
+            <div className="space-y-1">
+              <div className="text-lg font-bold text-blue-500 dark:text-blue-300">
+                {formatCurrency(
+                  sales.filter(sale => {
+                    const saleDate = new Date(sale.created_at);
+                    const currentDate = new Date();
+                    return saleDate.getMonth() === currentDate.getMonth() && 
+                           saleDate.getFullYear() === currentDate.getFullYear() &&
+                           (sale.currency || 'USD') === 'USD';
+                  }).reduce((sum, sale) => sum + (sale.total || 0), 0), 'USD'
+                )}
+              </div>
+              <div className="text-lg font-bold text-blue-500 dark:text-blue-300">
+                {formatCurrency(
+                  sales.filter(sale => {
+                    const saleDate = new Date(sale.created_at);
+                    const currentDate = new Date();
+                    return saleDate.getMonth() === currentDate.getMonth() && 
+                           saleDate.getFullYear() === currentDate.getFullYear() &&
+                           sale.currency === 'IQD';
+                  }).reduce((sum, sale) => sum + (sale.total || 0), 0), 'IQD'
+                )}
+              </div>
+            </div>
           </div>
 
           {/* Total Profit */}
@@ -221,7 +397,10 @@ const AdminStatsSidebar = ({
               <span className="text-lg">💰</span>
               <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">{t.totalProfit || 'Total Profit'}</span>
             </div>
-            <span className="text-xl font-bold text-green-500 dark:text-green-300">${Number(stats.totalProfit).toFixed(2)}</span>
+            <div className="space-y-1">
+              <div className="text-lg font-bold text-green-500 dark:text-green-300">{formatCurrency(stats.totalProfitUSD || 0, 'USD')}</div>
+              <div className="text-lg font-bold text-green-500 dark:text-green-300">{formatCurrency(stats.totalProfitIQD || 0, 'IQD')}</div>
+            </div>
           </div>
 
           {/* Inventory Value */}
@@ -230,7 +409,24 @@ const AdminStatsSidebar = ({
               <span className="text-lg">📦</span>
               <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">{t.inventoryValue}</span>
             </div>
-            <span className="text-xl font-bold text-purple-500 dark:text-purple-300">${Number(admin.inventoryValue).toFixed(2)}</span>
+            <div className="space-y-1">
+              <div className="text-lg font-bold text-purple-500 dark:text-purple-300">
+                {formatCurrency(
+                  products.filter(p => !p.archived && (p.currency === 'USD' || !p.currency)).reduce((sum, p) => {
+                    return sum + ((p.buying_price || 0) * (p.stock || 0));
+                  }, 0), 'USD'
+                )}
+              </div>
+              <div className="text-lg font-bold text-purple-500 dark:text-purple-300">
+                {formatCurrency(
+                  products.filter(p => !p.archived && p.currency === 'IQD').reduce((sum, p) => {
+                    return sum + ((p.buying_price || 0) * (p.stock || 0));
+                  }, 0) + accessories.filter(a => !a.archived).reduce((sum, a) => {
+                    return sum + ((a.buying_price || 0) * (a.stock || 0));
+                  }, 0), 'IQD'
+                )}
+              </div>
+            </div>
           </div>
 
           {/* Stock Alerts */}
@@ -264,13 +460,28 @@ const AdminStatsSidebar = ({
               </div>
               <div className="space-y-1 text-sm">
                 <div>
-                  <span className="text-gray-600 dark:text-gray-400">{t.outstanding || 'Outstanding'}: </span>
-                  <span className="font-bold text-red-600 dark:text-red-400">{outstandingDebtsCount} debts (${Number(totalDebtAmount).toFixed(2)})</span>
+                  <span className="text-gray-600 dark:text-gray-400">{t.customerDebts || 'Customer Debts'}: </span>
+                  <span className="font-bold text-red-600 dark:text-red-400">{outstandingCustomerDebtsCount} ({formatCurrency(totalCustomerDebtAmount, 'USD')})</span>
                 </div>
-                {paidDebtsToday > 0 && (
+                <div>
+                  <span className="text-gray-600 dark:text-gray-400">{t.companyDebts || 'Company Debts'}: </span>
+                  <div className="font-bold text-red-600 dark:text-red-400">
+                    {outstandingCompanyDebtsCount} debts
+                    {(totalCompanyDebtAmountUSD > 0 || totalCompanyDebtAmountIQD > 0) && (
+                      <div className="text-xs">
+                        {totalCompanyDebtAmountUSD > 0 && `USD: ${formatCurrency(totalCompanyDebtAmountUSD, 'USD')}`}
+                        {totalCompanyDebtAmountUSD > 0 && totalCompanyDebtAmountIQD > 0 && ' • '}
+                        {totalCompanyDebtAmountIQD > 0 && `IQD: ${formatCurrency(totalCompanyDebtAmountIQD, 'IQD')}`}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                {(paidCustomerDebtsToday > 0 || paidCompanyDebtsToday > 0) && (
                   <div>
                     <span className="text-gray-600 dark:text-gray-400">{t.paidToday || 'Paid today'}: </span>
-                    <span className="font-bold text-green-600 dark:text-green-400">{paidDebtsToday}</span>
+                    <span className="font-bold text-green-600 dark:text-green-400">
+                      {paidCustomerDebtsToday + paidCompanyDebtsToday}
+                    </span>
                   </div>
                 )}
               </div>

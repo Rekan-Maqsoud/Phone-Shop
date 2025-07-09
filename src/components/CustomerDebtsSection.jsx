@@ -15,6 +15,9 @@ const CustomerDebtsSection = ({
   const [sortBy, setSortBy] = useState('date'); // 'date', 'amount', 'customer'
   const [sortOrder, setSortOrder] = useState('desc'); // 'asc', 'desc'
   const [expandedCustomers, setExpandedCustomers] = useState(new Set());
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [selectedDebt, setSelectedDebt] = useState(null);
+  const [paymentCurrency, setPaymentCurrency] = useState('USD');
 
   const toggleCustomerExpanded = (customer) => {
     const newExpanded = new Set(expandedCustomers);
@@ -27,6 +30,49 @@ const CustomerDebtsSection = ({
   };
 
   const formatCurrency = (amount) => `$${amount.toFixed(2)}`;
+
+  const handleMarkDebtPaid = async (debt, sale, originalCustomer) => {
+    setSelectedDebt({ debt, sale, originalCustomer });
+    setShowPaymentModal(true);
+  };
+
+  const processPayment = async () => {
+    if (!selectedDebt) return;
+    
+    const { debt, sale, originalCustomer } = selectedDebt;
+    
+    try {
+      // Calculate payment amounts based on selected currency
+      const payment_usd_amount = paymentCurrency === 'USD' ? admin.balanceUSD : 0;
+      const payment_iqd_amount = paymentCurrency === 'IQD' ? admin.balanceIQD : 0;
+      
+      const result = await window.api?.markCustomerDebtPaid?.(
+        debt.id, 
+        new Date().toISOString(),
+        paymentCurrency,
+        payment_usd_amount,
+        payment_iqd_amount
+      );
+      
+      if (result && result.changes > 0) {
+        admin.setToast?.(`💰 Debt of ${(sale.currency === 'USD' ? '$' : 'د.ع')}${sale.total.toFixed(2)} marked as paid for ${originalCustomer}`);
+        // Refresh all debt-related data
+        await Promise.all([
+          refreshDebts(),
+          refreshDebtSales(),
+          refreshSales() // Also refresh sales since paid debt moves to sales history
+        ]);
+        triggerCloudBackup();
+        setShowPaymentModal(false);
+        setSelectedDebt(null);
+      } else {
+        admin.setToast?.('❌ Failed to mark debt as paid');
+      }
+    } catch (error) {
+      console.error('Error marking debt as paid:', error);
+      admin.setToast?.('❌ Error marking debt as paid');
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -90,7 +136,7 @@ const CustomerDebtsSection = ({
                   : 'bg-red-600 text-white hover:bg-red-700'
               }`}
             >
-              {showPaidDebts ? '✅ ' + (t.debtsPaid || 'Paid Debts') : '💸 ' + (t.unpaidDebts || 'Unpaid Debts')}
+              {showPaidDebts ? '✅ ' + (t.paidDebts || 'Paid Debts') : '💸 ' + (t.outstandingDebts || 'Outstanding Debts')}
             </button>
           </div>
         </div>
@@ -105,6 +151,7 @@ const CustomerDebtsSection = ({
           const debt = debtMap[sale.id];
           const originalCustomer = debt?.customer_name || sale.customer_name || 'Unknown Customer';
           const customer = originalCustomer.toLowerCase(); // Normalize for grouping
+          const currency = sale.currency || 'USD';
           
           // Check paid status correctly
           const isPaid = Boolean(debt?.paid_at);
@@ -116,7 +163,8 @@ const CustomerDebtsSection = ({
           if (!grouped[customer]) {
             grouped[customer] = {
               sales: [],
-              totalAmount: 0,
+              totalAmountUSD: 0,
+              totalAmountIQD: 0,
               totalTransactions: 0,
               latestDate: sale.created_at,
               oldestDate: sale.created_at,
@@ -125,7 +173,11 @@ const CustomerDebtsSection = ({
           }
           
           grouped[customer].sales.push({ sale, debt, originalCustomer });
-          grouped[customer].totalAmount += sale.total;
+          if (currency === 'USD') {
+            grouped[customer].totalAmountUSD += sale.total;
+          } else {
+            grouped[customer].totalAmountIQD += sale.total;
+          }
           grouped[customer].totalTransactions += 1;
           
           if (sale.created_at > grouped[customer].latestDate) {
@@ -150,7 +202,7 @@ const CustomerDebtsSection = ({
               comparison = new Date(dataA.latestDate) - new Date(dataB.latestDate);
               break;
             case 'amount':
-              comparison = dataA.totalAmount - dataB.totalAmount;
+              comparison = (dataA.totalAmountUSD + dataA.totalAmountIQD) - (dataB.totalAmountUSD + dataB.totalAmountIQD);
               break;
             case 'customer':
               comparison = dataA.displayName.toLowerCase().localeCompare(dataB.displayName.toLowerCase());
@@ -190,20 +242,29 @@ const CustomerDebtsSection = ({
           );
         }
 
-        const totalAmount = filteredGroups.reduce((total, [, data]) => total + data.totalAmount, 0);
+        const totalAmountUSD = filteredGroups.reduce((total, [, data]) => total + data.totalAmountUSD, 0);
+        const totalAmountIQD = filteredGroups.reduce((total, [, data]) => total + data.totalAmountIQD, 0);
         const totalTransactions = filteredGroups.reduce((total, [, data]) => total + data.totalTransactions, 0);
 
         return (
           <>
             {/* Summary Card */}
             <div className="bg-gradient-to-r from-red-500/20 to-orange-500/20 dark:from-red-900/40 dark:to-orange-900/40 rounded-2xl p-6 shadow border border-red-200/30 dark:border-red-700/30">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="text-center md:text-left">
-                  <div className="text-2xl font-bold text-red-600 dark:text-red-400">
-                    {formatCurrency(totalAmount)}
+                  <div className="text-lg font-bold text-red-600 dark:text-red-400">
+                    ${totalAmountUSD.toFixed(2)}
                   </div>
                   <div className="text-sm text-gray-600 dark:text-gray-400">
-                    {showPaidDebts ? (t.totalPaid || 'Total Paid') : (t.totalOutstanding || 'Total Outstanding')}
+                    {showPaidDebts ? (t.totalPaidUSD || 'Total Paid USD') : (t.totalOutstandingUSD || 'Total Outstanding USD')}
+                  </div>
+                </div>
+                <div className="text-center md:text-left">
+                  <div className="text-lg font-bold text-red-600 dark:text-red-400">
+                    د.ع{totalAmountIQD.toFixed(2)}
+                  </div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">
+                    {showPaidDebts ? (t.totalPaidIQD || 'Total Paid IQD') : (t.totalOutstandingIQD || 'Total Outstanding IQD')}
                   </div>
                 </div>
                 <div className="text-center">
@@ -260,8 +321,10 @@ const CustomerDebtsSection = ({
                         
                         <div className="flex items-center gap-4">
                           <div className="text-right">
-                            <div className={`text-xl font-bold ${showPaidDebts ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                              {formatCurrency(data.totalAmount)}
+                            <div className={`text-lg font-bold ${showPaidDebts ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                              {data.totalAmountUSD > 0 && `$${data.totalAmountUSD.toFixed(2)}`}
+                              {data.totalAmountUSD > 0 && data.totalAmountIQD > 0 && ' • '}
+                              {data.totalAmountIQD > 0 && `د.ع${data.totalAmountIQD.toFixed(2)}`}
                             </div>
                             <div className="text-sm text-gray-600 dark:text-gray-400">
                               {showPaidDebts ? (t.paidAmount || 'Paid Amount') : (t.outstandingAmount || 'Outstanding')}
@@ -288,6 +351,9 @@ const CustomerDebtsSection = ({
                                   <div className="text-sm text-gray-600 dark:text-gray-400">
                                     📅 {new Date(sale.created_at).toLocaleDateString()} at {new Date(sale.created_at).toLocaleTimeString()}
                                   </div>
+                                  <div className="text-xs font-medium px-2 py-1 rounded bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                                    {sale.currency || 'USD'}
+                                  </div>
                                   <div className={`px-2 py-1 rounded-full text-xs font-medium ${
                                     debt?.paid_at 
                                       ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' 
@@ -298,7 +364,7 @@ const CustomerDebtsSection = ({
                                 </div>
                                 
                                 <div className="font-semibold text-gray-800 dark:text-gray-100 mb-1">
-                                  {formatCurrency(sale.total)} • {sale.items?.length || 0} {t.itemsCount || 'items'}
+                                  {(sale.currency === 'USD' ? '$' : 'د.ع')}{sale.total.toFixed(2)} • {sale.items?.length || 0} {t.itemsCount || 'items'}
                                 </div>
                                 
                                 {debt?.paid_at && (
@@ -320,43 +386,15 @@ const CustomerDebtsSection = ({
                                 </button>
                                 
                                 {debt && !debt.paid_at && (
-                                  <label className="flex items-center gap-2 cursor-pointer">
-                                    <input
-                                      type="checkbox"
-                                      className="w-4 h-4 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500 dark:focus:ring-green-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
-                                      onChange={async (e) => {
-                                        e.stopPropagation();
-                                        if (e.target.checked) {
-                                          showConfirm(
-                                            `${t.markDebtAsPaidConfirm || 'Are you sure you want to mark this debt as paid?'}\n\nAmount: ${formatCurrency(sale.total)}\nCustomer: ${originalCustomer}\n\nThis action cannot be undone.`,
-                                            async () => {
-                                              try {
-                                                const result = await window.api?.markCustomerDebtPaid?.(debt.id, new Date().toISOString());
-                                                if (result && result.changes > 0) {
-                                                  admin.setToast?.(`💰 Debt of ${formatCurrency(sale.total)} marked as paid for ${originalCustomer}`);
-                                                  // Refresh all debt-related data
-                                                  await Promise.all([
-                                                    refreshDebts(),
-                                                    refreshDebtSales(),
-                                                    refreshSales() // Also refresh sales since paid debt moves to sales history
-                                                  ]);
-                                                  triggerCloudBackup();
-                                                } else {
-                                                  admin.setToast?.('❌ Failed to mark debt as paid');
-                                                }
-                                              } catch (error) {
-                                                console.error('Error marking debt as paid:', error);
-                                                admin.setToast?.('❌ Error marking debt as paid');
-                                              }
-                                            }
-                                          );
-                                          // Uncheck immediately, will be checked again only if confirmed
-                                          e.target.checked = false;
-                                        }
-                                      }}
-                                    />
-                                    <span className="text-sm text-green-600 font-medium">💰 {t.markPaid || 'Mark Paid'}</span>
-                                  </label>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleMarkDebtPaid(debt, sale, originalCustomer);
+                                    }}
+                                    className="px-3 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm flex items-center gap-1"
+                                  >
+                                    💰 {t.markPaid || 'Mark Paid'}
+                                  </button>
                                 )}
                               </div>
                             </div>
@@ -371,6 +409,101 @@ const CustomerDebtsSection = ({
           </>
         );
       })()}
+
+      {/* Payment Currency Selection Modal */}
+      {showPaymentModal && selectedDebt && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+              <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+                💰 {t.selectPaymentCurrency || 'Select Payment Currency'}
+              </h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
+                {t.markingDebtPaidFor || 'Marking debt as paid for'} <strong>{selectedDebt.originalCustomer}</strong>
+              </p>
+              <p className="text-lg font-semibold text-gray-800 dark:text-gray-200 mt-1">
+                {t.debtAmount || 'Debt Amount'}: {(selectedDebt.sale.currency === 'USD' ? '$' : 'د.ع')}{selectedDebt.sale.total.toFixed(2)}
+              </p>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                  {t.selectCurrencyToDeduct || 'Select which currency to deduct from your balance:'}
+                </label>
+                
+                <div className="space-y-3">
+                  <label className="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                    <input
+                      type="radio"
+                      name="paymentCurrency"
+                      value="USD"
+                      checked={paymentCurrency === 'USD'}
+                      onChange={(e) => setPaymentCurrency(e.target.value)}
+                      className="mr-3"
+                    />
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium text-gray-900 dark:text-gray-100">💵 {t.usdBalance || 'USD Balance'}</span>
+                        <span className="text-lg font-bold text-green-600 dark:text-green-400">
+                          ${admin.balanceUSD?.toFixed(2) || '0.00'}
+                        </span>
+                      </div>
+                      {admin.balanceUSD < selectedDebt.sale.total && selectedDebt.sale.currency === 'USD' && (
+                        <div className="text-xs text-red-500 mt-1">
+                          ⚠️ {t.insufficientFunds || 'Insufficient funds'}
+                        </div>
+                      )}
+                    </div>
+                  </label>
+                  
+                  <label className="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                    <input
+                      type="radio"
+                      name="paymentCurrency"
+                      value="IQD"
+                      checked={paymentCurrency === 'IQD'}
+                      onChange={(e) => setPaymentCurrency(e.target.value)}
+                      className="mr-3"
+                    />
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium text-gray-900 dark:text-gray-100">💰 {t.iqdBalance || 'IQD Balance'}</span>
+                        <span className="text-lg font-bold text-yellow-600 dark:text-yellow-400">
+                          د.ع{admin.balanceIQD?.toFixed(2) || '0.00'}
+                        </span>
+                      </div>
+                      {admin.balanceIQD < selectedDebt.sale.total && selectedDebt.sale.currency === 'IQD' && (
+                        <div className="text-xs text-red-500 mt-1">
+                          ⚠️ {t.insufficientFunds || 'Insufficient funds'}
+                        </div>
+                      )}
+                    </div>
+                  </label>
+                </div>
+              </div>
+            </div>
+            
+            <div className="p-6 border-t border-gray-200 dark:border-gray-700 flex gap-4">
+              <button
+                onClick={() => {
+                  setShowPaymentModal(false);
+                  setSelectedDebt(null);
+                }}
+                className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition"
+              >
+                {t.cancel || 'Cancel'}
+              </button>
+              <button
+                onClick={processPayment}
+                className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-semibold"
+              >
+                💰 {t.markAsPaid || 'Mark as Paid'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

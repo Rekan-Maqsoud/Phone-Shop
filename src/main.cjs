@@ -42,7 +42,7 @@ function getDatabasePath() {
           fs.copyFileSync(defaultDbPath, dbPath);
         } else {
           // Create a basic empty database if default doesn't exist
-          const dbModule = require('../database/db.cjs');
+          const dbModule = require('../database/index.cjs');
           const tempDb = dbModule(dbPath);
           tempDb.db.close();
         }
@@ -69,11 +69,15 @@ function createWindow() {
   
   // Maximize the window (not fullscreen)
   win.maximize();
-  // Check if running in dev mode by looking for concurrent processes
-  const isDevMode = process.env.npm_lifecycle_event === 'dev';
-  const urlToLoad = isDevMode && !app.isPackaged
+  
+  // Check if running in dev mode
+  const isDevMode = !app.isPackaged && (process.env.NODE_ENV === 'development' || process.argv.includes('--dev') || fs.existsSync(path.join(__dirname, '../vite.config.js')));
+  
+  const urlToLoad = isDevMode 
     ? 'http://localhost:5173/'
     : `file://${path.join(__dirname, '../dist/index.html')}`;
+    
+  console.log(`Loading URL: ${urlToLoad} (dev mode: ${isDevMode})`);
   win.loadURL(urlToLoad);
   // Set a secure Content Security Policy
   win.webContents.session.webRequest.onHeadersReceived((details, callback) => {
@@ -102,8 +106,8 @@ app.whenReady().then(async () => {
     // Initialize DB after app is ready and DB path is set
     const dbPath = getDatabasePath();
     
-    const dbModule = require('../database/db.cjs');
-    db = dbModule(dbPath); // Call the function with dbPath
+    const dbModule = require('../database/index.cjs');
+    db = dbModule(dbPath); // Call the factory function with dbPath
     
     // Test database connection
     try {
@@ -509,21 +513,21 @@ ipcMain.handle('addCustomerDebt', async (event, { sale_id, customer_name }) => {
 ipcMain.handle('getCustomerDebts', async () => {
   return db.getCustomerDebts();
 });
-ipcMain.handle('markCustomerDebtPaid', async (event, id, paid_at) => {
-  const result = db.markCustomerDebtPaid(id, paid_at);
+ipcMain.handle('markCustomerDebtPaid', async (event, id, paid_at, payment_currency_used, payment_usd_amount, payment_iqd_amount) => {
+  const result = db.markCustomerDebtPaid(id, paid_at, payment_currency_used, payment_usd_amount, payment_iqd_amount);
   await runAutoBackupAfterSale();
   return result;
 });
 
 // Company debt handlers
-ipcMain.handle('addCompanyDebt', async (event, { company_name, amount, description }) => {
-  const result = db.addCompanyDebt({ company_name, amount, description });
+ipcMain.handle('addCompanyDebt', async (event, { company_name, amount, description, currency = 'IQD', multi_currency = null }) => {
+  const result = db.addCompanyDebt({ company_name, amount, description, currency, multi_currency });
   await runAutoBackupAfterSale();
   return result;
 });
-ipcMain.handle('addCompanyDebtWithItems', async (event, { company_name, description, items }) => {
+ipcMain.handle('addCompanyDebtWithItems', async (event, { company_name, description, items, currency = 'IQD', multi_currency = null }) => {
   try {
-    const result = db.addCompanyDebtWithItems({ company_name, description, items });
+    const result = db.addCompanyDebtWithItems({ company_name, description, items, currency, multi_currency });
     await runAutoBackupAfterSale();
     return { success: true, result };
   } catch (error) {
@@ -537,8 +541,8 @@ ipcMain.handle('getCompanyDebts', async () => {
 ipcMain.handle('getCompanyDebtItems', async (event, debtId) => {
   return db.getCompanyDebtItems(debtId);
 });
-ipcMain.handle('markCompanyDebtPaid', async (event, id, paid_at) => {
-  const result = db.markCompanyDebtPaid(id, paid_at);
+ipcMain.handle('markCompanyDebtPaid', async (event, id, paymentData) => {
+  const result = db.markCompanyDebtPaid(id, paymentData);
   await runAutoBackupAfterSale();
   return result;
 });
@@ -546,6 +550,9 @@ ipcMain.handle('markCompanyDebtPaid', async (event, id, paid_at) => {
 // Buying history handlers
 ipcMain.handle('getBuyingHistory', async () => {
   return db.getBuyingHistory();
+});
+ipcMain.handle('getBuyingHistoryWithTransactions', async () => {
+  return db.getBuyingHistoryWithTransactions();
 });
 ipcMain.handle('getBuyingHistoryWithItems', async () => {
   return db.getBuyingHistoryWithItems();
@@ -595,6 +602,92 @@ ipcMain.handle('getDebtSales', async () => {
     return [];
   }
 });
+
+// Balance and Transaction handlers
+ipcMain.handle('getBalances', async () => {
+  try {
+    return db.getBalances();
+  } catch (error) {
+    console.error('[IPC] getBalances error:', error);
+    return { usd_balance: 0, iqd_balance: 0 };
+  }
+});
+
+ipcMain.handle('getTransactions', async (event, limit = 50) => {
+  try {
+    return db.getTransactions(limit);
+  } catch (error) {
+    console.error('[IPC] getTransactions error:', error);
+    return [];
+  }
+});
+
+// Personal Loan handlers
+ipcMain.handle('addPersonalLoan', async (event, loanData) => {
+  try {
+    const result = db.addPersonalLoan(loanData);
+    if (result.success) {
+      await runAutoBackupAfterSale();
+    }
+    return result;
+  } catch (error) {
+    console.error('[IPC] addPersonalLoan error:', error);
+    return { success: false, message: error.message };
+  }
+});
+
+ipcMain.handle('getPersonalLoans', async () => {
+  try {
+    return db.getPersonalLoans();
+  } catch (error) {
+    console.error('[IPC] getPersonalLoans error:', error);
+    return [];
+  }
+});
+
+ipcMain.handle('markPersonalLoanPaid', async (event, id, paid_at, payment_currency_used, payment_usd_amount, payment_iqd_amount) => {
+  try {
+    const result = db.markPersonalLoanPaid(id, paid_at, payment_currency_used, payment_usd_amount, payment_iqd_amount);
+    if (result.success) {
+      await runAutoBackupAfterSale();
+    }
+    return result;
+  } catch (error) {
+    console.error('[IPC] markPersonalLoanPaid error:', error);
+    return { success: false, message: error.message };
+  }
+});
+
+// Discount handlers
+ipcMain.handle('addDiscount', async (event, discountData) => {
+  try {
+    const result = db.addDiscount(discountData);
+    await runAutoBackupAfterSale();
+    return { success: true, result };
+  } catch (error) {
+    console.error('[IPC] addDiscount error:', error);
+    return { success: false, message: error.message };
+  }
+});
+
+ipcMain.handle('getDiscounts', async (event, transaction_type, reference_id) => {
+  try {
+    return db.getDiscounts(transaction_type, reference_id);
+  } catch (error) {
+    console.error('[IPC] getDiscounts error:', error);
+    return [];
+  }
+});
+
+ipcMain.handle('calculateDiscountedAmount', async (event, originalAmount, discounts) => {
+  try {
+    return db.calculateDiscountedAmount(originalAmount, discounts);
+  } catch (error) {
+    console.error('[IPC] calculateDiscountedAmount error:', error);
+    return originalAmount;
+  }
+});
+
 // Backup functionality
 // New instant backup system - updates current backup after every change
 let currentBackupPath = null;
@@ -768,10 +861,9 @@ ipcMain.handle('restoreBackup', async (event, filePath) => {
     fs.copyFileSync(filePath, dbPath);
     // Reinitialize database connection
     try {
-      // Clear require cache for db.cjs to force reload
-      delete require.cache[require.resolve('../database/db.cjs')];
-      const dbModule = require('../database/db.cjs');
-      Object.assign(db, dbModule);
+      // With the modular database, no cache clearing needed
+      const dbModule = require('../database/index.cjs');
+      Object.assign(db, dbModule(dbPath));
       
       // Test connection by running a simple query
       const testResult = db.getProducts();
@@ -781,9 +873,8 @@ ipcMain.handle('restoreBackup', async (event, filePath) => {
       // Rollback if DB cannot be opened
       if (fs.existsSync(backupCurrentPath)) {
         fs.copyFileSync(backupCurrentPath, dbPath);
-        delete require.cache[require.resolve('../database/db.cjs')];
-        const dbModule = require('../database/db.cjs');
-        Object.assign(db, dbModule);
+        const dbModule = require('../database/index.cjs');
+        Object.assign(db, dbModule(dbPath));
       }
       throw new Error('Restored DB is invalid or corrupt. Rolled back to previous database.');
     }
@@ -903,10 +994,9 @@ ipcMain.handle('restoreFromCloudBackup', async (event, filePath) => {
     // Reinitialize database connection
     let dbModule;
     try {
-      // Clear require cache for db.cjs to force reload
-      delete require.cache[require.resolve('../database/db.cjs')];
-      dbModule = require('../database/db.cjs');
-      Object.assign(db, dbModule);
+      // With the modular database, no cache clearing needed
+      dbModule = require('../database/index.cjs');
+      Object.assign(db, dbModule(dbPath));
       // Test connection by running a simple query
       const testResult = db.getProducts();
     } catch (e) {
@@ -914,9 +1004,8 @@ ipcMain.handle('restoreFromCloudBackup', async (event, filePath) => {
       // Rollback if DB cannot be opened
       if (fs.existsSync(backupCurrentPath)) {
         fs.copyFileSync(backupCurrentPath, dbPath);
-        delete require.cache[require.resolve('../database/db.cjs')];
-        dbModule = require('../database/db.cjs');
-        Object.assign(db, dbModule);
+        dbModule = require('../database/index.cjs');
+        Object.assign(db, dbModule(dbPath));
       }
       throw new Error('Restored DB is invalid or corrupt. Rolled back to previous database.');
     }
@@ -1118,12 +1207,14 @@ ipcMain.handle('restoreFromFile', async (event, filePath) => {
     // Replace database with backup
     fs.copyFileSync(filePath, dbPath);
 
+    // Replace database with backup
+    fs.copyFileSync(filePath, dbPath);
+
     // Reinitialize database connection
     try {
-      // Clear require cache for db.cjs to force reload
-      delete require.cache[require.resolve('../database/db.cjs')];
-      const dbModule = require('../database/db.cjs');
-      Object.assign(db, dbModule);
+      // With the modular database, no cache clearing needed
+      const dbModule = require('../database/index.cjs');
+      Object.assign(db, dbModule(dbPath));
       
       // Test connection by running a simple query
       const testResult = db.getProducts();
@@ -1133,9 +1224,8 @@ ipcMain.handle('restoreFromFile', async (event, filePath) => {
       // Rollback if DB cannot be opened
       if (fs.existsSync(backupCurrentPath)) {
         fs.copyFileSync(backupCurrentPath, dbPath);
-        delete require.cache[require.resolve('../database/db.cjs')];
-        const dbModule = require('../database/db.cjs');
-        Object.assign(db, dbModule);
+        const dbModule = require('../database/index.cjs');
+        Object.assign(db, dbModule(dbPath));
       }
       throw new Error('Restored DB is invalid or corrupt. Rolled back to previous database.');
     }
@@ -1322,11 +1412,13 @@ async function performRestore(filePath) {
     // Replace database with backup
     fs.copyFileSync(filePath, dbPath);
     
+    // Replace database with backup
+    fs.copyFileSync(filePath, dbPath);
+    
     // Reinitialize database connection
     try {
-      // Clear require cache for db.cjs to force reload
-      delete require.cache[require.resolve('../database/db.cjs')];
-      const dbModule = require('../database/db.cjs');
+      // With the modular database, no cache clearing needed
+      const dbModule = require('../database/index.cjs');
       db = dbModule(dbPath);
       
       // Test connection by running a simple query
@@ -1336,8 +1428,7 @@ async function performRestore(filePath) {
       // Rollback if DB cannot be opened
       if (fs.existsSync(backupCurrentPath)) {
         fs.copyFileSync(backupCurrentPath, dbPath);
-        delete require.cache[require.resolve('../database/db.cjs')];
-        const dbModule = require('../database/db.cjs');
+        const dbModule = require('../database/index.cjs');
         db = dbModule(dbPath);
       }
       throw new Error('Restored DB is invalid or corrupt. Rolled back to previous database.');
@@ -1425,5 +1516,32 @@ ipcMain.handle('downloadCloudBackupFile', async (event, backupId) => {
   } catch (error) {
     console.error('[IPC] downloadCloudBackupFile error:', error);
     return { success: false, message: error.message };
+  }
+});
+
+ipcMain.handle('getDashboardData', async () => {
+  try {
+    return db.getDashboardData();
+  } catch (error) {
+    console.error('[IPC] getDashboardData error:', error);
+    return null;
+  }
+});
+
+ipcMain.handle('getMonthlyDashboardData', async (event, month, year) => {
+  try {
+    return db.getMonthlyDashboardData(month, year);
+  } catch (error) {
+    console.error('[IPC] getMonthlyDashboardData error:', error);
+    return null;
+  }
+});
+
+ipcMain.handle('recalculateBalances', async () => {
+  try {
+    return db.recalculateBalances();
+  } catch (error) {
+    console.error('[IPC] recalculateBalances error:', error);
+    return { usd_balance: 0, iqd_balance: 0 };
   }
 });

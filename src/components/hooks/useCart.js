@@ -5,7 +5,6 @@ export default function useCart(showToast, showConfirm, t = {}) {
   const [items, setItems] = useState([]);
 
   // Add or update item in cart
-  // Accepts quantity (default 1)
   const addOrUpdateItem = (product, isReturn = false, quantity = 1) => {
     setItems(prevItems => {
       const uniqueId = product.uniqueId || `${product.itemType || 'product'}_${product.id}`;
@@ -53,9 +52,10 @@ export default function useCart(showToast, showConfirm, t = {}) {
             ? { 
                 ...item, 
                 quantity: newTotal,
-                // Ensure selling_price is set if not already
-                selling_price: item.selling_price || Math.round((product.buying_price || product.price || 0) * 1.1 * 100) / 100, // Use 110% markup if no price set
-                buying_price: item.buying_price || product.buying_price || (product.itemType === 'accessory' ? 0 : product.price)
+                selling_price: product.itemType === 'accessory' 
+                  ? (item.selling_price || product.buying_price || product.price || 0)
+                  : (item.selling_price || Math.round((product.buying_price || product.price || 0) * 1.1 * 100) / 100),
+                buying_price: item.buying_price || product.buying_price || product.price
               }
             : item
         );
@@ -75,14 +75,26 @@ export default function useCart(showToast, showConfirm, t = {}) {
         return [
           ...prevItems,
           {
-            ...product,
             id: product.id,
+            name: product.name, // Explicitly set the name
             uniqueId,
             product_id: product.id,
             itemType: product.itemType || 'product',
-            buying_price: product.buying_price || (product.itemType === 'accessory' ? 0 : product.price), // Use actual buying price, for accessories fallback to 0, for products fallback to price
-            price: Math.round((product.buying_price || product.price || 0) * 1.1 * 100) / 100, // Store 110% of buying price as default selling price
-            selling_price: Math.round((product.buying_price || product.price || 0) * 1.1 * 100) / 100, // Default selling price at 110% markup
+            category: product.category,
+            brand: product.brand,
+            type: product.type,
+            model: product.model,
+            ram: product.ram,
+            storage: product.storage,
+            currency: product.currency,
+            stock: product.stock,
+            buying_price: product.buying_price || product.price,
+            price: product.itemType === 'accessory' 
+              ? (product.buying_price || product.price || 0) 
+              : Math.round((product.buying_price || product.price || 0) * 1.1 * 100) / 100,
+            selling_price: product.itemType === 'accessory' 
+              ? (product.buying_price || product.price || 0) 
+              : Math.round((product.buying_price || product.price || 0) * 1.1 * 100) / 100,
             isReturn,
             quantity: quantity,
           },

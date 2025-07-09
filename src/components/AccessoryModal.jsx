@@ -29,6 +29,7 @@ export default function AccessoryModal({
       brand: formData.get('brand') || null,
       model: formData.get('name'), // Use name as model for consistency
       type: formData.get('type') || null,
+      currency: formData.get('currency') || 'USD',
     };
 
     try {
@@ -100,6 +101,20 @@ export default function AccessoryModal({
                 required
               />
             </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
+              {t.currency || 'Currency'}
+            </label>
+            <select
+              name="currency"
+              defaultValue={accessory?.currency || 'USD'}
+              className="w-full border rounded-xl px-4 py-3 dark:bg-gray-700 dark:text-gray-100 dark:border-gray-600 bg-white text-gray-900 border-gray-300 focus:outline-none focus:ring-2 focus:ring-green-400 transition"
+            >
+              <option value="USD">💵 USD</option>
+              <option value="IQD">💰 IQD</option>
+            </select>
           </div>
 
           <div className="grid grid-cols-2 gap-4">

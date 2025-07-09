@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useData } from '../contexts/DataContext';
+import { formatCurrency } from '../utils/exchangeRates';
 
 const CompanyDebtsSection = ({ 
   t, 
@@ -13,6 +14,32 @@ const CompanyDebtsSection = ({
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const { companyDebts, refreshCompanyDebts, refreshBuyingHistory } = useData();
+
+  // Helper function to format debt amount (handles multi-currency)
+  const formatDebtAmount = (debt) => {
+    if (debt.currency === 'MULTI' && (debt.usd_amount > 0 || debt.iqd_amount > 0)) {
+      const parts = [];
+      if (debt.usd_amount > 0) {
+        parts.push(`$${debt.usd_amount.toFixed(2)}`);
+      }
+      if (debt.iqd_amount > 0) {
+        parts.push(`د.ع${debt.iqd_amount.toFixed(2)}`);
+      }
+      return parts.join(' + ');
+    } else {
+      return formatCurrency(debt.amount, debt.currency || 'USD');
+    }
+  };
+
+  // Helper function to calculate total debt amount (for sorting and totals)
+  const getDebtTotalValue = (debt) => {
+    if (debt.currency === 'MULTI' && (debt.usd_amount > 0 || debt.iqd_amount > 0)) {
+      // Convert to USD equivalent for sorting/totaling (1 USD = 1440 IQD)
+      return debt.usd_amount + (debt.iqd_amount / 1440);
+    } else {
+      return debt.amount;
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -55,32 +82,51 @@ const CompanyDebtsSection = ({
           return <div className="text-center text-gray-400 py-6">{t.noCompanyDebts || 'No company debts'}</div>;
         }
 
-        // Group debts by company name (normalize case)
+        // Group debts by company name and currency (normalize case)
         const groupedDebts = filteredDebts.reduce((groups, debt) => {
           const companyName = debt.company_name.charAt(0).toUpperCase() + debt.company_name.slice(1).toLowerCase();
-          if (!groups[companyName]) {
-            groups[companyName] = [];
+          const currency = debt.currency || 'USD';
+          const key = `${companyName}__${currency}`;
+          if (!groups[key]) {
+            groups[key] = { companyName, currency, debts: [] };
           }
-          groups[companyName].push(debt);
+          groups[key].debts.push(debt);
           return groups;
         }, {});
 
         // Sort companies by unpaid debt amount (highest first), then alphabetically (case-insensitive)
-        const sortedCompanies = Object.keys(groupedDebts).sort((a, b) => {
-          const aUnpaidTotal = groupedDebts[a].filter(d => !d.paid_at).reduce((sum, d) => sum + d.amount, 0);
-          const bUnpaidTotal = groupedDebts[b].filter(d => !d.paid_at).reduce((sum, d) => sum + d.amount, 0);
+        const sortedCompanies = Object.values(groupedDebts).sort((a, b) => {
+          const aUnpaidTotal = a.debts.filter(d => !d.paid_at).reduce((sum, d) => sum + d.amount, 0);
+          const bUnpaidTotal = b.debts.filter(d => !d.paid_at).reduce((sum, d) => sum + d.amount, 0);
           
           // If both have unpaid debts or both don't, sort alphabetically (case-insensitive)
           if ((aUnpaidTotal > 0 && bUnpaidTotal > 0) || (aUnpaidTotal === 0 && bUnpaidTotal === 0)) {
-            return a.toLowerCase().localeCompare(b.toLowerCase());
+            const nameCompare = a.companyName.toLowerCase().localeCompare(b.companyName.toLowerCase());
+            return nameCompare !== 0 ? nameCompare : a.currency.localeCompare(b.currency);
           }
           
           // Companies with unpaid debts come first
           return bUnpaidTotal - aUnpaidTotal;
         });
 
-        // Calculate total unpaid debt across all filtered companies
-        const totalCompanyDebt = filteredDebts.filter(d => !d.paid_at).reduce((sum, d) => sum + d.amount, 0);
+        // Calculate total unpaid debt by currency across all filtered companies
+        const totalCompanyDebtUSD = filteredDebts.filter(d => !d.paid_at).reduce((sum, d) => {
+          if (d.currency === 'MULTI') {
+            return sum + (d.usd_amount || 0);
+          } else if (d.currency === 'USD' || !d.currency) {
+            return sum + d.amount;
+          }
+          return sum;
+        }, 0);
+        
+        const totalCompanyDebtIQD = filteredDebts.filter(d => !d.paid_at).reduce((sum, d) => {
+          if (d.currency === 'MULTI') {
+            return sum + (d.iqd_amount || 0);
+          } else if (d.currency === 'IQD') {
+            return sum + d.amount;
+          }
+          return sum;
+        }, 0);
 
         if (filteredDebts.length === 0) {
           return <div className="text-center text-gray-400 py-6">{t.noMatchingDebts || 'No matching company debts found'}</div>;
@@ -89,14 +135,28 @@ const CompanyDebtsSection = ({
         return (
           <>
             <div className="bg-white/60 dark:bg-gray-800/80 rounded-2xl p-4 mb-6 shadow border border-white/20">
-              <span className="text-lg font-bold text-red-600 dark:text-red-400">
-                {t.totalCompanyDebt || 'Total Company Debt'}: ${totalCompanyDebt.toFixed(2)}
-              </span>
+              <div className="flex flex-wrap gap-4">
+                {totalCompanyDebtUSD > 0 && (
+                  <span className="text-lg font-bold text-red-600 dark:text-red-400">
+                    {t.totalCompanyDebtUSD || 'Total Company Debt USD'}: {formatCurrency(totalCompanyDebtUSD, 'USD')}
+                  </span>
+                )}
+                {totalCompanyDebtIQD > 0 && (
+                  <span className="text-lg font-bold text-red-600 dark:text-red-400">
+                    {t.totalCompanyDebtIQD || 'Total Company Debt IQD'}: {formatCurrency(totalCompanyDebtIQD, 'IQD')}
+                  </span>
+                )}
+                {totalCompanyDebtUSD === 0 && totalCompanyDebtIQD === 0 && (
+                  <span className="text-lg font-bold text-green-600 dark:text-green-400">
+                    {t.noOutstandingDebts || 'No outstanding company debts'}
+                  </span>
+                )}
+              </div>
             </div>
             
             <div className="space-y-6">
-              {sortedCompanies.map((companyName) => {
-                const companyDebts = groupedDebts[companyName];
+              {sortedCompanies.map(({ companyName, currency, debts }) => {
+                const companyDebts = debts;
                 // Sort this company's debts: unpaid first (newest to oldest), then paid (newest to oldest)
                 const sortedCompanyDebts = companyDebts.sort((a, b) => {
                   // If one is paid and other is not, unpaid comes first
@@ -109,15 +169,43 @@ const CompanyDebtsSection = ({
                 
                 // Calculate total unpaid debt for this company
                 const unpaidDebts = sortedCompanyDebts.filter(d => !d.paid_at);
-                const totalUnpaidForCompany = unpaidDebts.reduce((sum, d) => sum + d.amount, 0);
+                const totalUnpaidForCompany = unpaidDebts.reduce((sum, d) => sum + getDebtTotalValue(d), 0);
+                
+                // For display, show either single currency total or "Mixed Currencies"
+                const getCompanyTotalDisplay = () => {
+                  const hasMultiCurrency = unpaidDebts.some(d => d.currency === 'MULTI');
+                  const hasMixedCurrencies = unpaidDebts.some(d => d.currency === 'USD') && unpaidDebts.some(d => d.currency === 'IQD');
+                  
+                  if (hasMultiCurrency || hasMixedCurrencies) {
+                    const totalUSD = unpaidDebts.reduce((sum, d) => {
+                      if (d.currency === 'MULTI') return sum + (d.usd_amount || 0);
+                      if (d.currency === 'USD') return sum + d.amount;
+                      return sum;
+                    }, 0);
+                    const totalIQD = unpaidDebts.reduce((sum, d) => {
+                      if (d.currency === 'MULTI') return sum + (d.iqd_amount || 0);
+                      if (d.currency === 'IQD') return sum + d.amount;
+                      return sum;
+                    }, 0);
+                    
+                    const parts = [];
+                    if (totalUSD > 0) parts.push(`$${totalUSD.toFixed(2)}`);
+                    if (totalIQD > 0) parts.push(`د.ع${totalIQD.toFixed(2)}`);
+                    return parts.join(' + ') || formatCurrency(0, currency);
+                  } else {
+                    return formatCurrency(totalUnpaidForCompany, currency);
+                  }
+                };
                 
                 return (
-                  <div key={companyName} className="bg-white/70 dark:bg-gray-800/90 rounded-2xl shadow-lg border border-white/30 overflow-hidden">
+                  <div key={`${companyName}-${currency}`} className="bg-white/70 dark:bg-gray-800/90 rounded-2xl shadow-lg border border-white/30 overflow-hidden">
                     {/* Company Header */}
                     <div className="bg-white/60 dark:bg-gray-800/80 rounded-2xl shadow p-6 border border-white/20">
                       <div className="flex justify-between items-center">
                         <div>
-                          <h3 className="text-xl font-bold text-gray-800 dark:text-gray-100">{companyName}</h3>
+                          <h3 className="text-xl font-bold text-gray-800 dark:text-gray-100">
+                            {companyName} ({currency})
+                          </h3>
                           <p className="text-gray-600 dark:text-gray-400">
                             {unpaidDebts.length} {unpaidDebts.length === 1 ? (t.unpaidDebt || 'unpaid debt') : (t.unpaidDebts || 'unpaid debts')} • 
                             {sortedCompanyDebts.length - unpaidDebts.length} {sortedCompanyDebts.length - unpaidDebts.length === 1 ? (t.paidDebt || 'paid debt') : (t.paidDebts || 'paid debts')}
@@ -125,7 +213,7 @@ const CompanyDebtsSection = ({
                         </div>
                         <div className="text-right">
                           <div className="text-2xl font-bold text-gray-800 dark:text-gray-100">
-                            ${totalUnpaidForCompany.toFixed(2)}
+                            {getCompanyTotalDisplay()}
                           </div>
                           <div className="text-red-600 dark:text-red-400 text-sm">
                             {t.totalOwed || 'Total Owed'}
@@ -150,7 +238,7 @@ const CompanyDebtsSection = ({
                               <div className="flex items-center gap-2 mb-2">
                                 <span className={`w-3 h-3 rounded-full ${debt.paid_at ? 'bg-green-500' : 'bg-red-500'}`}></span>
                                 <span className={`text-lg font-bold ${debt.paid_at ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}>
-                                  ${debt.amount.toFixed(2)}
+                                  {formatDebtAmount(debt)}
                                 </span>
                                 {debt.paid_at && (
                                   <span className="text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 px-2 py-1 rounded-full">
@@ -190,27 +278,8 @@ const CompanyDebtsSection = ({
                               {!debt.paid_at && (
                                 <button
                                   onClick={() => {
-                                    showConfirm(
-                                      `${t.markDebtAsPaidConfirm || 'Mark debt to'} ${debt.company_name} ($${debt.amount.toFixed(2)}) ${t.markAsPaid || 'as paid'}?`,
-                                      async () => {
-                                        setConfirm({ open: false, message: '', onConfirm: null });
-                                        try {
-                                          const result = await window.api?.markCompanyDebtPaid?.(debt.id);
-                                          if (result && result.changes > 0) {
-                                            admin.setToast?.(`✅ Company debt of $${debt.amount.toFixed(2)} marked as paid for ${debt.company_name}`);
-                                            // Refresh all company debt related data
-                                            await refreshCompanyDebts();
-                                            await refreshBuyingHistory();
-                                            triggerCloudBackup();
-                                          } else {
-                                            admin.setToast?.('❌ Failed to mark company debt as paid');
-                                          }
-                                        } catch (error) {
-                                          console.error('Error marking company debt as paid:', error);
-                                          admin.setToast?.('❌ Error marking company debt as paid');
-                                        }
-                                      }
-                                    );
+                                    setSelectedCompanyDebt(debt);
+                                    setShowEnhancedCompanyDebtModal(true);
                                   }}
                                   className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-medium"
                                 >

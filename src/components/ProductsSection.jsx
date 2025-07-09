@@ -1,17 +1,121 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import ProductTable from './ProductTable';
 import QuickAddProduct from './QuickAddProduct';
 import { useData } from '../contexts/DataContext';
 
 export default function ProductsSection({ t, admin, handleEditProduct, handleArchiveToggle, loading }) {
   const { products } = useData();
+  const [searchTerm, setSearchTerm] = useState('');
+  const [brandFilter, setBrandFilter] = useState('');
+  
+  // Filter products based on search term and brand
+  const filteredProducts = useMemo(() => {
+    return products.filter(product => {
+      if (!product || product.archived) return false;
+      
+      const matchesSearch = !searchTerm || 
+        (product.name && product.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (product.model && product.model.toLowerCase().includes(searchTerm.toLowerCase()));
+      
+      const matchesBrand = !brandFilter || 
+        (product.brand && product.brand.toLowerCase().includes(brandFilter.toLowerCase()));
+      
+      return matchesSearch && matchesBrand;
+    });
+  }, [products, searchTerm, brandFilter]);
+
+  // Get unique brands for filter dropdown
+  const availableBrands = useMemo(() => {
+    const brands = [...new Set(products.filter(p => p && !p.archived && p.brand).map(p => p.brand))];
+    return brands.sort();
+  }, [products]);
+  
+  const handleOpenAddProductModal = () => {
+    admin.setEditProduct(null); // Clear any existing edit data
+    admin.setShowProductModal(true);
+  };
   
   return (
     <div className="space-y-6">
+      {/* Quick Add Form */}
       <QuickAddProduct t={t} onAdd={admin.handleAddProduct} loading={loading} />
+      
+      {/* Search and Filter Controls */}
+      <div className="bg-white/70 dark:bg-gray-800/90 rounded-xl p-4 shadow border border-white/30 mb-6">
+        <div className="flex flex-col md:flex-row gap-4 items-center">
+          {/* Search Bar */}
+          <div className="flex-1 min-w-0">
+            <div className="relative">
+              <input
+                type="text"
+                placeholder={t.searchProducts || 'Search products...'}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full px-4 py-2 pl-10 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800 dark:text-gray-100"
+              />
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          </div>
+          
+          {/* Brand Filter */}
+          <div className="w-full md:w-48">
+            <select
+              value={brandFilter}
+              onChange={(e) => setBrandFilter(e.target.value)}
+              className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800 dark:text-gray-100"
+            >
+              <option value="">{t.allBrands || 'All Brands'}</option>
+              {availableBrands.map(brand => (
+                <option key={brand} value={brand}>{brand}</option>
+              ))}
+            </select>
+          </div>
+          
+          {/* Clear Filters */}
+          {(searchTerm || brandFilter) && (
+            <button
+              onClick={() => {
+                setSearchTerm('');
+                setBrandFilter('');
+              }}
+              className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg transition-colors whitespace-nowrap"
+            >
+              {t.clearFilters || 'Clear Filters'}
+            </button>
+          )}
+        </div>
+      </div>
+      
+      {/* Advanced Add Button */}
+      <div className="flex justify-between items-center">
+        <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">
+          {t.products} {filteredProducts.length > 0 && `(${filteredProducts.length})`}
+        </h3>
+        <button
+          onClick={handleOpenAddProductModal}
+          className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
+        >
+          <span>➕</span>
+          {t.addProductAdvanced || 'Advanced Add'}
+        </button>
+      </div>
+      
+      {/* Products Table */}
       <ProductTable
-        title={t.products}
-        products={products.filter(p => p && ((typeof p.archived === 'undefined' ? 0 : p.archived) === 0))}
+        title=""
+        products={filteredProducts}
         t={t}
         lowStockThreshold={admin.lowStockThreshold}
         onEdit={handleEditProduct}

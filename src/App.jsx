@@ -134,17 +134,17 @@ function App() {
   // Show loading screen while app is initializing
   if (!appReady) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+      <div className="fixed inset-0 w-screen h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-gray-800 flex items-center justify-center z-50">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <h2 className="text-white text-xl font-semibold mb-2">Mobile Roma</h2>
-          <p className="text-gray-400">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-purple-500 mx-auto mb-4"></div>
+          <h2 className="text-white text-2xl font-bold mb-2">Mobile Roma</h2>
+          <p className="text-gray-300 text-lg mb-4">
             {!authInitialized ? 'Initializing authentication...' : 
              !dataInitialized ? 'Loading data...' : 'Getting ready...'}
           </p>
-          <div className="mt-4 w-64 bg-gray-700 rounded-full h-2 mx-auto">
+          <div className="mt-6 w-80 bg-gray-700 rounded-full h-3 mx-auto">
             <div 
-              className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+              className="bg-gradient-to-r from-purple-500 to-pink-500 h-3 rounded-full transition-all duration-500"
               style={{ 
                 width: `${(authInitialized ? 50 : 0) + (dataInitialized ? 50 : 0)}%` 
               }}

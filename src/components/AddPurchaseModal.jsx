@@ -7,10 +7,17 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
   const [companyName, setCompanyName] = useState('');
   const [description, setDescription] = useState('');
   const [purchaseType, setPurchaseType] = useState('simple'); // 'simple' or 'withItems'
-  const [paymentStatus, setPaymentStatus] = useState(isCompanyDebtMode ? 'debt' : 'debt'); // 'debt' or 'paid'
+  const [paymentStatus, setPaymentStatus] = useState(isCompanyDebtMode ? 'debt' : 'paid'); // 'debt' or 'paid'
+  const [currency, setCurrency] = useState('IQD'); // 'USD' or 'IQD'
   const [simpleAmount, setSimpleAmount] = useState('');
   const [items, setItems] = useState([]);
   const [error, setError] = useState('');
+  const [multiCurrency, setMultiCurrency] = useState({ enabled: false, usdAmount: 0, iqdAmount: 0 });
+  const [discount, setDiscount] = useState({
+    enabled: false,
+    type: 'percentage', // 'percentage' or 'amount'
+    value: ''
+  });
 
   // Reset form when modal opens/closes
   useEffect(() => {
@@ -20,11 +27,18 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
       setSimpleAmount('');
       setItems([]);
       setPurchaseType('simple');
-      setPaymentStatus(isCompanyDebtMode ? 'debt' : 'debt');
+      setPaymentStatus(isCompanyDebtMode ? 'debt' : 'paid');
+      // Don't reset currency - let user choose
       setError('');
+      setMultiCurrency({ enabled: false, usdAmount: 0, iqdAmount: 0 });
+      setDiscount({
+        enabled: false,
+        type: 'percentage',
+        value: ''
+      });
     } else {
       // Set the payment status when modal opens
-      setPaymentStatus(isCompanyDebtMode ? 'debt' : 'debt');
+      setPaymentStatus(isCompanyDebtMode ? 'debt' : 'paid');
     }
   }, [show, isCompanyDebtMode]);
 
@@ -77,11 +91,35 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
   };
 
   const calculateTotal = () => {
-    return items.reduce((sum, item) => {
-      const quantity = parseInt(item.quantity) || 0;
-      const unitPrice = parseFloat(item.unit_price) || 0;
-      return sum + (quantity * unitPrice);
-    }, 0);
+    let baseTotal;
+    if (purchaseType === 'simple') {
+      if (multiCurrency.enabled) {
+        // Calculate total based on selected currency with multi-currency amounts
+        baseTotal = currency === 'USD' 
+          ? multiCurrency.usdAmount + (multiCurrency.iqdAmount / 1440)
+          : multiCurrency.iqdAmount + (multiCurrency.usdAmount * 1440);
+      } else {
+        baseTotal = parseFloat(simpleAmount) || 0;
+      }
+    } else {
+      baseTotal = items.reduce((sum, item) => {
+        const quantity = parseInt(item.quantity) || 0;
+        const unitPrice = parseFloat(item.unit_price) || 0;
+        return sum + (quantity * unitPrice);
+      }, 0);
+    }
+
+    // Apply discount if enabled
+    if (discount.enabled && discount.value) {
+      const discountValue = parseFloat(discount.value) || 0;
+      if (discount.type === 'percentage') {
+        return baseTotal * (1 - discountValue / 100);
+      } else {
+        return Math.max(0, baseTotal - discountValue);
+      }
+    }
+
+    return baseTotal;
   };
 
   const handleSubmit = async (e) => {
@@ -94,21 +132,56 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
     }
 
     if (purchaseType === 'simple') {
-      const amt = parseFloat(simpleAmount);
-      if (!simpleAmount || isNaN(amt) || amt <= 0) {
-        setError(t.pleaseProvideValidAmount || 'Please provide a valid amount greater than 0');
-        return;
+      if (multiCurrency.enabled) {
+        // Multi-currency validation
+        if (multiCurrency.usdAmount <= 0 && multiCurrency.iqdAmount <= 0) {
+          setError(t.pleaseProvideValidAmount || 'Please provide a valid amount in at least one currency');
+          return;
+        }
+        
+        const purchaseData = {
+          company_name: companyName.trim(),
+          amount: 0, // Set to 0 for multi-currency, actual amounts are in multi_currency object
+          description: description.trim(),
+          type: 'simple',
+          payment_status: paymentStatus,
+          currency: 'MULTI', // Special indicator for multi-currency
+          multi_currency: {
+            enabled: true,
+            usdAmount: multiCurrency.usdAmount,
+            iqdAmount: multiCurrency.iqdAmount
+          },
+          discount: discount.enabled && discount.value ? {
+            discount_type: discount.type,
+            discount_value: parseFloat(discount.value)
+          } : null
+        };
+
+        await onSubmit(purchaseData);
+      } else {
+        // Single currency validation
+        const amt = parseFloat(simpleAmount);
+        if (!simpleAmount || isNaN(amt) || amt <= 0) {
+          setError(t.pleaseProvideValidAmount || 'Please provide a valid amount greater than 0');
+          return;
+        }
+
+        const purchaseData = {
+          company_name: companyName.trim(),
+          amount: Math.round(amt * 100) / 100,
+          description: description.trim(),
+          type: 'simple',
+          payment_status: paymentStatus,
+          currency: currency, // Keep the exact selected currency (USD or IQD)
+          multi_currency: null,
+          discount: discount.enabled && discount.value ? {
+            discount_type: discount.type,
+            discount_value: parseFloat(discount.value)
+          } : null
+        };
+
+        await onSubmit(purchaseData);
       }
-
-      const purchaseData = {
-        company_name: companyName.trim(),
-        amount: Math.round(amt * 100) / 100,
-        description: description.trim(),
-        type: 'simple',
-        payment_status: paymentStatus
-      };
-
-      await onSubmit(purchaseData);
       
       // Reset form only on successful submission
       setCompanyName('');
@@ -116,7 +189,7 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
       setSimpleAmount('');
       setItems([]);
       setPurchaseType('simple');
-      setPaymentStatus('debt');
+      setPaymentStatus(isCompanyDebtMode ? 'debt' : 'paid');
     } else {
       // Validate items
       if (items.length === 0) {
@@ -176,7 +249,13 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
         description: description.trim(),
         items: processedItems,
         type: 'withItems',
-        payment_status: paymentStatus
+        payment_status: paymentStatus,
+        currency: currency,
+        multi_currency: multiCurrency.enabled ? multiCurrency : null,
+        discount: discount.enabled && discount.value ? {
+          discount_type: discount.type,
+          discount_value: parseFloat(discount.value)
+        } : null
       };
 
       await onSubmit(purchaseData);
@@ -187,7 +266,7 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
       setSimpleAmount('');
       setItems([]);
       setPurchaseType('simple');
-      setPaymentStatus('debt');
+      setPaymentStatus(isCompanyDebtMode ? 'debt' : 'paid');
     }
   };
 
@@ -335,22 +414,130 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
           </div>
         )}
 
+        {/* Currency Selection */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+            {t?.currency || 'Currency'}
+          </label>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => setCurrency('USD')}
+              className={`p-4 rounded-xl border-2 transition-all ${
+                currency === 'USD'
+                  ? 'border-green-500 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300'
+                  : 'border-gray-300 dark:border-gray-600 hover:border-green-300 dark:hover:border-green-500'
+              }`}
+            >
+              <div className="text-center">
+                <div className="text-2xl mb-2">💵</div>
+                <div className="font-semibold">USD ($)</div>
+                <div className="text-sm text-gray-600 dark:text-gray-400">
+                  {t?.usDollars || 'US Dollars'}
+                </div>
+              </div>
+            </button>
+            <button
+              type="button"
+              onClick={() => setCurrency('IQD')}
+              className={`p-4 rounded-xl border-2 transition-all ${
+                currency === 'IQD'
+                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
+                  : 'border-gray-300 dark:border-gray-600 hover:border-blue-300 dark:hover:border-blue-500'
+              }`}
+            >
+              <div className="text-center">
+                <div className="text-2xl mb-2">🪙</div>
+                <div className="font-semibold">IQD (د.ع)</div>
+                <div className="text-sm text-gray-600 dark:text-gray-400">
+                  {t?.iraqiDinars || 'Iraqi Dinars'}
+                </div>
+              </div>
+            </button>
+          </div>
+        </div>
+
         {/* Simple Purchase Amount */}
         {purchaseType === 'simple' && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              {t?.amount || 'Amount'} *
-            </label>
-            <input
-              className="w-full border rounded-lg px-4 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="0.00"
-              value={simpleAmount}
-              onChange={e => setSimpleAmount(e.target.value)}
-              type="number"
-              min="0.01"
-              step="0.01"
-              required={purchaseType === 'simple'}
-            />
+          <div className="space-y-4">
+            {/* Single Currency Amount */}
+            {!multiCurrency.enabled && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  {t?.amount || 'Amount'} ({currency === 'USD' ? '$' : 'د.ع'}) *
+                </label>
+                <div className="relative">
+                  <input
+                    className="w-full border rounded-lg px-4 py-2 pl-8 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="0.00"
+                    value={simpleAmount}
+                    onChange={e => setSimpleAmount(e.target.value)}
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    required={purchaseType === 'simple' && !multiCurrency.enabled}
+                  />
+                  <span className="absolute left-2 top-2 text-gray-600 dark:text-gray-400">
+                    {currency === 'USD' ? '$' : 'د.ع'}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Multi-Currency Payment Toggle */}
+            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
+              <div className="flex justify-between items-center mb-3">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {t?.multiCurrencyPayment || 'Multi-Currency Payment'}
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setMultiCurrency(prev => ({ ...prev, enabled: !prev.enabled }))}
+                  className={`px-3 py-1 rounded text-sm transition-colors ${
+                    multiCurrency.enabled
+                      ? 'bg-green-500 text-white'
+                      : 'bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-300'
+                  }`}
+                >
+                  {multiCurrency.enabled ? (t?.enabled || 'Enabled') : (t?.disabled || 'Disabled')}
+                </button>
+              </div>
+              
+              {multiCurrency.enabled && (
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm text-gray-600 dark:text-gray-300 mb-1">
+                      {t?.usdAmount || 'USD Amount'}
+                    </label>
+                    <input
+                      type="number"
+                      value={multiCurrency.usdAmount}
+                      onChange={(e) => setMultiCurrency(prev => ({ ...prev, usdAmount: Number(e.target.value) || 0 }))}
+                      placeholder="0"
+                      className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-600 dark:text-gray-300 mb-1">
+                      {t?.iqdAmount || 'IQD Amount'}
+                    </label>
+                    <input
+                      type="number"
+                      value={multiCurrency.iqdAmount}
+                      onChange={(e) => setMultiCurrency(prev => ({ ...prev, iqdAmount: Number(e.target.value) || 0 }))}
+                      placeholder="0"
+                      className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
+                    />
+                  </div>
+                  <div className="text-sm text-gray-600 dark:text-gray-300">
+                    {t?.totalAmount || 'Total Amount'}: {currency === 'USD' 
+                      ? `$${(multiCurrency.usdAmount + (multiCurrency.iqdAmount / 1440)).toFixed(2)}`
+                      : `د.ع${(multiCurrency.iqdAmount + (multiCurrency.usdAmount * 1440)).toFixed(2)}`
+                    }
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -551,21 +738,158 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
                     {t?.itemTotal || 'Item Total'}: 
                   </span>
                   <span className="ml-2 font-bold text-green-600 dark:text-green-400">
-                    ${((parseInt(item.quantity) || 0) * (parseFloat(item.unit_price) || 0)).toFixed(2)}
+                    {currency === 'USD' ? '$' : 'د.ع'}{((parseInt(item.quantity) || 0) * (parseFloat(item.unit_price) || 0)).toFixed(2)}
                   </span>
                 </div>
               </div>
             ))}
 
+            {/* Discount Section */}
+            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
+              <div className="flex items-center justify-between mb-3">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {t?.discount || 'Discount'}
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setDiscount(prev => ({ ...prev, enabled: !prev.enabled }))}
+                  className="text-blue-600 hover:text-blue-700 text-sm font-medium"
+                >
+                  {discount.enabled ? '−' : '+'}
+                </button>
+              </div>
+              
+              {discount.enabled && (
+                <div className="space-y-3">
+                  {/* Discount Type */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setDiscount(prev => ({ ...prev, type: 'percentage' }))}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        discount.type === 'percentage'
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-500'
+                      }`}
+                    >
+                      % {t?.percentage || 'Percentage'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDiscount(prev => ({ ...prev, type: 'amount' }))}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        discount.type === 'amount'
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-500'
+                      }`}
+                    >
+                      {currency === 'USD' ? '$' : 'د.ع'} {t?.amount || 'Amount'}
+                    </button>
+                  </div>
+                  
+                  {/* Discount Value */}
+                  <input
+                    type="number"
+                    value={discount.value}
+                    onChange={(e) => setDiscount(prev => ({ ...prev, value: e.target.value }))}
+                    placeholder={discount.type === 'percentage' ? '10' : '50'}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    min="0"
+                    max={discount.type === 'percentage' ? '100' : undefined}
+                  />
+                  
+                  {discount.value && (
+                    <div className="text-sm text-gray-600 dark:text-gray-400">
+                      {discount.type === 'percentage' 
+                        ? `${discount.value}% discount` 
+                        : `${currency === 'USD' ? '$' : 'د.ع'}${discount.value} discount`
+                      }
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Multi-Currency Payment */}
+            {paymentStatus === 'paid' && (
+              <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
+                <div className="flex justify-between items-center mb-3">
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {t.multiCurrencyPayment}
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setMultiCurrency(prev => ({ ...prev, enabled: !prev.enabled }))}
+                    className={`px-3 py-1 rounded text-sm transition-colors ${
+                      multiCurrency.enabled
+                        ? 'bg-green-500 text-white'
+                        : 'bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-300'
+                    }`}
+                  >
+                    {multiCurrency.enabled ? t.enabled : t.disabled}
+                  </button>
+                </div>
+                
+                {multiCurrency.enabled && (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-sm text-gray-600 dark:text-gray-300 mb-1">
+                        {t.usdAmount}
+                      </label>
+                      <input
+                        type="number"
+                        value={multiCurrency.usdAmount}
+                        onChange={(e) => setMultiCurrency(prev => ({ ...prev, usdAmount: Number(e.target.value) || 0 }))}
+                        placeholder="0"
+                        className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm text-gray-600 dark:text-gray-300 mb-1">
+                        {t.iqdAmount}
+                      </label>
+                      <input
+                        type="number"
+                        value={multiCurrency.iqdAmount}
+                        onChange={(e) => setMultiCurrency(prev => ({ ...prev, iqdAmount: Number(e.target.value) || 0 }))}
+                        placeholder="0"
+                        className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
+                      />
+                    </div>
+                    <div className="text-sm text-gray-600 dark:text-gray-300">
+                      {t.totalPaid}: {currency === 'USD' 
+                        ? `$${(multiCurrency.usdAmount + (multiCurrency.iqdAmount / 1440)).toFixed(2)}`
+                        : `د.ع${(multiCurrency.iqdAmount + (multiCurrency.usdAmount * 1440)).toFixed(2)}`
+                      }
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Total Amount */}
-            {items.length > 0 && (
+            {(items.length > 0 || (purchaseType === 'simple' && (simpleAmount || multiCurrency.enabled))) && (
               <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4">
                 <div className="flex justify-between items-center">
                   <span className="text-lg font-semibold text-gray-800 dark:text-gray-200">
                     {t?.totalAmount || 'Total Amount'}:
                   </span>
                   <span className="text-xl font-bold text-blue-600 dark:text-blue-400">
-                    ${calculateTotal().toFixed(2)}
+                    {purchaseType === 'simple' && multiCurrency.enabled ? (
+                      <div className="text-right">
+                        {multiCurrency.usdAmount > 0 && (
+                          <div className="text-sm">USD: ${multiCurrency.usdAmount.toFixed(2)}</div>
+                        )}
+                        {multiCurrency.iqdAmount > 0 && (
+                          <div className="text-sm">IQD: د.ع{multiCurrency.iqdAmount.toFixed(2)}</div>
+                        )}
+                        <div className="border-t pt-1">
+                          {currency === 'USD' ? '$' : 'د.ع'}{calculateTotal().toFixed(2)}
+                        </div>
+                      </div>
+                    ) : (
+                      `${currency === 'USD' ? '$' : 'د.ع'}${calculateTotal().toFixed(2)}`
+                    )}
                   </span>
                 </div>
               </div>

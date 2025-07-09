@@ -38,11 +38,12 @@ contextBridge.exposeInMainWorld('api', {
   addCompanyDebt: (debt) => ipcRenderer.invoke('addCompanyDebt', debt),
   addCompanyDebtWithItems: (data) => ipcRenderer.invoke('addCompanyDebtWithItems', data),
   getCompanyDebtItems: (debtId) => ipcRenderer.invoke('getCompanyDebtItems', debtId),
-  markCompanyDebtPaid: (id, paid_at) => ipcRenderer.invoke('markCompanyDebtPaid', id, paid_at),
+  markCompanyDebtPaid: (id, paid_at, multiCurrency) => ipcRenderer.invoke('markCompanyDebtPaid', id, paid_at, multiCurrency),
   
   // Buying history functionality
   getBuyingHistory: () => ipcRenderer.invoke('getBuyingHistory'),
   getBuyingHistoryWithItems: () => ipcRenderer.invoke('getBuyingHistoryWithItems'),
+  getBuyingHistoryWithTransactions: () => ipcRenderer.invoke('getBuyingHistoryWithTransactions'),
   
   // Direct purchase functionality
   addDirectPurchase: (purchaseData) => ipcRenderer.invoke('addDirectPurchase', purchaseData),
@@ -91,4 +92,20 @@ contextBridge.exposeInMainWorld('api', {
   // Buying History Return functionality
   returnBuyingHistoryEntry: (entryId) => ipcRenderer.invoke('returnBuyingHistoryEntry', entryId),
   returnBuyingHistoryItem: (entryId, itemId, quantity) => ipcRenderer.invoke('returnBuyingHistoryItem', entryId, itemId, quantity),
+  
+  // Balance and Dashboard functionality
+  getBalances: () => ipcRenderer.invoke('getBalances'),
+  getDashboardData: () => ipcRenderer.invoke('getDashboardData'),
+  getMonthlyDashboardData: (month, year) => ipcRenderer.invoke('getMonthlyDashboardData', month, year),
+  recalculateBalances: () => ipcRenderer.invoke('recalculateBalances'),
+  getTransactions: (limit) => ipcRenderer.invoke('getTransactions', limit),
+  
+  // Personal Loan functionality
+  addPersonalLoan: (loanData) => ipcRenderer.invoke('addPersonalLoan', loanData),
+  getPersonalLoans: () => ipcRenderer.invoke('getPersonalLoans'),
+  markPersonalLoanPaid: (id, paid_at) => ipcRenderer.invoke('markPersonalLoanPaid', id, paid_at),
+  
+  // Discount functionality
+  addDiscount: (discountData) => ipcRenderer.invoke('addDiscount', discountData),
+  getDiscounts: (transaction_type, reference_id) => ipcRenderer.invoke('getDiscounts', transaction_type, reference_id),
 });

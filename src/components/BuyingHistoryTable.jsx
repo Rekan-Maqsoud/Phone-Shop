@@ -1,30 +1,59 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import HistorySearchFilter from './HistorySearchFilter';
 import ConfirmModal from './ConfirmModal';
 
 // Enhanced table for buying history with item details support
 export default function BuyingHistoryTable({ buyingHistory, t, onAddPurchase, refreshBuyingHistory }) {
   const [expandedEntries, setExpandedEntries] = useState(new Set());
-  const [filteredHistory, setFilteredHistory] = useState(buyingHistory || []);
+  const [filteredHistory, setFilteredHistory] = useState([]);
   const [totals, setTotals] = useState(null);
   const [showReturnModal, setShowReturnModal] = useState(false);
   const [returnModalData, setReturnModalData] = useState(null);
   const [confirmModal, setConfirmModal] = useState(null);
 
-  // Calculate totals for filtered buying history
-  const calculateTotals = (historyData) => {
-    let totalAmount = 0;
+  // Update filtered history when buyingHistory changes
+  useEffect(() => {
+    setFilteredHistory(buyingHistory || []);
+  }, [buyingHistory]);
+
+  // Calculate totals for filtered buying history by currency
+  const calculateTotals = useCallback((historyData) => {
+    let totalAmountUSD = 0;
+    let totalAmountIQD = 0;
     let totalEntries = historyData.length;
 
     historyData.forEach(entry => {
-      totalAmount += entry.amount || 0;
+      const currency = entry.currency || 'USD';
+      const amount = entry.total_price || entry.amount || 0;
+      
+      if (currency === 'USD') {
+        totalAmountUSD += amount;
+      } else {
+        totalAmountIQD += amount;
+      }
     });
 
     return {
-      totalRevenue: totalAmount, // For buying history, this represents total spent
+      totalRevenueUSD: totalAmountUSD, // For buying history, this represents total spent in USD
+      totalRevenueIQD: totalAmountIQD, // For buying history, this represents total spent in IQD
       totalSales: totalEntries // Total number of purchases
     };
-  };
+  }, []);
+
+  // Extract brand from buying history entry
+  const getBrandFromBuyingHistory = useCallback((item) => {
+    // Check items array first
+    if (item.items && Array.isArray(item.items)) {
+      const brands = item.items
+        .map(historyItem => historyItem.brand)
+        .filter(brand => brand && brand.trim())
+        .join(', ');
+      if (brands) return brands;
+    }
+    
+    // Fallback to direct brand property
+    return item.brand || null;
+  }, []);
 
   // Handle filtered data change from search component - wrapped with useCallback to prevent infinite re-renders
   const handleFilteredDataChange = useCallback((filtered, calculatedTotals) => {
@@ -47,7 +76,7 @@ export default function BuyingHistoryTable({ buyingHistory, t, onAddPurchase, re
     setConfirmModal({
       isOpen: true,
       title: t?.returnEntry || 'Return Purchase',
-      message: t?.confirmReturnEntry || `Are you sure you want to return this purchase? You will get back $${amount.toFixed(2)}`,
+      message: t?.confirmReturnEntry || `Are you sure you want to return this purchase? You will get back ${(entryId.currency === 'USD' ? '$' : 'د.ع')}${amount.toFixed(2)}`,
       onConfirm: async () => {
         try {
           const result = await window.api.returnBuyingHistoryEntry(entryId);
@@ -177,11 +206,13 @@ export default function BuyingHistoryTable({ buyingHistory, t, onAddPurchase, re
         data={buyingHistory || []}
         onFilteredDataChange={handleFilteredDataChange}
         t={t}
-        searchFields={['company_name', 'description']}
-        dateField="paid_at"
+        searchFields={['supplier', 'item_name', 'company_name', 'description']}
+        dateField="date"
         showNameSearch={true}
         showTotals={true}
         calculateTotals={calculateTotals}
+        showBrandFilter={true}
+        getBrandFromItem={getBrandFromBuyingHistory}
       />
 
       {/* Main Table */}
@@ -192,6 +223,7 @@ export default function BuyingHistoryTable({ buyingHistory, t, onAddPurchase, re
               <tr>
                 <th className="px-6 py-4 text-right font-bold">{t?.date || 'Date'}</th>
                 <th className="px-6 py-4 text-right font-bold">{t?.companyName || 'Company'}</th>
+                <th className="px-6 py-4 text-right font-bold">{t?.currency || 'Currency'}</th>
                 <th className="px-6 py-4 text-right font-bold">{t?.amount || 'Amount'}</th>
                 <th className="px-6 py-4 text-right font-bold">{t?.description || 'Description'}</th>
                 <th className="px-6 py-4 text-right font-bold">{t?.items || 'Items'}</th>
@@ -199,28 +231,40 @@ export default function BuyingHistoryTable({ buyingHistory, t, onAddPurchase, re
               </tr>
             </thead>
             <tbody>
-              {filteredHistory.map((entry, idx) => (
+              {filteredHistory.length === 0 ? (
+                <tr>
+                  <td colSpan="7" className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
+                    {t?.noPurchasesFound || 'No purchases found'}
+                  </td>
+                </tr>
+              ) : (
+                filteredHistory.map((entry, idx) => (
                 <React.Fragment key={entry.id || idx}>
                   <tr className={`border-b dark:border-gray-700 ${idx % 2 === 0 ? 'bg-gray-50 dark:bg-gray-900/50' : 'bg-white dark:bg-gray-800/50'} hover:bg-blue-50 dark:hover:bg-cyan-900/20 transition-colors`}>
                     <td className="px-6 py-4">
                       <div className="text-sm text-gray-600 dark:text-gray-400">
-                        {entry.paid_at ? new Date(entry.paid_at).toLocaleDateString() : '-'}
+                        {entry.date ? new Date(entry.date).toLocaleDateString() : '-'}
                       </div>
                       <div className="text-xs text-gray-500 dark:text-gray-500">
-                        {entry.paid_at ? new Date(entry.paid_at).toLocaleTimeString() : ''}
+                        {entry.date ? new Date(entry.date).toLocaleTimeString() : ''}
                       </div>
                     </td>
                     <td className="px-6 py-4 font-medium text-gray-900 dark:text-gray-100">
-                      {entry.company_name ? entry.company_name.charAt(0).toUpperCase() + entry.company_name.slice(1).toLowerCase() : '-'}
-                    </td>
-                    <td className="px-6 py-4 text-blue-600 dark:text-blue-400 font-bold">
-                      ${entry.amount?.toFixed(2) || '-'}
-                    </td>
-                    <td className="px-6 py-4 text-gray-700 dark:text-gray-300">
-                      {entry.description || '-'}
+                      {(entry.supplier || entry.company_name || '-').toString().charAt(0).toUpperCase() + (entry.supplier || entry.company_name || '-').toString().slice(1).toLowerCase()}
                     </td>
                     <td className="px-6 py-4">
-                      {entry.has_items ? (
+                      <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                        {entry.currency || 'USD'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-blue-600 dark:text-blue-400 font-bold">
+                      {(entry.currency === 'USD' ? '$' : 'د.ع')}{(entry.total_price || entry.amount || 0).toFixed(2)}
+                    </td>
+                    <td className="px-6 py-4 text-gray-700 dark:text-gray-300">
+                      {entry.item_name || entry.description || '-'}
+                    </td>
+                    <td className="px-6 py-4">
+                      {!!entry.has_items ? (
                         <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
                           📦 {t?.withItems || 'With Items'}
                         </span>
@@ -232,7 +276,7 @@ export default function BuyingHistoryTable({ buyingHistory, t, onAddPurchase, re
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex gap-2">
-                        {entry.has_items && (
+                        {!!entry.has_items && (
                           <button
                             onClick={() => toggleExpanded(entry.id)}
                             className="px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm"
@@ -252,7 +296,7 @@ export default function BuyingHistoryTable({ buyingHistory, t, onAddPurchase, re
                   </tr>
                   
                   {/* Expanded row for items */}
-                  {entry.has_items && expandedEntries.has(entry.id) && entry.items && (
+                  {!!entry.has_items && expandedEntries.has(entry.id) && entry.items && (
                     <tr className="bg-blue-50 dark:bg-blue-900/20">
                       <td colSpan="6" className="px-6 py-4">
                         <div className="space-y-3">
@@ -317,7 +361,7 @@ export default function BuyingHistoryTable({ buyingHistory, t, onAddPurchase, re
                     </tr>
                   )}
                 </React.Fragment>
-              ))}
+              )))}
             </tbody>
           </table>
         </div>

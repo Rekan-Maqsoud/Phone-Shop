@@ -25,22 +25,28 @@ const MonthlyReportsSection = ({
             return d.getMonth() + 1 === month && d.getFullYear() === year;
           });
         }
-        // Helper to get total spending for a given month/year
+        // Helper to get total spending for a given month/year by currency
         function getTotalSpentForMonth(month, year) {
           // Use buying history to get actual cash spending for the month
           // This avoids double-counting inventory costs
-          let totalSpent = 0;
+          let totalSpentUSD = 0;
+          let totalSpentIQD = 0;
           if (admin.buyingHistory) {
             admin.buyingHistory.forEach(entry => {
               if (entry.paid_at) {
                 const paidDate = new Date(entry.paid_at);
                 if (paidDate.getMonth() + 1 === month && paidDate.getFullYear() === year) {
-                  totalSpent += entry.amount || 0;
+                  const currency = entry.currency || 'USD';
+                  if (currency === 'USD') {
+                    totalSpentUSD += entry.amount || 0;
+                  } else {
+                    totalSpentIQD += entry.amount || 0;
+                  }
                 }
               }
             });
           }
-          return totalSpent;
+          return { totalSpentUSD, totalSpentIQD };
         }
 
         return (
@@ -50,22 +56,35 @@ const MonthlyReportsSection = ({
               const sales = getSalesForMonth(report.month, report.year);
               let totalProductsSold = 0;
               let totalAccessoriesSold = 0;
-              let productProfit = 0;
-              let accessoryProfit = 0;
+              let productProfitUSD = 0;
+              let productProfitIQD = 0;
+              let accessoryProfitUSD = 0;
+              let accessoryProfitIQD = 0;
               sales.forEach(sale => {
+                const currency = sale.currency || 'USD';
                 (sale.items || []).forEach(item => {
+                  const profit = (item.profit || ((item.price || 0) - (item.buying_price || 0))) * (item.quantity || 1);
                   if (item.is_accessory) {
                     totalAccessoriesSold += item.quantity || 1;
-                    accessoryProfit += (item.profit);
+                    if (currency === 'USD') {
+                      accessoryProfitUSD += profit;
+                    } else {
+                      accessoryProfitIQD += profit;
+                    }
                   } else {
                     totalProductsSold += item.quantity || 1;
-                    productProfit += (item.profit || ((item.price || 0) - (item.buying_price || 0))) * (item.quantity || 1);
+                    if (currency === 'USD') {
+                      productProfitUSD += profit;
+                    } else {
+                      productProfitIQD += profit;
+                    }
                   }
                 });
               });
-              const totalProfit = productProfit + accessoryProfit;
+              const totalProfitUSD = productProfitUSD + accessoryProfitUSD;
+              const totalProfitIQD = productProfitIQD + accessoryProfitIQD;
               const totalTransactions = sales.length;
-              const actualTotalSpent = getTotalSpentForMonth(report.month, report.year);
+              const { totalSpentUSD, totalSpentIQD } = getTotalSpentForMonth(report.month, report.year);
               
               return (
                 <div key={report.id} className="bg-white/60 dark:bg-gray-800/80 rounded-2xl shadow p-6 border border-white/20">
@@ -82,8 +101,12 @@ const MonthlyReportsSection = ({
                   </div>
                   <div className="space-y-2">
                     <div className="flex justify-between">
-                      <span className="text-gray-600 dark:text-gray-400">{t.sales || 'Sales'}:</span>
-                      <span className="font-bold text-blue-600 dark:text-blue-400">${report.total_sales}</span>
+                      <span className="text-gray-600 dark:text-gray-400">{t.salesUSD || 'Sales USD'}:</span>
+                      <span className="font-bold text-blue-600 dark:text-blue-400">${(report.total_sales_usd || 0).toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600 dark:text-gray-400">{t.salesIQD || 'Sales IQD'}:</span>
+                      <span className="font-bold text-blue-600 dark:text-blue-400">د.ع{(report.total_sales_iqd || 0).toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600 dark:text-gray-400">{t.totalTransactions || 'Total Transactions'}:</span>
@@ -98,20 +121,20 @@ const MonthlyReportsSection = ({
                       <span className="font-bold text-pink-600 dark:text-pink-400">{totalAccessoriesSold}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-600 dark:text-gray-400">{t.productProfit || 'Product Profit'}:</span>
-                      <span className="font-bold text-green-600 dark:text-green-400">${Number(productProfit).toFixed(2)}</span>
+                      <span className="text-gray-600 dark:text-gray-400">{t.profitUSD || 'Profit USD'}:</span>
+                      <span className="font-bold text-green-600 dark:text-green-400">${Number(totalProfitUSD).toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-600 dark:text-gray-400">{t.accessoryProfit || 'Accessory Profit'}:</span>
-                      <span className="font-bold text-green-600 dark:text-green-400">${Number(accessoryProfit).toFixed(2)}</span>
+                      <span className="text-gray-600 dark:text-gray-400">{t.profitIQD || 'Profit IQD'}:</span>
+                      <span className="font-bold text-green-600 dark:text-green-400">د.ع{Number(totalProfitIQD).toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-600 dark:text-gray-400">{t.totalProfit || 'Total Profit'}:</span>
-                      <span className="font-bold text-emerald-600 dark:text-emerald-400">${Number(totalProfit).toFixed(2)}</span>
+                      <span className="text-gray-600 dark:text-gray-400">{t.spentUSD || 'Spent USD'}:</span>
+                      <span className="font-bold text-red-600 dark:text-red-400">${Number(totalSpentUSD).toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-600 dark:text-gray-400">{t.totalSpent || 'Total Spent'}:</span>
-                      <span className="font-bold text-red-600 dark:text-red-400">${Number(actualTotalSpent).toFixed(2)}</span>
+                      <span className="text-gray-600 dark:text-gray-400">{t.spentIQD || 'Spent IQD'}:</span>
+                      <span className="font-bold text-red-600 dark:text-red-400">د.ع{Number(totalSpentIQD).toFixed(2)}</span>
                     </div>
                   </div>
                 </div>

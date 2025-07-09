@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useData } from '../contexts/DataContext';
 import { getAccessoryEmoji } from '../utils/accessoryUtils';
+import QuickAddAccessory from './QuickAddAccessory';
 
 const AccessoriesSection = ({ 
   t, 
@@ -44,17 +45,11 @@ const AccessoriesSection = ({
   
   return (
     <div className="space-y-6">
+      {/* Quick Add Form */}
+      <QuickAddAccessory t={t} onAdd={admin.handleAddAccessory} loading={loading} />
+      
       <div className="flex flex-col md:flex-row gap-4 items-center justify-between mb-6">
         <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100">{t.accessories}</h2>
-        <button
-          onClick={() => {
-            admin.setEditAccessory(null);
-            admin.setShowAccessoryModal(true);
-          }}
-          className="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl font-semibold shadow-lg hover:scale-105 hover:from-emerald-600 hover:to-green-600 transition-all duration-200"
-        >
-          {t.addAccessory}
-        </button>
       </div>
       
       {/* Search and Filter Controls */}
@@ -160,6 +155,7 @@ const AccessoriesSection = ({
                   <th className="px-6 py-4 text-left font-bold">{t.name}</th>
                   <th className="px-6 py-4 text-left font-bold">{t.brand || 'Brand'}</th>
                   <th className="px-6 py-4 text-left font-bold">{t.type || 'Type'}</th>
+                  <th className="px-6 py-4 text-left font-bold">{t.currency || 'Currency'}</th>
                   <th className="px-6 py-4 text-left font-bold">{t.buyingPrice || 'Cost'}</th>
                   <th className="px-6 py-4 text-left font-bold">{t.stock}</th>
                   <th className="px-6 py-4 text-center font-bold">{t.actions}</th>
@@ -176,7 +172,12 @@ const AccessoriesSection = ({
                     </td>
                     <td className="px-6 py-4 text-gray-700 dark:text-gray-300">{accessory.brand || '-'}</td>
                     <td className="px-6 py-4 text-gray-700 dark:text-gray-300">{accessory.type || '-'}</td>
-                    <td className="px-6 py-4 text-blue-600 dark:text-blue-400 font-semibold">${Number(accessory.buying_price || 0).toFixed(2)}</td>
+                    <td className="px-6 py-4">
+                      <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                        {accessory.currency || 'USD'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-blue-600 dark:text-blue-400 font-semibold">{(accessory.currency === 'USD' ? '$' : 'د.ع')}{Number(accessory.buying_price || 0).toFixed(2)}</td>
                     <td className="px-6 py-4">
                       <span className={`px-2 py-1 rounded-full text-sm font-medium ${
                         accessory.stock <= 2 ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
@@ -188,15 +189,6 @@ const AccessoriesSection = ({
                     </td>
                     <td className="px-6 py-4 text-center">
                       <div className="flex gap-2 justify-center">
-                        <button
-                          onClick={() => {
-                            admin.setEditAccessory(accessory);
-                            admin.setShowAccessoryModal(true);
-                          }}
-                          className="px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm"
-                        >
-                          {t.edit}
-                        </button>
                         <button
                           onClick={() => handleArchiveToggle(accessory, true)}
                           className="px-3 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-sm"

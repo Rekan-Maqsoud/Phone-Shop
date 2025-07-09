@@ -1,0 +1,128 @@
+// Sales management functions
+
+function getSales(db) {
+  const stmt = db.prepare(`
+    SELECT sales.*, 
+           COUNT(sale_items.id) as item_count,
+           GROUP_CONCAT(sale_items.name || ' x' || sale_items.quantity) as items_summary
+    FROM sales 
+    LEFT JOIN sale_items ON sales.id = sale_items.sale_id 
+    GROUP BY sales.id 
+    ORDER BY sales.created_at DESC
+  `);
+  
+  const sales = stmt.all();
+  
+  // Get items for each sale with detailed info
+  const saleItemsStmt = db.prepare(`
+    SELECT si.*, 
+      p.name as product_name, p.ram, p.storage, p.model, p.category,
+      a.name as accessory_name, a.type as accessory_type
+    FROM sale_items si
+    LEFT JOIN products p ON si.product_id = p.id AND si.is_accessory = 0
+    LEFT JOIN accessories a ON si.product_id = a.id AND si.is_accessory = 1
+    WHERE si.sale_id = ?
+  `);
+  
+  return sales.map(sale => {
+    const items = saleItemsStmt.all(sale.id);
+    
+    // Add multi-currency payment info if available
+    const multi_currency = sale.is_multi_currency ? {
+      usdAmount: sale.paid_amount_usd || 0,
+      iqdAmount: sale.paid_amount_iqd || 0
+    } : null;
+    
+    return {
+      ...sale,
+      items,
+      multi_currency
+    };
+  });
+}
+
+function getSaleById(db, id) {
+  return db.prepare('SELECT * FROM sales WHERE id = ?').get(id);
+}
+
+function getSaleItems(db, saleId) {
+  return db.prepare('SELECT * FROM sale_items WHERE sale_id = ?').all(saleId);
+}
+
+function addSale(db, { total, customer_name, is_debt = 0, currency = 'IQD', paid_amount_usd = 0, paid_amount_iqd = 0, is_multi_currency = 0 }) {
+  const now = new Date().toISOString();
+  return db.prepare('INSERT INTO sales (created_at, total, customer_name, is_debt, currency, paid_amount_usd, paid_amount_iqd, is_multi_currency) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+    .run(now, total, customer_name, is_debt, currency, paid_amount_usd, paid_amount_iqd, is_multi_currency);
+}
+
+function addSaleItem(db, { sale_id, product_id, quantity, price, buying_price = 0, profit = 0, is_accessory = 0, name, currency = 'IQD' }) {
+  return db.prepare('INSERT INTO sale_items (sale_id, product_id, quantity, price, buying_price, profit, is_accessory, name, currency) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    .run(sale_id, product_id, quantity, price, buying_price, profit, is_accessory, name, currency);
+}
+
+function deleteSale(db, id) {
+  const deleteItems = db.prepare('DELETE FROM sale_items WHERE sale_id = ?');
+  const deleteSale = db.prepare('DELETE FROM sales WHERE id = ?');
+  
+  const transaction = db.transaction(() => {
+    deleteItems.run(id);
+    deleteSale.run(id);
+  });
+  
+  return transaction();
+}
+
+function getSalesInDateRange(db, startDate, endDate) {
+  const stmt = db.prepare(`
+    SELECT sales.*, 
+           GROUP_CONCAT(sale_items.name || ' x' || sale_items.quantity) as items_summary
+    FROM sales 
+    LEFT JOIN sale_items ON sales.id = sale_items.sale_id 
+    WHERE DATE(sales.created_at) BETWEEN ? AND ?
+    GROUP BY sales.id 
+    ORDER BY sales.created_at DESC
+  `);
+  return stmt.all(startDate, endDate);
+}
+
+function getTotalSalesForPeriod(db, startDate, endDate) {
+  const stmt = db.prepare(`
+    SELECT 
+      currency,
+      SUM(total) as total_sales,
+      COUNT(*) as transaction_count
+    FROM sales 
+    WHERE DATE(created_at) BETWEEN ? AND ?
+    GROUP BY currency
+  `);
+  return stmt.all(startDate, endDate);
+}
+
+function getSalesReport(db, startDate, endDate) {
+  const stmt = db.prepare(`
+    SELECT 
+      sale_items.name,
+      SUM(sale_items.quantity) as total_quantity,
+      SUM(sale_items.price * sale_items.quantity) as total_revenue,
+      SUM(sale_items.profit * sale_items.quantity) as total_profit,
+      sale_items.currency
+    FROM sale_items
+    JOIN sales ON sale_items.sale_id = sales.id
+    WHERE DATE(sales.created_at) BETWEEN ? AND ?
+    GROUP BY sale_items.name, sale_items.currency
+    ORDER BY total_revenue DESC
+  `);
+  return stmt.all(startDate, endDate);
+}
+
+module.exports = {
+  getSales,
+  getSaleById,
+  getSaleItems,
+  addSale,
+  addSaleItem,
+  deleteSale,
+  getSalesInDateRange,
+  getTotalSalesForPeriod,
+  getSalesReport
+};
