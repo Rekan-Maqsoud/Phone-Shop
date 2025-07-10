@@ -711,7 +711,7 @@ export default function CashierContent({
                         {suggestion.name}
                       </div>
                       <div className="text-sm text-slate-600 dark:text-slate-300">
-                        {formatCurrency(suggestion.price, suggestion.currency || 'USD')} - {t.stock}: {suggestion.stock}
+                        {formatCurrency(suggestion.buying_price, suggestion.currency || 'USD')} - {t.stock}: {suggestion.stock}
                       </div>
                     </div>
                   ))}
@@ -855,10 +855,10 @@ export default function CashierContent({
                   <div className="text-base text-slate-700 dark:text-slate-300 font-medium">
                     {formatCurrency(
                       currency === 'IQD' && (item.currency === 'USD' || !item.currency)
-                        ? (item.price || 0) * EXCHANGE_RATES.USD_TO_IQD
+                        ? (item.buying_price || 0) * EXCHANGE_RATES.USD_TO_IQD
                         : currency === 'USD' && item.currency === 'IQD'
-                        ? (item.price || 0) * EXCHANGE_RATES.IQD_TO_USD
-                        : (item.price || 0),
+                        ? (item.buying_price || 0) * EXCHANGE_RATES.IQD_TO_USD
+                        : (item.buying_price || 0),
                       currency
                     )}
                   </div>

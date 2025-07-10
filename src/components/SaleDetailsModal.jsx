@@ -36,7 +36,7 @@ export default function SaleDetailsModal({ sale, t, onClose, onReturnItem }) {
   const accessories = (sale.items || []).filter(i => i.is_accessory);
 
   // Calculate profits
-  const calcProfit = item => ((item.selling_price ?? item.price) - (item.buying_price ?? 0)) * (item.quantity || 1);
+  const calcProfit = item => ((item.selling_price ?? item.buying_price) - (item.buying_price ?? 0)) * (item.quantity || 1);
   const totalProductProfit = products.reduce((sum, i) => sum + calcProfit(i), 0);
   const totalAccessoryProfit = accessories.reduce((sum, i) => sum + calcProfit(i), 0);
   const totalProfit = totalProductProfit + totalAccessoryProfit;
@@ -97,7 +97,7 @@ export default function SaleDetailsModal({ sale, t, onClose, onReturnItem }) {
                         <td className="px-3 py-3 font-medium">{item.name}</td>
                         <td className="px-3 py-3 text-gray-600 dark:text-gray-400">{item.ram || '-'}</td>
                         <td className="px-3 py-3 text-gray-600 dark:text-gray-400">{item.storage || '-'}</td>
-                        <td className="px-3 py-3">{fmt(item.selling_price ?? item.price)}</td>
+                        <td className="px-3 py-3">{fmt(item.selling_price ?? item.buying_price)}</td>
                         <td className="px-3 py-3">{fmt(item.buying_price)}</td>
                         <td className="px-3 py-3">{item.quantity}</td>
                         <td className="px-3 py-3 font-semibold text-green-600 dark:text-green-400">{fmt(calcProfit(item))}</td>
@@ -171,7 +171,7 @@ export default function SaleDetailsModal({ sale, t, onClose, onReturnItem }) {
                         <td className="px-3 py-3">{idx + 1}</td>
                         <td className="px-3 py-3 font-medium">{item.name}</td>
                         <td className="px-3 py-3 text-gray-600 dark:text-gray-400">{item.type || '-'}</td>
-                        <td className="px-3 py-3">{fmt(item.selling_price ?? item.price)}</td>
+                        <td className="px-3 py-3">{fmt(item.selling_price ?? item.buying_price)}</td>
                         <td className="px-3 py-3">{fmt(item.buying_price)}</td>
                         <td className="px-3 py-3">{item.quantity}</td>
                         <td className="px-3 py-3 font-semibold text-green-600 dark:text-green-400">{fmt(calcProfit(item))}</td>

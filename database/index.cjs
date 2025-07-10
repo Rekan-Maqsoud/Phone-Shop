@@ -478,7 +478,12 @@ module.exports = function(dbPath) {
       // --- STOCK CHECK & UPDATE FOR ALL SALES (INCLUDING DEBT) ---
       for (const item of items) {
         // Use itemType from frontend to determine if product or accessory
-        const isAccessory = item.itemType === 'accessory';
+        // Default to 'product' if itemType is not set or use uniqueId pattern as fallback
+        let isAccessory = item.itemType === 'accessory';
+        if (!item.itemType && item.uniqueId && item.uniqueId.startsWith('accessory_')) {
+          isAccessory = true;
+        }
+        
         let product = null;
         let accessory = null;
         
@@ -523,7 +528,12 @@ module.exports = function(dbPath) {
 
       for (const item of items) {
         // Use itemType from frontend to determine if product or accessory
-        const isAccessory = item.itemType === 'accessory';
+        // Default to 'product' if itemType is not set or use uniqueId pattern as fallback
+        let isAccessory = item.itemType === 'accessory';
+        if (!item.itemType && item.uniqueId && item.uniqueId.startsWith('accessory_')) {
+          isAccessory = true;
+        }
+        
         let product = null;
         let accessory = null;
         

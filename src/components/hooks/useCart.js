@@ -11,11 +11,20 @@ export default function useCart(showToast, showConfirm, t = {}) {
       const existing = prevItems.find(item => item.uniqueId === uniqueId && item.isReturn === isReturn);
       const availableStock = product.stock ?? 1;
       
+      // Determine item type from product or uniqueId pattern
+      let itemType = product.itemType;
+      if (!itemType && product.uniqueId) {
+        itemType = product.uniqueId.startsWith('accessory_') ? 'accessory' : 'product';
+      }
+      if (!itemType) {
+        itemType = 'product'; // default fallback
+      }
+      
       // For returns, we don't check stock availability
       if (!isReturn && availableStock === 0) {
         playErrorSound();
         showConfirm(t.stockEmptyIncrement || 'Stock is empty. Do you want to increment the stock by 1?', () => {
-          if (product.itemType === 'accessory') {
+          if (itemType === 'accessory') {
             window.api?.editAccessory && window.api.editAccessory({ ...product, stock: 1 }).then(res => {
               if (res.success) {
                 playSuccessSound();
@@ -52,10 +61,10 @@ export default function useCart(showToast, showConfirm, t = {}) {
             ? { 
                 ...item, 
                 quantity: newTotal,
-                selling_price: product.itemType === 'accessory' 
-                  ? (item.selling_price || product.buying_price || product.price || 0)
-                  : (item.selling_price || Math.round((product.buying_price || product.price || 0) * 1.1 * 100) / 100),
-                buying_price: item.buying_price || product.buying_price || product.price
+                selling_price: itemType === 'accessory' 
+                  ? (item.selling_price || product.buying_price || 0)
+                  : (item.selling_price || Math.round((product.buying_price || 0) * 1.1 * 100) / 100),
+                buying_price: item.buying_price || product.buying_price
               }
             : item
         );
@@ -79,7 +88,7 @@ export default function useCart(showToast, showConfirm, t = {}) {
             name: product.name, // Explicitly set the name
             uniqueId,
             product_id: product.id,
-            itemType: product.itemType || 'product',
+            itemType: itemType, // Ensure itemType is always set
             category: product.category,
             brand: product.brand,
             type: product.type,
@@ -88,13 +97,13 @@ export default function useCart(showToast, showConfirm, t = {}) {
             storage: product.storage,
             currency: product.currency,
             stock: product.stock,
-            buying_price: product.buying_price || product.price,
-            price: product.itemType === 'accessory' 
-              ? (product.buying_price || product.price || 0) 
-              : Math.round((product.buying_price || product.price || 0) * 1.1 * 100) / 100,
-            selling_price: product.itemType === 'accessory' 
-              ? (product.buying_price || product.price || 0) 
-              : Math.round((product.buying_price || product.price || 0) * 1.1 * 100) / 100,
+            buying_price: product.buying_price,
+            price: itemType === 'accessory' 
+              ? (product.buying_price || 0) 
+              : Math.round((product.buying_price || 0) * 1.1 * 100) / 100,
+            selling_price: itemType === 'accessory' 
+              ? (product.buying_price || 0) 
+              : Math.round((product.buying_price || 0) * 1.1 * 100) / 100,
             isReturn,
             quantity: quantity,
           },
@@ -114,7 +123,7 @@ export default function useCart(showToast, showConfirm, t = {}) {
   };
 
   const total = items.reduce((sum, item) => {
-    const sellingPrice = item.selling_price || item.price;
+    const sellingPrice = item.selling_price || item.buying_price;
     const itemTotal = sellingPrice * (item.quantity || 1);
     return sum + (item.isReturn ? -itemTotal : itemTotal);
   }, 0);

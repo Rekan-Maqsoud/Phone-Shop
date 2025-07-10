@@ -57,7 +57,7 @@ const AdminStatsSidebar = ({
       return sum + sale.items.reduce((itemSum, item) => {
         // Ensure profit calculation considers both purchase and sale currencies
         const buyingPrice = item.buying_price || 0;
-        const sellingPrice = item.selling_price || item.price || 0;
+        const sellingPrice = item.selling_price || item.buying_price || 0;
         const quantity = item.quantity || 1;
         
         // Calculate profit in the sale currency
@@ -78,7 +78,7 @@ const AdminStatsSidebar = ({
       return sum + sale.items.reduce((itemSum, item) => {
         // Ensure profit calculation considers both purchase and sale currencies
         const buyingPrice = item.buying_price || 0;
-        const sellingPrice = item.selling_price || item.price || 0;
+        const sellingPrice = item.selling_price || item.buying_price || 0;
         const quantity = item.quantity || 1;
         
         // Calculate profit in the sale currency
@@ -154,7 +154,7 @@ const AdminStatsSidebar = ({
       return sum + sale.items.reduce((itemSum, item) => {
         // Ensure profit calculation considers both purchase and sale currencies
         const buyingPrice = item.buying_price || 0;
-        const sellingPrice = item.selling_price || item.price || 0;
+        const sellingPrice = item.selling_price || item.buying_price || 0;
         const quantity = item.quantity || 1;
         
         // Calculate profit in the sale currency
@@ -180,7 +180,7 @@ const AdminStatsSidebar = ({
       return sum + sale.items.reduce((itemSum, item) => {
         // Ensure profit calculation considers both purchase and sale currencies
         const buyingPrice = item.buying_price || 0;
-        const sellingPrice = item.selling_price || item.price || 0;
+        const sellingPrice = item.selling_price || item.buying_price || 0;
         const quantity = item.quantity || 1;
         
         // Calculate profit in the sale currency

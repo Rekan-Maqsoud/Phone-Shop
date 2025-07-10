@@ -114,7 +114,7 @@ export default function AdvancedAnalytics({ admin, t }) {
       if (sale.items) {
         sale.items.forEach(item => {
           const buyingPrice = item.buying_price || 0;
-          const sellingPrice = item.selling_price || item.price || 0;
+          const sellingPrice = item.selling_price || item.buying_price || 0;
           const quantity = item.quantity || 1;
           
           // Calculate profit correctly
@@ -157,9 +157,9 @@ export default function AdvancedAnalytics({ admin, t }) {
             };
           }
           productPerformance[name].quantity += item.quantity || 1;
-          const revenue = (item.price || 0) * (item.quantity || 1);
+          const revenue = (item.selling_price || item.buying_price || 0) * (item.quantity || 1);
           const buyingPrice = item.buying_price || 0;
-          const sellingPrice = item.selling_price || item.price || 0;
+          const sellingPrice = item.selling_price || item.buying_price || 0;
           const profit = (sellingPrice - buyingPrice) * (item.quantity || 1);
           
           if (sale.currency === 'USD') {
@@ -199,7 +199,7 @@ export default function AdvancedAnalytics({ admin, t }) {
         if (sale.items) {
           sale.items.forEach(item => {
             const buyingPrice = item.buying_price || 0;
-            const sellingPrice = item.selling_price || item.price || 0;
+            const sellingPrice = item.selling_price || item.buying_price || 0;
             const quantity = item.quantity || 1;
             
             // Calculate profit correctly

@@ -63,7 +63,7 @@ const MonthlyReportsSection = ({
               sales.forEach(sale => {
                 const currency = sale.currency || 'USD';
                 (sale.items || []).forEach(item => {
-                  const profit = (item.profit || ((item.price || 0) - (item.buying_price || 0))) * (item.quantity || 1);
+                  const profit = (item.profit || ((item.selling_price || item.buying_price || 0) - (item.buying_price || 0))) * (item.quantity || 1);
                   if (item.is_accessory) {
                     totalAccessoriesSold += item.quantity || 1;
                     if (currency === 'USD') {

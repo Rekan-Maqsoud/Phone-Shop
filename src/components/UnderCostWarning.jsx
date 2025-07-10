@@ -18,7 +18,7 @@ export default function UnderCostWarning({ items, allItems, t, onDismiss, discou
         return false;
       }
       
-      const buyingPrice = product.buying_price || product.price;
+      const buyingPrice = product.buying_price;
       let finalSellingPrice = item.selling_price;
       
       // Apply discount to selling price if discount exists (either from state or parameter)
@@ -78,7 +78,7 @@ export default function UnderCostWarning({ items, allItems, t, onDismiss, discou
     if (underCostItems.length > 0) {
       setBelowCostItems(underCostItems.map(item => {
         const product = allItems.find(p => p.uniqueId === item.uniqueId || p.id === item.product_id);
-        const buyingPrice = product ? (product.buying_price || product.price) : 0;
+        const buyingPrice = product ? product.buying_price : 0;
         let finalSellingPrice = item.selling_price;
         
         // Apply discount to selling price if discount exists (either from state or parameter)

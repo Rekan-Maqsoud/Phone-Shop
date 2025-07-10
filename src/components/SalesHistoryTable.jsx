@@ -41,7 +41,7 @@ export default function SalesHistoryTable({ sales, t, onView, onPrintLast, onRet
         sale.items.forEach(item => {
           const qty = item.quantity || 1;
           const buyingPrice = typeof item.buying_price === 'number' ? item.buying_price : 0;
-          const sellingPrice = typeof item.selling_price === 'number' ? item.selling_price : (typeof item.price === 'number' ? item.price : 0);
+          const sellingPrice = typeof item.selling_price === 'number' ? item.selling_price : (typeof item.buying_price === 'number' ? item.buying_price : 0);
           
           // Assume product was bought in USD (can be enhanced with actual product currency data)
           const productCurrency = item.currency || 'USD';
@@ -141,7 +141,7 @@ export default function SalesHistoryTable({ sales, t, onView, onPrintLast, onRet
       sale.items.forEach(item => {
         const qty = item.quantity || 1;
         const buyingPrice = typeof item.buying_price === 'number' ? item.buying_price : 0;
-        const sellingPrice = typeof item.selling_price === 'number' ? item.selling_price : (typeof item.price === 'number' ? item.price : 0);
+        const sellingPrice = typeof item.selling_price === 'number' ? item.selling_price : (typeof item.buying_price === 'number' ? item.buying_price : 0);
         
         // Determine the product's original currency (assume USD for products unless specified)
         const productCurrency = item.product_currency || 'USD';

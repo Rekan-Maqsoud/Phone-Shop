@@ -25,7 +25,7 @@ export default function ProductSelectModal({ show, options, t, onSelect, onCance
                   <td className="px-2 py-1">{p.model}</td>
                   <td className="px-2 py-1">{p.ram}</td>
                   <td className="px-2 py-1">{p.storage}</td>
-                  <td className="px-2 py-1">${p.price}</td>
+                  <td className="px-2 py-1">${p.buying_price}</td>
                   <td className="px-2 py-1">
                     <button onClick={() => onSelect(p)} className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 transition">{t.select}</button>
                   </td>

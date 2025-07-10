@@ -95,7 +95,7 @@ export default function ProductSearchForm({
                     <div className={`font-bold ${
                       idx === selectedSuggestionIndex ? 'text-white' : 'text-green-600 dark:text-green-400'
                     }`}>
-                      ${p.price || p.buying_price || 0}
+                      ${p.buying_price || 0}
                     </div>
                     <div className={`text-sm ${
                       idx === selectedSuggestionIndex ? 'text-blue-100' : 'text-gray-500'

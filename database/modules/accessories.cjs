@@ -4,7 +4,7 @@ function getAccessories(db) {
   return db.prepare('SELECT * FROM accessories WHERE archived = 0').all();
 }
 
-function addAccessory(db, { name, buying_price, price, stock, archived = 0, brand, model, type, currency = 'IQD' }) {
+function addAccessory(db, { name, buying_price, stock, archived = 0, brand, model, type, currency = 'IQD' }) {
   // Check if accessory with same name, brand, model, and currency already exists
   const existingAccessory = db.prepare('SELECT * FROM accessories WHERE name = ? AND brand = ? AND model = ? AND currency = ? AND archived = 0')
     .get(name, brand || null, model || null, currency);
@@ -12,9 +12,9 @@ function addAccessory(db, { name, buying_price, price, stock, archived = 0, bran
   if (existingAccessory) {
     // Calculate new average buying price
     const currentStock = existingAccessory.stock;
-    const currentBuyingPrice = existingAccessory.buying_price || existingAccessory.price;
+    const currentBuyingPrice = existingAccessory.buying_price;
     const newStock = Number(stock) || 0;
-    const newBuyingPrice = Number(price || buying_price) || 0;
+    const newBuyingPrice = Number(buying_price) || 0;
     
     const totalStock = currentStock + newStock;
     const averageBuyingPrice = totalStock > 0 ? 
@@ -22,23 +22,23 @@ function addAccessory(db, { name, buying_price, price, stock, archived = 0, bran
       newBuyingPrice;
     
     // Update existing accessory with new stock and average buying price
-    return db.prepare('UPDATE accessories SET price=?, buying_price=?, stock=stock+?, type=?, currency=? WHERE id=?')
-      .run(averageBuyingPrice, averageBuyingPrice, newStock, type || existingAccessory.type, currency, existingAccessory.id);
+    return db.prepare('UPDATE accessories SET buying_price=?, stock=stock+?, type=?, currency=? WHERE id=?')
+      .run(averageBuyingPrice, newStock, type || existingAccessory.type, currency, existingAccessory.id);
   } else {
     // Create new accessory
-    return db.prepare('INSERT INTO accessories (name, price, buying_price, stock, archived, brand, model, type, currency) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(name, price || buying_price, price || buying_price, stock, archived, brand || null, model || null, type || null, currency);
+    return db.prepare('INSERT INTO accessories (name, buying_price, stock, archived, brand, model, type, currency) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(name, buying_price, stock, archived, brand || null, model || null, type || null, currency);
   }
 }
 
-function updateAccessory(db, { id, name, buying_price, price, stock, archived = 0, brand, model, type, currency = 'IQD' }) {
-  return db.prepare('UPDATE accessories SET name=?, price=?, buying_price=?, stock=?, archived=?, brand=?, model=?, type=?, currency=? WHERE id=?')
-    .run(name, price || buying_price, price || buying_price, stock, archived, brand || null, model || null, type || null, currency, id);
+function updateAccessory(db, { id, name, buying_price, stock, archived = 0, brand, model, type, currency = 'IQD' }) {
+  return db.prepare('UPDATE accessories SET name=?, buying_price=?, stock=?, archived=?, brand=?, model=?, type=?, currency=? WHERE id=?')
+    .run(name, buying_price, stock, archived, brand || null, model || null, type || null, currency, id);
 }
 
-function updateAccessoryNoArchive(db, { id, name, price, stock, brand, model, type }) {
-  return db.prepare('UPDATE accessories SET name=?, price=?, buying_price=?, stock=?, brand=?, model=?, type=? WHERE id=?')
-    .run(name, price, price, stock, brand || null, model || null, type || null, id);
+function updateAccessoryNoArchive(db, { id, name, buying_price, stock, brand, model, type }) {
+  return db.prepare('UPDATE accessories SET name=?, buying_price=?, stock=?, brand=?, model=?, type=? WHERE id=?')
+    .run(name, buying_price, stock, brand || null, model || null, type || null, id);
 }
 
 function addAccessoryStock(db, id, amount) {

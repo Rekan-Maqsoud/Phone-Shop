@@ -207,7 +207,7 @@ export default function Cashier() {
       if (usdItems.length > 0) {
         const totalUSDValue = usdItems.reduce((sum, item) => {
           const product = allItems.find(p => p.uniqueId === item.uniqueId || p.id === item.product_id);
-          const sellingPriceUSD = item.selling_price || item.price || 0;
+          const sellingPriceUSD = item.selling_price || item.buying_price || 0;
           return sum + (sellingPriceUSD * item.quantity);
         }, 0);
         
@@ -277,6 +277,7 @@ export default function Cashier() {
           return {
             ...item,
             product_id: item.product_id || item.id,
+            itemType: item.itemType || 'product', // Ensure itemType is preserved
           };
         });
         

@@ -315,8 +315,8 @@ export default function useAdmin() {
     .reduce((sum, s) => sum + (s && typeof s.total === 'number' ? s.total : Number(s?.total || 0)), 0);
   const totalRevenue = sales.reduce((sum, s) => sum + (s && typeof s.total === 'number' ? s.total : Number(s?.total || 0)), 0);
   const inventoryValue = products.reduce((sum, p) => {
-    if (!p || typeof p.price !== 'number' || typeof p.stock !== 'number') return sum;
-    return sum + p.price * p.stock;
+    if (!p || typeof p.buying_price !== 'number' || typeof p.stock !== 'number') return sum;
+    return sum + p.buying_price * p.stock;
   }, 0) + accessories.reduce((sum, a) => {
     if (!a || typeof a.buying_price !== 'number' || typeof a.stock !== 'number') return sum;
     return sum + a.buying_price * a.stock;

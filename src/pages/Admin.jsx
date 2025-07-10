@@ -99,8 +99,8 @@ export default function Admin() {
             productSalesMap[item.name] = { quantity: 0, revenue: 0, profit: 0 };
           }
           productSalesMap[item.name].quantity += item.quantity || 1;
-          productSalesMap[item.name].revenue += (item.price || 0) * (item.quantity || 1);
-          productSalesMap[item.name].profit += ((item.price || 0) - (item.buying_price || 0)) * (item.quantity || 1);
+          productSalesMap[item.name].revenue += (item.selling_price || item.buying_price || 0) * (item.quantity || 1);
+          productSalesMap[item.name].profit += ((item.selling_price || item.buying_price || 0) - (item.buying_price || 0)) * (item.quantity || 1);
         });
       }
     });

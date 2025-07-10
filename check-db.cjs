@@ -5,9 +5,15 @@ try {
   console.log('Tables:', db.prepare('SELECT name FROM sqlite_master WHERE type=\'table\'').all());
   
   try {
-    console.log('buying_history schema:', db.prepare('PRAGMA table_info(buying_history)').all());
+    console.log('products schema:', db.prepare('PRAGMA table_info(products)').all());
   } catch(e) {
-    console.log('buying_history error:', e.message);
+    console.log('products error:', e.message);
+  }
+  
+  try {
+    console.log('accessories schema:', db.prepare('PRAGMA table_info(accessories)').all());
+  } catch(e) {
+    console.log('accessories error:', e.message);
   }
   
   db.close();

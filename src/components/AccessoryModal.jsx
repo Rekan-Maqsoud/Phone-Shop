@@ -83,7 +83,7 @@ export default function AccessoryModal({
                 type="number"
                 step="0.01"
                 min="0"
-                defaultValue={accessory?.buying_price || accessory?.price || ''}
+                defaultValue={accessory?.buying_price || ''}
                 className="w-full border rounded-xl px-4 py-3 dark:bg-gray-700 dark:text-gray-100 dark:border-gray-600 bg-white text-gray-900 border-gray-300 focus:outline-none focus:ring-2 focus:ring-green-400 transition"
                 required
               />
