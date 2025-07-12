@@ -81,7 +81,45 @@ export default function Admin() {
         if (!debt || (!debt.paid_at && !debt.paid)) return sum; // Skip unpaid debts - check both fields
       }
       return sum + sale.items.reduce((itemSum, item) => {
-        return itemSum + (item.profit || 0);
+        const quantity = item.quantity || 1;
+        const buyingPrice = item.buying_price || 0;
+        const sellingPrice = item.selling_price || item.buying_price || 0;
+        const productCurrency = item.product_currency || 'IQD';
+        const saleCurrency = sale.currency || 'USD';
+        
+        // CRITICAL FIX: selling_price is stored in product's original currency
+        // Need to convert both prices to sale currency for proper profit calculation
+        let sellingPriceInSaleCurrency = sellingPrice;
+        let buyingPriceInSaleCurrency = buyingPrice;
+        
+        // Get exchange rates from sale or use current rates
+        const saleExchangeRates = sale.exchange_rates || {
+          usd_to_iqd: 1440,
+          iqd_to_usd: 0.000694
+        };
+        
+        // Convert selling price to sale currency if needed
+        if (productCurrency !== saleCurrency) {
+          if (saleCurrency === 'USD' && productCurrency === 'IQD') {
+            sellingPriceInSaleCurrency = sellingPrice * saleExchangeRates.iqd_to_usd;
+          } else if (saleCurrency === 'IQD' && productCurrency === 'USD') {
+            sellingPriceInSaleCurrency = sellingPrice * saleExchangeRates.usd_to_iqd;
+          }
+        }
+        
+        // Convert buying price to sale currency if needed
+        if (productCurrency !== saleCurrency) {
+          if (saleCurrency === 'USD' && productCurrency === 'IQD') {
+            // Convert IQD buying price to USD
+            buyingPriceInSaleCurrency = buyingPrice * saleExchangeRates.iqd_to_usd;
+          } else if (saleCurrency === 'IQD' && productCurrency === 'USD') {
+            // Convert USD buying price to IQD
+            buyingPriceInSaleCurrency = buyingPrice * saleExchangeRates.usd_to_iqd;
+          }
+        }
+        
+        const profit = (sellingPriceInSaleCurrency - buyingPriceInSaleCurrency) * quantity;
+        return itemSum + profit;
       }, 0);
     }, 0);
   }, [sales, debts]);

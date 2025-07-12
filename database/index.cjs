@@ -440,6 +440,12 @@ module.exports = function(dbPath) {
   }
 
   function saveSale({ items, total, created_at, is_debt, customer_name, currency = 'IQD', discount = null, multi_currency = null }) {
+    // Define exchange rates directly to avoid ES module import issues
+    const EXCHANGE_RATES = {
+      USD_TO_IQD: 1440,
+      IQD_TO_USD: 1 / 1440
+    };
+    
     // Use provided total and created_at if available, else calculate
     let saleTotal = typeof total === 'number' ? total : items.reduce((sum, i) => sum + i.price * i.quantity, 0);
     
@@ -455,6 +461,10 @@ module.exports = function(dbPath) {
     
     const saleCreatedAt = created_at || new Date().toISOString();
     const saleIsDebt = is_debt ? 1 : 0;
+    
+    // Store current exchange rates at time of sale
+    const currentUSDToIQD = EXCHANGE_RATES.USD_TO_IQD;
+    const currentIQDToUSD = EXCHANGE_RATES.IQD_TO_USD;
     
     // Handle multi-currency payments
     let paidAmountUSD = 0;
@@ -488,9 +498,9 @@ module.exports = function(dbPath) {
         let accessory = null;
         
         if (isAccessory) {
-          accessory = db.prepare('SELECT stock, name, buying_price FROM accessories WHERE id = ?').get(item.product_id);
+          accessory = db.prepare('SELECT stock, name, buying_price, currency FROM accessories WHERE id = ?').get(item.product_id);
         } else {
-          product = db.prepare('SELECT stock, name, buying_price FROM products WHERE id = ?').get(item.product_id);
+          product = db.prepare('SELECT stock, name, buying_price, currency FROM products WHERE id = ?').get(item.product_id);
         }
         
         const itemData = isAccessory ? accessory : product;
@@ -509,8 +519,8 @@ module.exports = function(dbPath) {
       }
       // --- END STOCK CHECK & UPDATE ---
 
-      // Create the sale record
-      const sale = db.prepare('INSERT INTO sales (total, created_at, is_debt, customer_name, currency, paid_amount_usd, paid_amount_iqd, is_multi_currency) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(saleTotal, saleCreatedAt, saleIsDebt, customer_name || null, currency, paidAmountUSD, paidAmountIQD, isMultiCurrency);
+      // Create the sale record with exchange rates
+      const sale = db.prepare('INSERT INTO sales (total, created_at, is_debt, customer_name, currency, paid_amount_usd, paid_amount_iqd, is_multi_currency, exchange_rate_usd_to_iqd, exchange_rate_iqd_to_usd) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(saleTotal, saleCreatedAt, saleIsDebt, customer_name || null, currency, paidAmountUSD, paidAmountIQD, isMultiCurrency, currentUSDToIQD, currentIQDToUSD);
       const saleId = sale.lastInsertRowid;
       
       // Update balances for completed sales (not for debt sales)
@@ -523,8 +533,8 @@ module.exports = function(dbPath) {
         }
       }
 
-      // Insert sale items (new schema: support is_accessory and name)
-      const insertItem = db.prepare('INSERT INTO sale_items (sale_id, product_id, quantity, price, buying_price, profit, is_accessory, name, currency) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+      // Insert sale items with proper currency conversion and profit calculation
+      const insertItem = db.prepare('INSERT INTO sale_items (sale_id, product_id, quantity, price, buying_price, profit, is_accessory, name, currency, product_currency, profit_in_sale_currency, buying_price_in_sale_currency) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
 
       for (const item of items) {
         // Use itemType from frontend to determine if product or accessory
@@ -538,9 +548,9 @@ module.exports = function(dbPath) {
         let accessory = null;
         
         if (isAccessory) {
-          accessory = db.prepare('SELECT id, buying_price, name FROM accessories WHERE id = ?').get(item.product_id);
+          accessory = db.prepare('SELECT id, buying_price, name, currency FROM accessories WHERE id = ?').get(item.product_id);
         } else {
-          product = db.prepare('SELECT id, buying_price, name FROM products WHERE id = ?').get(item.product_id);
+          product = db.prepare('SELECT id, buying_price, name, currency FROM products WHERE id = ?').get(item.product_id);
         }
         
         const itemData = isAccessory ? accessory : product;
@@ -552,6 +562,44 @@ module.exports = function(dbPath) {
         const qty = Number(item.quantity) || 1;
         const buyingPrice = itemData ? Number(itemData.buying_price) : 0;
         const sellingPrice = typeof item.selling_price === 'number' ? item.selling_price : (typeof item.price === 'number' ? item.price : 0);
+        const productCurrency = itemData ? (itemData.currency || 'IQD') : 'IQD';
+        
+        // Calculate profit correctly considering currency conversion
+        let profitInSaleCurrency = 0;
+        let buyingPriceInSaleCurrency = buyingPrice;
+        
+        // For multi-currency sales, calculate profit in USD (as base currency)
+        if (isMultiCurrency) {
+          // Convert everything to USD for consistent profit calculation
+          let sellingPriceUSD = sellingPrice;
+          let buyingPriceUSD = buyingPrice;
+          
+          if (currency === 'IQD') {
+            sellingPriceUSD = sellingPrice * currentIQDToUSD;
+          }
+          
+          if (productCurrency === 'IQD') {
+            buyingPriceUSD = buyingPrice * currentIQDToUSD;
+          }
+          
+          profitInSaleCurrency = (sellingPriceUSD - buyingPriceUSD) * qty;
+          buyingPriceInSaleCurrency = buyingPriceUSD;
+        } else {
+          // Single currency sale - convert buying price to sale currency for profit calculation
+          if (currency !== productCurrency) {
+            if (currency === 'USD' && productCurrency === 'IQD') {
+              // Selling USD, product bought in IQD
+              buyingPriceInSaleCurrency = buyingPrice * currentIQDToUSD;
+            } else if (currency === 'IQD' && productCurrency === 'USD') {
+              // Selling IQD, product bought in USD
+              buyingPriceInSaleCurrency = buyingPrice * currentUSDToIQD;
+            }
+          }
+          
+          profitInSaleCurrency = (sellingPrice - buyingPriceInSaleCurrency) * qty;
+        }
+        
+        // Original profit calculation (for backwards compatibility)
         const profit = (sellingPrice - buyingPrice) * qty;
         
         // Insert with correct fields
@@ -564,7 +612,10 @@ module.exports = function(dbPath) {
           profit,
           isAccessory ? 1 : 0,
           itemData ? itemData.name : item.name,
-          currency
+          currency,
+          productCurrency,
+          Math.round(profitInSaleCurrency),
+          Math.round(buyingPriceInSaleCurrency)
         );
       }
       

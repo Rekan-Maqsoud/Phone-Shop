@@ -28,9 +28,12 @@ ChartJS.register(
 
 const formatCurrency = (amount, currency = 'USD') => {
   if (currency === 'IQD') {
-    return `${amount.toLocaleString()} IQD`;
+    return `${Math.round(amount).toLocaleString()} IQD`;
   }
-  return `$${amount.toFixed(2)}`;
+  // Format with 2 decimal places for USD, but remove .00 for whole numbers
+  const formatted = Number(amount).toFixed(2);
+  const cleanFormatted = formatted.endsWith('.00') ? formatted.slice(0, -3) : formatted;
+  return `$${cleanFormatted}`;
 };
 
 export default function MultiCurrencyDashboard({ admin, t }) {
@@ -99,8 +102,29 @@ export default function MultiCurrencyDashboard({ admin, t }) {
       new Date(sale.created_at).toDateString() === today
     );
     
-    const todaysUSDSales = todaysSales.filter(s => s.currency === 'USD').reduce((sum, s) => sum + (s.total || 0), 0);
-    const todaysIQDSales = todaysSales.filter(s => s.currency === 'IQD').reduce((sum, s) => sum + (s.total || 0), 0);
+    const todaysUSDSales = todaysSales.reduce((sum, sale) => {
+      // Handle multi-currency sales first
+      if (sale.multi_currency && (sale.multi_currency.usdAmount > 0 || sale.multi_currency.iqdAmount > 0)) {
+        return sum + (sale.multi_currency.usdAmount || 0);
+      }
+      // For single currency sales
+      if (sale.currency === 'USD') {
+        return sum + (sale.total || 0);
+      }
+      return sum;
+    }, 0);
+    
+    const todaysIQDSales = todaysSales.reduce((sum, sale) => {
+      // Handle multi-currency sales first
+      if (sale.multi_currency && (sale.multi_currency.usdAmount > 0 || sale.multi_currency.iqdAmount > 0)) {
+        return sum + (sale.multi_currency.iqdAmount || 0);
+      }
+      // For single currency sales
+      if (sale.currency === 'IQD') {
+        return sum + (sale.total || 0);
+      }
+      return sum;
+    }, 0);
 
     // This week's sales by currency
     const oneWeekAgo = new Date();
@@ -109,8 +133,29 @@ export default function MultiCurrencyDashboard({ admin, t }) {
       new Date(sale.created_at) >= oneWeekAgo
     );
     
-    const weekUSDSales = thisWeeksSales.filter(s => s.currency === 'USD').reduce((sum, s) => sum + (s.total || 0), 0);
-    const weekIQDSales = thisWeeksSales.filter(s => s.currency === 'IQD').reduce((sum, s) => sum + (s.total || 0), 0);
+    const weekUSDSales = thisWeeksSales.reduce((sum, sale) => {
+      // Handle multi-currency sales first
+      if (sale.multi_currency && (sale.multi_currency.usdAmount > 0 || sale.multi_currency.iqdAmount > 0)) {
+        return sum + (sale.multi_currency.usdAmount || 0);
+      }
+      // For single currency sales
+      if (sale.currency === 'USD') {
+        return sum + (sale.total || 0);
+      }
+      return sum;
+    }, 0);
+    
+    const weekIQDSales = thisWeeksSales.reduce((sum, sale) => {
+      // Handle multi-currency sales first
+      if (sale.multi_currency && (sale.multi_currency.usdAmount > 0 || sale.multi_currency.iqdAmount > 0)) {
+        return sum + (sale.multi_currency.iqdAmount || 0);
+      }
+      // For single currency sales
+      if (sale.currency === 'IQD') {
+        return sum + (sale.total || 0);
+      }
+      return sum;
+    }, 0);
 
     // Outstanding debts by currency (customer debts)
     const unpaidDebts = (debts || []).filter(debt => !debt.paid_at && !debt.paid);

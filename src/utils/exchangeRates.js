@@ -29,9 +29,10 @@ export const formatCurrency = (amount, currency) => {
     return `${rounded.toLocaleString()}${symbol}`;
   }
   
-  // Format with 2 decimal places for USD
+  // Format with 2 decimal places for USD, but remove .00 for whole numbers
   const formatted = Number(amount).toFixed(2);
-  return `${symbol}${formatted}`;
+  const cleanFormatted = formatted.endsWith('.00') ? formatted.slice(0, -3) : formatted;
+  return `${symbol}${cleanFormatted}`;
 };
 
 // Round IQD amounts to nearest 250 (smallest bill denomination)

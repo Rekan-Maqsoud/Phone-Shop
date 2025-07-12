@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { EXCHANGE_RATES } from '../utils/exchangeRates';
 
 export default function SaleDetailsModal({ sale, t, onClose, onReturnItem }) {
   const [returnQuantities, setReturnQuantities] = useState({});
@@ -29,17 +30,101 @@ export default function SaleDetailsModal({ sale, t, onClose, onReturnItem }) {
       }));
     }
   };
-  const fmt = n => n != null ? `$${(+n).toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '-';
+
+  // Get sale exchange rates or use current ones as fallback
+  const saleExchangeRates = {
+    usd_to_iqd: sale.exchange_rate_usd_to_iqd || EXCHANGE_RATES.USD_TO_IQD,
+    iqd_to_usd: sale.exchange_rate_iqd_to_usd || EXCHANGE_RATES.IQD_TO_USD
+  };
+
+  // Currency formatter using historical exchange rates
+  const formatCurrency = (amount, currency) => {
+    const symbol = currency === 'USD' ? '$' : 'د.ع';
+    
+    if (currency === 'IQD') {
+      const rounded = Math.round(amount);
+      return `${rounded.toLocaleString()}${symbol}`;
+    }
+    
+    // For USD: show 2 decimals, but remove .00 for whole numbers
+    const formatted = Number(amount).toFixed(2);
+    const cleanFormatted = formatted.endsWith('.00') ? formatted.slice(0, -3) : formatted;
+    return `${symbol}${cleanFormatted}`;
+  };
+
+  const fmt = n => n != null ? formatCurrency(n, sale.currency || 'USD') : '-';
 
   // Split items into products and accessories
   const products = (sale.items || []).filter(i => !i.is_accessory);
   const accessories = (sale.items || []).filter(i => i.is_accessory);
 
-  // Calculate profits
-  const calcProfit = item => ((item.selling_price ?? item.buying_price) - (item.buying_price ?? 0)) * (item.quantity || 1);
-  const totalProductProfit = products.reduce((sum, i) => sum + calcProfit(i), 0);
-  const totalAccessoryProfit = accessories.reduce((sum, i) => sum + calcProfit(i), 0);
-  const totalProfit = totalProductProfit + totalAccessoryProfit;
+  // Calculate profits separately by currency to avoid inflated numbers
+  const calcProfitByCurrency = item => {
+    const qty = item.quantity || 1;
+    const buyingPrice = item.buying_price || 0;
+    const sellingPrice = item.selling_price ?? item.buying_price;
+    const productCurrency = item.product_currency || 'IQD';
+    
+    // Calculate profit in the product's original currency (no conversion needed)
+    const profit = (sellingPrice - buyingPrice) * qty;
+    
+    return formatCurrency(profit, productCurrency);
+  };
+  
+  // Separate profits by currency
+  let totalProfitUSD = 0;
+  let totalProfitIQD = 0;
+  let totalProductProfitUSD = 0;
+  let totalProductProfitIQD = 0;
+  let totalAccessoryProfitUSD = 0;
+  let totalAccessoryProfitIQD = 0;
+  
+  // Calculate product profits
+  products.forEach(item => {
+    const qty = item.quantity || 1;
+    const buyingPrice = item.buying_price || 0;
+    const sellingPrice = item.selling_price ?? item.buying_price;
+    const productCurrency = item.product_currency || 'IQD';
+    const profit = (sellingPrice - buyingPrice) * qty;
+    
+    if (productCurrency === 'USD') {
+      totalProductProfitUSD += profit;
+    } else {
+      totalProductProfitIQD += profit;
+    }
+  });
+  
+  // Calculate accessory profits
+  accessories.forEach(item => {
+    const qty = item.quantity || 1;
+    const buyingPrice = item.buying_price || 0;
+    const sellingPrice = item.selling_price ?? item.buying_price;
+    const productCurrency = item.product_currency || 'IQD';
+    const profit = (sellingPrice - buyingPrice) * qty;
+    
+    if (productCurrency === 'USD') {
+      totalAccessoryProfitUSD += profit;
+    } else {
+      totalAccessoryProfitIQD += profit;
+    }
+  });
+  
+  totalProfitUSD = totalProductProfitUSD + totalAccessoryProfitUSD;
+  totalProfitIQD = totalProductProfitIQD + totalAccessoryProfitIQD;
+
+  // Display buying price in product's original currency and selling price in sale currency
+  const formatBuyingPrice = (item) => {
+    const productCurrency = item.product_currency || 'IQD';
+    const buyingPrice = item.buying_price || 0;
+    
+    // Always display in the product's original currency
+    return formatCurrency(buyingPrice, productCurrency);
+  };
+
+  const formatSellingPrice = (item) => {
+    const productCurrency = item.product_currency || 'IQD';
+    return formatCurrency(item.selling_price ?? item.buying_price, productCurrency);
+  };
 
   // Responsive, no x-scroll, modern look
   return (
@@ -60,7 +145,7 @@ export default function SaleDetailsModal({ sale, t, onClose, onReturnItem }) {
           </div>
           <div className="flex flex-col gap-2 items-end flex-shrink-0">
             <div className="text-lg font-bold text-blue-700 dark:text-blue-300">{t.total || 'Total'}: {fmt(sale.total)}</div>
-            <div className="text-md font-semibold text-emerald-700 dark:text-emerald-300">{t.profit || 'Profit'}: {fmt(totalProfit)}</div>
+            <div className="text-md font-semibold text-emerald-700 dark:text-emerald-300">{t.profit || 'Profit'}: {formatCurrency(totalProfitUSD, 'USD')} | {formatCurrency(totalProfitIQD, 'IQD')}</div>
           </div>
         </div>
 
@@ -97,10 +182,10 @@ export default function SaleDetailsModal({ sale, t, onClose, onReturnItem }) {
                         <td className="px-3 py-3 font-medium">{item.name}</td>
                         <td className="px-3 py-3 text-gray-600 dark:text-gray-400">{item.ram || '-'}</td>
                         <td className="px-3 py-3 text-gray-600 dark:text-gray-400">{item.storage || '-'}</td>
-                        <td className="px-3 py-3">{fmt(item.selling_price ?? item.buying_price)}</td>
-                        <td className="px-3 py-3">{fmt(item.buying_price)}</td>
+                        <td className="px-3 py-3">{formatSellingPrice(item)}</td>
+                        <td className="px-3 py-3">{formatBuyingPrice(item)}</td>
                         <td className="px-3 py-3">{item.quantity}</td>
-                        <td className="px-3 py-3 font-semibold text-green-600 dark:text-green-400">{fmt(calcProfit(item))}</td>
+                        <td className="px-3 py-3 font-semibold text-green-600 dark:text-green-400">{calcProfitByCurrency(item)}</td>
                         {onReturnItem && (
                           <td className="px-3 py-3">
                             <input
@@ -132,7 +217,7 @@ export default function SaleDetailsModal({ sale, t, onClose, onReturnItem }) {
                 </table>
               </div>
               <div className="text-right text-emerald-700 dark:text-emerald-300 font-semibold mt-2">
-                {t.productProfit || 'Product Profit'}: {fmt(totalProductProfit)}
+                {t.productProfit || 'Product Profit'}: {formatCurrency(totalProductProfitUSD, 'USD')} | {formatCurrency(totalProductProfitIQD, 'IQD')}
               </div>
             </div>
           )}
@@ -171,10 +256,10 @@ export default function SaleDetailsModal({ sale, t, onClose, onReturnItem }) {
                         <td className="px-3 py-3">{idx + 1}</td>
                         <td className="px-3 py-3 font-medium">{item.name}</td>
                         <td className="px-3 py-3 text-gray-600 dark:text-gray-400">{item.type || '-'}</td>
-                        <td className="px-3 py-3">{fmt(item.selling_price ?? item.buying_price)}</td>
-                        <td className="px-3 py-3">{fmt(item.buying_price)}</td>
+                        <td className="px-3 py-3">{formatSellingPrice(item)}</td>
+                        <td className="px-3 py-3">{formatBuyingPrice(item)}</td>
                         <td className="px-3 py-3">{item.quantity}</td>
-                        <td className="px-3 py-3 font-semibold text-green-600 dark:text-green-400">{fmt(calcProfit(item))}</td>
+                        <td className="px-3 py-3 font-semibold text-green-600 dark:text-green-400">{calcProfitByCurrency(item)}</td>
                         {onReturnItem && (
                           <td className="px-3 py-3">
                             <input
@@ -206,7 +291,7 @@ export default function SaleDetailsModal({ sale, t, onClose, onReturnItem }) {
                 </table>
               </div>
               <div className="text-right text-emerald-700 dark:text-emerald-300 font-semibold mt-2">
-                {t.accessoryProfit || 'Accessory Profit'}: {fmt(totalAccessoryProfit)}
+                {t.accessoryProfit || 'Accessory Profit'}: {formatCurrency(totalAccessoryProfitUSD, 'USD')} | {formatCurrency(totalAccessoryProfitIQD, 'IQD')}
               </div>
             </div>
           )}
@@ -220,7 +305,7 @@ export default function SaleDetailsModal({ sale, t, onClose, onReturnItem }) {
           <div className="flex flex-col sm:flex-row sm:items-center gap-4">
             <div className="flex flex-col sm:items-end gap-1">
               <div className="text-lg font-bold text-blue-700 dark:text-blue-300">{t.total || 'Total'}: {fmt(sale.total)}</div>
-              <div className="text-md font-semibold text-emerald-700 dark:text-emerald-300">{t.profit || 'Profit'}: {fmt(totalProfit)}</div>
+              <div className="text-md font-semibold text-emerald-700 dark:text-emerald-300">{t.profit || 'Profit'}: {formatCurrency(totalProfitUSD, 'USD')} | {formatCurrency(totalProfitIQD, 'IQD')}</div>
             </div>
             <button 
               onClick={onClose} 

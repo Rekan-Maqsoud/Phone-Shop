@@ -81,32 +81,42 @@ export default function useCart(showToast, showConfirm, t = {}) {
         
         playActionSound();
         // Add new item with specified quantity
+        const newItem = {
+          id: product.id,
+          name: product.name, // Explicitly set the name
+          uniqueId,
+          product_id: product.id,
+          itemType: itemType, // Ensure itemType is always set
+          category: product.category,
+          brand: product.brand,
+          type: product.type,
+          model: product.model,
+          ram: product.ram,
+          storage: product.storage,
+          currency: product.currency,
+          stock: product.stock,
+          buying_price: product.buying_price,
+          price: itemType === 'accessory' 
+            ? (product.buying_price || 0) 
+            : Math.round((product.buying_price || 0) * 1.1 * 100) / 100,
+          selling_price: itemType === 'accessory' 
+            ? (product.buying_price || 0) 
+            : Math.round((product.buying_price || 0) * 1.1 * 100) / 100,
+          isReturn,
+          quantity: quantity,
+        };
+        
+        console.log(`🛒 CART: Adding new item to cart:`, { 
+          name: newItem.name, 
+          buying_price: newItem.buying_price, 
+          selling_price: newItem.selling_price,
+          quantity: newItem.quantity,
+          currency: newItem.currency 
+        });
+        
         return [
           ...prevItems,
-          {
-            id: product.id,
-            name: product.name, // Explicitly set the name
-            uniqueId,
-            product_id: product.id,
-            itemType: itemType, // Ensure itemType is always set
-            category: product.category,
-            brand: product.brand,
-            type: product.type,
-            model: product.model,
-            ram: product.ram,
-            storage: product.storage,
-            currency: product.currency,
-            stock: product.stock,
-            buying_price: product.buying_price,
-            price: itemType === 'accessory' 
-              ? (product.buying_price || 0) 
-              : Math.round((product.buying_price || 0) * 1.1 * 100) / 100,
-            selling_price: itemType === 'accessory' 
-              ? (product.buying_price || 0) 
-              : Math.round((product.buying_price || 0) * 1.1 * 100) / 100,
-            isReturn,
-            quantity: quantity,
-          },
+          newItem,
         ];
       }
     });

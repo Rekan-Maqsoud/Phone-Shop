@@ -32,7 +32,9 @@ CREATE TABLE IF NOT EXISTS sales (
   currency TEXT DEFAULT 'IQD',
   paid_amount_usd INTEGER DEFAULT 0,
   paid_amount_iqd INTEGER DEFAULT 0,
-  is_multi_currency INTEGER DEFAULT 0
+  is_multi_currency INTEGER DEFAULT 0,
+  exchange_rate_usd_to_iqd INTEGER DEFAULT 1440,
+  exchange_rate_iqd_to_usd REAL DEFAULT 0.000694
 );
 
 CREATE TABLE IF NOT EXISTS sale_items (
@@ -46,6 +48,9 @@ CREATE TABLE IF NOT EXISTS sale_items (
   is_accessory INTEGER DEFAULT 0,
   name TEXT,
   currency TEXT DEFAULT 'IQD',
+  product_currency TEXT DEFAULT 'IQD',
+  profit_in_sale_currency INTEGER DEFAULT 0,
+  buying_price_in_sale_currency INTEGER DEFAULT 0,
   FOREIGN KEY(sale_id) REFERENCES sales(id),
   FOREIGN KEY(product_id) REFERENCES products(id)
 );

@@ -13,11 +13,11 @@ function getSales(db) {
   
   const sales = stmt.all();
   
-  // Get items for each sale with detailed info
+  // Get items for each sale with detailed info including currency conversions
   const saleItemsStmt = db.prepare(`
     SELECT si.*, 
-      p.name as product_name, p.ram, p.storage, p.model, p.category,
-      a.name as accessory_name, a.type as accessory_type
+      p.name as product_name, p.ram, p.storage, p.model, p.category, p.currency as product_currency_from_table,
+      a.name as accessory_name, a.type as accessory_type, a.currency as accessory_currency_from_table
     FROM sale_items si
     LEFT JOIN products p ON si.product_id = p.id AND si.is_accessory = 0
     LEFT JOIN accessories a ON si.product_id = a.id AND si.is_accessory = 1
@@ -25,7 +25,22 @@ function getSales(db) {
   `);
   
   return sales.map(sale => {
-    const items = saleItemsStmt.all(sale.id);
+    const items = saleItemsStmt.all(sale.id).map(item => {
+      // Ensure product_currency is set correctly
+      const productCurrency = item.product_currency || 
+                            item.product_currency_from_table || 
+                            item.accessory_currency_from_table || 
+                            'IQD';
+      
+      return {
+        ...item,
+        product_currency: productCurrency,
+        selling_price: item.price, // Map database 'price' field to frontend 'selling_price'
+        // Use the pre-calculated values from sale time if available
+        profit_in_sale_currency: item.profit_in_sale_currency || item.profit,
+        buying_price_in_sale_currency: item.buying_price_in_sale_currency || item.buying_price
+      };
+    });
     
     // Add multi-currency payment info if available
     const multi_currency = sale.is_multi_currency ? {
@@ -36,7 +51,12 @@ function getSales(db) {
     return {
       ...sale,
       items,
-      multi_currency
+      multi_currency,
+      // Include exchange rates for historical reference
+      exchange_rates: {
+        usd_to_iqd: sale.exchange_rate_usd_to_iqd || 1440,
+        iqd_to_usd: sale.exchange_rate_iqd_to_usd || 0.000694
+      }
     };
   });
 }

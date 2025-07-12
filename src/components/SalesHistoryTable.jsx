@@ -29,7 +29,7 @@ export default function SalesHistoryTable({ sales, t, onView, onPrintLast, onRet
         totalRevenueUSD += sale.multi_currency.usdAmount || 0;
         totalRevenueIQD += sale.multi_currency.iqdAmount || 0;
       } else {
-        // For single currency payments
+        // For single currency payments, use the sale.total amount
         if (saleCurrency === 'USD') {
           totalRevenueUSD += total;
         } else {
@@ -42,42 +42,46 @@ export default function SalesHistoryTable({ sales, t, onView, onPrintLast, onRet
           const qty = item.quantity || 1;
           const buyingPrice = typeof item.buying_price === 'number' ? item.buying_price : 0;
           const sellingPrice = typeof item.selling_price === 'number' ? item.selling_price : (typeof item.buying_price === 'number' ? item.buying_price : 0);
+          const productCurrency = item.product_currency || 'IQD';
           
-          // Assume product was bought in USD (can be enhanced with actual product currency data)
-          const productCurrency = item.currency || 'USD';
+          console.log('🔍 [CALCULATE TOTALS] Sale:', sale.id, 'Item:', item.name);
+          console.log('  - sale_currency:', saleCurrency);
+          console.log('  - product_currency:', productCurrency);
+          console.log('  - buying_price:', buyingPrice);
+          console.log('  - selling_price:', sellingPrice);
+          console.log('  - quantity:', qty);
           
-          // For multi-currency sales, calculate profit based on total amount paid
-          if (isMultiCurrency) {
-            const totalPaidInUSD = (sale.multi_currency.usdAmount || 0) + ((sale.multi_currency.iqdAmount || 0) / EXCHANGE_RATES.USD_TO_IQD);
-            const totalBuyingPrice = sale.items.reduce((sum, i) => sum + ((i.buying_price || 0) * (i.quantity || 1)), 0);
-            const profitPercentage = totalBuyingPrice > 0 ? (totalPaidInUSD - totalBuyingPrice) / totalBuyingPrice : 0;
-            const itemProfit = (buyingPrice * qty) * profitPercentage;
-            
-            // Add profit to the product's original currency
-            if (productCurrency === 'USD') {
-              totalProfitUSD += itemProfit;
-            } else {
-              totalProfitIQD += itemProfit * EXCHANGE_RATES.USD_TO_IQD;
+          // Simple profit calculation: selling - buying = profit
+          // Convert BOTH prices to sale currency if needed
+          let buyingPriceInSaleCurrency = buyingPrice;
+          let sellingPriceInSaleCurrency = sellingPrice;
+          
+          if (productCurrency !== saleCurrency) {
+            if (saleCurrency === 'USD' && productCurrency === 'IQD') {
+              // Convert IQD prices to USD
+              buyingPriceInSaleCurrency = buyingPrice * EXCHANGE_RATES.IQD_TO_USD;
+              sellingPriceInSaleCurrency = sellingPrice * EXCHANGE_RATES.IQD_TO_USD;
+              console.log('  - Converting IQD to USD: buying', buyingPrice, '*', EXCHANGE_RATES.IQD_TO_USD, '=', buyingPriceInSaleCurrency);
+              console.log('  - Converting IQD to USD: selling', sellingPrice, '*', EXCHANGE_RATES.IQD_TO_USD, '=', sellingPriceInSaleCurrency);
+            } else if (saleCurrency === 'IQD' && productCurrency === 'USD') {
+              // Convert USD prices to IQD  
+              buyingPriceInSaleCurrency = buyingPrice * EXCHANGE_RATES.USD_TO_IQD;
+              sellingPriceInSaleCurrency = sellingPrice * EXCHANGE_RATES.USD_TO_IQD;
+              console.log('  - Converting USD to IQD: buying', buyingPrice, '*', EXCHANGE_RATES.USD_TO_IQD, '=', buyingPriceInSaleCurrency);
+              console.log('  - Converting USD to IQD: selling', sellingPrice, '*', EXCHANGE_RATES.USD_TO_IQD, '=', sellingPriceInSaleCurrency);
             }
+          }
+          
+          const profit = (sellingPriceInSaleCurrency - buyingPriceInSaleCurrency) * qty;
+          console.log('  - PROFIT CALC:', sellingPriceInSaleCurrency, '-', buyingPriceInSaleCurrency, '*', qty, '=', profit);
+          
+          // Add profit to the sale currency total
+          if (saleCurrency === 'USD') {
+            totalProfitUSD += profit;
+            console.log('  - Added to totalProfitUSD, new total:', totalProfitUSD);
           } else {
-            // For single currency sales, convert selling price to product currency for proper profit calculation
-            let sellingPriceInProductCurrency = sellingPrice;
-            if (saleCurrency !== productCurrency) {
-              if (saleCurrency === 'IQD' && productCurrency === 'USD') {
-                sellingPriceInProductCurrency = sellingPrice / EXCHANGE_RATES.USD_TO_IQD; // Convert IQD to USD
-              } else if (saleCurrency === 'USD' && productCurrency === 'IQD') {
-                sellingPriceInProductCurrency = sellingPrice * EXCHANGE_RATES.USD_TO_IQD; // Convert USD to IQD
-              }
-            }
-            
-            const profit = (sellingPriceInProductCurrency - buyingPrice) * qty;
-            
-            // Add profit to the appropriate currency total based on product currency
-            if (productCurrency === 'USD') {
-              totalProfitUSD += profit;
-            } else {
-              totalProfitIQD += profit;
-            }
+            totalProfitIQD += profit;
+            console.log('  - Added to totalProfitIQD, new total:', totalProfitIQD);
           }
           
           totalProducts += qty;
@@ -125,13 +129,18 @@ export default function SalesHistoryTable({ sales, t, onView, onPrintLast, onRet
 
   // Helper to calculate totals for each sale with multi-currency support
   const getTotals = (sale) => {
-    let totalBuyingOriginal = 0;
+    let totalBuyingUSD = 0;
+    let totalBuyingIQD = 0;
     let totalSellingInSaleCurrency = 0;
     let totalConvertedToBuyingCurrency = 0;
     let totalProfit = 0;
     let mixedPaymentDisplay = '';
     
     const saleCurrency = sale.currency || 'USD';
+    const saleExchangeRates = sale.exchange_rates || {
+      usd_to_iqd: EXCHANGE_RATES.USD_TO_IQD,
+      iqd_to_usd: EXCHANGE_RATES.IQD_TO_USD
+    };
     
     // Check if this is a multi-currency payment
     const isMultiCurrency = sale.multi_currency && 
@@ -143,27 +152,58 @@ export default function SalesHistoryTable({ sales, t, onView, onPrintLast, onRet
         const buyingPrice = typeof item.buying_price === 'number' ? item.buying_price : 0;
         const sellingPrice = typeof item.selling_price === 'number' ? item.selling_price : (typeof item.buying_price === 'number' ? item.buying_price : 0);
         
-        // Determine the product's original currency (assume USD for products unless specified)
-        const productCurrency = item.product_currency || 'USD';
+        // Use stored product currency or default to IQD
+        const productCurrency = item.product_currency || 'IQD';
         
-        // Total buying in original currency
-        totalBuyingOriginal += buyingPrice * qty;
+        // Accumulate buying price by currency (keep separate)
+        if (productCurrency === 'USD') {
+          totalBuyingUSD += buyingPrice * qty;
+        } else {
+          totalBuyingIQD += buyingPrice * qty;
+        }
         
-        // Total selling in sale currency
-        totalSellingInSaleCurrency += sellingPrice * qty;
+        // CRITICAL FIX: selling_price is stored in product's original currency, not sale currency
+        // We need to convert it to sale currency for proper profit calculation
+        let sellingPriceInSaleCurrency = sellingPrice;
         
-        // Convert selling price to product currency for profit calculation
-        let sellingPriceInProductCurrency = sellingPrice;
-        if (saleCurrency !== productCurrency) {
-          if (saleCurrency === 'IQD' && productCurrency === 'USD') {
-            sellingPriceInProductCurrency = sellingPrice / EXCHANGE_RATES.USD_TO_IQD; // Convert IQD to USD
-          } else if (saleCurrency === 'USD' && productCurrency === 'IQD') {
-            sellingPriceInProductCurrency = sellingPrice * EXCHANGE_RATES.USD_TO_IQD; // Convert USD to IQD
+        // Convert selling price to sale currency if needed
+        if (productCurrency !== saleCurrency) {
+          if (saleCurrency === 'USD' && productCurrency === 'IQD') {
+            // Convert IQD selling price to USD
+            sellingPriceInSaleCurrency = sellingPrice * saleExchangeRates.iqd_to_usd;
+          } else if (saleCurrency === 'IQD' && productCurrency === 'USD') {
+            // Convert USD selling price to IQD
+            sellingPriceInSaleCurrency = sellingPrice * saleExchangeRates.usd_to_iqd;
           }
         }
         
-        totalConvertedToBuyingCurrency += sellingPriceInProductCurrency * qty;
-        totalProfit += (sellingPriceInProductCurrency - buyingPrice) * qty;
+        // Total selling in sale currency (using converted price)
+        totalSellingInSaleCurrency += sellingPriceInSaleCurrency * qty;
+        // Calculate profit: selling - buying = profit
+        // Convert buying price to sale currency if needed
+        let buyingPriceInSaleCurrency = buyingPrice;
+        
+        console.log('🔍 [SALES HISTORY] Item:', item.name, 'in sale currency:', saleCurrency);
+        console.log('  - buying_price:', buyingPrice, 'in currency:', productCurrency);
+        console.log('  - selling_price (raw):', sellingPrice, 'in currency:', productCurrency, '(FIXED: always product currency)');
+        console.log('  - selling_price (converted):', sellingPriceInSaleCurrency, 'in currency:', saleCurrency);
+        console.log('  - quantity:', qty);
+        
+        if (productCurrency !== saleCurrency) {
+          if (saleCurrency === 'USD' && productCurrency === 'IQD') {
+            // Convert IQD buying price to USD
+            buyingPriceInSaleCurrency = buyingPrice * saleExchangeRates.iqd_to_usd;
+            console.log('  - Converting IQD to USD:', buyingPrice, '*', saleExchangeRates.iqd_to_usd, '=', buyingPriceInSaleCurrency);
+          } else if (saleCurrency === 'IQD' && productCurrency === 'USD') {
+            // Convert USD buying price to IQD
+            buyingPriceInSaleCurrency = buyingPrice * saleExchangeRates.usd_to_iqd;
+            console.log('  - Converting USD to IQD:', buyingPrice, '*', saleExchangeRates.usd_to_iqd, '=', buyingPriceInSaleCurrency);
+          }
+        }
+        
+        const profit = (sellingPriceInSaleCurrency - buyingPriceInSaleCurrency) * qty;
+        console.log('  - PROFIT CALC:', sellingPriceInSaleCurrency, '-', buyingPriceInSaleCurrency, '*', qty, '=', profit);
+        totalProfit += profit;
       });
     }
     
@@ -173,29 +213,48 @@ export default function SalesHistoryTable({ sales, t, onView, onPrintLast, onRet
       const iqdAmount = sale.multi_currency.iqdAmount || 0;
       
       if (usdAmount > 0 && iqdAmount > 0) {
-        mixedPaymentDisplay = `$${usdAmount.toFixed(2)} + د.ع${Math.round(iqdAmount).toLocaleString()}`;
+        const usdFormatted = usdAmount.toFixed(2).endsWith('.00') ? usdAmount.toFixed(2).slice(0, -3) : usdAmount.toFixed(2);
+        mixedPaymentDisplay = `$${usdFormatted} + د.ع${Math.round(iqdAmount).toLocaleString()}`;
       } else if (usdAmount > 0) {
-        mixedPaymentDisplay = `$${usdAmount.toFixed(2)}`;
+        const usdFormatted = usdAmount.toFixed(2).endsWith('.00') ? usdAmount.toFixed(2).slice(0, -3) : usdAmount.toFixed(2);
+        mixedPaymentDisplay = `$${usdFormatted}`;
       } else if (iqdAmount > 0) {
         mixedPaymentDisplay = `د.ع${Math.round(iqdAmount).toLocaleString()}`;
       }
       
-      // Convert the total payment to the original currency for consistent calculations
-      const totalPaidInUSD = usdAmount + (iqdAmount / EXCHANGE_RATES.USD_TO_IQD);
+      // For converting to display value
+      const usdAmountInUSD = usdAmount;
+      const iqdAmountInUSD = iqdAmount * saleExchangeRates.iqd_to_usd;
       
-      // For multi-currency payments, use the actual total paid converted to original currency
-      totalConvertedToBuyingCurrency = totalPaidInUSD;
-      totalProfit = totalPaidInUSD - totalBuyingOriginal;
+      totalConvertedToBuyingCurrency = usdAmountInUSD + iqdAmountInUSD;
+    } else {
+      totalConvertedToBuyingCurrency = totalSellingInSaleCurrency;
     }
     
+    // Determine display format based on what currencies are present in buying prices
+    const hasBothCurrencies = totalBuyingUSD > 0 && totalBuyingIQD > 0;
+    const primaryCurrency = hasBothCurrencies ? 'MIXED' : (totalBuyingUSD > 0 ? 'USD' : 'IQD');
+    
+    // Format buying price display
+    let buyingPriceDisplay = '';
+    if (hasBothCurrencies) {
+      buyingPriceDisplay = `$${totalBuyingUSD.toLocaleString(undefined, { minimumFractionDigits: 2 })} + د.ع${Math.round(totalBuyingIQD).toLocaleString()}`;
+    } else if (totalBuyingUSD > 0) {
+      buyingPriceDisplay = `$${totalBuyingUSD.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+    } else {
+      buyingPriceDisplay = `د.ع${Math.round(totalBuyingIQD).toLocaleString()}`;
+    }
+
     return { 
-      totalBuying: totalBuyingOriginal, 
+      totalBuying: hasBothCurrencies ? totalBuyingUSD + (totalBuyingIQD * saleExchangeRates.iqd_to_usd) : (totalBuyingUSD || totalBuyingIQD),
       totalSelling: totalSellingInSaleCurrency,
       totalConvertedToBuyingCurrency,
       totalProfit,
-      originalCurrency: 'USD', // Assume USD for now, can be enhanced later
+      originalCurrency: saleCurrency, // Profit is always in sale currency
       mixedPaymentDisplay,
-      isMultiCurrency
+      isMultiCurrency,
+      buyingPriceDisplay,
+      primaryCurrency
     };
   };
 
@@ -252,7 +311,7 @@ export default function SalesHistoryTable({ sales, t, onView, onPrintLast, onRet
               {sortedSales.length === 0 ? (
                 <tr><td colSpan={7} className="text-center text-gray-400 py-4">{t.noSales}</td></tr>
               ) : sortedSales.map((s, idx) => {
-            const { totalBuying, totalSelling, totalConvertedToBuyingCurrency, totalProfit, originalCurrency, mixedPaymentDisplay, isMultiCurrency } = getTotals(s);
+            const { totalBuying, totalSelling, totalConvertedToBuyingCurrency, totalProfit, originalCurrency, mixedPaymentDisplay, isMultiCurrency, buyingPriceDisplay, primaryCurrency } = getTotals(s);
             const saleCurrency = s.currency || 'USD';
             const saleSymbol = saleCurrency === 'USD' ? '$' : 'د.ع';
             const originalSymbol = originalCurrency === 'USD' ? '$' : 'د.ع';
@@ -270,8 +329,8 @@ export default function SalesHistoryTable({ sales, t, onView, onPrintLast, onRet
                 <td className="px-4 py-2">{s.customer_name ? s.customer_name.charAt(0).toUpperCase() + s.customer_name.slice(1).toLowerCase() : 'Unknown'}</td>
                 <td className="px-4 py-2">
                   <div className="flex flex-col">
-                    <span>{formatOriginal(totalBuying)}</span>
-                    <span className="text-xs text-gray-500 dark:text-gray-400">{originalCurrency}</span>
+                    <span>{buyingPriceDisplay}</span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">{primaryCurrency === 'MIXED' ? 'Mixed Currency' : primaryCurrency}</span>
                   </div>
                 </td>
                 <td className="px-4 py-2">
