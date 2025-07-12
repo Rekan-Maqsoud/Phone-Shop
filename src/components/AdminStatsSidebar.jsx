@@ -75,21 +75,11 @@ const AdminStatsSidebar = ({
     
     const todaysProfitUSD = todaysSales.filter(sale => (sale.currency || 'USD') === 'USD').reduce((sum, sale) => {
       if (!sale.items) return sum;
-      console.log('🔍 [USD PROFIT] Processing sale:', sale.id, 'currency:', sale.currency);
       return sum + sale.items.reduce((itemSum, item) => {
         // Ensure profit calculation considers both purchase and sale currencies
         const buyingPrice = item.buying_price || 0;
         const sellingPrice = item.selling_price || item.buying_price || 0;
         const quantity = item.quantity || 1;
-        
-        console.log('🔍 [USD PROFIT] Item:', item.name);
-        console.log('  - RAW DATABASE VALUES:', {
-          price: item.price,
-          selling_price: item.selling_price,
-          buying_price: item.buying_price,
-          currency: item.currency,
-          product_currency: item.product_currency
-        });
         
         // CRITICAL: The selling_price is stored in the PRODUCT'S original currency, not the sale currency
         
@@ -102,37 +92,22 @@ const AdminStatsSidebar = ({
         const sellingPriceCurrency = item.product_currency || 'USD'; // Always use product currency for selling_price
         const productCurrency = item.product_currency || 'USD';
         
-        console.log('  - CURRENCY ANALYSIS:');
-        console.log('    * selling_price:', sellingPrice, 'stored in currency:', sellingPriceCurrency, '(FIXED: always product currency)');
-        console.log('    * buying_price:', buyingPrice, 'stored in currency:', productCurrency);
-        console.log('    * sale_currency:', sale.currency);
-        console.log('    * item.currency (sale context):', item.currency);
-        
         // Convert selling price to sale currency if needed
         if (sellingPriceCurrency === 'IQD' && sale.currency === 'USD') {
           sellingPriceInSaleCurrency = sellingPrice * (sale.exchange_rate_iqd_to_usd || 0.000694);
-          console.log('    * Converting selling_price: IQD', sellingPrice, '* 0.000694 = USD', sellingPriceInSaleCurrency);
         } else if (sellingPriceCurrency === 'USD' && sale.currency === 'IQD') {
           sellingPriceInSaleCurrency = sellingPrice * (sale.exchange_rate_usd_to_iqd || 1440);
-          console.log('    * Converting selling_price: USD', sellingPrice, '* 1440 = IQD', sellingPriceInSaleCurrency);
-        } else {
-          console.log('    * No selling_price conversion needed');
         }
         
         // Convert buying price to sale currency if needed
         if (productCurrency === 'IQD' && sale.currency === 'USD') {
           buyingPriceInSaleCurrency = buyingPrice * (sale.exchange_rate_iqd_to_usd || 0.000694);
-          console.log('    * Converting buying_price: IQD', buyingPrice, '* 0.000694 = USD', buyingPriceInSaleCurrency);
         } else if (productCurrency === 'USD' && sale.currency === 'IQD') {
           buyingPriceInSaleCurrency = buyingPrice * (sale.exchange_rate_usd_to_iqd || 1440);
-          console.log('    * Converting buying_price: USD', buyingPrice, '* 1440 = IQD', buyingPriceInSaleCurrency);
-        } else {
-          console.log('    * No buying_price conversion needed');
         }
         
         // Calculate profit in sale currency
         const profit = (sellingPriceInSaleCurrency - buyingPriceInSaleCurrency) * quantity;
-        console.log('  - FINAL PROFIT CALC:', sellingPriceInSaleCurrency, '-', buyingPriceInSaleCurrency, '*', quantity, '=', profit, sale.currency);
         
         return itemSum + profit;
       }, 0);
@@ -140,31 +115,11 @@ const AdminStatsSidebar = ({
     
     const todaysProfitIQD = todaysSales.filter(sale => sale.currency === 'IQD').reduce((sum, sale) => {
       if (!sale.items) return sum;
-      console.log('🔍 [IQD PROFIT] Processing sale:', sale.id, 'currency:', sale.currency);
       return sum + sale.items.reduce((itemSum, item) => {
         // Ensure profit calculation considers both purchase and sale currencies
         const buyingPrice = item.buying_price || 0;
         const sellingPrice = item.selling_price || item.buying_price || 0;
         const quantity = item.quantity || 1;
-        
-        console.log('🔍 [IQD PROFIT] Item:', item.name);
-        console.log('  - RAW DATABASE VALUES:', {
-          price: item.price,
-          selling_price: item.selling_price,
-          buying_price: item.buying_price,
-          currency: item.currency,
-          product_currency: item.product_currency,
-          purchase_currency: item.purchase_currency
-        });
-        console.log('  - SALE CONTEXT:', {
-          sale_currency: sale.currency,
-          sale_total: sale.total,
-          exchange_rates: {
-            usd_to_iqd: sale.exchange_rate_usd_to_iqd,
-            iqd_to_usd: sale.exchange_rate_iqd_to_usd
-          }
-        });
-        console.log('  - CALCULATED VALUES:', { buyingPrice, sellingPrice, quantity });
         
         // CRITICAL: The selling_price is stored in the PRODUCT'S original currency, not the sale currency
         // This is key to fixing the profit calculation!
@@ -178,37 +133,22 @@ const AdminStatsSidebar = ({
         const sellingPriceCurrency = item.product_currency || 'USD'; // Always use product currency for selling_price
         const productCurrency = item.product_currency || 'USD';
         
-        console.log('  - CURRENCY ANALYSIS:');
-        console.log('    * selling_price:', sellingPrice, 'stored in currency:', sellingPriceCurrency, '(FIXED: always product currency)');
-        console.log('    * buying_price:', buyingPrice, 'stored in currency:', productCurrency);
-        console.log('    * sale_currency:', sale.currency);
-        console.log('    * item.currency (sale context):', item.currency);
-        
         // Convert selling price to sale currency if needed
         if (sellingPriceCurrency === 'USD' && sale.currency === 'IQD') {
           sellingPriceInSaleCurrency = sellingPrice * (sale.exchange_rate_usd_to_iqd || 1440);
-          console.log('    * Converting selling_price: USD', sellingPrice, '* 1440 = IQD', sellingPriceInSaleCurrency);
         } else if (sellingPriceCurrency === 'IQD' && sale.currency === 'USD') {
           sellingPriceInSaleCurrency = sellingPrice * (sale.exchange_rate_iqd_to_usd || 0.000694);
-          console.log('    * Converting selling_price: IQD', sellingPrice, '* 0.000694 = USD', sellingPriceInSaleCurrency);
-        } else {
-          console.log('    * No selling_price conversion needed');
         }
         
         // Convert buying price to sale currency if needed
         if (productCurrency === 'USD' && sale.currency === 'IQD') {
           buyingPriceInSaleCurrency = buyingPrice * (sale.exchange_rate_usd_to_iqd || 1440);
-          console.log('    * Converting buying_price: USD', buyingPrice, '* 1440 = IQD', buyingPriceInSaleCurrency);
         } else if (productCurrency === 'IQD' && sale.currency === 'USD') {
           buyingPriceInSaleCurrency = buyingPrice * (sale.exchange_rate_iqd_to_usd || 0.000694);
-          console.log('    * Converting buying_price: IQD', buyingPrice, '* 0.000694 = USD', buyingPriceInSaleCurrency);
-        } else {
-          console.log('    * No buying_price conversion needed');
         }
         
         // Calculate profit in sale currency
         const profit = (sellingPriceInSaleCurrency - buyingPriceInSaleCurrency) * quantity;
-        console.log('  - FINAL PROFIT CALC:', sellingPriceInSaleCurrency, '-', buyingPriceInSaleCurrency, '*', quantity, '=', profit, sale.currency);
         
         return itemSum + profit;
       }, 0);

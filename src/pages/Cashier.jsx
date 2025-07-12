@@ -281,13 +281,7 @@ export default function Cashier() {
           };
         });
         
-        console.log(`💾 SALE: About to save sale with items:`, saleItems.map(item => ({ 
-          name: item.name, 
-          selling_price: item.selling_price, 
-          buying_price: item.buying_price,
-          quantity: item.quantity,
-          currency: item.currency 
-        })));
+
         
         const sale = {
           items: saleItems,

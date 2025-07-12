@@ -338,12 +338,10 @@ export default function CashierContent({
                             value={item.selling_price}
                             onChange={(e) => {
                               const newPrice = Number(e.target.value) || 0;
-                              console.log(`🔄 CART: Updating selling_price for ${item.name || 'Unknown'} from ${item.selling_price} to ${newPrice}`);
                               const updatedItems = items.map((cartItem, i) => 
                                 i === index ? { ...cartItem, selling_price: newPrice } : cartItem
                               );
                               setItems(updatedItems);
-                              console.log(`✅ CART: Updated items:`, updatedItems.map(i => ({ name: i.name, selling_price: i.selling_price, buying_price: i.buying_price })));
                             }}
                             className="w-20 px-1 py-0.5 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-600 text-xs"
                           />

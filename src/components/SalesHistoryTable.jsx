@@ -44,13 +44,6 @@ export default function SalesHistoryTable({ sales, t, onView, onPrintLast, onRet
           const sellingPrice = typeof item.selling_price === 'number' ? item.selling_price : (typeof item.buying_price === 'number' ? item.buying_price : 0);
           const productCurrency = item.product_currency || 'IQD';
           
-          console.log('🔍 [CALCULATE TOTALS] Sale:', sale.id, 'Item:', item.name);
-          console.log('  - sale_currency:', saleCurrency);
-          console.log('  - product_currency:', productCurrency);
-          console.log('  - buying_price:', buyingPrice);
-          console.log('  - selling_price:', sellingPrice);
-          console.log('  - quantity:', qty);
-          
           // Simple profit calculation: selling - buying = profit
           // Convert BOTH prices to sale currency if needed
           let buyingPriceInSaleCurrency = buyingPrice;
@@ -61,27 +54,20 @@ export default function SalesHistoryTable({ sales, t, onView, onPrintLast, onRet
               // Convert IQD prices to USD
               buyingPriceInSaleCurrency = buyingPrice * EXCHANGE_RATES.IQD_TO_USD;
               sellingPriceInSaleCurrency = sellingPrice * EXCHANGE_RATES.IQD_TO_USD;
-              console.log('  - Converting IQD to USD: buying', buyingPrice, '*', EXCHANGE_RATES.IQD_TO_USD, '=', buyingPriceInSaleCurrency);
-              console.log('  - Converting IQD to USD: selling', sellingPrice, '*', EXCHANGE_RATES.IQD_TO_USD, '=', sellingPriceInSaleCurrency);
             } else if (saleCurrency === 'IQD' && productCurrency === 'USD') {
               // Convert USD prices to IQD  
               buyingPriceInSaleCurrency = buyingPrice * EXCHANGE_RATES.USD_TO_IQD;
               sellingPriceInSaleCurrency = sellingPrice * EXCHANGE_RATES.USD_TO_IQD;
-              console.log('  - Converting USD to IQD: buying', buyingPrice, '*', EXCHANGE_RATES.USD_TO_IQD, '=', buyingPriceInSaleCurrency);
-              console.log('  - Converting USD to IQD: selling', sellingPrice, '*', EXCHANGE_RATES.USD_TO_IQD, '=', sellingPriceInSaleCurrency);
             }
           }
           
           const profit = (sellingPriceInSaleCurrency - buyingPriceInSaleCurrency) * qty;
-          console.log('  - PROFIT CALC:', sellingPriceInSaleCurrency, '-', buyingPriceInSaleCurrency, '*', qty, '=', profit);
           
           // Add profit to the sale currency total
           if (saleCurrency === 'USD') {
             totalProfitUSD += profit;
-            console.log('  - Added to totalProfitUSD, new total:', totalProfitUSD);
           } else {
             totalProfitIQD += profit;
-            console.log('  - Added to totalProfitIQD, new total:', totalProfitIQD);
           }
           
           totalProducts += qty;
@@ -183,26 +169,17 @@ export default function SalesHistoryTable({ sales, t, onView, onPrintLast, onRet
         // Convert buying price to sale currency if needed
         let buyingPriceInSaleCurrency = buyingPrice;
         
-        console.log('🔍 [SALES HISTORY] Item:', item.name, 'in sale currency:', saleCurrency);
-        console.log('  - buying_price:', buyingPrice, 'in currency:', productCurrency);
-        console.log('  - selling_price (raw):', sellingPrice, 'in currency:', productCurrency, '(FIXED: always product currency)');
-        console.log('  - selling_price (converted):', sellingPriceInSaleCurrency, 'in currency:', saleCurrency);
-        console.log('  - quantity:', qty);
-        
         if (productCurrency !== saleCurrency) {
           if (saleCurrency === 'USD' && productCurrency === 'IQD') {
             // Convert IQD buying price to USD
             buyingPriceInSaleCurrency = buyingPrice * saleExchangeRates.iqd_to_usd;
-            console.log('  - Converting IQD to USD:', buyingPrice, '*', saleExchangeRates.iqd_to_usd, '=', buyingPriceInSaleCurrency);
           } else if (saleCurrency === 'IQD' && productCurrency === 'USD') {
             // Convert USD buying price to IQD
             buyingPriceInSaleCurrency = buyingPrice * saleExchangeRates.usd_to_iqd;
-            console.log('  - Converting USD to IQD:', buyingPrice, '*', saleExchangeRates.usd_to_iqd, '=', buyingPriceInSaleCurrency);
           }
         }
         
         const profit = (sellingPriceInSaleCurrency - buyingPriceInSaleCurrency) * qty;
-        console.log('  - PROFIT CALC:', sellingPriceInSaleCurrency, '-', buyingPriceInSaleCurrency, '*', qty, '=', profit);
         totalProfit += profit;
       });
     }
