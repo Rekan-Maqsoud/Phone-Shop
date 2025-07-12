@@ -42,10 +42,9 @@ function getSales(db) {
       };
     });
     
-    // Add multi-currency payment info if available
+    // No longer include payment amounts - only track if it was multi-currency
     const multi_currency = sale.is_multi_currency ? {
-      usdAmount: sale.paid_amount_usd || 0,
-      iqdAmount: sale.paid_amount_iqd || 0
+      enabled: true
     } : null;
     
     return {

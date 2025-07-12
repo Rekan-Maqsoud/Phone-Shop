@@ -24,29 +24,28 @@ export const formatCurrency = (amount, currency) => {
   const symbol = currency === 'USD' ? '$' : 'د.ع';
   
   if (currency === 'IQD') {
-    // Round to nearest whole number for IQD (no decimals)
+    // IQD always shows as whole numbers (no decimals ever)
     const rounded = Math.round(amount);
     return `${rounded.toLocaleString()}${symbol}`;
   }
   
-  // Format with 2 decimal places for USD, but remove .00 for whole numbers
-  const formatted = Number(amount).toFixed(2);
-  const cleanFormatted = formatted.endsWith('.00') ? formatted.slice(0, -3) : formatted;
-  return `${symbol}${cleanFormatted}`;
+  // For USD: Show whole numbers when possible, otherwise show minimal decimals
+  const numAmount = Number(amount);
+  if (numAmount === Math.floor(numAmount)) {
+    // It's a whole number, show without decimals
+    return `${symbol}${Math.floor(numAmount).toLocaleString()}`;
+  } else {
+    // It has decimals, format with 2 decimal places but remove trailing zeros
+    const formatted = numAmount.toFixed(2);
+    const cleanFormatted = formatted.replace(/\.?0+$/, '');
+    return `${symbol}${cleanFormatted}`;
+  }
 };
 
 // Round IQD amounts to nearest 250 (smallest bill denomination)
 export const roundIQDToNearestBill = (amount) => {
   if (amount <= 0) return 0;
   return Math.round(amount / 250) * 250;
-};
-
-// Get properly rounded total for payments
-export const getRoundedPaymentTotal = (amount, currency) => {
-  if (currency === 'IQD') {
-    return roundIQDToNearestBill(amount);
-  }
-  return amount;
 };
 
 export const validatePaymentAmount = (totalUSD, paymentIQD) => {

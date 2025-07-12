@@ -14,6 +14,12 @@ import {
 } from 'chart.js';
 import { Bar, Line, Doughnut } from 'react-chartjs-2';
 
+// Exchange rates - should match the rates in exchangeRates.js
+const EXCHANGE_RATES = {
+  USD_TO_IQD: 1440,
+  IQD_TO_USD: 1 / 1440
+};
+
 ChartJS.register(
   CategoryScale,
   LinearScale,
@@ -28,16 +34,25 @@ ChartJS.register(
 
 const formatCurrency = (amount, currency = 'USD') => {
   if (currency === 'IQD') {
+    // IQD always shows as whole numbers (no decimals ever)
     return `${Math.round(amount).toLocaleString()} IQD`;
   }
-  // Format with 2 decimal places for USD, but remove .00 for whole numbers
-  const formatted = Number(amount).toFixed(2);
-  const cleanFormatted = formatted.endsWith('.00') ? formatted.slice(0, -3) : formatted;
-  return `$${cleanFormatted}`;
+  
+  // For USD: Show whole numbers when possible, otherwise show minimal decimals
+  const numAmount = Number(amount);
+  if (numAmount === Math.floor(numAmount)) {
+    // It's a whole number, show without decimals
+    return `$${Math.floor(numAmount).toLocaleString()}`;
+  } else {
+    // It has decimals, format with minimal decimal places
+    const formatted = numAmount.toFixed(2);
+    const cleanFormatted = formatted.replace(/\.?0+$/, '');
+    return `$${cleanFormatted}`;
+  }
 };
 
-export default function MultiCurrencyDashboard({ admin, t }) {
-  const { products, accessories, sales, debts, buyingHistory, companyDebts, refreshAllData } = useData();
+function MultiCurrencyDashboard({ admin, t }) {
+  const { products, accessories, sales, debts, buyingHistory, companyDebts, refreshAllData, refreshDebts } = useData();
   const [balances, setBalances] = useState({ usd_balance: 0, iqd_balance: 0 });
   const [dashboardData, setDashboardData] = useState(null);
   const [transactions, setTransactions] = useState([]);
@@ -54,14 +69,6 @@ export default function MultiCurrencyDashboard({ admin, t }) {
         setBalances({ usd_balance: 0, iqd_balance: 0 });
       }
       
-      // Try getDashboardData if available, but don't rely on it for balances
-      if (window.api?.getDashboardData) {
-        const fullDashboardData = await window.api.getDashboardData();
-        if (fullDashboardData) {
-          setDashboardData(fullDashboardData);
-        }
-      }
-      
       if (window.api?.getTransactions) {
         const transactionData = await window.api.getTransactions(20);
         setTransactions(transactionData || []);
@@ -70,6 +77,11 @@ export default function MultiCurrencyDashboard({ admin, t }) {
       if (window.api?.getPersonalLoans) {
         const loansData = await window.api.getPersonalLoans();
         setPersonalLoans(loansData || []);
+      }
+
+      // Force refresh customer debts to ensure sync
+      if (refreshDebts) {
+        await refreshDebts();
       }
     } catch (error) {
       console.error('Error fetching balance data:', error);
@@ -82,14 +94,19 @@ export default function MultiCurrencyDashboard({ admin, t }) {
     fetchBalanceData();
   }, []);
 
-  // Refresh data when sales, buyingHistory, or debts change
+  // Refresh data when sales, buyingHistory, debts, or companyDebts change
+  // Use a debounced effect to prevent excessive refreshes
   useEffect(() => {
-    fetchBalanceData();
-  }, [sales, buyingHistory, debts]);
+    const timeoutId = setTimeout(() => {
+      fetchBalanceData();
+    }, 500); // Debounce by 500ms
+    
+    return () => clearTimeout(timeoutId);
+  }, [sales, buyingHistory, debts, companyDebts]);
 
-  // Set up periodic refresh every 30 seconds
+  // Set up periodic refresh every 60 seconds (reduced from 30)
   useEffect(() => {
-    const interval = setInterval(fetchBalanceData, 30000);
+    const interval = setInterval(fetchBalanceData, 60000);
     return () => clearInterval(interval);
   }, []);
 
@@ -103,25 +120,35 @@ export default function MultiCurrencyDashboard({ admin, t }) {
     );
     
     const todaysUSDSales = todaysSales.reduce((sum, sale) => {
-      // Handle multi-currency sales first
-      if (sale.multi_currency && (sale.multi_currency.usdAmount > 0 || sale.multi_currency.iqdAmount > 0)) {
-        return sum + (sale.multi_currency.usdAmount || 0);
-      }
-      // For single currency sales
+      // Calculate revenue from actual selling prices (before discount)
       if (sale.currency === 'USD') {
-        return sum + (sale.total || 0);
+        if (sale.items && sale.items.length > 0) {
+          const itemsTotal = sale.items.reduce((itemSum, item) => {
+            const qty = item.quantity || 1;
+            const sellingPrice = typeof item.selling_price === 'number' ? item.selling_price : (typeof item.buying_price === 'number' ? item.buying_price : 0);
+            return itemSum + (sellingPrice * qty);
+          }, 0);
+          return sum + itemsTotal;
+        } else {
+          return sum + (sale.total || 0);
+        }
       }
       return sum;
     }, 0);
     
     const todaysIQDSales = todaysSales.reduce((sum, sale) => {
-      // Handle multi-currency sales first
-      if (sale.multi_currency && (sale.multi_currency.usdAmount > 0 || sale.multi_currency.iqdAmount > 0)) {
-        return sum + (sale.multi_currency.iqdAmount || 0);
-      }
-      // For single currency sales
+      // Calculate revenue from actual selling prices (before discount)
       if (sale.currency === 'IQD') {
-        return sum + (sale.total || 0);
+        if (sale.items && sale.items.length > 0) {
+          const itemsTotal = sale.items.reduce((itemSum, item) => {
+            const qty = item.quantity || 1;
+            const sellingPrice = typeof item.selling_price === 'number' ? item.selling_price : (typeof item.buying_price === 'number' ? item.buying_price : 0);
+            return itemSum + (sellingPrice * qty);
+          }, 0);
+          return sum + itemsTotal;
+        } else {
+          return sum + (sale.total || 0);
+        }
       }
       return sum;
     }, 0);
@@ -134,25 +161,35 @@ export default function MultiCurrencyDashboard({ admin, t }) {
     );
     
     const weekUSDSales = thisWeeksSales.reduce((sum, sale) => {
-      // Handle multi-currency sales first
-      if (sale.multi_currency && (sale.multi_currency.usdAmount > 0 || sale.multi_currency.iqdAmount > 0)) {
-        return sum + (sale.multi_currency.usdAmount || 0);
-      }
-      // For single currency sales
+      // Calculate revenue from actual selling prices (before discount)
       if (sale.currency === 'USD') {
-        return sum + (sale.total || 0);
+        if (sale.items && sale.items.length > 0) {
+          const itemsTotal = sale.items.reduce((itemSum, item) => {
+            const qty = item.quantity || 1;
+            const sellingPrice = typeof item.selling_price === 'number' ? item.selling_price : (typeof item.buying_price === 'number' ? item.buying_price : 0);
+            return itemSum + (sellingPrice * qty);
+          }, 0);
+          return sum + itemsTotal;
+        } else {
+          return sum + (sale.total || 0);
+        }
       }
       return sum;
     }, 0);
     
     const weekIQDSales = thisWeeksSales.reduce((sum, sale) => {
-      // Handle multi-currency sales first
-      if (sale.multi_currency && (sale.multi_currency.usdAmount > 0 || sale.multi_currency.iqdAmount > 0)) {
-        return sum + (sale.multi_currency.iqdAmount || 0);
-      }
-      // For single currency sales
+      // Calculate revenue from actual selling prices (before discount)
       if (sale.currency === 'IQD') {
-        return sum + (sale.total || 0);
+        if (sale.items && sale.items.length > 0) {
+          const itemsTotal = sale.items.reduce((itemSum, item) => {
+            const qty = item.quantity || 1;
+            const sellingPrice = typeof item.selling_price === 'number' ? item.selling_price : (typeof item.buying_price === 'number' ? item.buying_price : 0);
+            return itemSum + (sellingPrice * qty);
+          }, 0);
+          return sum + itemsTotal;
+        } else {
+          return sum + (sale.total || 0);
+        }
       }
       return sum;
     }, 0);
@@ -423,8 +460,12 @@ export default function MultiCurrencyDashboard({ admin, t }) {
           <BalanceChart 
             usdBalance={balances.usd_balance || 0} 
             iqdBalance={balances.iqd_balance || 0}
-            usdDebts={metrics.unpaidUSDDebts}
-            iqdDebts={metrics.unpaidIQDDebts}
+            usdCustomerDebts={metrics.unpaidUSDDebts || 0}
+            iqdCustomerDebts={metrics.unpaidIQDDebts || 0}
+            usdCompanyDebts={metrics.unpaidCompanyUSDDebts || 0}
+            iqdCompanyDebts={metrics.unpaidCompanyIQDDebts || 0}
+            usdPersonalLoans={metrics.unpaidUSDLoans || 0}
+            iqdPersonalLoans={metrics.unpaidIQDLoans || 0}
             t={t} 
           />
         </div>
@@ -491,12 +532,61 @@ export default function MultiCurrencyDashboard({ admin, t }) {
           </div>
         )}
       </div>
+
+      {/* Additional Analytics Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Top Selling Products */}
+        <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg border border-gray-200 dark:border-gray-700">
+          <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">
+            🏆 {t?.topSellingProducts || 'Top Selling Products'}
+          </h3>
+          <TopSellingProductsChart sales={sales} t={t} />
+        </div>
+
+        {/* Monthly Profit Trends */}
+        <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg border border-gray-200 dark:border-gray-700">
+          <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">
+            📊 {t?.monthlyProfitTrends || 'Monthly Profit Trends'}
+          </h3>
+          <MonthlyProfitChart sales={sales} t={t} />
+        </div>
+      </div>
+
+      {/* Inventory Alerts and Summary */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Low Stock Alerts */}
+        <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg border border-gray-200 dark:border-gray-700">
+          <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">
+            ⚠️ {t?.lowStockAlerts || 'Low Stock Alerts'}
+          </h3>
+          <LowStockAlerts products={products} accessories={accessories} t={t} />
+        </div>
+
+        {/* Sales Summary by Currency */}
+        <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg border border-gray-200 dark:border-gray-700">
+          <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">
+            💱 {t?.salesByCurrency || 'Sales by Currency'}
+          </h3>
+          <SalesByCurrencyChart sales={sales} t={t} />
+        </div>
+
+        {/* Quick Stats */}
+        <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg border border-gray-200 dark:border-gray-700">
+          <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">
+            📈 {t?.quickStats || 'Quick Stats'}
+          </h3>
+          <QuickStatsDisplay sales={sales} products={products} accessories={accessories} t={t} />
+        </div>
+      </div>
+
     </div>
   );
 }
 
-// Sales Chart Component
-const SalesChart = ({ sales, t }) => {
+export default React.memo(MultiCurrencyDashboard);
+
+// Sales Chart Component - Separate charts for USD and IQD
+const SalesChart = React.memo(({ sales, t }) => {
   const chartData = useMemo(() => {
     const last7Days = Array.from({ length: 7 }, (_, i) => {
       const date = new Date();
@@ -504,43 +594,81 @@ const SalesChart = ({ sales, t }) => {
       return date.toISOString().split('T')[0];
     }).reverse();
 
+    // Calculate USD sales from actual selling prices
     const usdData = last7Days.map(date => {
       return (sales || [])
         .filter(sale => sale.created_at?.split('T')[0] === date && sale.currency === 'USD')
-        .reduce((sum, sale) => sum + (sale.total || 0), 0);
+        .reduce((sum, sale) => {
+          if (sale.items && sale.items.length > 0) {
+            const itemsTotal = sale.items.reduce((itemSum, item) => {
+              const qty = item.quantity || 1;
+              const sellingPrice = typeof item.selling_price === 'number' ? item.selling_price : (typeof item.buying_price === 'number' ? item.buying_price : 0);
+              return itemSum + (sellingPrice * qty);
+            }, 0);
+            return sum + itemsTotal;
+          } else {
+            return sum + (sale.total || 0);
+          }
+        }, 0);
     });
 
+    // Calculate IQD sales from actual selling prices  
     const iqdData = last7Days.map(date => {
       return (sales || [])
         .filter(sale => sale.created_at?.split('T')[0] === date && sale.currency === 'IQD')
-        .reduce((sum, sale) => sum + (sale.total || 0), 0);
+        .reduce((sum, sale) => {
+          if (sale.items && sale.items.length > 0) {
+            const itemsTotal = sale.items.reduce((itemSum, item) => {
+              const qty = item.quantity || 1;
+              const sellingPrice = typeof item.selling_price === 'number' ? item.selling_price : (typeof item.buying_price === 'number' ? item.buying_price : 0);
+              return itemSum + (sellingPrice * qty);
+            }, 0);
+            return sum + itemsTotal;
+          } else {
+            return sum + (sale.total || 0);
+          }
+        }, 0);
     });
 
     return {
-      labels: last7Days.map(date => new Date(date).toLocaleDateString()),
-      datasets: [
-        {
-          label: 'USD Sales',
-          data: usdData,
-          backgroundColor: 'rgba(34, 197, 94, 0.5)',
-          borderColor: 'rgba(34, 197, 94, 1)',
-          borderWidth: 2,
-          tension: 0.1,
-        },
-        {
-          label: 'IQD Sales',
-          data: iqdData,
-          backgroundColor: 'rgba(168, 85, 247, 0.5)',
-          borderColor: 'rgba(168, 85, 247, 1)',
-          borderWidth: 2,
-          tension: 0.1,
-        },
-      ],
+      usd: {
+        labels: last7Days.map(date => new Date(date).toLocaleDateString()),
+        datasets: [
+          {
+            label: 'USD Sales',
+            data: usdData,
+            backgroundColor: 'rgba(34, 197, 94, 0.5)',
+            borderColor: 'rgba(34, 197, 94, 1)',
+            borderWidth: 2,
+            tension: 0.1,
+          },
+        ],
+      },
+      iqd: {
+        labels: last7Days.map(date => new Date(date).toLocaleDateString()),
+        datasets: [
+          {
+            label: 'IQD Sales',
+            data: iqdData,
+            backgroundColor: 'rgba(168, 85, 247, 0.5)',
+            borderColor: 'rgba(168, 85, 247, 1)',
+            borderWidth: 2,
+            tension: 0.1,
+          },
+        ],
+      },
     };
   }, [sales]);
 
-  const options = {
+  const options = useMemo(() => ({
     responsive: true,
+    maintainAspectRatio: false,
+    animation: {
+      duration: 300, // Faster animations
+    },
+    interaction: {
+      intersect: false,
+    },
     plugins: {
       legend: {
         position: 'top',
@@ -551,45 +679,489 @@ const SalesChart = ({ sales, t }) => {
         beginAtZero: true,
       },
     },
-  };
+  }), []);
 
-  return <Line data={chartData} options={options} />;
-};
+  return (
+    <div className="space-y-4">
+      <div className="bg-white dark:bg-gray-800 p-4 rounded-lg" style={{ height: '300px' }}>
+        <h3 className="text-lg font-semibold mb-4 text-gray-800 dark:text-gray-100">USD Sales (7 Days)</h3>
+        <div style={{ height: '250px' }}>
+          <Line data={chartData.usd} options={options} />
+        </div>
+      </div>
+      <div className="bg-white dark:bg-gray-800 p-4 rounded-lg" style={{ height: '300px' }}>
+        <h3 className="text-lg font-semibold mb-4 text-gray-800 dark:text-gray-100">IQD Sales (7 Days)</h3>
+        <div style={{ height: '250px' }}>
+          <Line data={chartData.iqd} options={options} />
+        </div>
+      </div>
+    </div>
+  );
+});
 
-// Balance Chart Component
-const BalanceChart = ({ usdBalance, iqdBalance, usdDebts, iqdDebts, t }) => {
+// Balance Chart Component - All balances in one pie chart with exchange rate scaling
+const BalanceChart = React.memo(({ 
+  usdBalance, 
+  iqdBalance, 
+  usdCustomerDebts, 
+  iqdCustomerDebts, 
+  usdCompanyDebts, 
+  iqdCompanyDebts, 
+  usdPersonalLoans, 
+  iqdPersonalLoans, 
+  t 
+}) => {
   const chartData = useMemo(() => {
+    // Convert everything to USD equivalent for proper visualization
+    const iqdBalanceUSD = (iqdBalance || 0) * EXCHANGE_RATES.IQD_TO_USD;
+    const iqdCustomerDebtsUSD = (iqdCustomerDebts || 0) * EXCHANGE_RATES.IQD_TO_USD;
+    const iqdCompanyDebtsUSD = (iqdCompanyDebts || 0) * EXCHANGE_RATES.IQD_TO_USD;
+    const iqdPersonalLoansUSD = (iqdPersonalLoans || 0) * EXCHANGE_RATES.IQD_TO_USD;
+    
+    const data = [
+      usdBalance || 0,
+      iqdBalanceUSD,
+      usdCustomerDebts || 0,
+      iqdCustomerDebtsUSD,
+      usdCompanyDebts || 0,
+      iqdCompanyDebtsUSD,
+      usdPersonalLoans || 0,
+      iqdPersonalLoansUSD,
+    ];
+    
+    const labels = [
+      `USD Balance (${formatCurrency(usdBalance || 0, 'USD')})`,
+      `IQD Balance (${formatCurrency(iqdBalance || 0, 'IQD')})`,
+      `USD Customer Debts (${formatCurrency(usdCustomerDebts || 0, 'USD')})`,
+      `IQD Customer Debts (${formatCurrency(iqdCustomerDebts || 0, 'IQD')})`,
+      `USD Company Debts (${formatCurrency(usdCompanyDebts || 0, 'USD')})`,
+      `IQD Company Debts (${formatCurrency(iqdCompanyDebts || 0, 'IQD')})`,
+      `USD Personal Loans (${formatCurrency(usdPersonalLoans || 0, 'USD')})`,
+      `IQD Personal Loans (${formatCurrency(iqdPersonalLoans || 0, 'IQD')})`,
+    ];
+
     return {
-      labels: ['USD Balance', 'IQD Balance', 'USD Debts', 'IQD Debts'],
+      labels: labels,
       datasets: [
         {
-          data: [usdBalance || 0, iqdBalance || 0, usdDebts || 0, iqdDebts || 0],
+          data: data,
           backgroundColor: [
-            'rgba(34, 197, 94, 0.8)',
-            'rgba(168, 85, 247, 0.8)',
-            'rgba(239, 68, 68, 0.8)',
-            'rgba(245, 101, 101, 0.8)',
+            'rgba(34, 197, 94, 0.8)',    // USD Balance - Green
+            'rgba(168, 85, 247, 0.8)',   // IQD Balance - Purple
+            'rgba(239, 68, 68, 0.8)',    // USD Customer Debts - Red
+            'rgba(220, 38, 127, 0.8)',   // IQD Customer Debts - Pink
+            'rgba(245, 158, 11, 0.8)',   // USD Company Debts - Orange
+            'rgba(217, 119, 6, 0.8)',    // IQD Company Debts - Dark Orange
+            'rgba(59, 130, 246, 0.8)',   // USD Personal Loans - Blue
+            'rgba(29, 78, 216, 0.8)',    // IQD Personal Loans - Dark Blue
           ],
           borderColor: [
             'rgba(34, 197, 94, 1)',
             'rgba(168, 85, 247, 1)',
             'rgba(239, 68, 68, 1)',
-            'rgba(245, 101, 101, 1)',
+            'rgba(220, 38, 127, 1)',
+            'rgba(245, 158, 11, 1)',
+            'rgba(217, 119, 6, 1)',
+            'rgba(59, 130, 246, 1)',
+            'rgba(29, 78, 216, 1)',
           ],
           borderWidth: 2,
         },
       ],
     };
-  }, [usdBalance, iqdBalance, usdDebts, iqdDebts]);
+  }, [usdBalance, iqdBalance, usdCustomerDebts, iqdCustomerDebts, usdCompanyDebts, iqdCompanyDebts, usdPersonalLoans, iqdPersonalLoans]);
 
-  const options = {
+  const options = useMemo(() => ({
     responsive: true,
+    maintainAspectRatio: false,
+    animation: {
+      duration: 200, // Reduce animation time for better performance
+    },
+    interaction: {
+      intersect: false, // Faster hover detection
+    },
     plugins: {
       legend: {
         position: 'bottom',
+        labels: {
+          boxWidth: 12,
+          padding: 8,
+          font: {
+            size: 10
+          }
+        }
       },
+      tooltip: {
+        enabled: true,
+        mode: 'nearest',
+        callbacks: {
+          label: function(context) {
+            const label = context.label || '';
+            const value = context.parsed;
+            // Show the value in USD equivalent for comparison
+            return `${label}: ~${formatCurrency(value, 'USD')} equiv`;
+          }
+        }
+      }
     },
-  };
+  }), []);
 
-  return <Doughnut data={chartData} options={options} />;
-};
+  return (
+    <div style={{ height: '300px', position: 'relative' }}>
+      <Doughnut data={chartData} options={options} />
+    </div>
+  );
+});
+
+// Top Selling Products Chart Component
+const TopSellingProductsChart = React.memo(({ sales, t }) => {
+  const chartData = useMemo(() => {
+    const productSales = {};
+    
+    (sales || []).forEach(sale => {
+      if (sale.items && sale.items.length > 0) {
+        sale.items.forEach(item => {
+          const productName = item.name || 'Unknown Product';
+          const qty = item.quantity || 1;
+          
+          if (!productSales[productName]) {
+            productSales[productName] = 0;
+          }
+          productSales[productName] += qty;
+        });
+      }
+    });
+    
+    // Get top 5 products
+    const topProducts = Object.entries(productSales)
+      .sort(([,a], [,b]) => b - a)
+      .slice(0, 5);
+    
+    if (topProducts.length === 0) {
+      return {
+        labels: ['No sales data'],
+        datasets: [{
+          data: [1],
+          backgroundColor: ['rgba(156, 163, 175, 0.5)'],
+          borderColor: ['rgba(156, 163, 175, 1)'],
+          borderWidth: 1,
+        }]
+      };
+    }
+    
+    return {
+      labels: topProducts.map(([name]) => name.length > 20 ? name.substring(0, 20) + '...' : name),
+      datasets: [{
+        label: 'Units Sold',
+        data: topProducts.map(([, quantity]) => quantity),
+        backgroundColor: [
+          'rgba(34, 197, 94, 0.6)',
+          'rgba(59, 130, 246, 0.6)',
+          'rgba(168, 85, 247, 0.6)',
+          'rgba(245, 158, 11, 0.6)',
+          'rgba(239, 68, 68, 0.6)',
+        ],
+        borderColor: [
+          'rgba(34, 197, 94, 1)',
+          'rgba(59, 130, 246, 1)',
+          'rgba(168, 85, 247, 1)',
+          'rgba(245, 158, 11, 1)',
+          'rgba(239, 68, 68, 1)',
+        ],
+        borderWidth: 2,
+      }]
+    };
+  }, [sales]);
+
+  const options = useMemo(() => ({
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        display: false
+      },
+      tooltip: {
+        callbacks: {
+          label: function(context) {
+            return `${context.label}: ${context.parsed.y} units sold`;
+          }
+        }
+      }
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        ticks: {
+          precision: 0
+        }
+      }
+    }
+  }), []);
+
+  return (
+    <div style={{ height: '250px' }}>
+      <Bar data={chartData} options={options} />
+    </div>
+  );
+});
+
+// Monthly Profit Chart Component
+const MonthlyProfitChart = React.memo(({ sales, t }) => {
+  const chartData = useMemo(() => {
+    const last6Months = Array.from({ length: 6 }, (_, i) => {
+      const date = new Date();
+      date.setMonth(date.getMonth() - i);
+      return {
+        month: date.toISOString().substring(0, 7), // YYYY-MM format
+        label: date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+      };
+    }).reverse();
+
+    const monthlyProfits = last6Months.map(({ month }) => {
+      return (sales || [])
+        .filter(sale => sale.created_at?.substring(0, 7) === month)
+        .reduce((totalProfit, sale) => {
+          if (sale.items && sale.items.length > 0) {
+            const saleProfit = sale.items.reduce((itemProfit, item) => {
+              const qty = item.quantity || 1;
+              const buyingPrice = typeof item.buying_price === 'number' ? item.buying_price : 0;
+              const sellingPrice = typeof item.selling_price === 'number' ? item.selling_price : buyingPrice;
+              
+              // Convert to USD for consistency
+              const saleCurrency = sale.currency || 'USD';
+              let profitInUSD = (sellingPrice - buyingPrice) * qty;
+              
+              if (saleCurrency === 'IQD') {
+                profitInUSD = profitInUSD * EXCHANGE_RATES.IQD_TO_USD;
+              }
+              
+              return itemProfit + profitInUSD;
+            }, 0);
+            return totalProfit + saleProfit;
+          }
+          return totalProfit;
+        }, 0);
+    });
+
+    return {
+      labels: last6Months.map(({ label }) => label),
+      datasets: [{
+        label: 'Monthly Profit (USD)',
+        data: monthlyProfits,
+        backgroundColor: 'rgba(34, 197, 94, 0.2)',
+        borderColor: 'rgba(34, 197, 94, 1)',
+        borderWidth: 3,
+        fill: true,
+        tension: 0.4,
+      }]
+    };
+  }, [sales]);
+
+  const options = useMemo(() => ({
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        display: false
+      },
+      tooltip: {
+        callbacks: {
+          label: function(context) {
+            return `Profit: ${formatCurrency(context.parsed.y, 'USD')}`;
+          }
+        }
+      }
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        ticks: {
+          callback: function(value) {
+            return '$' + value.toFixed(0);
+          }
+        }
+      }
+    }
+  }), []);
+
+  return (
+    <div style={{ height: '250px' }}>
+      <Line data={chartData} options={options} />
+    </div>
+  );
+});
+
+// Low Stock Alerts Component
+const LowStockAlerts = React.memo(({ products, accessories, t }) => {
+  const lowStockItems = useMemo(() => {
+    const items = [];
+    
+    // Check products
+    (products || []).forEach(product => {
+      if (product.stock <= 5 && product.stock >= 0) {
+        items.push({
+          name: product.name,
+          stock: product.stock,
+          type: 'product',
+          urgency: product.stock === 0 ? 'critical' : product.stock <= 2 ? 'high' : 'medium'
+        });
+      }
+    });
+    
+    // Check accessories
+    (accessories || []).forEach(accessory => {
+      if (accessory.stock <= 5 && accessory.stock >= 0) {
+        items.push({
+          name: accessory.name,
+          stock: accessory.stock,
+          type: 'accessory',
+          urgency: accessory.stock === 0 ? 'critical' : accessory.stock <= 2 ? 'high' : 'medium'
+        });
+      }
+    });
+    
+    return items.sort((a, b) => a.stock - b.stock);
+  }, [products, accessories]);
+
+  return (
+    <div className="space-y-3 max-h-64 overflow-y-auto">
+      {lowStockItems.length === 0 ? (
+        <div className="text-center py-4 text-gray-500 dark:text-gray-400">
+          <div className="text-2xl mb-2">✅</div>
+          <p>{t?.allStockGood || 'All items in stock'}</p>
+        </div>
+      ) : (
+        lowStockItems.map((item, idx) => (
+          <div key={idx} className={`p-3 rounded-lg border-l-4 ${
+            item.urgency === 'critical' ? 'bg-red-50 dark:bg-red-900/20 border-red-500' :
+            item.urgency === 'high' ? 'bg-orange-50 dark:bg-orange-900/20 border-orange-500' :
+            'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-500'
+          }`}>
+            <div className="flex justify-between items-center">
+              <div>
+                <div className="font-medium text-sm text-gray-900 dark:text-gray-100">
+                  {item.name}
+                </div>
+                <div className="text-xs text-gray-500 dark:text-gray-400 capitalize">
+                  {item.type}
+                </div>
+              </div>
+              <div className={`text-sm font-bold ${
+                item.urgency === 'critical' ? 'text-red-600 dark:text-red-400' :
+                item.urgency === 'high' ? 'text-orange-600 dark:text-orange-400' :
+                'text-yellow-600 dark:text-yellow-400'
+              }`}>
+                {item.stock === 0 ? 'OUT OF STOCK' : `${item.stock} left`}
+              </div>
+            </div>
+          </div>
+        ))
+      )}
+    </div>
+  );
+});
+
+// Sales by Currency Chart Component
+const SalesByCurrencyChart = React.memo(({ sales, t }) => {
+  const chartData = useMemo(() => {
+    let usdSales = 0;
+    let iqdSales = 0;
+    
+    (sales || []).forEach(sale => {
+      if (sale.currency === 'USD') {
+        usdSales++;
+      } else {
+        iqdSales++;
+      }
+    });
+    
+    const total = usdSales + iqdSales;
+    if (total === 0) {
+      return {
+        labels: ['No sales'],
+        datasets: [{
+          data: [1],
+          backgroundColor: ['rgba(156, 163, 175, 0.5)'],
+        }]
+      };
+    }
+    
+    return {
+      labels: [`USD Sales (${usdSales})`, `IQD Sales (${iqdSales})`],
+      datasets: [{
+        data: [usdSales, iqdSales],
+        backgroundColor: [
+          'rgba(34, 197, 94, 0.8)',
+          'rgba(168, 85, 247, 0.8)',
+        ],
+        borderColor: [
+          'rgba(34, 197, 94, 1)',
+          'rgba(168, 85, 247, 1)',
+        ],
+        borderWidth: 2,
+      }]
+    };
+  }, [sales]);
+
+  const options = useMemo(() => ({
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: 'bottom',
+        labels: {
+          font: { size: 12 }
+        }
+      }
+    }
+  }), []);
+
+  return (
+    <div style={{ height: '200px' }}>
+      <Doughnut data={chartData} options={options} />
+    </div>
+  );
+});
+
+// Quick Stats Display Component
+const QuickStatsDisplay = React.memo(({ sales, products, accessories, t }) => {
+  const stats = useMemo(() => {
+    const totalProducts = (products || []).length;
+    const totalAccessories = (accessories || []).length;
+    const totalSales = (sales || []).length;
+    const todaySales = (sales || []).filter(sale => 
+      new Date(sale.created_at).toDateString() === new Date().toDateString()
+    ).length;
+    
+    return {
+      totalProducts,
+      totalAccessories,
+      totalSales,
+      todaySales
+    };
+  }, [sales, products, accessories]);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+        <div className="text-sm text-gray-600 dark:text-gray-400">Total Products</div>
+        <div className="text-lg font-bold text-blue-600 dark:text-blue-400">{stats.totalProducts}</div>
+      </div>
+      
+      <div className="flex justify-between items-center p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+        <div className="text-sm text-gray-600 dark:text-gray-400">Total Accessories</div>
+        <div className="text-lg font-bold text-purple-600 dark:text-purple-400">{stats.totalAccessories}</div>
+      </div>
+      
+      <div className="flex justify-between items-center p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+        <div className="text-sm text-gray-600 dark:text-gray-400">Total Sales</div>
+        <div className="text-lg font-bold text-green-600 dark:text-green-400">{stats.totalSales}</div>
+      </div>
+      
+      <div className="flex justify-between items-center p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
+        <div className="text-sm text-gray-600 dark:text-gray-400">Today's Sales</div>
+        <div className="text-lg font-bold text-orange-600 dark:text-orange-400">{stats.todaySales}</div>
+      </div>
+    </div>
+  );
+});

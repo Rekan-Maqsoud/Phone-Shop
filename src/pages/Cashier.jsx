@@ -53,16 +53,9 @@ export default function Cashier() {
     setToast({ msg, type, duration: 3000 });
   }, showConfirm, t);
   
-  // Calculate discounted total
-  const total = useMemo(() => {
-    if (!discount || !discount.discount_value) return baseTotal;
-    
-    if (discount.discount_type === 'percentage') {
-      return baseTotal * (1 - discount.discount_value / 100);
-    } else {
-      return Math.max(0, baseTotal - discount.discount_value);
-    }
-  }, [baseTotal, discount]);
+  // Note: Discount calculation is now handled in CashierContent component
+  // This ensures consistency between UI display and sale processing
+  const total = baseTotal; // Use base total, discounted total comes from CashierContent
   
   const admin = useAdmin(navigate);
 

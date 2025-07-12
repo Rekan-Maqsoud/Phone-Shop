@@ -108,11 +108,8 @@ export default function AdvancedAnalytics({ admin, t }) {
 
     // Revenue analysis
     const revenueUSD = filteredSales.reduce((sum, sale) => {
-      // Handle multi-currency sales first
-      if (sale.multi_currency && (sale.multi_currency.usdAmount > 0 || sale.multi_currency.iqdAmount > 0)) {
-        return sum + (sale.multi_currency.usdAmount || 0);
-      }
-      // For single currency sales
+      // For revenue calculations, use sale.total based on sale currency, not payment amounts
+      // This ensures overpayments don't inflate revenue figures
       if (sale.currency === 'USD') {
         return sum + (sale.total || 0);
       }
@@ -120,11 +117,8 @@ export default function AdvancedAnalytics({ admin, t }) {
     }, 0);
     
     const revenueIQD = filteredSales.reduce((sum, sale) => {
-      // Handle multi-currency sales first
-      if (sale.multi_currency && (sale.multi_currency.usdAmount > 0 || sale.multi_currency.iqdAmount > 0)) {
-        return sum + (sale.multi_currency.iqdAmount || 0);
-      }
-      // For single currency sales
+      // For revenue calculations, use sale.total based on sale currency, not payment amounts
+      // This ensures overpayments don't inflate revenue figures
       if (sale.currency === 'IQD') {
         return sum + (sale.total || 0);
       }
@@ -280,11 +274,7 @@ export default function AdvancedAnalytics({ admin, t }) {
       );
       
       const dayRevenueUSD = daySales.reduce((sum, sale) => {
-        // Handle multi-currency sales first
-        if (sale.multi_currency && (sale.multi_currency.usdAmount > 0 || sale.multi_currency.iqdAmount > 0)) {
-          return sum + (sale.multi_currency.usdAmount || 0);
-        }
-        // For single currency sales
+        // For revenue calculations, use sale.total based on sale currency, not payment amounts
         if (sale.currency === 'USD') {
           return sum + (sale.total || 0);
         }
@@ -292,11 +282,7 @@ export default function AdvancedAnalytics({ admin, t }) {
       }, 0);
       
       const dayRevenueIQD = daySales.reduce((sum, sale) => {
-        // Handle multi-currency sales first
-        if (sale.multi_currency && (sale.multi_currency.usdAmount > 0 || sale.multi_currency.iqdAmount > 0)) {
-          return sum + (sale.multi_currency.iqdAmount || 0);
-        }
-        // For single currency sales
+        // For revenue calculations, use sale.total based on sale currency, not payment amounts
         if (sale.currency === 'IQD') {
           return sum + (sale.total || 0);
         }

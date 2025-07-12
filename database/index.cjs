@@ -446,15 +446,25 @@ module.exports = function(dbPath) {
       IQD_TO_USD: 1 / 1440
     };
     
-    // Use provided total and created_at if available, else calculate
-    let saleTotal = typeof total === 'number' ? total : items.reduce((sum, i) => sum + i.price * i.quantity, 0);
+    // Calculate original total from items
+    const originalTotal = typeof total === 'number' ? total : items.reduce((sum, i) => {
+      const sellingPrice = typeof i.selling_price === 'number' ? i.selling_price : (typeof i.price === 'number' ? i.price : 0);
+      return sum + sellingPrice * i.quantity;
+    }, 0);
     
-    // Apply discount to total if provided
+    // Calculate discount ratio to apply to individual items
+    let discountRatio = 1; // No discount by default
+    let saleTotal = originalTotal;
+    
     if (discount && discount.discount_value > 0) {
       if (discount.discount_type === 'percentage') {
-        saleTotal = saleTotal * (1 - discount.discount_value / 100);
+        discountRatio = 1 - (discount.discount_value / 100);
+        saleTotal = originalTotal * discountRatio;
       } else {
-        saleTotal = Math.max(0, saleTotal - discount.discount_value);
+        // For fixed amount discount, calculate the ratio based on total
+        const discountAmount = Math.min(discount.discount_value, originalTotal);
+        discountRatio = (originalTotal - discountAmount) / originalTotal;
+        saleTotal = Math.max(0, originalTotal - discountAmount);
       }
       saleTotal = Math.round(saleTotal); // Round to nearest integer for currency
     }
@@ -466,22 +476,12 @@ module.exports = function(dbPath) {
     const currentUSDToIQD = EXCHANGE_RATES.USD_TO_IQD;
     const currentIQDToUSD = EXCHANGE_RATES.IQD_TO_USD;
     
-    // Handle multi-currency payments
-    let paidAmountUSD = 0;
-    let paidAmountIQD = 0;
+    // Handle multi-currency payments - but only store sale total, not payment amounts
     let isMultiCurrency = 0;
     
+    // For multi-currency sales, we only care about the sale total, not payment details
     if (multi_currency && (multi_currency.usdAmount > 0 || multi_currency.iqdAmount > 0)) {
-      paidAmountUSD = multi_currency.usdAmount || 0;
-      paidAmountIQD = multi_currency.iqdAmount || 0;
-      isMultiCurrency = (paidAmountUSD > 0 && paidAmountIQD > 0) ? 1 : 0;
-    } else {
-      // Single currency payment
-      if (currency === 'USD') {
-        paidAmountUSD = saleTotal;
-      } else {
-        paidAmountIQD = saleTotal;
-      }
+      isMultiCurrency = 1;
     }
 
     const transaction = db.transaction(() => {
@@ -519,18 +519,34 @@ module.exports = function(dbPath) {
       }
       // --- END STOCK CHECK & UPDATE ---
 
-      // Create the sale record with exchange rates
-      const sale = db.prepare('INSERT INTO sales (total, created_at, is_debt, customer_name, currency, paid_amount_usd, paid_amount_iqd, is_multi_currency, exchange_rate_usd_to_iqd, exchange_rate_iqd_to_usd) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(saleTotal, saleCreatedAt, saleIsDebt, customer_name || null, currency, paidAmountUSD, paidAmountIQD, isMultiCurrency, currentUSDToIQD, currentIQDToUSD);
+      // Create the sale record with exchange rates - only store sale total, not payment amounts
+      const sale = db.prepare('INSERT INTO sales (total, created_at, is_debt, customer_name, currency, is_multi_currency, exchange_rate_usd_to_iqd, exchange_rate_iqd_to_usd) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(saleTotal, saleCreatedAt, saleIsDebt, customer_name || null, currency, isMultiCurrency, currentUSDToIQD, currentIQDToUSD);
       const saleId = sale.lastInsertRowid;
       
       // Update balances for completed sales (not for debt sales)
       if (!saleIsDebt) {
-        if (paidAmountUSD > 0) {
-          updateBalance('USD', paidAmountUSD);
+        // Always use the sale total amount for balance updates
+        if (currency === 'USD') {
+          updateBalance('USD', saleTotal);
+        } else if (currency === 'IQD') {
+          updateBalance('IQD', saleTotal);
+        } else {
+          // For multi-currency sales, add to the primary currency (USD as default)
+          updateBalance('USD', saleTotal);
         }
-        if (paidAmountIQD > 0) {
-          updateBalance('IQD', paidAmountIQD);
-        }
+
+        // Add transaction record for the sale
+        const usdAmount = currency === 'USD' ? saleTotal : 0;
+        const iqdAmount = currency === 'IQD' ? saleTotal : 0;
+        
+        addTransaction({
+          type: 'sale',
+          amount_usd: usdAmount,
+          amount_iqd: iqdAmount,
+          description: `Sale${customer_name ? ` - ${customer_name}` : ''}${discount ? ` (${discount}% discount)` : ''}`,
+          reference_id: saleId,
+          reference_type: 'sale'
+        });
       }
 
       // Insert sale items with proper currency conversion and profit calculation
@@ -561,21 +577,25 @@ module.exports = function(dbPath) {
         
         const qty = Number(item.quantity) || 1;
         const buyingPrice = itemData ? Number(itemData.buying_price) : 0;
-        const sellingPrice = typeof item.selling_price === 'number' ? item.selling_price : (typeof item.price === 'number' ? item.price : 0);
+        const originalSellingPrice = typeof item.selling_price === 'number' ? item.selling_price : (typeof item.price === 'number' ? item.price : 0);
+        
+        // Apply discount to individual item selling price
+        const discountedSellingPrice = originalSellingPrice * discountRatio;
+        
         const productCurrency = itemData ? (itemData.currency || 'IQD') : 'IQD';
         
-        // Calculate profit correctly considering currency conversion
+        // Calculate profit correctly considering currency conversion and discount
         let profitInSaleCurrency = 0;
         let buyingPriceInSaleCurrency = buyingPrice;
         
         // For multi-currency sales, calculate profit in USD (as base currency)
         if (isMultiCurrency) {
           // Convert everything to USD for consistent profit calculation
-          let sellingPriceUSD = sellingPrice;
+          let sellingPriceUSD = discountedSellingPrice;
           let buyingPriceUSD = buyingPrice;
           
           if (currency === 'IQD') {
-            sellingPriceUSD = sellingPrice * currentIQDToUSD;
+            sellingPriceUSD = discountedSellingPrice * currentIQDToUSD;
           }
           
           if (productCurrency === 'IQD') {
@@ -596,18 +616,18 @@ module.exports = function(dbPath) {
             }
           }
           
-          profitInSaleCurrency = (sellingPrice - buyingPriceInSaleCurrency) * qty;
+          profitInSaleCurrency = (discountedSellingPrice - buyingPriceInSaleCurrency) * qty;
         }
         
-        // Original profit calculation (for backwards compatibility)
-        const profit = (sellingPrice - buyingPrice) * qty;
+        // Original profit calculation (using discounted price for consistency)
+        const profit = (discountedSellingPrice - buyingPrice) * qty;
         
-        // Insert with correct fields
+        // Insert with correct fields - store the discounted selling price
         insertItem.run(
           saleId,
           item.product_id, // store the ID for both products and accessories
           qty,
-          sellingPrice,
+          discountedSellingPrice, // Store the discounted selling price
           buyingPrice,
           profit,
           isAccessory ? 1 : 0,
@@ -650,20 +670,28 @@ module.exports = function(dbPath) {
 
       // Update balances for completed sales returns (subtract from balances if it wasn't a debt sale)
       if (!sale.is_debt) {
-        if (sale.paid_amount_usd > 0) {
-          updateBalance('USD', -sale.paid_amount_usd);
+        // Always use the sale total amount for balance updates during returns
+        if (sale.currency === 'USD') {
+          updateBalance('USD', -sale.total);
+        } else if (sale.currency === 'IQD') {
+          updateBalance('IQD', -sale.total);
+        } else {
+          // For legacy sales or mixed currency, use the sale total
+          updateBalance('USD', -sale.total);
         }
-        if (sale.paid_amount_iqd > 0) {
-          updateBalance('IQD', -sale.paid_amount_iqd);
-        }
-        // For older sales without multi-currency fields, use the total with currency
-        else if (!sale.paid_amount_usd && !sale.paid_amount_iqd) {
-          if (sale.currency === 'USD') {
-            updateBalance('USD', -sale.total);
-          } else {
-            updateBalance('IQD', -sale.total);
-          }
-        }
+
+        // Add transaction record for the sale return
+        const usdAmount = sale.currency === 'USD' ? -sale.total : 0;
+        const iqdAmount = sale.currency === 'IQD' ? -sale.total : 0;
+        
+        addTransaction({
+          type: 'sale_return',
+          amount_usd: usdAmount,
+          amount_iqd: iqdAmount,
+          description: `Sale return${sale.customer_name ? ` - ${sale.customer_name}` : ''}`,
+          reference_id: saleId,
+          reference_type: 'sale'
+        });
       }
 
       // Delete the sale items
@@ -725,6 +753,34 @@ module.exports = function(dbPath) {
       // Update sale total if removing/reducing quantity
       const returnValue = returnQty * unitPrice;
       db.prepare('UPDATE sales SET total = total - ? WHERE id = ?').run(returnValue, saleId);
+      
+      // Get the sale to check if it's a debt sale and get currency
+      const sale = db.prepare('SELECT * FROM sales WHERE id = ?').get(saleId);
+      
+      // Update balances for completed sales returns (subtract from balances if it wasn't a debt sale)
+      if (sale && !sale.is_debt) {
+        if (sale.currency === 'USD') {
+          updateBalance('USD', -returnValue);
+        } else if (sale.currency === 'IQD') {
+          updateBalance('IQD', -returnValue);
+        } else {
+          // For legacy sales or mixed currency, use USD as default
+          updateBalance('USD', -returnValue);
+        }
+
+        // Add transaction record for the partial sale return
+        const usdAmount = sale.currency === 'USD' ? -returnValue : 0;
+        const iqdAmount = sale.currency === 'IQD' ? -returnValue : 0;
+        
+        addTransaction({
+          type: 'sale_return',
+          amount_usd: usdAmount,
+          amount_iqd: iqdAmount,
+          description: `Partial sale return - ${item.name}${sale.customer_name ? ` - ${sale.customer_name}` : ''} (qty: ${returnQty})`,
+          reference_id: saleId,
+          reference_type: 'sale'
+        });
+      }
       
       // Check if sale has any items left, if not, delete it
       const remainingItems = db.prepare('SELECT COUNT(*) as count FROM sale_items WHERE sale_id = ?').get(saleId);

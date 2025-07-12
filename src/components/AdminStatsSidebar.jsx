@@ -50,25 +50,35 @@ const AdminStatsSidebar = ({
     });
     
     const todaysRevenueUSD = todaysSales.reduce((sum, sale) => {
-      // Handle multi-currency sales first
-      if (sale.multi_currency && (sale.multi_currency.usdAmount > 0 || sale.multi_currency.iqdAmount > 0)) {
-        return sum + (sale.multi_currency.usdAmount || 0);
-      }
-      // For single currency sales
+      // Calculate revenue from actual selling prices (before discount)
       if ((sale.currency || 'USD') === 'USD') {
-        return sum + (sale.total || 0);
+        if (sale.items && sale.items.length > 0) {
+          const itemsTotal = sale.items.reduce((itemSum, item) => {
+            const qty = item.quantity || 1;
+            const sellingPrice = typeof item.selling_price === 'number' ? item.selling_price : (typeof item.buying_price === 'number' ? item.buying_price : 0);
+            return itemSum + (sellingPrice * qty);
+          }, 0);
+          return sum + itemsTotal;
+        } else {
+          return sum + (sale.total || 0);
+        }
       }
       return sum;
     }, 0);
     
     const todaysRevenueIQD = todaysSales.reduce((sum, sale) => {
-      // Handle multi-currency sales first
-      if (sale.multi_currency && (sale.multi_currency.usdAmount > 0 || sale.multi_currency.iqdAmount > 0)) {
-        return sum + (sale.multi_currency.iqdAmount || 0);
-      }
-      // For single currency sales
+      // Calculate revenue from actual selling prices (before discount)
       if (sale.currency === 'IQD') {
-        return sum + (sale.total || 0);
+        if (sale.items && sale.items.length > 0) {
+          const itemsTotal = sale.items.reduce((itemSum, item) => {
+            const qty = item.quantity || 1;
+            const sellingPrice = typeof item.selling_price === 'number' ? item.selling_price : (typeof item.buying_price === 'number' ? item.buying_price : 0);
+            return itemSum + (sellingPrice * qty);
+          }, 0);
+          return sum + itemsTotal;
+        } else {
+          return sum + (sale.total || 0);
+        }
       }
       return sum;
     }, 0);
@@ -484,13 +494,18 @@ const AdminStatsSidebar = ({
                     return saleDate.getMonth() === currentDate.getMonth() && 
                            saleDate.getFullYear() === currentDate.getFullYear();
                   }).reduce((sum, sale) => {
-                    // Handle multi-currency sales first
-                    if (sale.multi_currency && (sale.multi_currency.usdAmount > 0 || sale.multi_currency.iqdAmount > 0)) {
-                      return sum + (sale.multi_currency.usdAmount || 0);
-                    }
-                    // For single currency sales
+                    // Calculate revenue from actual selling prices (before discount)
                     if ((sale.currency || 'USD') === 'USD') {
-                      return sum + (sale.total || 0);
+                      if (sale.items && sale.items.length > 0) {
+                        const itemsTotal = sale.items.reduce((itemSum, item) => {
+                          const qty = item.quantity || 1;
+                          const sellingPrice = typeof item.selling_price === 'number' ? item.selling_price : (typeof item.buying_price === 'number' ? item.buying_price : 0);
+                          return itemSum + (sellingPrice * qty);
+                        }, 0);
+                        return sum + itemsTotal;
+                      } else {
+                        return sum + (sale.total || 0);
+                      }
                     }
                     return sum;
                   }, 0), 'USD'
@@ -504,13 +519,18 @@ const AdminStatsSidebar = ({
                     return saleDate.getMonth() === currentDate.getMonth() && 
                            saleDate.getFullYear() === currentDate.getFullYear();
                   }).reduce((sum, sale) => {
-                    // Handle multi-currency sales first
-                    if (sale.multi_currency && (sale.multi_currency.usdAmount > 0 || sale.multi_currency.iqdAmount > 0)) {
-                      return sum + (sale.multi_currency.iqdAmount || 0);
-                    }
-                    // For single currency sales
+                    // Calculate revenue from actual selling prices (before discount)
                     if (sale.currency === 'IQD') {
-                      return sum + (sale.total || 0);
+                      if (sale.items && sale.items.length > 0) {
+                        const itemsTotal = sale.items.reduce((itemSum, item) => {
+                          const qty = item.quantity || 1;
+                          const sellingPrice = typeof item.selling_price === 'number' ? item.selling_price : (typeof item.buying_price === 'number' ? item.buying_price : 0);
+                          return itemSum + (sellingPrice * qty);
+                        }, 0);
+                        return sum + itemsTotal;
+                      } else {
+                        return sum + (sale.total || 0);
+                      }
                     }
                     return sum;
                   }, 0), 'IQD'

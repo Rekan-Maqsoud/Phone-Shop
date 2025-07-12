@@ -1,5 +1,5 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
-import { EXCHANGE_RATES, formatCurrency, roundIQDToNearestBill, getRoundedPaymentTotal } from '../utils/exchangeRates';
+import { EXCHANGE_RATES, formatCurrency, roundIQDToNearestBill } from '../utils/exchangeRates';
 import OfflineIndicator from './OfflineIndicator';
 import UnderCostWarning from './UnderCostWarning';
 
@@ -43,17 +43,15 @@ export default function CashierContent({
     priceMax: ''
   });
   const [showFilters, setShowFilters] = useState(false);
-  const [paymentAmount, setPaymentAmount] = useState(0);
-  const [showPaymentInput, setShowPaymentInput] = useState(false);
   const [underCostWarningVisible, setUnderCostWarningVisible] = useState(false);
   const inputRef = useRef();
 
   const IQD_ROUNDING_MESSAGE = t.roundedToNearest250 || 'Amounts rounded to nearest 250 IQD';
   const IQD_BILL_ROUNDING_MESSAGE = t.roundedToNearestBill || 'Rounded to nearest 250 IQD bill';
 
-  // Get rounded total for IQD payments
+  // Simplified rounding - only for sale totals
   const getRoundedTotal = (amount, currencyType) => {
-    return getRoundedPaymentTotal(amount, currencyType);
+    return currencyType === 'IQD' ? roundIQDToNearestBill(amount) : Math.ceil(amount * 100) / 100;
   };
 
   // Calculate totals based on selected currency
@@ -80,13 +78,15 @@ export default function CashierContent({
   // Calculate discounted total
   const discountedTotal = useMemo(() => {
     const baseTotal = convertedTotal;
-    if (discount.type === 'none' || !discount.value) {
+    
+    if (discount.type === 'none' || !discount.value || discount.value <= 0) {
       return currency === 'IQD' ? getRoundedTotal(baseTotal, currency) : baseTotal;
     }
     
     let finalTotal;
     if (discount.type === 'percentage') {
-      finalTotal = baseTotal * (1 - discount.value / 100);
+      const validPercentage = Math.min(Math.max(0, discount.value), 100);
+      finalTotal = baseTotal * (1 - validPercentage / 100);
     } else {
       finalTotal = Math.max(0, baseTotal - discount.value);
     }
@@ -94,13 +94,21 @@ export default function CashierContent({
     return currency === 'IQD' ? getRoundedTotal(finalTotal, currency) : finalTotal;
   }, [convertedTotal, discount, currency]);
 
-  // Update payment amount when discounted total changes
-  useEffect(() => {
-    if (discountedTotal > 0 && (paymentAmount === 0 || paymentAmount < discountedTotal)) {
-      const roundedAmount = currency === 'IQD' ? getRoundedTotal(discountedTotal, currency) : Math.ceil(discountedTotal);
-      setPaymentAmount(roundedAmount);
+  // Calculate actual discount amount for display
+  const discountAmount = useMemo(() => {
+    if (discount.type === 'none' || !discount.value || discount.value <= 0) {
+      return 0;
     }
-  }, [discountedTotal, currency]);
+    
+    if (discount.type === 'percentage') {
+      const validPercentage = Math.min(Math.max(0, discount.value), 100);
+      return convertedTotal * (validPercentage / 100);
+    } else {
+      return Math.min(discount.value, convertedTotal);
+    }
+  }, [convertedTotal, discount]);
+
+  // Payment amount tracking removed - no longer needed
 
   // Get unique brands and categories for filtering
   const uniqueBrands = useMemo(() => {
@@ -147,7 +155,10 @@ export default function CashierContent({
     const totalPaidUSD = multiCurrency.usdAmount + (multiCurrency.iqdAmount / EXCHANGE_RATES.USD_TO_IQD);
     
     handleCompleteSale(
-      discount.type !== 'none' ? { discount_type: discount.type, discount_value: discount.value } : null,
+      discount.type !== 'none' && discount.value > 0 ? { 
+        discount_type: discount.type, 
+        discount_value: discount.value 
+      } : null,
       discountedTotal,
       {
         usdAmount: multiCurrency.usdAmount,
@@ -162,11 +173,15 @@ export default function CashierContent({
       showToast(t.pleaseAcknowledgeWarning || 'Please acknowledge the warning first', 'warning');
       return;
     }
-    const actualPayment = paymentAmount > 0 ? paymentAmount : discountedTotal;
+    
+    // Pass discount info and discounted total directly
     handleCompleteSale(
-      discount.type !== 'none' ? { discount_type: discount.type, discount_value: discount.value } : null,
+      discount.type !== 'none' && discount.value > 0 ? { 
+        discount_type: discount.type, 
+        discount_value: discount.value 
+      } : null,
       discountedTotal,
-      { paymentAmount: actualPayment }
+      {}
     );
   };
 
@@ -205,12 +220,24 @@ export default function CashierContent({
     }
   };
 
-  const handleDiscountApply = () => {
-    setDiscount({ 
-      discount_type: discount.type, 
-      discount_value: discount.value 
-    });
-  };
+  // Auto-sync discount changes with parent component
+  useEffect(() => {
+    if (discount.type === 'none') {
+      setDiscount({ discount_type: 'none', discount_value: 0 });
+    } else if (discount.type === 'percentage') {
+      const validPercentage = Math.min(Math.max(0, discount.value), 100);
+      setDiscount({ 
+        discount_type: 'percentage', 
+        discount_value: validPercentage 
+      });
+    } else {
+      const validAmount = Math.max(0, discount.value);
+      setDiscount({ 
+        discount_type: 'fixed', 
+        discount_value: validAmount 
+      });
+    }
+  }, [discount.type, discount.value, setDiscount]);
 
   const clearFilters = () => {
     setFilters({
@@ -445,19 +472,38 @@ export default function CashierContent({
                 <input
                   type="number"
                   value={discount.value}
-                  onChange={(e) => setLocalDiscount(prev => ({ ...prev, value: Number(e.target.value) }))}
-                  placeholder={discount.type === 'percentage' ? '%' : formatCurrency(0, currency)}
-                  className="w-24 p-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
+                  onChange={(e) => {
+                    const value = Number(e.target.value);
+                    // Validate input based on discount type
+                    if (discount.type === 'percentage') {
+                      // Limit percentage to 0-100
+                      if (value >= 0 && value <= 100) {
+                        setLocalDiscount(prev => ({ ...prev, value }));
+                      }
+                    } else {
+                      // For fixed amount, don't allow negative values
+                      if (value >= 0) {
+                        setLocalDiscount(prev => ({ ...prev, value }));
+                      }
+                    }
+                  }}
+                  placeholder={discount.type === 'percentage' ? '0-100%' : formatCurrency(0, currency)}
+                  min="0"
+                  max={discount.type === 'percentage' ? "100" : undefined}
+                  step={discount.type === 'percentage' ? "0.1" : "0.01"}
+                  className="w-28 p-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
                 />
               )}
             </div>
             {discount.type !== 'none' && (
-              <button
-                onClick={handleDiscountApply}
-                className="w-full py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition-colors"
-              >
-                {t.applyDiscount}
-              </button>
+              <div className="text-sm text-green-600 text-center">
+                {discount.value > 0 && discountAmount > 0 && (
+                  <>
+                    {t.discount}: -{formatCurrency(discountAmount, currency)}
+                    {discount.type === 'percentage' && ` (${discount.value}%)`}
+                  </>
+                )}
+              </div>
             )}
           </div>
         </div>
@@ -591,11 +637,12 @@ export default function CashierContent({
                 {formatCurrency(convertedTotal, currency)}
               </span>
             </div>
-            {discount.type !== 'none' && discount.value > 0 && (
+            {discount.type !== 'none' && discount.value > 0 && discountAmount > 0 && (
               <div className="flex justify-between text-sm text-green-600">
                 <span>{t.discount}:</span>
                 <span>
-                  -{discount.type === 'percentage' ? `${discount.value}%` : formatCurrency(discount.value, currency)}
+                  -{formatCurrency(discountAmount, currency)}
+                  {discount.type === 'percentage' && ` (${discount.value}%)`}
                 </span>
               </div>
             )}
@@ -613,65 +660,7 @@ export default function CashierContent({
           </div>
           
           {/* Payment Amount for Single Currency */}
-          {!multiCurrency.enabled && (
-            <div className="mb-4">
-              <div className="flex justify-between items-center mb-2">
-                <label className="text-sm text-slate-600 dark:text-slate-300">
-                  {t.paymentAmount || 'Payment Amount'} ({currency})
-                </label>
-                <button
-                  onClick={() => setShowPaymentInput(!showPaymentInput)}
-                  className="text-xs px-2 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors"
-                >
-                  {showPaymentInput ? t.hide || 'Hide' : t.calculateChange || 'Calculate Change'}
-                </button>
-              </div>
-              {showPaymentInput && (
-                <>
-                  <input
-                    type="number"
-                    value={paymentAmount}
-                    onChange={(e) => {
-                      const value = Number(e.target.value) || 0;
-                      setPaymentAmount(value);
-                    }}
-                    onBlur={(e) => {
-                      const value = Number(e.target.value) || 0;
-                      const finalValue = currency === 'IQD' ? roundIQDToNearestBill(value) : value;
-                      setPaymentAmount(finalValue);
-                    }}
-                    placeholder={formatCurrencyPrecise(getRoundedTotal(discountedTotal, currency), currency)}
-                    step={currency === 'USD' ? '0.01' : '250'}
-                    min={currency === 'USD' ? '0' : '250'}
-                    className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
-                  />
-                  {currency === 'IQD' && (
-                    <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                      {IQD_ROUNDING_MESSAGE}
-                    </div>
-                  )}
-                  {paymentAmount > discountedTotal && (
-                    <div className="text-sm text-green-600 dark:text-green-400 font-semibold mt-1">
-                      {(() => {
-                        const change = paymentAmount - discountedTotal;
-                        const roundedChange = currency === 'IQD' ? roundIQDToNearestBill(change) : change;
-                        return (
-                          <>
-                            {t.change || 'Change'}: {formatCurrencyPrecise(roundedChange, currency)}
-                            {currency === 'IQD' && change !== roundedChange && (
-                              <div className="text-xs text-blue-600 dark:text-blue-400">
-                                ({IQD_ROUNDING_MESSAGE})
-                              </div>
-                            )}
-                          </>
-                        );
-                      })()}
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          )}
+          {/* Payment amount tracking removed - only show sale totals */}
           
           <button
             onClick={multiCurrency.enabled ? handleMultiCurrencyPayment : handleSingleCurrencyPayment}
