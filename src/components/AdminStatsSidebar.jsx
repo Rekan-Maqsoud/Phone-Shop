@@ -51,7 +51,7 @@ const AdminStatsSidebar = ({
     
     const todaysRevenueUSD = todaysSales.reduce((sum, sale) => {
       // Calculate revenue from actual selling prices (before discount)
-      if ((sale.currency || 'USD') === 'USD') {
+      if (sale.currency === 'USD') {
         if (sale.items && sale.items.length > 0) {
           const itemsTotal = sale.items.reduce((itemSum, item) => {
             const qty = item.quantity || 1;
@@ -79,11 +79,24 @@ const AdminStatsSidebar = ({
         } else {
           return sum + (sale.total || 0);
         }
+      } else if (sale.currency === 'USD') {
+        // Convert USD sales to IQD equivalent for accurate IQD revenue totals
+        const exchangeRate = sale.exchange_rates?.usd_to_iqd || 1440;
+        if (sale.items && sale.items.length > 0) {
+          const itemsTotal = sale.items.reduce((itemSum, item) => {
+            const qty = item.quantity || 1;
+            const sellingPrice = typeof item.selling_price === 'number' ? item.selling_price : (typeof item.buying_price === 'number' ? item.buying_price : 0);
+            return itemSum + (sellingPrice * qty);
+          }, 0);
+          return sum + (itemsTotal * exchangeRate);
+        } else {
+          return sum + ((sale.total || 0) * exchangeRate);
+        }
       }
       return sum;
     }, 0);
     
-    const todaysProfitUSD = todaysSales.filter(sale => (sale.currency || 'USD') === 'USD').reduce((sum, sale) => {
+    const todaysProfitUSD = todaysSales.filter(sale => sale.currency === 'USD').reduce((sum, sale) => {
       if (!sale.items) return sum;
       return sum + sale.items.reduce((itemSum, item) => {
         // Ensure profit calculation considers both purchase and sale currencies
@@ -214,7 +227,7 @@ const AdminStatsSidebar = ({
       .slice(0, 5);
 
     // Calculate total profit by currency (fixed calculation with proper currency handling)
-    const totalProfitUSD = sales.filter(sale => (sale.currency || 'USD') === 'USD').reduce((sum, sale) => {
+    const totalProfitUSD = sales.filter(sale => sale.currency === 'USD').reduce((sum, sale) => {
       if (!sale.items) return sum;
       // For debt sales, check if the debt is paid by looking up in debts array
       if (sale.is_debt) {
@@ -495,7 +508,7 @@ const AdminStatsSidebar = ({
                            saleDate.getFullYear() === currentDate.getFullYear();
                   }).reduce((sum, sale) => {
                     // Calculate revenue from actual selling prices (before discount)
-                    if ((sale.currency || 'USD') === 'USD') {
+                    if (sale.currency === 'USD') {
                       if (sale.items && sale.items.length > 0) {
                         const itemsTotal = sale.items.reduce((itemSum, item) => {
                           const qty = item.quantity || 1;
@@ -530,6 +543,19 @@ const AdminStatsSidebar = ({
                         return sum + itemsTotal;
                       } else {
                         return sum + (sale.total || 0);
+                      }
+                    } else if (sale.currency === 'USD') {
+                      // Convert USD sales to IQD equivalent for accurate IQD revenue totals
+                      const exchangeRate = sale.exchange_rates?.usd_to_iqd || EXCHANGE_RATES.USD_TO_IQD;
+                      if (sale.items && sale.items.length > 0) {
+                        const itemsTotal = sale.items.reduce((itemSum, item) => {
+                          const qty = item.quantity || 1;
+                          const sellingPrice = typeof item.selling_price === 'number' ? item.selling_price : (typeof item.buying_price === 'number' ? item.buying_price : 0);
+                          return itemSum + (sellingPrice * qty);
+                        }, 0);
+                        return sum + (itemsTotal * exchangeRate);
+                      } else {
+                        return sum + ((sale.total || 0) * exchangeRate);
                       }
                     }
                     return sum;

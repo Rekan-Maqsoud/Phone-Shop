@@ -1,7 +1,6 @@
 ---
 applyTo: '**'
 ---
-Coding standards, domain knowledge, and preferences that AI should follow.
 # Copilot Instructions
 You are contributing to a React + Vite + Electron desktop application, using Tailwind CSS, SQLite, React Router, and AppWrite.
 

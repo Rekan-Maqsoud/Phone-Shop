@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useData } from '../contexts/DataContext';
+import CustomerDebtPaymentModal from './CustomerDebtPaymentModal';
 
 const CustomerDebtsSection = ({ 
   t, 
@@ -17,7 +18,6 @@ const CustomerDebtsSection = ({
   const [expandedCustomers, setExpandedCustomers] = useState(new Set());
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedDebt, setSelectedDebt] = useState(null);
-  const [paymentCurrency, setPaymentCurrency] = useState('USD');
 
   const toggleCustomerExpanded = (customer) => {
     const newExpanded = new Set(expandedCustomers);
@@ -36,42 +36,16 @@ const CustomerDebtsSection = ({
     setShowPaymentModal(true);
   };
 
-  const processPayment = async () => {
-    if (!selectedDebt) return;
-    
-    const { debt, sale, originalCustomer } = selectedDebt;
-    
-    try {
-      // Calculate payment amounts based on selected currency
-      const payment_usd_amount = paymentCurrency === 'USD' ? admin.balanceUSD : 0;
-      const payment_iqd_amount = paymentCurrency === 'IQD' ? admin.balanceIQD : 0;
-      
-      const result = await window.api?.markCustomerDebtPaid?.(
-        debt.id, 
-        new Date().toISOString(),
-        paymentCurrency,
-        payment_usd_amount,
-        payment_iqd_amount
-      );
-      
-      if (result && result.changes > 0) {
-        admin.setToast?.(`💰 Debt of ${(sale.currency === 'USD' ? '$' : 'د.ع')}${sale.total.toFixed(2)} marked as paid for ${originalCustomer}`);
-        // Refresh all debt-related data
-        await Promise.all([
-          refreshDebts(),
-          refreshDebtSales(),
-          refreshSales() // Also refresh sales since paid debt moves to sales history
-        ]);
-        triggerCloudBackup();
-        setShowPaymentModal(false);
-        setSelectedDebt(null);
-      } else {
-        admin.setToast?.('❌ Failed to mark debt as paid');
-      }
-    } catch (error) {
-      console.error('Error marking debt as paid:', error);
-      admin.setToast?.('❌ Error marking debt as paid');
-    }
+  const handlePaymentComplete = async () => {
+    console.log('🔄 Starting data refresh after payment...');
+    // Refresh all debt-related data
+    await Promise.all([
+      refreshDebts(),
+      refreshDebtSales(),
+      refreshSales()
+    ]);
+    console.log('✅ Data refresh completed');
+    triggerCloudBackup();
   };
 
   return (
@@ -153,8 +127,10 @@ const CustomerDebtsSection = ({
           const customer = originalCustomer.toLowerCase(); // Normalize for grouping
           const currency = sale.currency || 'USD';
           
-          // Check paid status correctly
-          const isPaid = Boolean(debt?.paid_at);
+          // Check paid status correctly - a debt sale is unpaid if:
+          // 1. There's no debt record, OR
+          // 2. There's a debt record but it's not marked as paid
+          const isPaid = debt ? Boolean(debt.paid_at) : false;
           
           // Filter by paid status based on toggle
           if (showPaidDebts && !isPaid) return; // When showing paid debts, skip unpaid ones
@@ -331,6 +307,28 @@ const CustomerDebtsSection = ({
                             </div>
                           </div>
                           
+                          {/* Pay All Debts Button - only for unpaid debts */}
+                          {!showPaidDebts && data.sales.some(({ debt, sale }) => {
+                            // Show pay button if debt sale is unpaid (no debt record or unpaid debt record)
+                            return debt ? !debt.paid_at : true;
+                          }) && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                // Find the first unpaid debt and open payment modal
+                                const firstUnpaidDebt = data.sales.find(({ debt, sale }) => {
+                                  return debt ? !debt.paid_at : true;
+                                });
+                                if (firstUnpaidDebt) {
+                                  handleMarkDebtPaid(firstUnpaidDebt.debt, firstUnpaidDebt.sale, firstUnpaidDebt.originalCustomer);
+                                }
+                              }}
+                              className="px-3 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm flex items-center gap-1 whitespace-nowrap"
+                            >
+                              💰 {t.payDebt || 'Pay Debt'}
+                            </button>
+                          )}
+                          
                           <div className={`transform transition-transform ${isExpanded ? 'rotate-180' : ''}`}>
                             <span className="text-gray-400 text-xl">▼</span>
                           </div>
@@ -385,7 +383,7 @@ const CustomerDebtsSection = ({
                                   👁️ {t.view || 'View'}
                                 </button>
                                 
-                                {debt && !debt.paid_at && (
+                                {(debt ? !debt.paid_at : true) && (
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
@@ -410,100 +408,16 @@ const CustomerDebtsSection = ({
         );
       })()}
 
-      {/* Payment Currency Selection Modal */}
-      {showPaymentModal && selectedDebt && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md">
-            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-              <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100">
-                💰 {t.selectPaymentCurrency || 'Select Payment Currency'}
-              </h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
-                {t.markingDebtPaidFor || 'Marking debt as paid for'} <strong>{selectedDebt.originalCustomer}</strong>
-              </p>
-              <p className="text-lg font-semibold text-gray-800 dark:text-gray-200 mt-1">
-                {t.debtAmount || 'Debt Amount'}: {(selectedDebt.sale.currency === 'USD' ? '$' : 'د.ع')}{selectedDebt.sale.total.toFixed(2)}
-              </p>
-            </div>
-            
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                  {t.selectCurrencyToDeduct || 'Select which currency to deduct from your balance:'}
-                </label>
-                
-                <div className="space-y-3">
-                  <label className="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition">
-                    <input
-                      type="radio"
-                      name="paymentCurrency"
-                      value="USD"
-                      checked={paymentCurrency === 'USD'}
-                      onChange={(e) => setPaymentCurrency(e.target.value)}
-                      className="mr-3"
-                    />
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between">
-                        <span className="font-medium text-gray-900 dark:text-gray-100">💵 {t.usdBalance || 'USD Balance'}</span>
-                        <span className="text-lg font-bold text-green-600 dark:text-green-400">
-                          ${admin.balanceUSD?.toFixed(2) || '0.00'}
-                        </span>
-                      </div>
-                      {admin.balanceUSD < selectedDebt.sale.total && selectedDebt.sale.currency === 'USD' && (
-                        <div className="text-xs text-red-500 mt-1">
-                          ⚠️ {t.insufficientFunds || 'Insufficient funds'}
-                        </div>
-                      )}
-                    </div>
-                  </label>
-                  
-                  <label className="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition">
-                    <input
-                      type="radio"
-                      name="paymentCurrency"
-                      value="IQD"
-                      checked={paymentCurrency === 'IQD'}
-                      onChange={(e) => setPaymentCurrency(e.target.value)}
-                      className="mr-3"
-                    />
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between">
-                        <span className="font-medium text-gray-900 dark:text-gray-100">💰 {t.iqdBalance || 'IQD Balance'}</span>
-                        <span className="text-lg font-bold text-yellow-600 dark:text-yellow-400">
-                          د.ع{admin.balanceIQD?.toFixed(2) || '0.00'}
-                        </span>
-                      </div>
-                      {admin.balanceIQD < selectedDebt.sale.total && selectedDebt.sale.currency === 'IQD' && (
-                        <div className="text-xs text-red-500 mt-1">
-                          ⚠️ {t.insufficientFunds || 'Insufficient funds'}
-                        </div>
-                      )}
-                    </div>
-                  </label>
-                </div>
-              </div>
-            </div>
-            
-            <div className="p-6 border-t border-gray-200 dark:border-gray-700 flex gap-4">
-              <button
-                onClick={() => {
-                  setShowPaymentModal(false);
-                  setSelectedDebt(null);
-                }}
-                className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition"
-              >
-                {t.cancel || 'Cancel'}
-              </button>
-              <button
-                onClick={processPayment}
-                className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-semibold"
-              >
-                💰 {t.markAsPaid || 'Mark as Paid'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Enhanced Payment Modal */}
+      <CustomerDebtPaymentModal
+        showPaymentModal={showPaymentModal}
+        setShowPaymentModal={setShowPaymentModal}
+        selectedDebt={selectedDebt}
+        setSelectedDebt={setSelectedDebt}
+        admin={admin}
+        t={t}
+        onPaymentComplete={handlePaymentComplete}
+      />
     </div>
   );
 };

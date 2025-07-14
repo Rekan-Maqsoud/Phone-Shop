@@ -109,6 +109,16 @@ app.whenReady().then(async () => {
     const dbModule = require('../database/index.cjs');
     db = dbModule(dbPath); // Call the factory function with dbPath
     
+    // Automatically repair products with NULL IDs on startup
+    try {
+      const repairedCount = db.repairProductIds();
+      if (repairedCount > 0) {
+        console.log(`🔧 Automatically repaired ${repairedCount} products with NULL IDs`);
+      }
+    } catch (repairError) {
+      console.error('❌ Failed to repair product IDs:', repairError);
+    }
+    
     // Test database connection
     try {
       const testQuery = db.db.prepare('SELECT COUNT(*) as count FROM sqlite_master').get();
@@ -183,9 +193,15 @@ function checkAndPerformMonthlyReset() {
 // Product CRUD
 ipcMain.handle('getProducts', async () => {
   try {
-    return db.getProducts ? db.getProducts() : [];
+    if (db && db.getProducts) {
+      const products = db.getProducts();
+      return products || [];
+    } else {
+      console.error('❌ Database or getProducts function not available');
+      return [];
+    }
   } catch (e) {
-    console.error('getProducts error:', e);
+    console.error('❌ getProducts error:', e);
     return [];
   }
 });
@@ -241,9 +257,18 @@ ipcMain.handle('getAccessories', async () => {
 });
 ipcMain.handle('getAllAccessories', async () => {
   try {
-    return db.getAllAccessories ? db.getAllAccessories() : [];
+    console.log('🔍 getAllAccessories IPC called, db available:', !!db);
+    console.log('🔍 db.getAllAccessories available:', !!db?.getAllAccessories);
+    if (db && db.getAllAccessories) {
+      const accessories = db.getAllAccessories();
+      console.log('🔧 getAllAccessories returned:', accessories?.length, 'accessories');
+      return accessories || [];
+    } else {
+      console.error('❌ Database or getAllAccessories function not available');
+      return [];
+    }
   } catch (e) {
-    console.error('getAllAccessories error:', e);
+    console.error('❌ getAllAccessories error:', e);
     return [];
   }
 });
@@ -421,17 +446,18 @@ ipcMain.handle('checkAdminPassword', async (event, password) => {
 // IPC handler for saving sale (use db.saveSale)
 ipcMain.handle('saveSale', async (event, sale) => {
   try {
-    if (db.saveSale) {
+    if (db && db.saveSale) {
       // Only call db.saveSale, which now handles all stock logic atomically
       const saleId = db.saveSale(sale);
       // Sales are high priority and should backup quickly
       await runAutoBackupAfterSale('sale');
       return { success: true, id: saleId, lastInsertRowid: saleId };
     } else {
+      console.error('❌ Database or saveSale function not available');
       return { success: false, message: 'Database function not available' };
     }
   } catch (e) {
-    console.error('[main.cjs] saveSale error:', e);
+    console.error('❌ [main.cjs] saveSale error:', e);
     return { success: false, message: e.message };
   }
 });
@@ -470,23 +496,34 @@ ipcMain.handle('autoBackupAfterSale', async () => {
 
 // Debt handlers (backward compatibility)
 ipcMain.handle('addDebt', async (event, { sale_id, customer_name }) => {
+  console.log('🔍 [main.cjs] addDebt IPC called with:', { sale_id, customer_name });
   try {
     if (db.addDebt) {
       const result = db.addDebt({ sale_id, customer_name });
+      console.log('✅ [main.cjs] addDebt result:', result);
       await runAutoBackupAfterSale('debt');
-      return result;
+      return { success: true, result };
     } else {
+      console.error('❌ [main.cjs] addDebt function not available');
       return { success: false, message: 'Database function not available' };
     }
   } catch (e) {
+    console.error('❌ [main.cjs] addDebt error:', e);
     return { success: false, message: e.message };
   }
 });
 ipcMain.handle('getDebts', async () => {
+  console.log('🔍 [main.cjs] getDebts IPC called');
   try {
-    return db.getDebts ? db.getDebts() : [];
+    const result = db.getDebts ? db.getDebts() : [];
+    console.log('🔍 [main.cjs] getDebts result:', result.length, 'debts found');
+    if (result.length > 0) {
+      const paidCount = result.filter(d => d.paid_at).length;
+      console.log('🔍 [main.cjs] Paid debts:', paidCount, 'of', result.length);
+    }
+    return result;
   } catch (e) {
-    console.error('getDebts error:', e);
+    console.error('❌ [main.cjs] getDebts error:', e);
     return [];
   }
 });
@@ -505,18 +542,30 @@ ipcMain.handle('markDebtPaid', async (event, id, paid_at) => {
 });
 
 // Customer debt handlers
-ipcMain.handle('addCustomerDebt', async (event, { sale_id, customer_name }) => {
-  const result = db.addCustomerDebt({ sale_id, customer_name });
+ipcMain.handle('addCustomerDebt', async (event, debtData) => {
+  const result = db.addCustomerDebt(debtData);
   await runAutoBackupAfterSale();
   return result;
 });
 ipcMain.handle('getCustomerDebts', async () => {
   return db.getCustomerDebts();
 });
-ipcMain.handle('markCustomerDebtPaid', async (event, id, paid_at, payment_currency_used, payment_usd_amount, payment_iqd_amount) => {
-  const result = db.markCustomerDebtPaid(id, paid_at, payment_currency_used, payment_usd_amount, payment_iqd_amount);
-  await runAutoBackupAfterSale();
-  return result;
+ipcMain.handle('markCustomerDebtPaid', async (event, id, paid_at, paymentData) => {
+  console.log('🔍 [main.cjs] markCustomerDebtPaid called:', { id, paid_at, paymentData });
+  try {
+    const result = db.markCustomerDebtPaid(id, { 
+      paid_at, 
+      payment_currency_used: paymentData?.currency || 'USD',
+      payment_usd_amount: paymentData?.deductUSD || paymentData?.usdAmount || 0, 
+      payment_iqd_amount: paymentData?.deductIQD || paymentData?.iqdAmount || 0 
+    });
+    console.log('✅ [main.cjs] markCustomerDebtPaid result:', result);
+    await runAutoBackupAfterSale();
+    return result;
+  } catch (error) {
+    console.error('❌ [main.cjs] markCustomerDebtPaid error:', error);
+    throw error;
+  }
 });
 
 // Company debt handlers
@@ -595,10 +644,13 @@ ipcMain.handle('resetMonthlySalesAndProfit', async () => {
 });
 
 ipcMain.handle('getDebtSales', async () => {
+  console.log('🔍 [main.cjs] getDebtSales IPC called');
   try {
-    return db.getDebtSales ? db.getDebtSales() : [];
+    const result = db.getDebtSales ? db.getDebtSales() : [];
+    console.log('🔍 [main.cjs] getDebtSales result:', result.length, 'debt sales found');
+    return result;
   } catch (e) {
-    console.error('getDebtSales error:', e);
+    console.error('❌ [main.cjs] getDebtSales error:', e);
     return [];
   }
 });
@@ -619,6 +671,31 @@ ipcMain.handle('getTransactions', async (event, limit = 50) => {
   } catch (error) {
     console.error('[IPC] getTransactions error:', error);
     return [];
+  }
+});
+
+// Secret balance management handlers (admin only)
+ipcMain.handle('setBalance', async (event, currency, amount) => {
+  try {
+    console.log(`[ADMIN] Setting ${currency} balance to ${amount}`);
+    const result = db.setBalance(currency, amount);
+    await autoBackupAfterChange('balance');
+    return result;
+  } catch (error) {
+    console.error('[IPC] setBalance error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('updateBalance', async (event, currency, amount) => {
+  try {
+    console.log(`[ADMIN] Adjusting ${currency} balance by ${amount}`);
+    const result = db.updateBalance(currency, amount);
+    await autoBackupAfterChange('balance');
+    return result;
+  } catch (error) {
+    console.error('[IPC] updateBalance error:', error);
+    return { success: false, error: error.message };
   }
 });
 
@@ -1355,193 +1432,17 @@ ipcMain.handle('getAutoBackup', async () => {
   }
 });
 
-// Shared restore function that can be called by both IPC handlers
-async function performRestore(filePath) {
-  const dbPath = getDatabasePath();
-  const backupCurrentPath = dbPath + '.bak';
-  
+// IPC handler for repairing database
+ipcMain.handle('repairProductIds', async () => {
   try {
-  
-    if (!fs.existsSync(filePath)) {
-      console.error('[Restore] Backup file not found:', filePath);
-      return { success: false, message: 'Backup file not found' };
+    if (db && db.repairProductIds) {
+      const repairedCount = db.repairProductIds();
+      return { success: true, repairedCount };
+    } else {
+      return { success: false, message: 'Database or repair function not available' };
     }
-    
-    // Verify backup file is valid SQLite by checking header
-    const fileStats = fs.statSync(filePath);
-    
-    if (fileStats.size === 0) {
-      console.error('[Restore] File is empty:', filePath);
-      return { success: false, message: 'Selected file is empty' };
-    }
-    
-    if (fileStats.size < 16) {
-      console.error('[Restore] File is too small to be a SQLite database:', filePath);
-      return { success: false, message: 'Selected file is too small to be a SQLite database' };
-    }
-    
-    const buffer = Buffer.alloc(Math.min(100, fileStats.size)); // Read first 100 bytes or file size if smaller
-    const fd = fs.openSync(filePath, 'r');
-    const bytesRead = fs.readSync(fd, buffer, 0, buffer.length, 0);
-    fs.closeSync(fd);
-    
-   
-    const header = buffer.toString('utf8', 0, Math.min(15, bytesRead));
- 
-    // Try different encodings if the standard check fails
-    if (!header.startsWith('SQLite format 3')) {
-      // Check if it might be encoded differently
-      const headerLatin1 = buffer.toString('latin1', 0, Math.min(15, bytesRead));
-      const headerBinary = buffer.toString('binary', 0, Math.min(15, bytesRead));
-      
-      if (headerLatin1.startsWith('SQLite format 3') || headerBinary.startsWith('SQLite format 3')) {
-      
-      } else {
-        console.error('[Restore] Invalid SQLite file:', filePath);
-        console.error('[Restore] First 32 bytes as hex:', buffer.subarray(0, Math.min(32, bytesRead)).toString('hex'));
-        console.error('[Restore] First 32 bytes as string:', buffer.subarray(0, Math.min(32, bytesRead)).toString('utf8'));
-        return { success: false, message: 'Selected file is not a valid SQLite database backup. File header: ' + JSON.stringify(header) };
-      }
-    }
-    
-    // Backup current database
-    if (fs.existsSync(dbPath)) {
-      fs.copyFileSync(dbPath, backupCurrentPath);
-    }
-    
-    // Replace database with backup
-    fs.copyFileSync(filePath, dbPath);
-    
-    // Replace database with backup
-    fs.copyFileSync(filePath, dbPath);
-    
-    // Reinitialize database connection
-    try {
-      // With the modular database, no cache clearing needed
-      const dbModule = require('../database/index.cjs');
-      db = dbModule(dbPath);
-      
-      // Test connection by running a simple query
-      const testResult = db.getProducts();
-    } catch (e) {
-      console.error('[Restore] DB re-initialization or test query failed:', e);
-      // Rollback if DB cannot be opened
-      if (fs.existsSync(backupCurrentPath)) {
-        fs.copyFileSync(backupCurrentPath, dbPath);
-        const dbModule = require('../database/index.cjs');
-        db = dbModule(dbPath);
-      }
-      throw new Error('Restored DB is invalid or corrupt. Rolled back to previous database.');
-    }
-    
-    // Remove backup file
-    if (fs.existsSync(backupCurrentPath)) {
-      fs.unlinkSync(backupCurrentPath);
-    }
-    
-    return { success: true, message: 'Database restored successfully', requiresRestart: false };
-  } catch (error) {
-    console.error('[Restore] Restore failed:', error);
-    return { success: false, message: error.message };
-  }
-}
-
-// IPC handler for selecting and restoring backup file
-ipcMain.handle('selectAndRestoreBackup', async () => {
-  try {
-    const result = await dialog.showOpenDialog({
-      title: 'Select Backup File to Restore',
-      filters: [
-        { name: 'SQLite Database', extensions: ['sqlite', 'db'] },
-        { name: 'All Files', extensions: ['*'] }
-      ],
-      properties: ['openFile']
-    });
-
-    if (result.canceled) {
-      return { success: false, message: 'Restore cancelled' };
-    }
-
-    const filePath = result.filePaths[0];
-    if (!filePath) {
-      return { success: false, message: 'No file selected' };
-    }
-
-    // Verify it's a SQLite file
-    if (!fs.existsSync(filePath)) {
-      return { success: false, message: 'Selected file does not exist' };
-    }
-
-    // Restore from the selected file
-    const restoreResult = await performRestore(filePath);
-    return restoreResult;
-  } catch (error) {
-    console.error('[IPC] selectAndRestoreBackup error:', error);
-    return { success: false, message: error.message };
-  }
-});
-
-// Download cloud backup without restoring
-ipcMain.handle('downloadCloudBackupFile', async (event, backupId) => {
-  try {
-    const os = require('os');
-    const documentsPath = path.join(os.homedir(), 'Documents');
-    const downloadDir = path.join(documentsPath, 'Mobile Roma BackUp', 'Downloads');
-    
-    // Create download directory if it doesn't exist
-    if (!fs.existsSync(downloadDir)) {
-      fs.mkdirSync(downloadDir, { recursive: true });
-    }
-    
-    // Get backup info first to use proper filename
-    const backupInfo = await cloudBackupService.databases.getDocument(
-      cloudBackupService.DATABASE_ID,
-      cloudBackupService.BACKUPS_COLLECTION_ID,
-      backupId
-    );
-    
-    const fileName = backupInfo.fileName || `backup-${backupId}.sqlite`;
-    const downloadPath = path.join(downloadDir, fileName);
-    
-    const result = await cloudBackupService.downloadBackup(backupId, downloadPath);
-    
-    if (result.success) {
-      result.downloadPath = downloadPath;
-      // Show the file in explorer
-      const { shell } = require('electron');
-      shell.showItemInFolder(downloadPath);
-    }
-    
-    return result;
-  } catch (error) {
-    console.error('[IPC] downloadCloudBackupFile error:', error);
-    return { success: false, message: error.message };
-  }
-});
-
-ipcMain.handle('getDashboardData', async () => {
-  try {
-    return db.getDashboardData();
-  } catch (error) {
-    console.error('[IPC] getDashboardData error:', error);
-    return null;
-  }
-});
-
-ipcMain.handle('getMonthlyDashboardData', async (event, month, year) => {
-  try {
-    return db.getMonthlyDashboardData(month, year);
-  } catch (error) {
-    console.error('[IPC] getMonthlyDashboardData error:', error);
-    return null;
-  }
-});
-
-ipcMain.handle('recalculateBalances', async () => {
-  try {
-    return db.recalculateBalances();
-  } catch (error) {
-    console.error('[IPC] recalculateBalances error:', error);
-    return { usd_balance: 0, iqd_balance: 0 };
+  } catch (e) {
+    console.error('❌ repairProductIds error:', e);
+    return { success: false, message: e.message };
   }
 });

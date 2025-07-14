@@ -102,11 +102,24 @@ export default function AdvancedAnalytics({ admin, t }) {
     }
 
     // Filter data by time range
-    const filteredSales = sales.filter(sale => new Date(sale.created_at) >= startDate);
+    const allFilteredSales = sales.filter(sale => new Date(sale.created_at) >= startDate);
+    
+    // Exclude unpaid debt sales from revenue calculations
+    const filteredSales = allFilteredSales.filter(sale => {
+      // If this is a debt sale, check if the debt is paid
+      if (sale.is_debt) {
+        const debt = debts.find(d => d.sale_id === sale.id);
+        // Only include if debt exists and is paid, or if no debt record exists (consider as paid)
+        return debt ? Boolean(debt.paid_at) : false;
+      }
+      // Include all non-debt sales
+      return true;
+    });
+    
     const filteredPurchases = buyingHistory.filter(purchase => new Date(purchase.paid_at || purchase.created_at) >= startDate);
     const filteredLoans = personalLoans.filter(loan => new Date(loan.created_at) >= startDate);
 
-    // Revenue analysis
+    // Revenue analysis - properly convert USD sales to IQD for accurate IQD totals
     const revenueUSD = filteredSales.reduce((sum, sale) => {
       // For revenue calculations, use sale.total based on sale currency, not payment amounts
       // This ensures overpayments don't inflate revenue figures
@@ -121,6 +134,10 @@ export default function AdvancedAnalytics({ admin, t }) {
       // This ensures overpayments don't inflate revenue figures
       if (sale.currency === 'IQD') {
         return sum + (sale.total || 0);
+      } else if (sale.currency === 'USD') {
+        // Convert USD sales to IQD equivalent for accurate IQD revenue totals
+        const exchangeRate = sale.exchange_rates?.usd_to_iqd || 1440;
+        return sum + ((sale.total || 0) * exchangeRate);
       }
       return sum;
     }, 0);
@@ -182,9 +199,18 @@ export default function AdvancedAnalytics({ admin, t }) {
     const spendingUSD = filteredPurchases.filter(p => p.currency === 'USD').reduce((sum, p) => sum + (p.total_price || p.amount || 0), 0);
     const spendingIQD = filteredPurchases.filter(p => p.currency === 'IQD').reduce((sum, p) => sum + (p.total_price || p.amount || 0), 0);
 
-    // Outstanding debt analysis
-    const outstandingDebtUSD = debts.filter(d => !d.paid_at && d.currency === 'USD').reduce((sum, d) => sum + (d.total || d.amount || 0), 0);
-    const outstandingDebtIQD = debts.filter(d => !d.paid_at && d.currency === 'IQD').reduce((sum, d) => sum + (d.total || d.amount || 0), 0);
+    // Outstanding debt analysis - use debt sales approach
+    const outstandingDebtUSD = sales.filter(sale => {
+      if (!sale.is_debt || sale.currency !== 'USD') return false;
+      const debt = debts.find(d => d.sale_id === sale.id);
+      return debt ? !debt.paid_at : true; // Unpaid if no debt record or unpaid debt record
+    }).reduce((sum, sale) => sum + (sale.total || 0), 0);
+    
+    const outstandingDebtIQD = sales.filter(sale => {
+      if (!sale.is_debt || sale.currency !== 'IQD') return false;
+      const debt = debts.find(d => d.sale_id === sale.id);
+      return debt ? !debt.paid_at : true; // Unpaid if no debt record or unpaid debt record
+    }).reduce((sum, sale) => sum + (sale.total || 0), 0);
 
     // Personal loans analysis
     const activeLoanUSD = filteredLoans.filter(l => !l.paid_at && l.currency === 'USD').reduce((sum, l) => sum + (l.amount || 0), 0);
@@ -248,6 +274,10 @@ export default function AdvancedAnalytics({ admin, t }) {
           if (saleCurrency === 'USD') {
             productPerformance[name].revenueUSD += revenue;
             productPerformance[name].profitUSD += profit;
+            // Also add to IQD totals (converted) for accurate IQD revenue tracking
+            const exchangeRate = saleExchangeRates.usd_to_iqd;
+            productPerformance[name].revenueIQD += (revenue * exchangeRate);
+            productPerformance[name].profitIQD += (profit * exchangeRate);
           } else {
             productPerformance[name].revenueIQD += revenue;
             productPerformance[name].profitIQD += profit;
@@ -285,6 +315,10 @@ export default function AdvancedAnalytics({ admin, t }) {
         // For revenue calculations, use sale.total based on sale currency, not payment amounts
         if (sale.currency === 'IQD') {
           return sum + (sale.total || 0);
+        } else if (sale.currency === 'USD') {
+          // Convert USD sales to IQD equivalent for accurate IQD revenue totals
+          const exchangeRate = sale.exchange_rates?.usd_to_iqd || 1440;
+          return sum + ((sale.total || 0) * exchangeRate);
         }
         return sum;
       }, 0);

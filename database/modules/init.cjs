@@ -270,7 +270,12 @@ function runMigrations(db) {
     
     // Add missing columns to buying_history for debt payment tracking
     () => db.exec('ALTER TABLE buying_history ADD COLUMN type TEXT DEFAULT NULL'),
-    () => db.exec('ALTER TABLE buying_history ADD COLUMN reference_id INTEGER DEFAULT NULL')
+    () => db.exec('ALTER TABLE buying_history ADD COLUMN reference_id INTEGER DEFAULT NULL'),
+    
+    // Add payment tracking columns to customer_debts
+    () => db.exec('ALTER TABLE customer_debts ADD COLUMN payment_usd_amount REAL DEFAULT 0'),
+    () => db.exec('ALTER TABLE customer_debts ADD COLUMN payment_iqd_amount REAL DEFAULT 0'),
+    () => db.exec('ALTER TABLE customer_debts ADD COLUMN payment_currency_used TEXT DEFAULT NULL')
   ];
 
   migrations.forEach(migration => {

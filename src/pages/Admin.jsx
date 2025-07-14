@@ -6,12 +6,9 @@ import { useData } from '../contexts/DataContext';
 import { triggerCloudBackupAsync } from '../utils/cloudBackupEnhanced';
 import { playNavigationSound, playActionSound, playModalOpenSound, playModalCloseSound, playSuccessSound, playErrorSound } from '../utils/sounds';
 import useAdmin from '../components/useAdmin';
-import AdminStatsSidebar from '../components/AdminStatsSidebar';
-import AdminDashboard from '../components/AdminDashboard';
 import CustomerDebtsSection from '../components/CustomerDebtsSection';
 import CompanyDebtsSection from '../components/CompanyDebtsSection';
 import AccessoriesSection from '../components/AccessoriesSection';
-import MonthlyReportsSection from '../components/MonthlyReportsSection';
 import MultiCurrencyDashboard from '../components/MultiCurrencyDashboard';
 import PersonalLoansSection from '../components/PersonalLoansSection';
 import ArchivedItemsSection from '../components/ArchivedItemsSection';
@@ -24,10 +21,10 @@ import AdvancedAnalytics from '../components/AdvancedAnalytics';
 
 export default function Admin() {
   const admin = useAdmin();
-  const { sales, debts, products } = useData(); // Get data directly from DataContext
+  const { sales, debts, products, refreshAllData } = useData(); // Get data directly from DataContext
   const { t, lang, isRTL, notoFont, setLang } = useLocale();
   const navigate = useNavigate();
-  const [section, setSection] = useState('dashboard');
+  const [section, setSection] = useState('multiCurrencyDashboard'); // Start with multi-currency dashboard
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const { theme, setTheme, setAppTheme } = useTheme();
   const [loading, setLoading] = useState(false);
@@ -124,60 +121,55 @@ export default function Admin() {
     }, 0);
   }, [sales, debts]);
 
-  // Top selling products (by quantity sold) - memoized for performance
-  const topSellingProducts = useMemo(() => {
-    const productSalesMap = {};
-    sales.forEach(sale => {
-      if (sale.items) {
-        sale.items.forEach(item => {
-          // Skip items without names
-          if (!item.name || item.name === 'null' || item.name === null) return;
-          
-          if (!productSalesMap[item.name]) {
-            productSalesMap[item.name] = { quantity: 0, revenue: 0, profit: 0 };
-          }
-          productSalesMap[item.name].quantity += item.quantity || 1;
-          productSalesMap[item.name].revenue += (item.selling_price || item.buying_price || 0) * (item.quantity || 1);
-          productSalesMap[item.name].profit += ((item.selling_price || item.buying_price || 0) - (item.buying_price || 0)) * (item.quantity || 1);
-        });
-      }
-    });
-    
-    return Object.entries(productSalesMap)
-      .filter(([name]) => name && name !== 'null' && name !== null) // Filter out null/invalid names
-      .sort(([,a], [,b]) => b.quantity - a.quantity)
-      .slice(0, 5);
-  }, [sales]);
-
   // Recent activity and low stock products - memoized
-  const recentSales = useMemo(() => sales.slice(0, 5), [sales]);
   const criticalStockProducts = useMemo(() => products.filter(p => p.stock <= 2 && !p.archived), [products]);
   const lowStockProducts = useMemo(() => products.filter(p => p.stock > 2 && p.stock < admin.lowStockThreshold && !p.archived), [products, admin.lowStockThreshold]);
 
-  // Memoize nav items for performance
+  // Memoize nav items for performance with keyboard shortcuts
   const navItems = useMemo(() => [
-    { key: 'dashboard', label: t.dashboard, icon: '📊', accent: 'bg-blue-600' },
-    { key: 'multiCurrencyDashboard', label: t.multiCurrencyDashboard || 'Multi-Currency Dashboard', icon: '💱', accent: 'bg-indigo-600' },
-    { key: 'advancedAnalytics', label: t.advancedAnalytics || 'Advanced Analytics', icon: '📈', accent: 'bg-emerald-600' },
-    { key: 'active', label: t.products, icon: '📦', accent: 'bg-purple-600' },
-    { key: 'accessories', label: t.accessories, icon: '🎧', accent: 'bg-green-600' },
-    { key: 'archived', label: t.archivedProducts, icon: '🗃️' },
-    { key: 'history', label: t.salesHistory, icon: '📈' },
-    { key: 'buyingHistory', label: t.buyingHistory, icon: '🛒' },
-    { key: 'customerDebts', label: t.customerDebts, icon: '💳' },
-    { key: 'companyDebts', label: t.companyDebts, icon: '💸' },
-    { key: 'personalLoans', label: t.personalLoans || 'Personal Loans', icon: '🤝', accent: 'bg-cyan-600' },
-    { key: 'monthlyReports', label: t.monthlyReports, icon: '📊' },
+    { key: 'multiCurrencyDashboard', label: t.multiCurrencyDashboard || 'Multi-Currency Dashboard', icon: '💱', shortcut: '1' },
+    { key: 'advancedAnalytics', label: t.advancedAnalytics || 'Advanced Analytics', icon: '📈', shortcut: '2' },
+    { key: 'active', label: t.products, icon: '📦', shortcut: '3' },
+    { key: 'accessories', label: t.accessories, icon: '🎧', shortcut: '4' },
+    { key: 'archived', label: t.archivedProducts, icon: '🗃️', shortcut: '5' },
+    { key: 'history', label: t.salesHistory, icon: '�', shortcut: '6' },
+    { key: 'buyingHistory', label: t.buyingHistory, icon: '🛒', shortcut: '7' },
+    { key: 'customerDebts', label: t.customerDebts, icon: '💳', shortcut: '8' },
+    { key: 'companyDebts', label: t.companyDebts, icon: '💸', shortcut: '9' },
+    { key: 'personalLoans', label: t.personalLoans || 'Personal Loans', icon: '🤝', shortcut: '0' },
     { key: 'backup', label: t.cloudBackup, icon: '☁️', action: () => setShowBackupManager(true) },
     { key: 'settings', label: t.settings, icon: '⚙️' },
-    { key: 'logout', label: t.logout, icon: '🚪', action: () => navigate('/cashier'), accent: 'bg-red-600 text-white hover:bg-red-700', isLogout: true },
+    { key: 'logout', label: t.logout, icon: '🚪', action: () => navigate('/cashier'), isLogout: true },
   ], [t, navigate]);
 
-  // Keyboard navigation for sections
+  // Keyboard navigation for sections with number shortcuts
   useEffect(() => {
     const handleKeyDown = (e) => {
       // Don't handle keys if a modal is open
       if (admin.productModal || admin.saleDetailsModal || showSettingsModal || showBackupManager) {
+        return;
+      }
+      
+      // Don't handle keys if user is typing in an input field
+      const activeElement = document.activeElement;
+      if (activeElement && (
+        activeElement.tagName === 'INPUT' || 
+        activeElement.tagName === 'TEXTAREA' ||
+        activeElement.tagName === 'SELECT' ||
+        activeElement.contentEditable === 'true'
+      )) {
+        return;
+      }
+      
+      // Handle number keys for navigation (only with Ctrl modifier)
+      const numberKeys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'];
+      if (numberKeys.includes(e.key) && e.ctrlKey) {
+        e.preventDefault();
+        const navItem = navItems.find(item => item.shortcut === e.key);
+        if (navItem && !navItem.action) {
+          setSection(navItem.key);
+          playNavigationSound();
+        }
         return;
       }
       
@@ -189,9 +181,11 @@ export default function Admin() {
         if (e.key === 'ArrowUp') {
           const newIndex = currentIndex > 0 ? currentIndex - 1 : sectionKeys.length - 1;
           setSection(sectionKeys[newIndex]);
+          playNavigationSound();
         } else if (e.key === 'ArrowDown') {
           const newIndex = currentIndex < sectionKeys.length - 1 ? currentIndex + 1 : 0;
           setSection(sectionKeys[newIndex]);
+          playNavigationSound();
         }
       }
     };
@@ -286,7 +280,25 @@ export default function Admin() {
     setIsCompanyDebtMode(false);
   }, []);
 
-  // --- Redesigned UI ---
+  // Expose refresh function globally for console commands
+  useEffect(() => {
+    window.adminRefreshBalances = async () => {
+      try {
+        await refreshAllData();
+        // You can add any specific balance refresh logic here
+        console.log('✅ Admin balances refreshed');
+      } catch (error) {
+        console.error('❌ Error refreshing admin balances:', error);
+      }
+    };
+    
+    // Cleanup
+    return () => {
+      delete window.adminRefreshBalances;
+    };
+  }, [refreshAllData]);
+
+  // --- Redesigned UI with Small Sidebar ---
   return (
     <div
       className={`w-screen h-screen min-h-screen min-w-0 flex flex-row gap-0 justify-center items-stretch p-0 overflow-hidden bg-gradient-to-br from-[#f8fafc] via-[#e0e7ef] to-[#c7d2fe] dark:from-[#1e293b] dark:via-[#0f172a] dark:to-[#0e7490] ${isRTL ? 'rtl' : ''}`}
@@ -294,32 +306,59 @@ export default function Admin() {
       style={notoFont}
       {...(loading ? { 'aria-busy': true } : {})}
     >
-      {/* Admin Stats Sidebar */}
-      <AdminStatsSidebar 
-        admin={admin}
-        t={t}
-        navItems={navItems}
-        section={section}
-        handleNavClick={handleNavClick}
-      />
-      {/* Main content glassy card */}
+      {/* Sidebar Navigation */}
+      <div className="w-64 flex flex-col bg-white/10 dark:bg-gray-900/20 backdrop-blur-md border-r border-white/10 dark:border-gray-700/30">
+        {/* Keyboard shortcuts hint */}
+        <div className="px-4 py-3 border-b border-white/10 dark:border-gray-700/30">
+          <div className="text-xs text-gray-500 dark:text-gray-400 text-center font-mono">Keyboard Shortcuts: Ctrl+1-9, Ctrl+0</div>
+        </div>
+        
+        <div className="flex-1 flex flex-col py-4 space-y-2 overflow-y-auto">
+          {navItems.map((item) => (
+            <button
+              key={item.key}
+              onClick={() => handleNavClick(item)}
+              className={`group relative flex items-center justify-start gap-3 p-3 mx-3 rounded-xl transition-all duration-200 ${
+                section === item.key
+                  ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-white/20 dark:hover:bg-gray-700/30'
+              } ${item.isLogout ? 'text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20' : ''}`}
+            >
+              <span className="text-xl flex-shrink-0">{item.icon}</span>
+              <div className="flex-1 text-left">
+                <div className="text-sm font-medium truncate">{item.label}</div>
+                {item.shortcut && (
+                  <div className={`text-xs font-mono ${
+                    section === item.key ? 'text-white/70' : 'text-gray-500 dark:text-gray-500'
+                  }`}>
+                    Press {item.shortcut}
+                  </div>
+                )}
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Main content */}
       <main className="flex-1 flex flex-col gap-6 w-full min-w-0 h-full max-w-full mx-0 p-8 overflow-auto items-center justify-start bg-transparent relative z-0">
         {/* Section content in glassy card */}
         <div className="w-full max-w-6xl mx-auto bg-white/80 dark:bg-gray-800/80 rounded-3xl shadow-2xl border border-white/20 p-8 flex flex-col gap-8">
           {/* Section content */}
           <div className="flex-1 min-h-0">
-            {/* Dashboard Section */}
-            {section === 'dashboard' && (
-              <AdminDashboard 
+            {/* Multi-Currency Dashboard Section */}
+            {section === 'multiCurrencyDashboard' && (
+              <MultiCurrencyDashboard 
                 t={t}
                 admin={admin}
-                openAddPurchaseModal={openAddPurchaseModal}
-                topSellingProducts={topSellingProducts}
-                recentSales={recentSales}
-                criticalStockProducts={criticalStockProducts}
-                lowStockProducts={lowStockProducts}
-                setSection={setSection}
-                setShowSettingsModal={setShowSettingsModal}
+              />
+            )}
+
+            {/* Advanced Analytics Section */}
+            {section === 'advancedAnalytics' && (
+              <AdvancedAnalytics 
+                t={t}
+                admin={admin}
               />
             )}
 
@@ -392,14 +431,6 @@ export default function Admin() {
                 showConfirm={showConfirm}
                 setConfirm={setConfirm}
                 triggerCloudBackup={triggerCloudBackupAsync}
-              />
-            )}
-
-            {/* Monthly Reports Section */}
-            {section === 'monthlyReports' && (
-              <MonthlyReportsSection 
-                t={t}
-                admin={admin}
               />
             )}
 

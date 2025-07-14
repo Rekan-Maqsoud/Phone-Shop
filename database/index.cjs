@@ -94,6 +94,10 @@ module.exports = function(dbPath) {
     return sales.getSaleItems(db, saleId);
   }
 
+  function getDebtSales() {
+    return sales.getDebtSales(db);
+  }
+
   function addSale(saleData) {
     return sales.addSale(db, saleData);
   }
@@ -125,6 +129,31 @@ module.exports = function(dbPath) {
 
   function addCustomerDebt(debtData) {
     return debts.addCustomerDebt(db, debtData);
+  }
+
+  // Legacy addDebt function for backward compatibility with frontend
+  function addDebt({ sale_id, customer_name }) {
+    console.log('🔍 addDebt called with:', { sale_id, customer_name });
+    
+    // Get the sale details to create the debt record
+    const sale = db.prepare('SELECT * FROM sales WHERE id = ?').get(sale_id);
+    if (!sale) {
+      console.error('❌ Sale not found for ID:', sale_id);
+      throw new Error('Sale not found');
+    }
+    
+    console.log('✅ Found sale:', sale);
+    
+    const result = debts.addCustomerDebt(db, {
+      customer_name: customer_name,
+      amount: sale.total,
+      description: `Debt for sale #${sale_id}`,
+      currency: sale.currency || 'IQD',
+      sale_id: sale_id
+    });
+    
+    console.log('✅ Debt created with result:', result);
+    return result;
   }
 
   function payCustomerDebt(id) {
@@ -494,6 +523,12 @@ module.exports = function(dbPath) {
           isAccessory = true;
         }
         
+        // Validate that the item has a valid product_id and itemType
+        if (!item.product_id) {
+          console.warn(`Invalid product_id for item:`, item);
+          continue; // Skip invalid items
+        }
+        
         let product = null;
         let accessory = null;
         
@@ -506,15 +541,23 @@ module.exports = function(dbPath) {
         const itemData = isAccessory ? accessory : product;
         const qty = Number(item.quantity) || 1;
         
-        if (!itemData || itemData.stock < qty) {
-          throw new Error(`Insufficient stock for ${isAccessory ? 'accessory' : 'product'}: ${itemData ? itemData.name : item.product_id}`);
+        // Skip validation if itemData is null (this can happen after database resets)
+        if (!itemData) {
+          console.warn(`Product/accessory not found for ID: ${item.product_id}, skipping stock validation`);
+          continue;
         }
         
-        // Decrement stock for all sales (normal and debt)
-        if (isAccessory) {
-          db.prepare('UPDATE accessories SET stock = stock - ? WHERE id = ?').run(qty, item.product_id);
-        } else {
-          db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(qty, item.product_id);
+        if (itemData.stock < qty) {
+          throw new Error(`Insufficient stock for ${isAccessory ? 'accessory' : 'product'}: ${itemData.name}`);
+        }
+        
+        // Decrement stock for all sales (normal and debt) - only if item exists
+        if (itemData) {
+          if (isAccessory) {
+            db.prepare('UPDATE accessories SET stock = stock - ? WHERE id = ?').run(qty, item.product_id);
+          } else {
+            db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(qty, item.product_id);
+          }
         }
       }
       // --- END STOCK CHECK & UPDATE ---
@@ -571,12 +614,14 @@ module.exports = function(dbPath) {
         
         const itemData = isAccessory ? accessory : product;
         
-        if ((!item.product_id || typeof item.product_id !== 'number') && !itemData) {
+        // Skip items that don't have valid product_id or don't exist in database
+        if (!item.product_id || !itemData) {
+          console.warn(`Skipping invalid item:`, { product_id: item.product_id, name: item.name, itemData: !!itemData });
           continue;
         }
         
         const qty = Number(item.quantity) || 1;
-        const buyingPrice = itemData ? Number(itemData.buying_price) : 0;
+        const buyingPrice = itemData ? Number(itemData.buying_price) || 0 : 0;
         const originalSellingPrice = typeof item.selling_price === 'number' ? item.selling_price : (typeof item.price === 'number' ? item.price : 0);
         
         // Apply discount to individual item selling price
@@ -965,6 +1010,44 @@ module.exports = function(dbPath) {
     return settings.setBalance(db, currency, amount);
   }
 
+  function repairProductIds() {
+    const transaction = db.transaction(() => {
+      // Find products with NULL IDs
+      const nullIdProducts = db.prepare('SELECT rowid, * FROM products WHERE id IS NULL').all();
+      
+      if (nullIdProducts.length > 0) {
+        console.log(`🔧 Repairing ${nullIdProducts.length} products with NULL IDs...`);
+        
+        // Delete products with NULL IDs
+        db.prepare('DELETE FROM products WHERE id IS NULL').run();
+        
+        // Re-insert them with proper auto-increment IDs
+        const insertStmt = db.prepare(`INSERT INTO products (name, buying_price, stock, archived, ram, storage, model, category, currency) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+        
+        for (const product of nullIdProducts) {
+          insertStmt.run(
+            product.name,
+            product.buying_price,
+            product.stock,
+            product.archived || 0,
+            product.ram,
+            product.storage,
+            product.model,
+            product.category || 'phones',
+            product.currency || 'IQD'
+          );
+        }
+        
+        console.log(`✅ Repaired ${nullIdProducts.length} products with proper IDs`);
+        return nullIdProducts.length;
+      }
+      
+      return 0;
+    });
+    
+    return transaction();
+  }
+
   // Return the API object
   return {
     // Database instance
@@ -994,7 +1077,9 @@ module.exports = function(dbPath) {
     getSales,
     getSaleById,
     getSaleItems,
+    getDebtSales,
     addSale,
+    addDebt,
     addSaleItem,
     deleteSale,
     getSalesInDateRange,
@@ -1003,6 +1088,7 @@ module.exports = function(dbPath) {
     
     // Debts
     getCustomerDebts,
+    getDebts: getCustomerDebts, // Alias for backward compatibility
     addCustomerDebt,
     payCustomerDebt,
     deleteCustomerDebt,
@@ -1089,6 +1175,7 @@ module.exports = function(dbPath) {
     returnBuyingHistoryEntry,
     returnBuyingHistoryItem,
     updateBalance,
-    setBalance
+    setBalance,
+    repairProductIds
   };
 };

@@ -71,15 +71,50 @@ export default function Cashier() {
     refreshSales 
   } = useData();
 
-  // Memoize derived values
-  const products = useMemo(() => Array.isArray(allProducts) ? allProducts.filter(p => !p.archived) : [], [allProducts]);
-  const accessories = useMemo(() => Array.isArray(allAccessories) ? allAccessories.filter(a => !a.archived) : [], [allAccessories]);
+  // Memoize derived values with minimal validation
+  const products = useMemo(() => {
+    if (!Array.isArray(allProducts)) return [];
+    return allProducts.filter(p => p && !p.archived);
+  }, [allProducts]);
+  
+  const accessories = useMemo(() => {
+    if (!Array.isArray(allAccessories)) return [];
+    return allAccessories.filter(a => a && !a.archived);
+  }, [allAccessories]);
   
   // Add unique identifiers to differentiate products and accessories
-  const allItems = useMemo(() => [
-    ...products.map(p => ({ ...p, itemType: 'product', category: p.category || 'phones', uniqueId: `product_${p.id}` })), 
-    ...accessories.map(a => ({ ...a, itemType: 'accessory', category: 'accessories', uniqueId: `accessory_${a.id}` }))
-  ], [products, accessories]);
+  const allItems = useMemo(() => {
+    const productItems = products.map((p, index) => {
+      // Create a robust unique ID even if p.id is missing
+      const safeId = p.id || `temp_product_${index}_${p.name?.replace(/\s+/g, '_').toLowerCase()}`;
+      const item = {
+        ...p, 
+        itemType: 'product', 
+        category: p.category || 'phones', 
+        uniqueId: `product_${safeId}`,
+        // Ensure we have an ID for the product
+        id: p.id || safeId
+      };
+      return item;
+    });
+    
+    const accessoryItems = accessories.map((a, index) => {
+      // Create a robust unique ID even if a.id is missing
+      const safeId = a.id || `temp_accessory_${index}_${a.name?.replace(/\s+/g, '_').toLowerCase()}`;
+      const item = {
+        ...a, 
+        itemType: 'accessory', 
+        category: 'accessories', 
+        uniqueId: `accessory_${safeId}`,
+        // Ensure we have an ID for the accessory
+        id: a.id || safeId
+      };
+      return item;
+    });
+    
+    const result = [...productItems, ...accessoryItems];
+    return result;
+  }, [products, accessories]);
 
   useEffect(() => {
     const timer = setInterval(() => setClock(new Date()), 1000);
@@ -92,6 +127,13 @@ export default function Cashier() {
       refreshAccessories();
     }
   }, [apiReady, refreshProducts, refreshAccessories]);
+
+  // Debug logging for products and accessories
+  useEffect(() => {
+    if (apiReady && products.length === 0 && accessories.length === 0) {
+      console.log('⚠️ No products or accessories loaded');
+    }
+  }, [apiReady, products, accessories, allItems]);
 
   const handleSearchInput = (e) => {
     setSearch(e.target.value);
@@ -266,12 +308,26 @@ export default function Cashier() {
         }
         
         setLoading(l => ({ ...l, sale: true }));
+        
+        // Validate all items before creating sale
         const saleItems = items.map(item => {
-          return {
+          // Get the original product from allItems to get the real database ID
+          const originalProduct = allItems.find(p => p.uniqueId === item.uniqueId);
+          
+          if (!originalProduct) {
+            console.warn('⚠️ Could not find original product for item:', item);
+          }
+          
+          const validatedItem = {
             ...item,
-            product_id: item.product_id || item.id,
+            product_id: originalProduct?.id || item.product_id || item.id,
             itemType: item.itemType || 'product', // Ensure itemType is preserved
+            // Ensure buying_price is preserved from the original product
+            buying_price: originalProduct?.buying_price || item.buying_price || 0,
+            selling_price: item.selling_price || item.price || originalProduct?.selling_price || 0
           };
+          
+          return validatedItem;
         });
         
 
@@ -289,17 +345,23 @@ export default function Cashier() {
         
         if (window.api?.saveSale) {
           const res = await window.api.saveSale(sale);
+          console.log('💰 Sale saved:', res);
           
           if (res.success && isDebt) {
+            console.log('🔍 Processing debt sale with sale_id:', res.id || res.lastInsertRowid);
             try {
               const debtResult = await window.api.addDebt({ sale_id: res.id || res.lastInsertRowid, customer_name: customerName });
+              console.log('📋 Debt creation result:', debtResult);
               if (!debtResult.success) {
                 showToast(t.saleRecordCreationFailed + (debtResult.message || t.unknownError), 'error');
+              } else {
+                console.log('✅ Debt created successfully');
               }
               await refreshDebts();
               await refreshDebtSales();
               // debt sales are now refreshed immediately for instant UI update
             } catch (debtError) {
+              console.error('❌ Debt creation error:', debtError);
               showToast(t.debtCreationFailed + debtError.message, 'error');
             }
           }
@@ -310,9 +372,13 @@ export default function Cashier() {
             setSearch('');
             setIsDebt(false);
             setCustomerName("");
-            await refreshProducts();
-            await refreshAccessories();
-            await refreshSales();
+            
+            // Force refresh products and accessories to update stock levels
+            await Promise.all([
+              refreshProducts(),
+              refreshAccessories(),
+              refreshSales()
+            ]);
             
             showToast(isDebt ? t.debtSaleSuccess : t.saleSuccess);
           } else {
@@ -395,6 +461,8 @@ export default function Cashier() {
         currency={currency}
         setCurrency={setCurrency}
         setDiscount={setDiscount}
+        refreshProducts={refreshProducts}
+        refreshAccessories={refreshAccessories}
       />
       
       {/* Toast */}

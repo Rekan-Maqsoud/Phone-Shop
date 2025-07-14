@@ -100,6 +100,10 @@ contextBridge.exposeInMainWorld('api', {
   recalculateBalances: () => ipcRenderer.invoke('recalculateBalances'),
   getTransactions: (limit) => ipcRenderer.invoke('getTransactions', limit),
   
+  // Secret admin balance management (only available via console commands)
+  setBalance: (currency, amount) => ipcRenderer.invoke('setBalance', currency, amount),
+  updateBalance: (currency, amount) => ipcRenderer.invoke('updateBalance', currency, amount),
+  
   // Personal Loan functionality
   addPersonalLoan: (loanData) => ipcRenderer.invoke('addPersonalLoan', loanData),
   getPersonalLoans: () => ipcRenderer.invoke('getPersonalLoans'),

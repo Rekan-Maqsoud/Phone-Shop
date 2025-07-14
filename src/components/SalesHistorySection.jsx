@@ -10,11 +10,23 @@ export default function SalesHistorySection({
   setLoading, 
   triggerCloudBackup 
 }) {
-  const { refreshSales, refreshProducts, refreshAccessories, refreshDebts } = useData();
+  const { refreshSales, refreshProducts, refreshAccessories, refreshDebts, debts } = useData();
+
+  // Filter out unpaid debt sales from the sales history
+  const filteredSales = admin.sales.filter(sale => {
+    // If this is a debt sale, check if the debt is paid
+    if (sale.is_debt) {
+      const debt = debts.find(d => d.sale_id === sale.id);
+      // Only include if debt exists and is paid
+      return debt ? Boolean(debt.paid_at) : false;
+    }
+    // Include all non-debt sales
+    return true;
+  });
 
   return (
     <SalesHistoryTable
-      sales={admin.sales}
+      sales={filteredSales}
       t={t}
       onView={saleId => {
         const sale = admin.sales.find(s => s.id === saleId);

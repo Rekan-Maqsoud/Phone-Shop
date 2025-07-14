@@ -2,13 +2,13 @@
 const settings = require('./settings.cjs');
 
 function getCustomerDebts(db) {
-  return db.prepare('SELECT * FROM customer_debts WHERE paid_at IS NULL ORDER BY created_at DESC').all();
+  return db.prepare('SELECT * FROM customer_debts ORDER BY created_at DESC').all();
 }
 
-function addCustomerDebt(db, { customer_name, amount, description, currency = 'IQD' }) {
+function addCustomerDebt(db, { customer_name, amount, description, currency = 'IQD', sale_id = null }) {
   const now = new Date().toISOString();
-  return db.prepare('INSERT INTO customer_debts (customer_name, amount, description, created_at, currency) VALUES (?, ?, ?, ?, ?)')
-    .run(customer_name, amount, description, now, currency);
+  return db.prepare('INSERT INTO customer_debts (customer_name, amount, description, created_at, currency, sale_id) VALUES (?, ?, ?, ?, ?, ?)')
+    .run(customer_name, amount, description, now, currency, sale_id);
 }
 
 function payCustomerDebt(db, id) {
@@ -16,8 +16,10 @@ function payCustomerDebt(db, id) {
   return db.prepare('UPDATE customer_debts SET paid_at = ? WHERE id = ?').run(now, id);
 }
 
-// Enhanced function for marking customer debt as paid with multi-currency support and balance deduction
+// Enhanced function for marking customer debt as paid with multi-currency support and balance addition
 function markCustomerDebtPaid(db, id, paymentData) {
+  console.log('🔍 [debts.cjs] markCustomerDebtPaid called:', { id, paymentData });
+  
   const { 
     paid_at, 
     payment_currency_used, 
@@ -31,6 +33,22 @@ function markCustomerDebtPaid(db, id, paymentData) {
     try {
       // Get debt info before updating for transaction record
       const debtInfo = db.prepare('SELECT customer_name, amount, description, currency FROM customer_debts WHERE id = ?').get(id);
+      console.log('🔍 [debts.cjs] Debt info found:', debtInfo);
+      
+      // If no specific payment amounts are provided, use the debt's original amount and currency
+      let finalUSDAmount = payment_usd_amount;
+      let finalIQDAmount = payment_iqd_amount;
+      
+      if (payment_usd_amount === 0 && payment_iqd_amount === 0 && debtInfo) {
+        // No custom payment amounts specified, use the debt's original amount
+        if (debtInfo.currency === 'USD') {
+          finalUSDAmount = debtInfo.amount;
+          finalIQDAmount = 0;
+        } else {
+          finalUSDAmount = 0;
+          finalIQDAmount = debtInfo.amount;
+        }
+      }
       
       // Update the debt record
       const updateStmt = db.prepare(`
@@ -44,11 +62,13 @@ function markCustomerDebtPaid(db, id, paymentData) {
       
       const result = updateStmt.run(
         now, 
-        payment_usd_amount || 0, 
-        payment_iqd_amount || 0,
-        payment_currency_used || 'USD',
+        finalUSDAmount || 0, 
+        finalIQDAmount || 0,
+        payment_currency_used || debtInfo?.currency || 'USD',
         id
       );
+      
+      console.log('🔍 [debts.cjs] Update result:', result);
       
       // Record transaction - track the actual payment amounts made
       const addTransactionStmt = db.prepare(`
@@ -58,28 +78,31 @@ function markCustomerDebtPaid(db, id, paymentData) {
       
       addTransactionStmt.run(
         'customer_debt_payment',
-        payment_usd_amount || 0,
-        payment_iqd_amount || 0,
+        finalUSDAmount || 0,
+        finalIQDAmount || 0,
         `Customer debt payment: ${debtInfo.customer_name} - ${debtInfo.description || 'Payment'}`,
         id,
         'customer_debt',
         now
       );
       
-      // Deduct from the user's balance based on the actual payment amounts
-      // Deduct USD amount if any USD was paid
-      if (payment_usd_amount > 0) {
-        settings.updateBalance(db, 'USD', -payment_usd_amount);
+      // Add to the user's balance based on the actual payment amounts received
+      // Add USD amount if any USD was paid by customer
+      if (finalUSDAmount > 0) {
+        console.log('💰 [debts.cjs] Adding USD to balance:', finalUSDAmount);
+        settings.updateBalance(db, 'USD', finalUSDAmount);
       }
       
-      // Deduct IQD amount if any IQD was paid
-      if (payment_iqd_amount > 0) {
-        settings.updateBalance(db, 'IQD', -payment_iqd_amount);
+      // Add IQD amount if any IQD was paid by customer
+      if (finalIQDAmount > 0) {
+        console.log('💰 [debts.cjs] Adding IQD to balance:', finalIQDAmount);
+        settings.updateBalance(db, 'IQD', finalIQDAmount);
       }
       
+      console.log('✅ [debts.cjs] Debt marked as paid successfully');
       return { success: true, changes: result.changes };
     } catch (error) {
-      console.error('Error marking customer debt as paid:', error);
+      console.error('❌ [debts.cjs] Error marking customer debt as paid:', error);
       throw error;
     }
   });
@@ -135,6 +158,24 @@ function markCompanyDebtPaid(db, id, paymentData) {
       // Get debt info before updating for transaction record
       const debtInfo = db.prepare('SELECT company_name, amount, description, currency, usd_amount, iqd_amount FROM company_debts WHERE id = ?').get(id);
       
+      // If no specific payment amounts are provided, use the debt's original amount and currency
+      let finalUSDAmount = payment_usd_amount;
+      let finalIQDAmount = payment_iqd_amount;
+      
+      if (payment_usd_amount === 0 && payment_iqd_amount === 0 && debtInfo) {
+        // No custom payment amounts specified, use the debt's original amount
+        if (debtInfo.currency === 'MULTI') {
+          finalUSDAmount = debtInfo.usd_amount || 0;
+          finalIQDAmount = debtInfo.iqd_amount || 0;
+        } else if (debtInfo.currency === 'USD') {
+          finalUSDAmount = debtInfo.amount;
+          finalIQDAmount = 0;
+        } else {
+          finalUSDAmount = 0;
+          finalIQDAmount = debtInfo.amount;
+        }
+      }
+      
       // Update the debt record
       const updateStmt = db.prepare(`
         UPDATE company_debts 
@@ -147,9 +188,9 @@ function markCompanyDebtPaid(db, id, paymentData) {
       
       const result = updateStmt.run(
         now, 
-        payment_usd_amount || 0, 
-        payment_iqd_amount || 0,
-        payment_currency_used || 'USD',
+        finalUSDAmount || 0, 
+        finalIQDAmount || 0,
+        payment_currency_used || debtInfo?.currency || 'USD',
         id
       );
       
@@ -161,8 +202,8 @@ function markCompanyDebtPaid(db, id, paymentData) {
       
       addTransactionStmt.run(
         'company_debt_payment',
-        payment_usd_amount || 0,
-        payment_iqd_amount || 0,
+        finalUSDAmount || 0,
+        finalIQDAmount || 0,
         `Company debt payment: ${debtInfo.company_name} - ${debtInfo.description || 'Payment'}`,
         id,
         'company_debt',
@@ -170,7 +211,7 @@ function markCompanyDebtPaid(db, id, paymentData) {
       );
       
       // Add entries to buying history for spending tracking
-      if (payment_usd_amount > 0) {
+      if (finalUSDAmount > 0) {
         try {
           const addBuyingHistoryUSD = db.prepare(`
             INSERT INTO buying_history (item_name, quantity, unit_price, total_price, date, currency, type, reference_id) 
@@ -180,8 +221,8 @@ function markCompanyDebtPaid(db, id, paymentData) {
           addBuyingHistoryUSD.run(
             `Company debt payment: ${debtInfo.company_name}`,
             1,
-            payment_usd_amount,
-            payment_usd_amount,
+            finalUSDAmount,
+            finalUSDAmount,
             now,
             'USD',
             'debt_payment',
@@ -198,15 +239,15 @@ function markCompanyDebtPaid(db, id, paymentData) {
           addBuyingHistoryUSDBasic.run(
             `Company debt payment: ${debtInfo.company_name}`,
             1,
-            payment_usd_amount,
-            payment_usd_amount,
+            finalUSDAmount,
+            finalUSDAmount,
             now,
             'USD'
           );
         }
       }
       
-      if (payment_iqd_amount > 0) {
+      if (finalIQDAmount > 0) {
         try {
           const addBuyingHistoryIQD = db.prepare(`
             INSERT INTO buying_history (item_name, quantity, unit_price, total_price, date, currency, type, reference_id) 
@@ -216,8 +257,8 @@ function markCompanyDebtPaid(db, id, paymentData) {
           addBuyingHistoryIQD.run(
             `Company debt payment: ${debtInfo.company_name}`,
             1,
-            payment_iqd_amount,
-            payment_iqd_amount,
+            finalIQDAmount,
+            finalIQDAmount,
             now,
             'IQD',
             'debt_payment',
@@ -234,8 +275,8 @@ function markCompanyDebtPaid(db, id, paymentData) {
           addBuyingHistoryIQDBasic.run(
             `Company debt payment: ${debtInfo.company_name}`,
             1,
-            payment_iqd_amount,
-            payment_iqd_amount,
+            finalIQDAmount,
+            finalIQDAmount,
             now,
             'IQD'
           );
@@ -244,13 +285,13 @@ function markCompanyDebtPaid(db, id, paymentData) {
       
       // Deduct from the user's balance based on the actual payment amounts
       // Deduct USD amount if any USD was paid
-      if (payment_usd_amount > 0) {
-        settings.updateBalance(db, 'USD', -payment_usd_amount);
+      if (finalUSDAmount > 0) {
+        settings.updateBalance(db, 'USD', -finalUSDAmount);
       }
       
       // Deduct IQD amount if any IQD was paid
-      if (payment_iqd_amount > 0) {
-        settings.updateBalance(db, 'IQD', -payment_iqd_amount);
+      if (finalIQDAmount > 0) {
+        settings.updateBalance(db, 'IQD', -finalIQDAmount);
       }
       
       return { success: true, changes: result.changes };

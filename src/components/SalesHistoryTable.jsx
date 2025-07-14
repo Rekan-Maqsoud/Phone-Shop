@@ -33,6 +33,9 @@ export default function SalesHistoryTable({ sales, t, onView, onPrintLast, onRet
         
         if (saleCurrency === 'USD') {
           totalRevenueUSD += itemsTotal;
+          // Also add to IQD total (converted) for accurate IQD revenue totals
+          const exchangeRate = sale.exchange_rates?.usd_to_iqd || EXCHANGE_RATES.USD_TO_IQD;
+          totalRevenueIQD += (itemsTotal * exchangeRate);
         } else {
           totalRevenueIQD += itemsTotal;
         }
@@ -40,6 +43,9 @@ export default function SalesHistoryTable({ sales, t, onView, onPrintLast, onRet
         // Fallback to sale.total if no items data
         if (saleCurrency === 'USD') {
           totalRevenueUSD += total;
+          // Also add to IQD total (converted) for accurate IQD revenue totals
+          const exchangeRate = sale.exchange_rates?.usd_to_iqd || EXCHANGE_RATES.USD_TO_IQD;
+          totalRevenueIQD += (total * exchangeRate);
         } else {
           totalRevenueIQD += total;
         }
@@ -146,6 +152,17 @@ export default function SalesHistoryTable({ sales, t, onView, onPrintLast, onRet
         
         // Use stored product currency or default to IQD
         const productCurrency = item.product_currency || 'IQD';
+        
+        // Debug log for troubleshooting buying price issues
+        if (item.buying_price === 0) {
+          console.warn('Zero buying price detected:', {
+            item_name: item.name,
+            buying_price: item.buying_price,
+            product_currency: productCurrency,
+            sale_currency: saleCurrency,
+            item
+          });
+        }
         
         // Accumulate buying price by currency (keep separate)
         if (productCurrency === 'USD') {
@@ -284,10 +301,31 @@ export default function SalesHistoryTable({ sales, t, onView, onPrintLast, onRet
             const calculateSellingPriceFromItems = (sale) => {
               if (!sale.items || sale.items.length === 0) return sale.total || 0;
               
+              const saleCurrency = sale.currency || 'USD';
+              const saleExchangeRates = sale.exchange_rates || {
+                usd_to_iqd: EXCHANGE_RATES.USD_TO_IQD,
+                iqd_to_usd: EXCHANGE_RATES.IQD_TO_USD
+              };
+              
               return sale.items.reduce((sum, item) => {
                 const qty = item.quantity || 1;
                 const sellingPrice = typeof item.selling_price === 'number' ? item.selling_price : (typeof item.buying_price === 'number' ? item.buying_price : 0);
-                return sum + (sellingPrice * qty);
+                const productCurrency = item.product_currency || 'IQD';
+                
+                // Convert selling price to sale currency for display
+                let sellingPriceInSaleCurrency = sellingPrice;
+                
+                if (productCurrency !== saleCurrency) {
+                  if (saleCurrency === 'IQD' && productCurrency === 'USD') {
+                    // Converting USD price to IQD for display (e.g., $622 -> 894,880 IQD)
+                    sellingPriceInSaleCurrency = sellingPrice * saleExchangeRates.usd_to_iqd;
+                  } else if (saleCurrency === 'USD' && productCurrency === 'IQD') {
+                    // Converting IQD price to USD for display
+                    sellingPriceInSaleCurrency = sellingPrice * saleExchangeRates.iqd_to_usd;
+                  }
+                }
+                
+                return sum + (sellingPriceInSaleCurrency * qty);
               }, 0);
             };
             

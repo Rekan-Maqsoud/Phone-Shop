@@ -32,6 +32,19 @@ function getSales(db) {
                             item.accessory_currency_from_table || 
                             'IQD';
       
+      // Debug log for zero buying prices to help identify the issue
+      if (item.buying_price === 0 || item.buying_price === null) {
+        console.warn('Zero buying price in sales data:', {
+          sale_id: sale.id,
+          item_name: item.name,
+          buying_price: item.buying_price,
+          product_currency: productCurrency,
+          sale_currency: sale.currency,
+          product_id: item.product_id,
+          is_accessory: item.is_accessory
+        });
+      }
+      
       return {
         ...item,
         product_currency: productCurrency,
@@ -66,6 +79,80 @@ function getSaleById(db, id) {
 
 function getSaleItems(db, saleId) {
   return db.prepare('SELECT * FROM sale_items WHERE sale_id = ?').all(saleId);
+}
+
+function getDebtSales(db) {
+  const stmt = db.prepare(`
+    SELECT sales.*, 
+           COUNT(sale_items.id) as item_count,
+           GROUP_CONCAT(sale_items.name || ' x' || sale_items.quantity) as items_summary
+    FROM sales 
+    LEFT JOIN sale_items ON sales.id = sale_items.sale_id 
+    WHERE sales.is_debt = 1
+    GROUP BY sales.id 
+    ORDER BY sales.created_at DESC
+  `);
+  
+  const sales = stmt.all();
+  
+  // Get items for each sale with detailed info including currency conversions
+  const saleItemsStmt = db.prepare(`
+    SELECT si.*, 
+      p.name as product_name, p.ram, p.storage, p.model, p.category, p.currency as product_currency_from_table,
+      a.name as accessory_name, a.type as accessory_type, a.currency as accessory_currency_from_table
+    FROM sale_items si
+    LEFT JOIN products p ON si.product_id = p.id AND si.is_accessory = 0
+    LEFT JOIN accessories a ON si.product_id = a.id AND si.is_accessory = 1
+    WHERE si.sale_id = ?
+  `);
+  
+  return sales.map(sale => {
+    const items = saleItemsStmt.all(sale.id).map(item => {
+      // Ensure product_currency is set correctly
+      const productCurrency = item.product_currency || 
+                            item.product_currency_from_table || 
+                            item.accessory_currency_from_table || 
+                            'IQD';
+      
+      // Debug log for zero buying prices to help identify the issue
+      if (item.buying_price === 0 || item.buying_price === null) {
+        console.warn('Zero buying price in debt sales data:', {
+          sale_id: sale.id,
+          item_name: item.name,
+          buying_price: item.buying_price,
+          product_currency: productCurrency,
+          sale_currency: sale.currency,
+          product_id: item.product_id,
+          is_accessory: item.is_accessory
+        });
+      }
+      
+      return {
+        ...item,
+        product_currency: productCurrency,
+        selling_price: item.price, // Map database 'price' field to frontend 'selling_price'
+        // Use the pre-calculated values from sale time if available
+        profit_in_sale_currency: item.profit_in_sale_currency || item.profit,
+        buying_price_in_sale_currency: item.buying_price_in_sale_currency || item.buying_price
+      };
+    });
+    
+    // No longer include payment amounts - only track if it was multi-currency
+    const multi_currency = sale.is_multi_currency ? {
+      enabled: true
+    } : null;
+    
+    return {
+      ...sale,
+      items,
+      multi_currency,
+      // Include exchange rates for historical reference
+      exchange_rates: {
+        usd_to_iqd: sale.exchange_rate_usd_to_iqd || 1440,
+        iqd_to_usd: sale.exchange_rate_iqd_to_usd || 0.000694
+      }
+    };
+  });
 }
 
 function addSale(db, { total, customer_name, is_debt = 0, currency = 'IQD', paid_amount_usd = 0, paid_amount_iqd = 0, is_multi_currency = 0 }) {
@@ -138,6 +225,7 @@ module.exports = {
   getSales,
   getSaleById,
   getSaleItems,
+  getDebtSales,
   addSale,
   addSaleItem,
   deleteSale,

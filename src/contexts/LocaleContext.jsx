@@ -570,6 +570,7 @@ const translations = {
     
     // Company debts section
     markAsPaid: 'Mark as Paid',
+    payDebt: 'Pay Debt',
     viewDetails: 'View Details',
     totalCompanyDebt: 'Total Company Debt',
     unpaidDebt: 'unpaid debt',

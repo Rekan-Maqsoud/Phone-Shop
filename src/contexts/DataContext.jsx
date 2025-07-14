@@ -70,14 +70,20 @@ export const DataProvider = ({ children }) => {
       const promises = [];
       
       if (window.api?.getProducts) {
-        promises.push(window.api.getProducts().then(data => setProducts(data || [])).catch(err => {
+        promises.push(window.api.getProducts().then(data => {
+          console.log(' DataContext: Products loaded:', (data || []).length, 'products');
+          setProducts(data || []);
+        }).catch(err => {
           console.error('❌ DataContext: Error fetching products:', err);
           setProducts([]);
         }));
       }
       
       if (window.api?.getAllAccessories) {
-        promises.push(window.api.getAllAccessories().then(data => setAccessories(data || [])).catch(err => {
+        promises.push(window.api.getAllAccessories().then(data => {
+          console.log('📦 DataContext: Accessories loaded:', (data || []).length, 'accessories');
+          setAccessories(data || []);
+        }).catch(err => {
           console.error('❌ DataContext: Error fetching accessories:', err);
           setAccessories([]);
         }));

@@ -114,10 +114,19 @@ function MultiCurrencyDashboard({ admin, t }) {
     const currentDate = new Date();
     const today = currentDate.toDateString();
 
-    // Today's sales by currency
-    const todaysSales = (sales || []).filter(sale => 
-      new Date(sale.created_at).toDateString() === today
-    );
+    // Today's sales by currency - exclude unpaid debt sales
+    const todaysSales = (sales || []).filter(sale => {
+      const isToday = new Date(sale.created_at).toDateString() === today;
+      if (!isToday) return false;
+      
+      // For debt sales, check if the debt is paid by looking up in debts array
+      if (sale.is_debt) {
+        const debt = (debts || []).find(d => d.sale_id === sale.id);
+        if (!debt || (!debt.paid_at && !debt.paid)) return false; // Skip unpaid debts
+      }
+      
+      return true;
+    });
     
     const todaysUSDSales = todaysSales.reduce((sum, sale) => {
       // Calculate revenue from actual selling prices (before discount)
@@ -149,16 +158,38 @@ function MultiCurrencyDashboard({ admin, t }) {
         } else {
           return sum + (sale.total || 0);
         }
+      } else if (sale.currency === 'USD') {
+        // Convert USD sales to IQD equivalent for accurate IQD revenue totals
+        const exchangeRate = sale.exchange_rates?.usd_to_iqd || EXCHANGE_RATES.USD_TO_IQD;
+        if (sale.items && sale.items.length > 0) {
+          const itemsTotal = sale.items.reduce((itemSum, item) => {
+            const qty = item.quantity || 1;
+            const sellingPrice = typeof item.selling_price === 'number' ? item.selling_price : (typeof item.buying_price === 'number' ? item.buying_price : 0);
+            return itemSum + (sellingPrice * qty);
+          }, 0);
+          return sum + (itemsTotal * exchangeRate);
+        } else {
+          return sum + ((sale.total || 0) * exchangeRate);
+        }
       }
       return sum;
     }, 0);
 
-    // This week's sales by currency
+    // This week's sales by currency - exclude unpaid debt sales
     const oneWeekAgo = new Date();
     oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-    const thisWeeksSales = (sales || []).filter(sale => 
-      new Date(sale.created_at) >= oneWeekAgo
-    );
+    const thisWeeksSales = (sales || []).filter(sale => {
+      const isThisWeek = new Date(sale.created_at) >= oneWeekAgo;
+      if (!isThisWeek) return false;
+      
+      // For debt sales, check if the debt is paid by looking up in debts array
+      if (sale.is_debt) {
+        const debt = (debts || []).find(d => d.sale_id === sale.id);
+        if (!debt || (!debt.paid_at && !debt.paid)) return false; // Skip unpaid debts
+      }
+      
+      return true;
+    });
     
     const weekUSDSales = thisWeeksSales.reduce((sum, sale) => {
       // Calculate revenue from actual selling prices (before discount)
@@ -190,14 +221,45 @@ function MultiCurrencyDashboard({ admin, t }) {
         } else {
           return sum + (sale.total || 0);
         }
+      } else if (sale.currency === 'USD') {
+        // Convert USD sales to IQD equivalent for accurate IQD revenue totals
+        const exchangeRate = sale.exchange_rates?.usd_to_iqd || EXCHANGE_RATES.USD_TO_IQD;
+        if (sale.items && sale.items.length > 0) {
+          const itemsTotal = sale.items.reduce((itemSum, item) => {
+            const qty = item.quantity || 1;
+            const sellingPrice = typeof item.selling_price === 'number' ? item.selling_price : (typeof item.buying_price === 'number' ? item.buying_price : 0);
+            return itemSum + (sellingPrice * qty);
+          }, 0);
+          return sum + (itemsTotal * exchangeRate);
+        } else {
+          return sum + ((sale.total || 0) * exchangeRate);
+        }
       }
       return sum;
     }, 0);
 
     // Outstanding debts by currency (customer debts)
-    const unpaidDebts = (debts || []).filter(debt => !debt.paid_at && !debt.paid);
-    const unpaidUSDDebts = unpaidDebts.filter(d => d.currency === 'USD').reduce((sum, d) => sum + (d.total || d.amount || 0), 0);
-    const unpaidIQDDebts = unpaidDebts.filter(d => d.currency === 'IQD').reduce((sum, d) => sum + (d.total || d.amount || 0), 0);
+    // Use debtSales to get all debt sales, then check if they're paid via debts table
+    const unpaidDebtSalesUSD = [];
+    const unpaidDebtSalesIQD = [];
+    
+    (sales || []).forEach(sale => {
+      if (sale.is_debt) {
+        const debt = (debts || []).find(d => d.sale_id === sale.id);
+        const isPaid = debt && (debt.paid_at || debt.paid);
+        
+        if (!isPaid) {
+          if (sale.currency === 'USD') {
+            unpaidDebtSalesUSD.push(sale);
+          } else if (sale.currency === 'IQD') {
+            unpaidDebtSalesIQD.push(sale);
+          }
+        }
+      }
+    });
+    
+    const unpaidUSDDebts = unpaidDebtSalesUSD.reduce((sum, sale) => sum + (sale.total || 0), 0);
+    const unpaidIQDDebts = unpaidDebtSalesIQD.reduce((sum, sale) => sum + (sale.total || 0), 0);
 
     // Outstanding company debts by currency
     const unpaidCompanyDebts = (companyDebts || []).filter(debt => !debt.paid_at);
@@ -251,7 +313,7 @@ function MultiCurrencyDashboard({ admin, t }) {
       netPerformanceUSD,
       netPerformanceIQD,
       totalTransactions: todaysSales.length,
-      totalDebtCount: unpaidDebts.length + unpaidCompanyDebts.length,
+      totalDebtCount: unpaidDebtSalesUSD.length + unpaidDebtSalesIQD.length + unpaidCompanyDebts.length,
       totalLoanCount: unpaidLoans.length,
       unpaidCompanyUSDDebts,
       unpaidCompanyIQDDebts,
