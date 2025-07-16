@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import ModalBase from './ModalBase';
-import { phoneBrands } from './phoneBrands';
+import { phoneBrands, accessoryModels } from './phoneBrands';
 import SearchableSelect from './SearchableSelect';
 import { EXCHANGE_RATES, loadExchangeRatesFromDB } from '../utils/exchangeRates';
 
@@ -55,13 +55,11 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
       item_name: '', // Will be auto-generated from brand/model
       quantity: 1,
       unit_price: '',
-      stock: '', // Add stock field
       currency: 'IQD', // Default to IQD, user can change
       ram: '',
       storage: '',
       model: '',
       brand: '',
-      category: 'phones', // Default category for products
       type: type === 'accessory' ? '' : undefined // Specific accessory type
     };
     setItems([...items, newItem]);
@@ -221,37 +219,35 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
       }
 
       const invalidItems = items.filter((item, index) => {
-        // For products: require brand, model, quantity, price, and stock
+        // For products: require brand, model, quantity, price
         if (item.item_type === 'product') {
           const validations = {
             brand: !item.brand?.trim(),
             model: !item.model?.trim(),
             quantity: !item.quantity || parseInt(item.quantity) <= 0,
-            unitPrice: !item.unit_price || parseFloat(item.unit_price) <= 0,
-            stock: !item.stock || parseInt(item.stock) < 0
+            unitPrice: !item.unit_price || parseFloat(item.unit_price) <= 0
           };
           
-          const isInvalid = validations.brand || validations.model || validations.quantity || validations.unitPrice || validations.stock;
+          const isInvalid = validations.brand || validations.model || validations.quantity || validations.unitPrice;
           return isInvalid;
         }
-        // For accessories: require brand, model, quantity, price, and stock (type is optional)
+        // For accessories: require brand, model, quantity, price (type is optional)
         else if (item.item_type === 'accessory') {
           const validations = {
             brand: !item.brand?.trim(),
             model: !item.model?.trim(),
             quantity: !item.quantity || parseInt(item.quantity) <= 0,
-            unitPrice: !item.unit_price || parseFloat(item.unit_price) <= 0,
-            stock: !item.stock || parseInt(item.stock) < 0
+            unitPrice: !item.unit_price || parseFloat(item.unit_price) <= 0
           };
           
-          const isInvalid = validations.brand || validations.model || validations.quantity || validations.unitPrice || validations.stock;
+          const isInvalid = validations.brand || validations.model || validations.quantity || validations.unitPrice;
           return isInvalid;
         }
         return true;
       });
 
       if (invalidItems.length > 0) {
-        setError(t.pleaseFillAllRequiredFields || 'Please fill in all required fields for all items (brand, model, quantity, price, stock)');
+        setError(t.pleaseFillAllRequiredFields || 'Please fill in all required fields for all items (brand, model, quantity, price)');
         return;
       }
 
@@ -260,14 +256,14 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
         item_name: item.item_name || [item.brand, item.model].filter(Boolean).join(' '), // Ensure item_name is set
         quantity: parseInt(item.quantity),
         unit_price: parseFloat(item.unit_price),
-        stock: parseInt(item.stock) || 0,
+        stock: parseInt(item.quantity) || 0, // Use quantity as initial stock
         total_price: parseInt(item.quantity) * parseFloat(item.unit_price),
         buying_price: parseFloat(item.unit_price), // Same as unit price for buying
         ram: item.ram?.trim() || null,
         storage: item.storage?.trim() || null,
         model: item.model?.trim() || null,
         brand: item.brand?.trim() || null,
-        category: item.category || 'phones', // Default to phones for products
+        category: item.item_type === 'product' ? 'phones' : 'accessories', // Set category based on item type
         type: item.type?.trim() || null, // Accessory type
         currency: item.currency || 'IQD' // Item currency
       }));
@@ -720,22 +716,6 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
                     </div>
                   </div>
 
-                  {/* Stock */}
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                      {t?.stock || 'Stock'} *
-                    </label>
-                    <input
-                      className="w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                      placeholder="0"
-                      value={item.stock}
-                      onChange={e => updateItem(item.id, 'stock', e.target.value)}
-                      type="number"
-                      min="0"
-                      required
-                    />
-                  </div>
-
                   {/* Product-specific fields */}
                   {item.item_type === 'product' && (
                     <>
@@ -761,21 +741,7 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
                           placeholder={t?.selectStorage || 'Select or type storage...'}
                         />
                       </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                          {t?.category || 'Category'}
-                        </label>
-                        <select
-                          value={item.category}
-                          onChange={(e) => updateItem(item.id, 'category', e.target.value)}
-                          className="w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                          required
-                        >
-                          <option value="phones">Phones</option>
-                          <option value="tablets">Tablets</option>
-                          <option value="accessories">Accessories</option>
-                        </select>
-                      </div>
+                      <div></div> {/* Empty div for grid spacing */}
                     </>
                   )}
 
@@ -786,24 +752,27 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
                         <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                           {t?.brand || 'Brand'} *
                         </label>
-                        <input
-                          className="w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                          placeholder="Apple"
+                        <SearchableSelect
+                          options={brandOptions}
                           value={item.brand}
-                          onChange={e => updateItem(item.id, 'brand', e.target.value)}
-                          required
+                          onChange={(value) => {
+                            updateItem(item.id, 'brand', value);
+                            // Clear model when brand changes
+                            updateItem(item.id, 'model', '');
+                          }}
+                          placeholder={t?.selectBrand || 'Select or type brand...'}
                         />
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                           {t?.model || 'Model'} *
                         </label>
-                        <input
-                          className="w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                          placeholder="AirPods Pro"
+                        <SearchableSelect
+                          key={`model_${item.id}_${item.brand}`} // Force re-render when brand changes
+                          options={item.brand ? (accessoryModels[item.brand] || accessoryModels['Generic'] || []) : []}
                           value={item.model}
-                          onChange={e => updateItem(item.id, 'model', e.target.value)}
-                          required
+                          onChange={(value) => updateItem(item.id, 'model', value)}
+                          placeholder={item.brand ? (t?.selectModel || 'Select or type model...') : (t?.selectBrandFirst || 'Select brand first')}
                         />
                       </div>
                       <div>
@@ -839,7 +808,7 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
                     {t?.itemTotal || 'Item Total'}: 
                   </span>
                   <span className="ml-2 font-bold text-green-600 dark:text-green-400">
-                    {currency === 'USD' ? '$' : 'د.ع'}{((parseInt(item.quantity) || 0) * (parseFloat(item.unit_price) || 0)).toFixed(2)}
+                    {item.currency === 'USD' ? '$' : 'د.ع'}{((parseInt(item.quantity) || 0) * (parseFloat(item.unit_price) || 0)).toFixed(2)}
                   </span>
                 </div>
               </div>

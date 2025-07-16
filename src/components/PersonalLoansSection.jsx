@@ -432,7 +432,7 @@ export default function PersonalLoansSection({ admin, t, showConfirm }) {
                               
                               {loan.paid_at && (
                                 <div className="text-xs text-green-600 dark:text-green-400 mt-1">
-                                  ✅ {t?.paidOn || 'Paid on'} {new Date(loan.paid_at).toLocaleDateString()}
+                                  ✅ {t?.paidOn || 'Paid on'} {new Date(loan.paid_at).toLocaleDateString()} {new Date(loan.paid_at).toLocaleTimeString()}
                                   {(loan.payment_usd_amount > 0 || loan.payment_iqd_amount > 0) && (
                                     <span className="ml-2">
                                       (

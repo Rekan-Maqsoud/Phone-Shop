@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
+import { EXCHANGE_RATES, formatCurrency, roundIQDToNearestBill } from '../utils/exchangeRates';
 
 const CustomerDebtPaymentModal = ({ 
   showPaymentModal, 
@@ -15,6 +16,48 @@ const CustomerDebtPaymentModal = ({
     iqdAmount: 0 
   });
 
+  // Calculate payment summary
+  const paymentSummary = useMemo(() => {
+    if (!selectedDebt || !selectedDebt.sale) return null;
+    
+    const { sale } = selectedDebt;
+    const debtAmountUSD = sale.currency === 'USD' ? sale.total : sale.total / EXCHANGE_RATES.USD_TO_IQD;
+    
+    if (multiCurrency.enabled) {
+      const totalPaidUSD = multiCurrency.usdAmount + (multiCurrency.iqdAmount / EXCHANGE_RATES.USD_TO_IQD);
+      const difference = totalPaidUSD - debtAmountUSD;
+      
+      let changeInfo = null;
+      if (difference > 0) {
+        // Calculate change
+        const changeIQD = difference * EXCHANGE_RATES.USD_TO_IQD;
+        const roundedChangeIQD = roundIQDToNearestBill(changeIQD);
+        const iqdDifference = Math.abs(changeIQD - roundedChangeIQD);
+        const shouldUseUSD = iqdDifference > (difference * 0.1);
+        
+        changeInfo = {
+          changeUSD: difference,
+          changeIQD: changeIQD,
+          changeInUSD: shouldUseUSD ? difference : 0,
+          changeInIQD: shouldUseUSD ? 0 : roundedChangeIQD
+        };
+      }
+      
+      return {
+        debtAmount: debtAmountUSD,
+        totalPaid: totalPaidUSD,
+        difference,
+        isOverpaid: difference > 0,
+        isUnderpaid: difference < 0,
+        isPerfect: Math.abs(difference) < 0.01,
+        change: changeInfo,
+        status: difference > 0.01 ? 'overpaid' : difference < -0.01 ? 'underpaid' : 'perfect'
+      };
+    }
+    
+    return null;
+  }, [selectedDebt, multiCurrency]);
+
   const handleClose = () => {
     setShowPaymentModal(false);
     setSelectedDebt(null);
@@ -30,12 +73,28 @@ const CustomerDebtPaymentModal = ({
       let paymentData = null;
       
       if (multiCurrency.enabled) {
-        // Custom payment amounts
+        // Custom payment amounts with change handling
+        const debtAmountUSD = sale.currency === 'USD' ? sale.total : sale.total / EXCHANGE_RATES.USD_TO_IQD;
+        const totalPaidUSD = multiCurrency.usdAmount + (multiCurrency.iqdAmount / EXCHANGE_RATES.USD_TO_IQD);
+        
+        let netUSD = multiCurrency.usdAmount;
+        let netIQD = multiCurrency.iqdAmount;
+        
+        // Handle overpayment/change
+        if (paymentSummary && paymentSummary.change) {
+          // Customer overpaid, we need to give change
+          if (paymentSummary.change.changeInUSD > 0) {
+            netUSD -= paymentSummary.change.changeInUSD;
+          } else if (paymentSummary.change.changeInIQD > 0) {
+            netIQD -= paymentSummary.change.changeInIQD;
+          }
+        }
+        
         paymentData = {
-          usdAmount: multiCurrency.usdAmount,
-          iqdAmount: multiCurrency.iqdAmount,
-          deductUSD: multiCurrency.usdAmount,
-          deductIQD: multiCurrency.iqdAmount
+          usdAmount: netUSD, // What we actually receive
+          iqdAmount: netIQD, // What we actually receive  
+          deductUSD: netUSD, // What we actually keep after change
+          deductIQD: netIQD  // What we actually keep after change
         };
       } else {
         // Default payment based on debt currency
@@ -46,7 +105,15 @@ const CustomerDebtPaymentModal = ({
             deductUSD: sale.total,
             deductIQD: 0
           };
+        } else if (sale.currency === 'IQD') {
+          paymentData = {
+            usdAmount: 0,
+            iqdAmount: sale.total,
+            deductUSD: 0,
+            deductIQD: sale.total
+          };
         } else {
+          // Fallback for any other currency value
           paymentData = {
             usdAmount: 0,
             iqdAmount: sale.total,
@@ -231,11 +298,66 @@ const CustomerDebtPaymentModal = ({
                   />
                 </div>
                 
-                <div className="bg-green-50 dark:bg-green-900/20 p-3 rounded-lg">
-                  <div className="text-sm text-green-700 dark:text-green-300">
-                    <div className="font-medium mb-1">{t.paymentSummary || 'Payment Summary'}:</div>
-                    <div>• USD: ${multiCurrency.usdAmount.toFixed(2)} → {t.addedToBalance || 'Added to USD balance'}</div>
-                    <div>• IQD: د.ع{multiCurrency.iqdAmount.toFixed(2)} → {t.addedToBalance || 'Added to IQD balance'}</div>
+                <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
+                  <div className="text-sm text-blue-700 dark:text-blue-300">
+                    <div className="font-medium mb-2">{t.paymentSummary || 'Payment Summary'}:</div>
+                    
+                    {paymentSummary && (
+                      <div className="space-y-2">
+                        <div className="flex justify-between">
+                          <span>{t.debtAmount || 'Debt Amount'}:</span>
+                          <span className="font-medium">{formatCurrency(paymentSummary.debtAmount, 'USD')}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>{t.totalPaying || 'Total Paying'}:</span>
+                          <span className="font-medium">{formatCurrency(paymentSummary.totalPaid, 'USD')}</span>
+                        </div>
+                        <hr className="border-blue-200 dark:border-blue-700" />
+                        
+                        {paymentSummary.status === 'perfect' && (
+                          <div className="text-green-600 dark:text-green-400 font-medium flex items-center">
+                            ✅ {t.perfectPayment || 'Perfect Payment'}
+                          </div>
+                        )}
+                        
+                        {paymentSummary.status === 'underpaid' && (
+                          <div className="text-red-600 dark:text-red-400 font-medium flex items-center">
+                            ⚠️ {t.remaining || 'Remaining'}: {formatCurrency(Math.abs(paymentSummary.difference), 'USD')}
+                            <span className="ml-2 text-xs">
+                              (≈ د.ع{(Math.abs(paymentSummary.difference) * EXCHANGE_RATES.USD_TO_IQD).toFixed(0)})
+                            </span>
+                          </div>
+                        )}
+                        
+                        {paymentSummary.status === 'overpaid' && paymentSummary.change && (
+                          <div className="text-orange-600 dark:text-orange-400 font-medium">
+                            💰 {t.change || 'Change'}: 
+                            {paymentSummary.change.changeInUSD > 0 
+                              ? formatCurrency(paymentSummary.change.changeInUSD, 'USD')
+                              : formatCurrency(paymentSummary.change.changeInIQD, 'IQD')
+                            }
+                          </div>
+                        )}
+                        
+                        <div className="text-xs mt-2 pt-2 border-t border-blue-200 dark:border-blue-700">
+                          <div>• USD: ${multiCurrency.usdAmount.toFixed(2)} → {t.addedToBalance || 'Added to USD balance'}</div>
+                          <div>• IQD: د.ع{multiCurrency.iqdAmount.toFixed(2)} → {t.addedToBalance || 'Added to IQD balance'}</div>
+                          {paymentSummary.change && paymentSummary.change.changeInUSD > 0 && (
+                            <div className="text-orange-600 dark:text-orange-400">• Change: ${paymentSummary.change.changeInUSD.toFixed(2)} from USD balance</div>
+                          )}
+                          {paymentSummary.change && paymentSummary.change.changeInIQD > 0 && (
+                            <div className="text-orange-600 dark:text-orange-400">• Change: د.ع{paymentSummary.change.changeInIQD.toFixed(0)} from IQD balance</div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {!paymentSummary && (
+                      <div>
+                        <div>• USD: ${multiCurrency.usdAmount.toFixed(2)} → {t.addedToBalance || 'Added to USD balance'}</div>
+                        <div>• IQD: د.ع{multiCurrency.iqdAmount.toFixed(2)} → {t.addedToBalance || 'Added to IQD balance'}</div>
+                      </div>
+                    )}
                   </div>
                 </div>
                 

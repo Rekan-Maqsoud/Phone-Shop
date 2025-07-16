@@ -172,3 +172,59 @@ export const phoneBrands = [
     ]
   },
 ];
+
+// List of accessory models by brand for accessories
+export const accessoryModels = {
+  'Apple': [
+    // AirPods
+    'AirPods Pro (2nd generation)', 'AirPods Pro', 'AirPods (3rd generation)', 'AirPods (2nd generation)', 'AirPods Max',
+    // Chargers & Cables
+    'Lightning Cable', 'USB-C Cable', 'MagSafe Charger', 'Lightning to USB-C Cable', '20W USB-C Power Adapter', '30W USB-C Power Adapter', '67W USB-C Power Adapter', '140W USB-C Power Adapter',
+    // Cases & Protection
+    'iPhone Silicone Case', 'iPhone Leather Case', 'iPhone Clear Case', 'MagSafe Case', 'iPad Smart Cover', 'iPad Smart Keyboard',
+    // Other
+    'Apple Pencil (2nd generation)', 'Apple Pencil (1st generation)', 'Magic Keyboard', 'Magic Mouse', 'AirTag'
+  ],
+  'Samsung': [
+    // Galaxy Buds
+    'Galaxy Buds2 Pro', 'Galaxy Buds2', 'Galaxy Buds Pro', 'Galaxy Buds Live', 'Galaxy Buds+', 'Galaxy Buds',
+    // Chargers & Cables
+    'USB-C Cable', 'Wireless Charger Pad', 'Wireless Charger Duo', '25W Fast Charger', '45W Fast Charger', '65W Fast Charger',
+    // Cases & Protection
+    'Silicone Cover', 'Leather Cover', 'Clear Cover', 'S Pen Case', 'Keyboard Cover', 'Book Cover',
+    // Other
+    'S Pen', 'Galaxy Watch', 'Galaxy Watch Active', 'SmartTag', 'SmartTag+'
+  ],
+  'Anker': [
+    // Power Banks
+    'PowerCore 10000', 'PowerCore 20000', 'PowerCore III Elite', 'PowerCore Magnetic 5K', 'PowerCore Essential 20000',
+    // Chargers
+    'PowerPort III', 'PowerPort Atom III', 'PowerWave Pad', 'PowerWave Stand', 'PowerWave Car Mount',
+    // Cables
+    'PowerLine III USB-C', 'PowerLine III Lightning', 'PowerLine III Micro USB', 'PowerLine+ III'
+  ],
+  'Belkin': [
+    // Chargers
+    'BOOST CHARGE Wireless Charging Pad', 'BOOST CHARGE Wireless Charging Stand', 'BOOST CHARGE USB-C Wall Charger',
+    // Cables
+    'USB-C to Lightning Cable', 'USB-C to USB-C Cable', 'Lightning to USB-A Cable',
+    // Cases & Mounts
+    'Car Vent Mount PRO', 'Magnetic Car Mount', 'Phone Case with MagSafe'
+  ],
+  'JBL': [
+    // Bluetooth Speakers
+    'Flip 6', 'Flip 5', 'Charge 5', 'Charge 4', 'Clip 4', 'Go 3', 'Xtreme 3', 'Boombox 3',
+    // Headphones
+    'Tune 760NC', 'Tune 510BT', 'Live 460NC', 'Club Pro+', 'Reflect Flow Pro'
+  ],
+  'Sony': [
+    // Headphones
+    'WH-1000XM5', 'WH-1000XM4', 'WF-1000XM4', 'WF-1000XM3', 'WH-CH720N', 'WF-C500',
+    // Speakers
+    'SRS-XB43', 'SRS-XB33', 'SRS-XB23', 'SRS-XB13', 'SRS-XG300'
+  ],
+  'Generic': [
+    // Common accessories
+    'Bluetooth Earbuds', 'Wired Earphones', 'Phone Case', 'Screen Protector', 'Phone Stand', 'Car Mount', 'USB Cable', 'Charger', 'Power Bank', 'Bluetooth Speaker', 'Phone Ring', 'PopSocket'
+  ]
+};

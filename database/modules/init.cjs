@@ -323,6 +323,26 @@ function runMigrations(db) {
     console.warn('Personal loans migration warning:', e.message);
   }
 
+  // Migrate company_debts table to support payment tracking
+  try {
+    const companyDebtsTableInfo = db.prepare("PRAGMA table_info(company_debts)").all();
+    const hasPaymentUsdAmount = companyDebtsTableInfo.some(col => col.name === 'payment_usd_amount');
+    const hasPaymentIqdAmount = companyDebtsTableInfo.some(col => col.name === 'payment_iqd_amount');
+    const hasPaymentCurrencyUsed = companyDebtsTableInfo.some(col => col.name === 'payment_currency_used');
+
+    if (!hasPaymentUsdAmount) {
+      db.prepare('ALTER TABLE company_debts ADD COLUMN payment_usd_amount REAL DEFAULT 0').run();
+    }
+    if (!hasPaymentIqdAmount) {
+      db.prepare('ALTER TABLE company_debts ADD COLUMN payment_iqd_amount REAL DEFAULT 0').run();
+    }
+    if (!hasPaymentCurrencyUsed) {
+      db.prepare('ALTER TABLE company_debts ADD COLUMN payment_currency_used TEXT').run();
+    }
+  } catch (e) {
+    console.warn('Company debts migration warning:', e.message);
+  }
+
   // Initialize sample data if tables are empty
   initializeSampleData(db);
 }

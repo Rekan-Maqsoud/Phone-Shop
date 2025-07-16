@@ -66,6 +66,65 @@ function addDirectPurchaseWithItems(db, { supplier, date, items, currency = 'IQD
         .run(item.item_name, item.quantity, item.unit_price, total_price, supplier, purchaseDate, currency);
       
       results.push(result);
+      
+      // Add stock to products or accessories
+      if (item.item_type === 'product') {
+        // Check if product exists, if not create it
+        const existingProduct = db.prepare(`
+          SELECT id FROM products 
+          WHERE brand = ? AND model = ? AND COALESCE(ram, '') = ? AND COALESCE(storage, '') = ?
+        `).get(item.brand || '', item.model || '', item.ram || '', item.storage || '');
+        
+        if (existingProduct) {
+          // Update existing product stock and unarchive if archived
+          db.prepare(`UPDATE products SET stock = stock + ?, archived = 0 WHERE id = ?`)
+            .run(item.quantity, existingProduct.id);
+        } else {
+          // Create new product
+          db.prepare(`INSERT INTO products 
+            (name, brand, model, ram, storage, buying_price, stock, currency, category, archived) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+            .run(
+              item.item_name || [item.brand, item.model].filter(Boolean).join(' '),
+              item.brand || '',
+              item.model || '',
+              item.ram || null,
+              item.storage || null,
+              item.unit_price,
+              item.quantity,
+              item.currency || currency,
+              'phones',
+              0
+            );
+        }
+      } else if (item.item_type === 'accessory') {
+        // Check if accessory exists, if not create it
+        const existingAccessory = db.prepare(`
+          SELECT id FROM accessories 
+          WHERE brand = ? AND model = ? AND COALESCE(type, '') = ?
+        `).get(item.brand || '', item.model || '', item.type || '');
+        
+        if (existingAccessory) {
+          // Update existing accessory stock and unarchive if archived
+          db.prepare(`UPDATE accessories SET stock = stock + ?, archived = 0 WHERE id = ?`)
+            .run(item.quantity, existingAccessory.id);
+        } else {
+          // Create new accessory
+          db.prepare(`INSERT INTO accessories 
+            (name, brand, model, type, buying_price, stock, currency, archived) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+            .run(
+              item.item_name || [item.brand, item.model].filter(Boolean).join(' '),
+              item.brand || '',
+              item.model || '',
+              item.type || null,
+              item.unit_price,
+              item.quantity,
+              item.currency || currency,
+              0
+            );
+        }
+      }
     });
     
     // Record transaction for tracking spending
@@ -168,7 +227,6 @@ function getBuyingHistoryWithTransactions(db) {
       END as total_price,
       CASE 
         WHEN t.type = 'company_debt_payment' THEN 'Company Debt Payment'
-        WHEN t.type = 'customer_debt_payment' THEN 'Customer Debt Payment'
         WHEN t.type = 'personal_loan_payment' THEN 'Personal Loan Payment'
         ELSE 'Transaction'
       END as supplier,
@@ -181,7 +239,7 @@ function getBuyingHistoryWithTransactions(db) {
       END as unit_price,
       'transaction' as entry_type
     FROM transactions t
-    WHERE t.type IN ('company_debt_payment', 'customer_debt_payment', 'personal_loan_payment')
+    WHERE t.type IN ('company_debt_payment', 'personal_loan_payment')
     ORDER BY t.created_at DESC
   `).all();
   
@@ -275,13 +333,11 @@ function getBuyingHistoryWithItems(db) {
       END as amount,
       CASE 
         WHEN t.type = 'company_debt_payment' THEN 'Company debt payment'
-        WHEN t.type = 'customer_debt_payment' THEN 'Customer debt payment'
         WHEN t.type = 'personal_loan_payment' THEN 'Personal loan payment'
         ELSE 'Transaction'
       END as supplier,
       CASE 
         WHEN t.type = 'company_debt_payment' THEN 'Company debt payment'
-        WHEN t.type = 'customer_debt_payment' THEN 'Customer debt payment' 
         WHEN t.type = 'personal_loan_payment' THEN 'Personal loan payment'
         ELSE 'Transaction'
       END as company_name,
@@ -296,7 +352,7 @@ function getBuyingHistoryWithItems(db) {
       'transaction' as entry_type,
       NULL as has_items
     FROM transactions t
-    WHERE t.type IN ('company_debt_payment', 'customer_debt_payment', 'personal_loan_payment')
+    WHERE t.type IN ('company_debt_payment', 'personal_loan_payment')
       AND (t.amount_usd > 0 OR t.amount_iqd > 0)
     ORDER BY t.created_at DESC
   `).all();

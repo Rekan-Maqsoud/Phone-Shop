@@ -50,9 +50,22 @@ export default function UnderCostWarning({ items, allItems, t, onDismiss, discou
           if (discountType === 'percentage') {
             finalSellingPrice = finalSellingPrice * (1 - discountValue / 100);
           } else if (discountType === 'fixed') {
-            // Simple fixed discount approach - divide discount equally among items
-            const itemCount = items.length;
-            const discountPerItem = discountValue / itemCount;
+            // For fixed discount, consider currency compatibility
+            const itemCount = items.length; // Define itemCount here
+            let discountPerItem = discountValue / itemCount;
+            
+            // Convert discount if currencies don't match
+            const productCurrency = product.currency || 'USD';
+            if (currency !== productCurrency) {
+              if (currency === 'IQD' && productCurrency === 'USD') {
+                // Discount is in IQD, product price is in USD
+                discountPerItem = discountPerItem / EXCHANGE_RATES.USD_TO_IQD;
+              } else if (currency === 'USD' && productCurrency === 'IQD') {
+                // Discount is in USD, product price is in IQD
+                discountPerItem = discountPerItem * EXCHANGE_RATES.USD_TO_IQD;
+              }
+            }
+            
             finalSellingPrice = Math.max(0, finalSellingPrice - discountPerItem);
           }
         }

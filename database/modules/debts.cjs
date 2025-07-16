@@ -331,11 +331,80 @@ function addCompanyDebtWithItems(db, { company_name, description, items, currenc
     
     // Add all items
     const insertItem = db.prepare(`INSERT INTO company_debt_items 
-      (debt_id, item_name, quantity, unit_price, currency) 
-      VALUES (?, ?, ?, ?, ?)`);
+      (debt_id, item_name, item_type, model, ram, storage, quantity, unit_price, total_price, currency) 
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
     
     items.forEach(item => {
-      insertItem.run(debtId, item.item_name, item.quantity, item.unit_price, currency);
+      const totalPrice = item.quantity * item.unit_price;
+      insertItem.run(
+        debtId, 
+        item.item_name || [item.brand, item.model].filter(Boolean).join(' '),
+        item.item_type || 'product',
+        item.model || null,
+        item.ram || null,
+        item.storage || null,
+        item.quantity, 
+        item.unit_price, 
+        totalPrice,
+        item.currency || currency
+      );
+      
+      // Add stock to products or accessories
+      if (item.item_type === 'product') {
+        // Check if product exists, if not create it
+        const existingProduct = db.prepare(`
+          SELECT id FROM products 
+          WHERE brand = ? AND model = ? AND COALESCE(ram, '') = ? AND COALESCE(storage, '') = ?
+        `).get(item.brand || '', item.model || '', item.ram || '', item.storage || '');
+        
+        if (existingProduct) {
+          // Update existing product stock and unarchive if archived
+          db.prepare(`UPDATE products SET stock = stock + ?, archived = 0 WHERE id = ?`)
+            .run(item.quantity, existingProduct.id);
+        } else {
+          // Create new product
+          db.prepare(`INSERT INTO products 
+            (name, brand, model, ram, storage, buying_price, stock, currency, category) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+            .run(
+              item.item_name || [item.brand, item.model].filter(Boolean).join(' '),
+              item.brand || '',
+              item.model || '',
+              item.ram || null,
+              item.storage || null,
+              item.unit_price,
+              item.quantity,
+              item.currency || currency,
+              'phones'
+            );
+        }
+      } else if (item.item_type === 'accessory') {
+        // Check if accessory exists, if not create it
+        const existingAccessory = db.prepare(`
+          SELECT id FROM accessories 
+          WHERE brand = ? AND model = ? AND COALESCE(type, '') = ?
+        `).get(item.brand || '', item.model || '', item.type || '');
+        
+        if (existingAccessory) {
+          // Update existing accessory stock and unarchive if archived
+          db.prepare(`UPDATE accessories SET stock = stock + ?, archived = 0 WHERE id = ?`)
+            .run(item.quantity, existingAccessory.id);
+        } else {
+          // Create new accessory
+          db.prepare(`INSERT INTO accessories 
+            (name, brand, model, type, buying_price, stock, currency) 
+            VALUES (?, ?, ?, ?, ?, ?, ?)`)
+            .run(
+              item.item_name || [item.brand, item.model].filter(Boolean).join(' '),
+              item.brand || '',
+              item.model || '',
+              item.type || null,
+              item.unit_price,
+              item.quantity,
+              item.currency || currency
+            );
+        }
+      }
     });
     
     return { lastInsertRowid: debtId, success: true };

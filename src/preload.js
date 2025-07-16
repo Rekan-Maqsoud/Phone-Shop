@@ -35,7 +35,7 @@ contextBridge.exposeInMainWorld('api', {
   // Customer debt functionality
   getCustomerDebts: () => ipcRenderer.invoke('getCustomerDebts'),
   addCustomerDebt: (debt) => ipcRenderer.invoke('addCustomerDebt', debt),
-  markCustomerDebtPaid: (id, paid_at) => ipcRenderer.invoke('markCustomerDebtPaid', id, paid_at),
+  markCustomerDebtPaid: (id, paid_at, paymentData) => ipcRenderer.invoke('markCustomerDebtPaid', id, paid_at, paymentData),
   
   // Company debt functionality
   getCompanyDebts: () => ipcRenderer.invoke('getCompanyDebts'),
