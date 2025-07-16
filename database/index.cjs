@@ -692,16 +692,7 @@ module.exports = function(dbPath) {
       }
 
       // Insert sale items with proper currency conversion and profit calculation
-      // Check if REAL columns exist, if so use them for precision
-      const checkRealColumns = db.prepare("PRAGMA table_info(sale_items)").all();
-      const hasRealColumns = checkRealColumns.some(col => col.name === 'price_real');
-      
-      let insertItem;
-      if (hasRealColumns) {
-        insertItem = db.prepare('INSERT INTO sale_items (sale_id, product_id, quantity, price_real, buying_price_real, profit_real, is_accessory, name, currency, product_currency, profit_in_sale_currency_real, buying_price_in_sale_currency_real, discount_percent, original_selling_price_real) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-      } else {
-        insertItem = db.prepare('INSERT INTO sale_items (sale_id, product_id, quantity, price, buying_price, profit, is_accessory, name, currency, product_currency, profit_in_sale_currency, buying_price_in_sale_currency, discount_percent, original_selling_price) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-      }
+      const insertItem = db.prepare('INSERT INTO sale_items (sale_id, product_id, quantity, price, buying_price, profit, is_accessory, name, currency, product_currency, profit_in_sale_currency, buying_price_in_sale_currency, discount_percent, original_selling_price) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
 
       for (const item of items) {
         // Use itemType from frontend to determine if product or accessory
@@ -800,43 +791,23 @@ module.exports = function(dbPath) {
         const finalProfit = (discountedSellingPrice - buyingPriceInSaleCurrency) * qty;
         
         // Insert with correct fields - store the discounted selling price for accurate display
-        if (hasRealColumns) {
-          // Use REAL columns for precise decimal storage
-          insertItem.run(
-            saleId,
-            item.product_id, // store the ID for both products and accessories
-            qty,
-            discountedSellingPrice, // Store the discounted selling price for accurate display (no rounding)
-            buyingPrice,
-            finalProfit, // Use the correctly calculated profit after discount (no rounding)
-            isAccessory ? 1 : 0,
-            finalItemData ? finalItemData.name : item.name,
-            currency,
-            productCurrency,
-            profitInSaleCurrency,
-            buyingPriceInSaleCurrency,
-            item.discount_percent || 0, // Store per-item discount percentage
-            originalSellingPrice // Store the original selling price before any discounts
-          );
-        } else {
-          // Use legacy INTEGER columns with rounding
-          insertItem.run(
-            saleId,
-            item.product_id, // store the ID for both products and accessories
-            qty,
-            Math.round(discountedSellingPrice), // Store the discounted selling price for accurate display
-            buyingPrice,
-            Math.round(finalProfit), // Use the correctly calculated profit after discount
-            isAccessory ? 1 : 0,
-            finalItemData ? finalItemData.name : item.name,
-            currency,
-            productCurrency,
-            Math.round(profitInSaleCurrency),
-            Math.round(buyingPriceInSaleCurrency),
-            item.discount_percent || 0, // Store per-item discount percentage
-            originalSellingPrice // Store the original selling price before any discounts
-          );
-        }
+        // Using REAL columns for precise decimal storage (no rounding needed)
+        insertItem.run(
+          saleId,
+          item.product_id, // store the ID for both products and accessories
+          qty,
+          discountedSellingPrice, // Store the discounted selling price for accurate display (no rounding)
+          buyingPrice,
+          finalProfit, // Use the correctly calculated profit after discount (no rounding)
+          isAccessory ? 1 : 0,
+          finalItemData ? finalItemData.name : item.name,
+          currency,
+          productCurrency,
+          profitInSaleCurrency,
+          buyingPriceInSaleCurrency,
+          item.discount_percent || 0, // Store per-item discount percentage
+          originalSellingPrice // Store the original selling price before any discounts
+        );
       }
       
       return saleId;
