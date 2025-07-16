@@ -22,6 +22,10 @@ contextBridge.exposeInMainWorld('api', {
   resetAllData: () => ipcRenderer.invoke('resetAllData'),
   checkAdminPassword: (password) => ipcRenderer.invoke('checkAdminPassword', password),
   
+  // Exchange rate functionality
+  getExchangeRate: (fromCurrency, toCurrency) => ipcRenderer.invoke('getExchangeRate', fromCurrency, toCurrency),
+  setExchangeRate: (fromCurrency, toCurrency, rate) => ipcRenderer.invoke('setExchangeRate', fromCurrency, toCurrency, rate),
+  
   // Debt functionality (backward compatibility)
   getDebts: () => ipcRenderer.invoke('getDebts'),
   addDebt: (debt) => ipcRenderer.invoke('addDebt', debt),
@@ -107,7 +111,7 @@ contextBridge.exposeInMainWorld('api', {
   // Personal Loan functionality
   addPersonalLoan: (loanData) => ipcRenderer.invoke('addPersonalLoan', loanData),
   getPersonalLoans: () => ipcRenderer.invoke('getPersonalLoans'),
-  markPersonalLoanPaid: (id, paid_at) => ipcRenderer.invoke('markPersonalLoanPaid', id, paid_at),
+  markPersonalLoanPaid: (id, paymentData) => ipcRenderer.invoke('markPersonalLoanPaid', id, paymentData),
   
   // Discount functionality
   addDiscount: (discountData) => ipcRenderer.invoke('addDiscount', discountData),

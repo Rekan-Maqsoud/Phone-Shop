@@ -15,9 +15,12 @@ import {
 import { Bar, Line, Doughnut } from 'react-chartjs-2';
 
 // Exchange rates - should match the rates in exchangeRates.js
-const EXCHANGE_RATES = {
-  USD_TO_IQD: 1440,
-  IQD_TO_USD: 1 / 1440
+// Load dynamic exchange rates
+import { EXCHANGE_RATES } from '../utils/exchangeRates';
+
+const LEGACY_EXCHANGE_RATES = {
+  USD_TO_IQD: 1440, // Legacy fallback - prefer EXCHANGE_RATES
+  IQD_TO_USD: 1 / 1440 // Legacy fallback - prefer EXCHANGE_RATES
 };
 
 ChartJS.register(
@@ -146,7 +149,7 @@ function MultiCurrencyDashboard({ admin, t }) {
     }, 0);
     
     const todaysIQDSales = todaysSales.reduce((sum, sale) => {
-      // Calculate revenue from actual selling prices (before discount)
+      // Calculate revenue from actual selling prices (before discount) - only IQD sales
       if (sale.currency === 'IQD') {
         if (sale.items && sale.items.length > 0) {
           const itemsTotal = sale.items.reduce((itemSum, item) => {
@@ -157,19 +160,6 @@ function MultiCurrencyDashboard({ admin, t }) {
           return sum + itemsTotal;
         } else {
           return sum + (sale.total || 0);
-        }
-      } else if (sale.currency === 'USD') {
-        // Convert USD sales to IQD equivalent for accurate IQD revenue totals
-        const exchangeRate = sale.exchange_rates?.usd_to_iqd || EXCHANGE_RATES.USD_TO_IQD;
-        if (sale.items && sale.items.length > 0) {
-          const itemsTotal = sale.items.reduce((itemSum, item) => {
-            const qty = item.quantity || 1;
-            const sellingPrice = typeof item.selling_price === 'number' ? item.selling_price : (typeof item.buying_price === 'number' ? item.buying_price : 0);
-            return itemSum + (sellingPrice * qty);
-          }, 0);
-          return sum + (itemsTotal * exchangeRate);
-        } else {
-          return sum + ((sale.total || 0) * exchangeRate);
         }
       }
       return sum;
@@ -209,7 +199,7 @@ function MultiCurrencyDashboard({ admin, t }) {
     }, 0);
     
     const weekIQDSales = thisWeeksSales.reduce((sum, sale) => {
-      // Calculate revenue from actual selling prices (before discount)
+      // Calculate revenue from actual selling prices (before discount) - only IQD sales
       if (sale.currency === 'IQD') {
         if (sale.items && sale.items.length > 0) {
           const itemsTotal = sale.items.reduce((itemSum, item) => {
@@ -220,19 +210,6 @@ function MultiCurrencyDashboard({ admin, t }) {
           return sum + itemsTotal;
         } else {
           return sum + (sale.total || 0);
-        }
-      } else if (sale.currency === 'USD') {
-        // Convert USD sales to IQD equivalent for accurate IQD revenue totals
-        const exchangeRate = sale.exchange_rates?.usd_to_iqd || EXCHANGE_RATES.USD_TO_IQD;
-        if (sale.items && sale.items.length > 0) {
-          const itemsTotal = sale.items.reduce((itemSum, item) => {
-            const qty = item.quantity || 1;
-            const sellingPrice = typeof item.selling_price === 'number' ? item.selling_price : (typeof item.buying_price === 'number' ? item.buying_price : 0);
-            return itemSum + (sellingPrice * qty);
-          }, 0);
-          return sum + (itemsTotal * exchangeRate);
-        } else {
-          return sum + ((sale.total || 0) * exchangeRate);
         }
       }
       return sum;
@@ -301,6 +278,26 @@ function MultiCurrencyDashboard({ admin, t }) {
     const netPerformanceUSD = todaysUSDSales - todaysSpendingUSD;
     const netPerformanceIQD = todaysIQDSales - todaysSpendingIQD;
 
+    // Calculate inventory values
+    const inventoryValueUSD = (products || [])
+      .filter(p => !p.archived && p.currency === 'USD')
+      .reduce((sum, p) => sum + ((p.buying_price || 0) * (p.stock || 0)), 0) +
+      (accessories || [])
+      .filter(a => !a.archived && a.currency === 'USD')
+      .reduce((sum, a) => sum + ((a.buying_price || 0) * (a.stock || 0)), 0);
+
+    const inventoryValueIQD = (products || [])
+      .filter(p => !p.archived && (p.currency === 'IQD' || !p.currency))
+      .reduce((sum, p) => sum + ((p.buying_price || 0) * (p.stock || 0)), 0) +
+      (accessories || [])
+      .filter(a => !a.archived && (a.currency === 'IQD' || !a.currency))
+      .reduce((sum, a) => sum + ((a.buying_price || 0) * (a.stock || 0)), 0);
+
+    const totalProductsCount = (products || []).filter(p => !p.archived).length;
+    const totalAccessoriesCount = (accessories || []).filter(a => !a.archived).length;
+    const totalStockCount = (products || []).filter(p => !p.archived).reduce((sum, p) => sum + (p.stock || 0), 0) +
+                           (accessories || []).filter(a => !a.archived).reduce((sum, a) => sum + (a.stock || 0), 0);
+
     return {
       todaysUSDSales,
       todaysIQDSales,
@@ -317,8 +314,13 @@ function MultiCurrencyDashboard({ admin, t }) {
       totalLoanCount: unpaidLoans.length,
       unpaidCompanyUSDDebts,
       unpaidCompanyIQDDebts,
+      inventoryValueUSD,
+      inventoryValueIQD,
+      totalProductsCount,
+      totalAccessoriesCount,
+      totalStockCount,
     };
-  }, [sales, debts, buyingHistory, personalLoans, companyDebts]);
+  }, [sales, debts, buyingHistory, personalLoans, companyDebts, products, accessories]);
 
   return (
     <div className="space-y-6">
@@ -500,6 +502,71 @@ function MultiCurrencyDashboard({ admin, t }) {
           <div className="text-3xl font-bold">{formatCurrency(Math.abs(metrics.netPerformanceIQD), 'IQD')}</div>
           <div className="text-green-100 text-sm">
             {metrics.netPerformanceIQD >= 0 ? (t?.profit || 'Profit') : (t?.loss || 'Loss')} {t?.today || 'Today'}
+          </div>
+        </div>
+      </div>
+
+      {/* Inventory Overview */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {/* Total Inventory Value USD */}
+        <div className="bg-gradient-to-br from-blue-500 to-blue-700 rounded-2xl p-6 text-white shadow-lg">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-2xl">📦</span>
+            <span className="text-blue-100 text-sm">{t?.inventoryValueUSD || 'Inventory Value USD'}</span>
+          </div>
+          <div className="text-2xl font-bold">{formatCurrency(metrics.inventoryValueUSD, 'USD')}</div>
+          <div className="text-blue-100 text-sm">{t?.totalInventoryValue || 'Total Inventory Value'}</div>
+        </div>
+
+        {/* Total Inventory Value IQD */}
+        <div className="bg-gradient-to-br from-orange-500 to-orange-700 rounded-2xl p-6 text-white shadow-lg">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-2xl">📦</span>
+            <span className="text-orange-100 text-sm">{t?.inventoryValueIQD || 'Inventory Value IQD'}</span>
+          </div>
+          <div className="text-2xl font-bold">{formatCurrency(metrics.inventoryValueIQD, 'IQD')}</div>
+          <div className="text-orange-100 text-sm">{t?.totalInventoryValue || 'Total Inventory Value'}</div>
+        </div>
+
+        {/* Products Count */}
+        <div className="bg-gradient-to-br from-purple-500 to-purple-700 rounded-2xl p-6 text-white shadow-lg">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-2xl">📱</span>
+            <span className="text-purple-100 text-sm">{t?.productsInventory || 'Products'}</span>
+          </div>
+          <div className="text-2xl font-bold">{metrics.totalProductsCount}</div>
+          <div className="text-purple-100 text-sm">{t?.uniqueProducts || 'Unique Products'}</div>
+        </div>
+
+        {/* Accessories Count */}
+        <div className="bg-gradient-to-br from-teal-500 to-teal-700 rounded-2xl p-6 text-white shadow-lg">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-2xl">🔌</span>
+            <span className="text-teal-100 text-sm">{t?.accessoriesInventory || 'Accessories'}</span>
+          </div>
+          <div className="text-2xl font-bold">{metrics.totalAccessoriesCount}</div>
+          <div className="text-teal-100 text-sm">{t?.uniqueAccessories || 'Unique Accessories'}</div>
+        </div>
+      </div>
+
+      {/* Combined Inventory Summary */}
+      <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 rounded-2xl p-6 text-white shadow-lg">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div>
+            <h3 className="text-2xl font-bold mb-2">
+              🏪 {t?.totalInventorySummary || 'Total Inventory Summary'}
+            </h3>
+            <p className="text-white/80">
+              {t?.combinedInventoryValue || 'Combined inventory value across all currencies'}
+            </p>
+          </div>
+          <div className="text-right">
+            <div className="text-3xl font-bold">
+              {formatCurrency(metrics.inventoryValueUSD, 'USD')} + {formatCurrency(metrics.inventoryValueIQD, 'IQD')}
+            </div>
+            <div className="text-white/80 text-sm">
+              {metrics.totalStockCount} {t?.totalItems || 'total items in stock'}
+            </div>
           </div>
         </div>
       </div>

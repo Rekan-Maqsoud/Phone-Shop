@@ -22,12 +22,35 @@ function getAllSettings(db) {
 function getExchangeRate(db, fromCurrency, toCurrency) {
   const key = `exchange_${fromCurrency}_${toCurrency}`;
   const rate = getSetting(db, key);
+  if (!rate) {
+    // If rate doesn't exist, try to calculate from inverse rate
+    const inverseKey = `exchange_${toCurrency}_${fromCurrency}`;
+    const inverseRate = getSetting(db, inverseKey);
+    if (inverseRate) {
+      return 1 / parseFloat(inverseRate);
+    }
+    // Default fallback rates
+    if (fromCurrency === 'USD' && toCurrency === 'IQD') return 1440;
+    if (fromCurrency === 'IQD' && toCurrency === 'USD') return 1/1440;
+  }
   return rate ? parseFloat(rate) : 1;
 }
 
 function setExchangeRate(db, fromCurrency, toCurrency, rate) {
   const key = `exchange_${fromCurrency}_${toCurrency}`;
-  return setSetting(db, key, rate.toString());
+  
+  // Use a transaction to ensure both rates are saved atomically
+  const transaction = db.transaction(() => {
+    // Save the direct rate
+    setSetting(db, key, rate.toString());
+    
+    // Save the inverse rate for the opposite direction
+    const inverseKey = `exchange_${toCurrency}_${fromCurrency}`;
+    const inverseRate = 1 / rate;
+    setSetting(db, inverseKey, inverseRate.toString());
+  });
+  
+  return transaction();
 }
 
 // App configuration helpers
@@ -132,9 +155,15 @@ function getDatabaseInfo(db) {
 }
 
 function updateBalance(db, currency, amount) {
+  console.log(`💰 Settings: updateBalance called with currency=${currency}, amount=${amount}`);
+  
   // Update both balance systems simultaneously
   const balanceKey = currency === 'USD' ? 'balanceUSD' : 'balanceIQD';
   const balanceColumn = currency === 'USD' ? 'usd_balance' : 'iqd_balance';
+  
+  // Get current balance before update
+  const currentBalance = getSetting(db, balanceKey);
+  console.log(`📊 Settings: Current ${currency} balance: ${currentBalance || 0}`);
   
   const transaction = db.transaction(() => {
     // Update settings table
@@ -153,7 +182,13 @@ function updateBalance(db, currency, amount) {
     `).run(amount);
   });
   
-  return transaction();
+  const result = transaction();
+  
+  // Get new balance after update
+  const newBalance = getSetting(db, balanceKey);
+  console.log(`📊 Settings: New ${currency} balance: ${newBalance || 0} (change: ${amount})`);
+  
+  return result;
 }
 
 function setBalance(db, currency, amount) {

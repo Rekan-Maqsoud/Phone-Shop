@@ -1,7 +1,29 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
-import { EXCHANGE_RATES, formatCurrency, roundIQDToNearestBill } from '../utils/exchangeRates';
+import { 
+  EXCHANGE_RATES, 
+  formatCurrency, 
+  roundIQDToNearestBill, 
+  saveExchangeRate, 
+  loadExchangeRatesFromDB
+} from '../utils/exchangeRates';
 import OfflineIndicator from './OfflineIndicator';
 import UnderCostWarning from './UnderCostWarning';
+import useOnlineStatus from './hooks/useOnlineStatus';
+import { useSound } from '../contexts/SoundContext';
+import { playActionSound, playSystemSound } from '../utils/sounds';
+
+// Helper function for precise currency formatting
+const formatCurrencyPrecise = (amount, currency) => {
+  const symbol = currency === 'USD' ? '$' : 'د.ع';
+  
+  if (currency === 'IQD') {
+    const rounded = Math.round(amount);
+    return `${rounded.toLocaleString()}${symbol}`;
+  }
+  
+  // For USD: always show 2 decimals for precise amounts
+  return `${symbol}${Number(amount).toFixed(2)}`;
+};
 
 export default function CashierContent({
   t,
@@ -37,7 +59,8 @@ export default function CashierContent({
   const [multiCurrency, setMultiCurrency] = useState({ enabled: false, usdAmount: 0, iqdAmount: 0 });
   const [discount, setLocalDiscount] = useState({ type: 'none', value: 0 });
   const [showExchangeRateModal, setShowExchangeRateModal] = useState(false);
-  const [newExchangeRate, setNewExchangeRate] = useState('');
+  const [newExchangeRate, setNewExchangeRate] = useState(EXCHANGE_RATES.USD_TO_IQD.toString());
+  const [isLoadingRate, setIsLoadingRate] = useState(true);
   const [filters, setFilters] = useState({
     brand: '',
     category: '',
@@ -47,6 +70,43 @@ export default function CashierContent({
   const [showFilters, setShowFilters] = useState(false);
   const [underCostWarningVisible, setUnderCostWarningVisible] = useState(false);
   const inputRef = useRef();
+  const { soundSettings } = useSound();
+  const { isOnline } = useOnlineStatus();
+
+  // Function to play sounds based on settings
+  const playSound = (type) => {
+    if (soundSettings.enabled && soundSettings.enabledTypes[type]) {
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      // Configure sound based on type
+      switch (type) {
+        case 'action':
+          oscillator.frequency.setValueAtTime(1000, audioContext.currentTime);
+          gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
+          oscillator.type = 'sine';
+          break;
+        case 'system':
+          oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+          gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
+          oscillator.type = 'sine';
+          break;
+        default:
+          oscillator.frequency.setValueAtTime(440, audioContext.currentTime);
+          gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
+          oscillator.type = 'sine';
+      }
+      
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+      
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + 0.1);
+    }
+  };
 
   const IQD_ROUNDING_MESSAGE = t.roundedToNearest250 || 'Amounts rounded to nearest 250 IQD';
   const IQD_BILL_ROUNDING_MESSAGE = t.roundedToNearestBill || 'Rounded to nearest 250 IQD bill';
@@ -56,23 +116,29 @@ export default function CashierContent({
     return currencyType === 'IQD' ? roundIQDToNearestBill(amount) : Math.ceil(amount * 100) / 100;
   };
 
-  // Calculate totals based on selected currency
+  // Calculate totals based on selected currency with per-item discounts
   const convertedTotal = useMemo(() => {
     if (currency === 'IQD') {
       return items.reduce((sum, item) => {
-        const itemTotal = item.selling_price * item.quantity;
+        const baseItemTotal = item.selling_price * item.quantity;
+        const discountAmount = baseItemTotal * ((item.discount_percent || 0) / 100);
+        const discountedItemTotal = baseItemTotal - discountAmount;
+        
         if (item.currency === 'USD' || !item.currency) {
-          return sum + (itemTotal * EXCHANGE_RATES.USD_TO_IQD);
+          return sum + (discountedItemTotal * EXCHANGE_RATES.USD_TO_IQD);
         }
-        return sum + itemTotal;
+        return sum + discountedItemTotal;
       }, 0);
     } else {
       return items.reduce((sum, item) => {
-        const itemTotal = item.selling_price * item.quantity;
+        const baseItemTotal = item.selling_price * item.quantity;
+        const discountAmount = baseItemTotal * ((item.discount_percent || 0) / 100);
+        const discountedItemTotal = baseItemTotal - discountAmount;
+        
         if (item.currency === 'IQD') {
-          return sum + (itemTotal * EXCHANGE_RATES.IQD_TO_USD);
+          return sum + (discountedItemTotal * EXCHANGE_RATES.IQD_TO_USD);
         }
-        return sum + itemTotal;
+        return sum + discountedItemTotal;
       }, 0);
     }
   }, [items, currency]);
@@ -148,42 +214,133 @@ export default function CashierContent({
     });
   }, [allItems, filters, currency]);
 
-  // Multi-currency payment handlers
-  const handleMultiCurrencyPayment = () => {
-    if (underCostWarningVisible) {
-      showToast(t.pleaseAcknowledgeWarning || 'Please acknowledge the warning first', 'warning');
-      return;
-    }
-    const totalPaidUSD = multiCurrency.usdAmount + (multiCurrency.iqdAmount / EXCHANGE_RATES.USD_TO_IQD);
+  // Calculate optimal change distribution
+  const calculateChange = (totalPaidUSD, totalRequiredUSD) => {
+    const changeUSD = totalPaidUSD - totalRequiredUSD;
+    if (changeUSD <= 0) return { changeUSD: 0, changeIQD: 0, changeInUSD: 0, changeInIQD: 0 };
     
-    handleCompleteSale(
-      discount.type !== 'none' && discount.value > 0 ? { 
-        discount_type: discount.type, 
-        discount_value: discount.value 
-      } : null,
-      discountedTotal,
-      {
-        usdAmount: multiCurrency.usdAmount,
-        iqdAmount: multiCurrency.iqdAmount,
-        totalPaidUSD: totalPaidUSD
-      }
-    );
+    // Default to giving change in IQD unless it's a small amount that's better in USD
+    const changeIQD = changeUSD * EXCHANGE_RATES.USD_TO_IQD;
+    const roundedChangeIQD = roundIQDToNearestBill(changeIQD);
+    
+    // If the rounded IQD change differs significantly, give change in USD instead
+    const iqdDifference = Math.abs(changeIQD - roundedChangeIQD);
+    const shouldUseUSD = iqdDifference > (changeUSD * 0.1); // If rounding loses more than 10%
+    
+    return {
+      changeUSD,
+      changeIQD,
+      changeInUSD: shouldUseUSD ? changeUSD : 0,
+      changeInIQD: shouldUseUSD ? 0 : roundedChangeIQD
+    };
   };
 
-  const handleSingleCurrencyPayment = () => {
+  // Smart payment processing that handles change automatically
+  const processPayment = () => {
     if (underCostWarningVisible) {
       showToast(t.pleaseAcknowledgeWarning || 'Please acknowledge the warning first', 'warning');
       return;
     }
+
+    const totalRequiredUSD = currency === 'USD' ? discountedTotal : discountedTotal / EXCHANGE_RATES.USD_TO_IQD;
     
-    // Pass discount info and discounted total directly
+    let finalPayment = {};
+    let changeInfo = null;
+
+    if (multiCurrency.enabled) {
+      const totalPaidUSD = multiCurrency.usdAmount + (multiCurrency.iqdAmount / EXCHANGE_RATES.USD_TO_IQD);
+      
+      // Calculate change if overpaid
+      if (totalPaidUSD > totalRequiredUSD) {
+        const change = calculateChange(totalPaidUSD, totalRequiredUSD);
+        changeInfo = change;
+        
+        // Show change information to user
+        if (change.changeInUSD > 0) {
+          showToast(`${t.change || 'Change'}: ${formatCurrency(change.changeInUSD, 'USD')}`, 'info', 5000);
+        } else if (change.changeInIQD > 0) {
+          showToast(`${t.change || 'Change'}: ${formatCurrency(change.changeInIQD, 'IQD')}`, 'info', 5000);
+        }
+
+        // Calculate amounts for shop balance updates
+        // We should add exactly what the customer gave us, then subtract what we gave back as change
+        const receivedUSD = multiCurrency.usdAmount;  // What customer actually gave us
+        const receivedIQD = multiCurrency.iqdAmount;  // What customer actually gave us
+
+        // Account for change given back from shop balances
+        let changeFromUSD = 0;
+        let changeFromIQD = 0;
+        
+        if (change.changeInUSD > 0) {
+          changeFromUSD = change.changeInUSD;
+        } else if (change.changeInIQD > 0) {
+          changeFromIQD = change.changeInIQD;
+        }
+
+        // Debug logging for payment calculation
+        console.log('💰 Payment Calculation:', {
+          totalRequired: formatCurrency(totalRequiredUSD, 'USD'),
+          totalPaid: formatCurrency(totalPaidUSD, 'USD'),
+          receivedUSD: formatCurrency(receivedUSD, 'USD'),
+          receivedIQD: formatCurrency(receivedIQD, 'IQD'),
+          changeGivenUSD: formatCurrency(changeFromUSD, 'USD'),
+          changeGivenIQD: formatCurrency(changeFromIQD, 'IQD')
+        });
+
+        finalPayment = {
+          usdAmount: multiCurrency.usdAmount,
+          iqdAmount: multiCurrency.iqdAmount,
+          totalPaidUSD: totalPaidUSD,
+          change: changeInfo,
+          // What we actually received from customer (to be added to balances)
+          netBalanceUSD: receivedUSD,
+          netBalanceIQD: receivedIQD,
+          // Track what change was given from which currency (to be subtracted from balances)
+          changeGivenUSD: changeFromUSD,
+          changeGivenIQD: changeFromIQD
+        };
+      } else {
+        // No overpayment, use actual amounts paid
+        console.log('💰 No Overpayment - Using Actual Amounts:', {
+          usdPaid: formatCurrency(multiCurrency.usdAmount, 'USD'),
+          iqdPaid: formatCurrency(multiCurrency.iqdAmount, 'IQD'),
+          totalRequired: formatCurrency(totalRequiredUSD, 'USD')
+        });
+        
+        finalPayment = {
+          usdAmount: multiCurrency.usdAmount,
+          iqdAmount: multiCurrency.iqdAmount,
+          totalPaidUSD: totalPaidUSD,
+          change: null,
+          netBalanceUSD: multiCurrency.usdAmount,
+          netBalanceIQD: multiCurrency.iqdAmount,
+          changeGivenUSD: 0,
+          changeGivenIQD: 0
+        };
+      }
+    } else {
+      // Single currency payment - no overpayment tracking, assume exact amount
+      console.log('💰 Single Currency Payment:', {
+        currency: currency,
+        amount: formatCurrency(discountedTotal, currency)
+      });
+      
+      finalPayment = {
+        change: null,
+        netBalanceUSD: currency === 'USD' ? discountedTotal : 0,
+        netBalanceIQD: currency === 'IQD' ? discountedTotal : 0,
+        changeGivenUSD: 0,
+        changeGivenIQD: 0
+      };
+    }
+    
     handleCompleteSale(
       discount.type !== 'none' && discount.value > 0 ? { 
         discount_type: discount.type, 
         discount_value: discount.value 
       } : null,
       discountedTotal,
-      {}
+      finalPayment
     );
   };
 
@@ -210,15 +367,73 @@ export default function CashierContent({
     }
   };
 
-  const handleExchangeRateUpdate = () => {
+  // Load exchange rate on mount
+  useEffect(() => {
+    setIsLoadingRate(true);
+    loadExchangeRatesFromDB()
+      .then(() => {
+        setNewExchangeRate(EXCHANGE_RATES.USD_TO_IQD.toString());
+        setIsLoadingRate(false);
+      })
+      .catch(error => {
+        setIsLoadingRate(false);
+        showToast(t.failedToLoadExchangeRate || 'Failed to load exchange rates', 'error');
+      });
+  }, []);
+
+  const handleExchangeRateClick = () => {
+    if (isLoadingRate) {
+      showToast(t.loadingExchangeRate || 'Loading exchange rate...', 'info');
+      return;
+    }
+    setNewExchangeRate(EXCHANGE_RATES.USD_TO_IQD.toString());
+    setShowExchangeRateModal(true);
+    playSound('action');
+  };
+
+  const handleExchangeRateClose = () => {
+    setShowExchangeRateModal(false);
+    setNewExchangeRate(EXCHANGE_RATES.USD_TO_IQD.toString());
+    playSound('action');
+  };
+
+  const handleExchangeRateUpdate = async () => {
+    if (!isOnline) {
+      showToast(t.offlineWarning || 'Cannot update exchange rate while offline', 'error');
+      playSound('system');
+      return;
+    }
+
+    if (isLoadingRate) {
+      showToast(t.loadingExchangeRate || 'Loading exchange rate...', 'info');
+      return;
+    }
+
     if (newExchangeRate && !isNaN(newExchangeRate) && Number(newExchangeRate) > 0) {
       const newRateNum = Number(newExchangeRate);
-      EXCHANGE_RATES.USD_TO_IQD = newRateNum;
-      EXCHANGE_RATES.IQD_TO_USD = 1 / newRateNum;
-      showToast(`Exchange rate updated: 1 USD = ${newRateNum} IQD`, 'success');
-      setShowExchangeRateModal(false);
-      setNewExchangeRate('');
-      setMultiCurrency(prev => ({ ...prev }));
+      
+      try {
+        const success = await saveExchangeRate(newRateNum);
+        
+        if (success) {
+          playSound('action');
+          showToast(`Exchange rate updated: 1 USD = ${newRateNum} IQD`, 'success');
+          setShowExchangeRateModal(false);
+          setNewExchangeRate(newRateNum.toString());
+          // Force re-render of multi-currency state
+          setMultiCurrency(prev => ({ ...prev }));
+        } else {
+          playSound('system');
+          showToast(t.failedToSaveRate || 'Failed to save exchange rate', 'error');
+        }
+      } catch (error) {
+        console.error('Failed to save exchange rate:', error);
+        playSound('system');
+        showToast(t.failedToSaveRate || 'Failed to save exchange rate', 'error');
+      }
+    } else {
+      playSound('system');
+      showToast(t.invalidExchangeRate || 'Please enter a valid exchange rate', 'error');
     }
   };
 
@@ -240,6 +455,32 @@ export default function CashierContent({
       });
     }
   }, [discount.type, discount.value, setDiscount]);
+
+  // Auto-enable multi-currency when both amounts are entered
+  useEffect(() => {
+    if (multiCurrency.usdAmount > 0 && multiCurrency.iqdAmount > 0 && !multiCurrency.enabled) {
+      setMultiCurrency(prev => ({ ...prev, enabled: true }));
+    }
+  }, [multiCurrency.usdAmount, multiCurrency.iqdAmount, multiCurrency.enabled]);
+
+  // Add global keyboard event listener for Enter key to complete sale
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      // Only trigger if no modal is open and Enter is pressed
+      if (event.key === 'Enter' && !showExchangeRateModal && items.length > 0 && !loading.sale) {
+        // Don't trigger if user is typing in an input field
+        const activeElement = document.activeElement;
+        if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA' || activeElement.tagName === 'SELECT')) {
+          return;
+        }
+        event.preventDefault();
+        processPayment();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [showExchangeRateModal, items.length, loading.sale]);
 
   const clearFilters = () => {
     setFilters({
@@ -339,60 +580,116 @@ export default function CashierContent({
                       className="bg-slate-50 dark:bg-slate-700 rounded-lg p-3 flex justify-between items-center"
                     >
                       <div className="flex-1">
-                        <div className="font-medium text-slate-800 dark:text-white">
+                        <div className="font-semibold text-lg text-slate-800 dark:text-white mb-1">
                           {item.name || product?.name || t.unknown}
                         </div>
-                        <div className="text-sm text-slate-600 dark:text-slate-300 flex items-center gap-2">
-                          <input
-                            type="number"
-                            value={item.quantity}
-                            min="1"
-                            max={product?.stock || 999}
-                            onChange={(e) => {
-                              const newQuantity = Number(e.target.value) || 1;
-                              const maxQuantity = product?.stock || 999;
-                              const finalQuantity = Math.min(Math.max(1, newQuantity), maxQuantity);
-                              const updatedItems = items.map((cartItem, i) => 
-                                i === index ? { ...cartItem, quantity: finalQuantity } : cartItem
-                              );
-                              setItems(updatedItems);
-                              if (newQuantity > maxQuantity) {
-                                showToast(`Maximum available stock: ${maxQuantity}`, 'warning');
-                              }
-                            }}
-                            className="w-12 px-1 py-0.5 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-600 text-xs"
-                          /> × 
-                          <input
-                            type="number"
-                            value={item.selling_price}
-                            onChange={(e) => {
-                              const newPrice = Number(e.target.value) || 0;
-                              const updatedItems = items.map((cartItem, i) => 
-                                i === index ? { ...cartItem, selling_price: newPrice } : cartItem
-                              );
-                              setItems(updatedItems);
-                            }}
-                            className="w-20 px-1 py-0.5 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-600 text-xs"
-                          />
-                          {item.currency || product?.currency || 'USD'}
+                        <div className="flex items-center gap-3 mb-2">
+                          <div className="flex items-center gap-2">
+                            <label className="text-sm font-medium text-slate-600 dark:text-slate-400">Qty:</label>
+                            <input
+                              type="number"
+                              value={item.quantity}
+                              min="1"
+                              max={product?.stock || 999}
+                              onChange={(e) => {
+                                const newQuantity = Number(e.target.value) || 1;
+                                const maxQuantity = product?.stock || 999;
+                                const finalQuantity = Math.min(Math.max(1, newQuantity), maxQuantity);
+                                const updatedItems = items.map((cartItem, i) => 
+                                  i === index ? { ...cartItem, quantity: finalQuantity } : cartItem
+                                );
+                                setItems(updatedItems);
+                                if (newQuantity > maxQuantity) {
+                                  showToast(`Maximum available stock: ${maxQuantity}`, 'warning');
+                                }
+                              }}
+                              className="w-16 px-2 py-1 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-600 text-center font-medium"
+                            />
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <label className="text-sm font-medium text-slate-600 dark:text-slate-400">Price:</label>
+                            <input
+                              type="number"
+                              value={item.selling_price}
+                              onChange={(e) => {
+                                const newPrice = Number(e.target.value) || 0;
+                                const updatedItems = items.map((cartItem, i) => 
+                                  i === index ? { ...cartItem, selling_price: newPrice } : cartItem
+                                );
+                                setItems(updatedItems);
+                              }}
+                              className="w-24 px-2 py-1 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-600 text-center font-bold text-lg"
+                            />
+                            <span className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                              {item.currency || product?.currency || 'USD'}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3 text-sm">
+                          <div className="flex items-center gap-2">
+                            <label className="font-medium text-slate-600 dark:text-slate-400">Discount:</label>
+                            <input
+                              type="number"
+                              value={item.discount_percent || 0}
+                              min="0"
+                              max="100"
+                              placeholder="0"
+                              onChange={(e) => {
+                                const discountPercent = Math.min(Math.max(0, Number(e.target.value) || 0), 100);
+                                const updatedItems = items.map((cartItem, i) => 
+                                  i === index ? { ...cartItem, discount_percent: discountPercent } : cartItem
+                                );
+                                setItems(updatedItems);
+                              }}
+                              className="w-16 px-2 py-1 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-600 text-center"
+                            />
+                            <span className="text-slate-600 dark:text-slate-400">%</span>
+                          </div>
+                          {item.discount_percent > 0 && (
+                            <span className="text-green-600 dark:text-green-400 font-medium">
+                              Save: {formatCurrency(
+                                (item.selling_price * item.quantity * (item.discount_percent / 100)) * 
+                                (currency === 'IQD' && (item.currency === 'USD' || !item.currency) ? EXCHANGE_RATES.USD_TO_IQD :
+                                 currency === 'USD' && item.currency === 'IQD' ? EXCHANGE_RATES.IQD_TO_USD : 1),
+                                currency
+                              )}
+                            </span>
+                          )}
                         </div>
                         {product?.category === 'accessories' && product?.type && (
-                          <div className="text-xs text-slate-500 dark:text-slate-400">
+                          <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                             Type: {product.type}
                           </div>
                         )}
                       </div>
-                      <div className="text-right">
-                        <div className="font-semibold text-slate-800 dark:text-white">
-                          {formatCurrency(
-                            currency === 'IQD' && (item.currency === 'USD' || !item.currency)
-                              ? item.selling_price * item.quantity * EXCHANGE_RATES.USD_TO_IQD
+                      <div className="text-right ml-4">
+                        <div className="text-2xl font-bold text-slate-800 dark:text-white mb-1">
+                          {(() => {
+                            const basePrice = item.selling_price * item.quantity;
+                            const discountAmount = basePrice * ((item.discount_percent || 0) / 100);
+                            const finalPrice = basePrice - discountAmount;
+                            
+                            const convertedPrice = currency === 'IQD' && (item.currency === 'USD' || !item.currency)
+                              ? finalPrice * EXCHANGE_RATES.USD_TO_IQD
                               : currency === 'USD' && item.currency === 'IQD'
-                              ? item.selling_price * item.quantity * EXCHANGE_RATES.IQD_TO_USD
-                              : item.selling_price * item.quantity,
-                            currency
-                          )}
+                              ? finalPrice * EXCHANGE_RATES.IQD_TO_USD
+                              : finalPrice;
+                              
+                            return formatCurrency(convertedPrice, currency);
+                          })()}
                         </div>
+                        {item.discount_percent > 0 && (
+                          <div className="text-sm text-slate-500 dark:text-slate-400 line-through">
+                            {formatCurrency(
+                              currency === 'IQD' && (item.currency === 'USD' || !item.currency)
+                                ? item.selling_price * item.quantity * EXCHANGE_RATES.USD_TO_IQD
+                                : currency === 'USD' && item.currency === 'IQD'
+                                ? item.selling_price * item.quantity * EXCHANGE_RATES.IQD_TO_USD
+                                : item.selling_price * item.quantity,
+                              currency
+                            )}
+                          </div>
+                        )}
                         <button
                           onClick={() => deleteItem(item.uniqueId || item.product_id)}
                           className="text-red-500 hover:text-red-700 text-sm"
@@ -411,45 +708,51 @@ export default function CashierContent({
 
       {/* Column 2: Checkout & Payment */}
       <div className="flex flex-col gap-4 h-full overflow-y-auto pb-6">
-        {/* Exchange Rate Display with Online Status */}
-        <div className="flex justify-end items-center gap-2">
-          <OfflineIndicator className="text-xs" />
-          <button
-            onClick={() => {
-              setNewExchangeRate(EXCHANGE_RATES.USD_TO_IQD.toString());
-              setShowExchangeRateModal(true);
-            }}
-            className="px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm rounded-lg transition-colors shadow-lg"
-          >
-            1$ = {EXCHANGE_RATES.USD_TO_IQD}IQD {t.change}
-          </button>
-        </div>
-
-        {/* Currency Selection */}
-        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg p-4">
-          <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-3">
-            {t.currency}
-          </h3>
-          <div className="flex gap-2">
+        {/* Currency Toggle Button with Exchange Rate */}
+        <div className="flex items-center gap-3 mb-4">
+          <div className="flex bg-slate-100 dark:bg-slate-700 rounded-lg p-1">
             <button
               onClick={() => setCurrency('USD')}
-              className={`flex-1 py-2 px-4 rounded-lg transition-colors ${
+              className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
                 currency === 'USD'
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'
+                  ? 'bg-blue-500 text-white shadow-sm'
+                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-white'
               }`}
             >
-              USD
+              💵 USD
             </button>
             <button
               onClick={() => setCurrency('IQD')}
-              className={`flex-1 py-2 px-4 rounded-lg transition-colors ${
+              className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
                 currency === 'IQD'
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'
+                  ? 'bg-blue-500 text-white shadow-sm'
+                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-white'
               }`}
             >
-              IQD
+              🏛️ IQD
+            </button>
+          </div>
+          <div className="flex-1 text-right">
+            <OfflineIndicator className="text-xs" />
+            <button
+              onClick={handleExchangeRateClick}
+              disabled={isLoadingRate}
+              className={`px-3 py-2 ${
+                isLoadingRate 
+                  ? 'bg-gray-400 cursor-not-allowed' 
+                  : 'bg-blue-500 hover:bg-blue-600'
+              } text-white text-sm rounded-lg transition-colors shadow-lg flex items-center gap-2`}
+            >
+              {isLoadingRate ? (
+                <>
+                  <span className="animate-spin">⏳</span>
+                  {t.loadingRate || 'Loading...'}
+                </>
+              ) : (
+                <>
+                  1$ = {EXCHANGE_RATES.USD_TO_IQD}IQD
+                </>
+              )}
             </button>
           </div>
         </div>
@@ -516,16 +819,30 @@ export default function CashierContent({
             <h3 className="text-lg font-semibold text-slate-800 dark:text-white">
               {t.multiCurrencyPayment}
             </h3>
-            <button
-              onClick={() => setMultiCurrency(prev => ({ ...prev, enabled: !prev.enabled }))}
-              className={`px-3 py-1 rounded-lg text-sm transition-colors ${
-                multiCurrency.enabled
-                  ? 'bg-green-500 text-white'
-                  : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
-              }`}
-            >
-              {multiCurrency.enabled ? t.enabled : t.disabled}
-            </button>
+            <div className="flex items-center gap-2">
+              {/* Smart suggestion for currency */}
+              {!multiCurrency.enabled && items.length > 0 && (
+                <span className="text-xs text-blue-600 dark:text-blue-400">
+                  {(() => {
+                    const totalRequiredUSD = currency === 'USD' ? discountedTotal : discountedTotal / EXCHANGE_RATES.USD_TO_IQD;
+                    if (totalRequiredUSD > 100) {
+                      return t.suggestMixedPayment || 'Consider mixed payment for large amounts';
+                    }
+                    return null;
+                  })()}
+                </span>
+              )}
+              <button
+                onClick={() => setMultiCurrency(prev => ({ ...prev, enabled: !prev.enabled }))}
+                className={`px-3 py-1 rounded-lg text-sm transition-colors ${
+                  multiCurrency.enabled
+                    ? 'bg-green-500 text-white'
+                    : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+                }`}
+              >
+                {multiCurrency.enabled ? t.enabled : t.disabled}
+              </button>
+            </div>
           </div>
           
           {multiCurrency.enabled && (
@@ -537,19 +854,15 @@ export default function CashierContent({
                 <input
                   type="number"
                   value={multiCurrency.usdAmount}
-                  onChange={(e) => setMultiCurrency(prev => ({ ...prev, usdAmount: Number(e.target.value) || 0 }))}
+                  onChange={(e) => {
+                    const value = Number(e.target.value) || 0;
+                    setMultiCurrency(prev => ({ ...prev, usdAmount: value }));
+                  }}
                   placeholder="0"
+                  step="0.01"
+                  min="0"
                   className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
                 />
-                {multiCurrency.usdAmount > 0 && (
-                  <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                    {(() => {
-                      const remaining = Math.max(0, (currency === 'USD' ? discountedTotal : discountedTotal / EXCHANGE_RATES.USD_TO_IQD) - multiCurrency.usdAmount) * EXCHANGE_RATES.USD_TO_IQD;
-                      const roundedRemaining = getRoundedTotal(remaining, 'IQD');
-                      return roundedRemaining > 0 ? `${t.remaining}: ${formatCurrencyPrecise(roundedRemaining, 'IQD')}` : '';
-                    })()}
-                  </div>
-                )}
               </div>
               <div>
                 <label className="block text-sm text-slate-600 dark:text-slate-300 mb-1">
@@ -575,14 +888,6 @@ export default function CashierContent({
                 <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
                   {IQD_ROUNDING_MESSAGE}
                 </div>
-                {multiCurrency.iqdAmount > 0 && (
-                  <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                    {(() => {
-                      const remaining = Math.max(0, (currency === 'IQD' ? discountedTotal : discountedTotal * EXCHANGE_RATES.USD_TO_IQD) - multiCurrency.iqdAmount) / EXCHANGE_RATES.USD_TO_IQD;
-                      return remaining > 0 ? `${t.remaining}: ${formatCurrencyPrecise(remaining, 'USD')}` : '';
-                    })()}
-                  </div>
-                )}
               </div>
               <div className="flex gap-2">
                 <button
@@ -598,34 +903,83 @@ export default function CashierContent({
                   IQD → USD
                 </button>
               </div>
-              <div className="text-sm text-slate-600 dark:text-slate-300">
-                {t.totalPaid}: {formatCurrency(
-                  currency === 'USD' 
-                    ? multiCurrency.usdAmount + (multiCurrency.iqdAmount / EXCHANGE_RATES.USD_TO_IQD)
-                    : multiCurrency.iqdAmount + (multiCurrency.usdAmount * EXCHANGE_RATES.USD_TO_IQD),
-                  currency
-                )}
-              </div>
-              {(() => {
-                const totalPaid = currency === 'USD' 
-                  ? multiCurrency.usdAmount + (multiCurrency.iqdAmount / EXCHANGE_RATES.USD_TO_IQD)
-                  : multiCurrency.iqdAmount + (multiCurrency.usdAmount * EXCHANGE_RATES.USD_TO_IQD);
-                const change = totalPaid - discountedTotal;
-                if (change > 0) {
-                  const roundedChange = currency === 'IQD' ? roundIQDToNearestBill(change) : change;
-                  return (
-                    <div className="text-sm text-green-600 dark:text-green-400 font-semibold">
-                      {t.change || 'Change'}: {formatCurrencyPrecise(roundedChange, currency)}
-                      {currency === 'IQD' && change !== roundedChange && (
-                        <div className="text-xs text-blue-600 dark:text-blue-400">
-                          ({IQD_ROUNDING_MESSAGE})
-                        </div>
+              
+              {/* Payment Summary */}
+              <div className="bg-slate-50 dark:bg-slate-700 rounded-lg p-3 space-y-2">
+                <div className="text-sm text-slate-600 dark:text-slate-300">
+                  <div className="flex justify-between">
+                    <span>{t.totalRequired}:</span>
+                    <span className="font-medium">
+                      {formatCurrency(discountedTotal, currency)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>{t.totalPaid}:</span>
+                    <span className="font-medium">
+                      {formatCurrency(
+                        currency === 'USD' 
+                          ? multiCurrency.usdAmount + (multiCurrency.iqdAmount / EXCHANGE_RATES.USD_TO_IQD)
+                          : multiCurrency.iqdAmount + (multiCurrency.usdAmount * EXCHANGE_RATES.USD_TO_IQD),
+                        currency
                       )}
+                    </span>
+                  </div>
+                </div>
+                
+                {/* Change Calculation */}
+                {(() => {
+                  const totalRequiredUSD = currency === 'USD' ? discountedTotal : discountedTotal / EXCHANGE_RATES.USD_TO_IQD;
+                  const totalPaidUSD = multiCurrency.usdAmount + (multiCurrency.iqdAmount / EXCHANGE_RATES.USD_TO_IQD);
+                  
+                  if (totalPaidUSD > totalRequiredUSD) {
+                    const change = calculateChange(totalPaidUSD, totalRequiredUSD);
+                    return (
+                      <div className="border-t border-slate-200 dark:border-slate-600 pt-2">
+                        <div className="text-sm font-semibold text-green-600 dark:text-green-400">
+                          {t.change || 'Change'}:
+                        </div>
+                        {change.changeInUSD > 0 && (
+                          <div className="text-sm text-green-600 dark:text-green-400">
+                            USD: {formatCurrency(change.changeInUSD, 'USD')}
+                          </div>
+                        )}
+                        {change.changeInIQD > 0 && (
+                          <div className="text-sm text-green-600 dark:text-green-400">
+                            IQD: {formatCurrency(change.changeInIQD, 'IQD')}
+                            {change.changeIQD !== change.changeInIQD && (
+                              <div className="text-xs text-blue-600 dark:text-blue-400">
+                                ({IQD_ROUNDING_MESSAGE})
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+                  
+                  if (totalPaidUSD < totalRequiredUSD) {
+                    const remaining = totalRequiredUSD - totalPaidUSD;
+                    return (
+                      <div className="border-t border-slate-200 dark:border-slate-600 pt-2">
+                        <div className="text-sm text-red-600 dark:text-red-400">
+                          {t.remaining || 'Remaining'}: {formatCurrency(remaining, 'USD')}
+                          <div className="text-xs">
+                            (≈ {formatCurrency(remaining * EXCHANGE_RATES.USD_TO_IQD, 'IQD')})
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+                  
+                  return (
+                    <div className="border-t border-slate-200 dark:border-slate-600 pt-2">
+                      <div className="text-sm text-green-600 dark:text-green-400 font-medium">
+                        ✓ {t.exactAmount || 'Exact Amount'}
+                      </div>
                     </div>
                   );
-                }
-                return null;
-              })()}
+                })()}
+              </div>
             </div>
           )}
         </div>
@@ -665,11 +1019,22 @@ export default function CashierContent({
           {/* Payment amount tracking removed - only show sale totals */}
           
           <button
-            onClick={multiCurrency.enabled ? handleMultiCurrencyPayment : handleSingleCurrencyPayment}
+            onClick={processPayment}
             disabled={items.length === 0 || loading.sale}
-            className="w-full py-3 bg-green-500 hover:bg-green-600 disabled:bg-slate-400 text-white font-semibold rounded-lg transition-colors"
+            className="w-full py-4 bg-green-500 hover:bg-green-600 disabled:bg-slate-400 text-white font-bold text-lg rounded-lg transition-colors shadow-lg flex items-center justify-center gap-2"
           >
-            {loading.sale ? t.processing : t.completeSale}
+            {loading.sale ? (
+              <>
+                <span className="animate-spin">⏳</span>
+                {t.processing}
+              </>
+            ) : (
+              <>
+                <span>✅</span>
+                {t.completeSale}
+                <span className="text-sm opacity-75">(Enter)</span>
+              </>
+            )}
           </button>
         </div>
       </div>
@@ -905,26 +1270,37 @@ export default function CashierContent({
                   type="number"
                   value={newExchangeRate}
                   onChange={(e) => setNewExchangeRate(e.target.value)}
-                  placeholder="1440"
+                  placeholder={EXCHANGE_RATES.USD_TO_IQD.toString()}
                   className="w-full p-3 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
                   autoFocus
+                  disabled={isLoadingRate}
                 />
               </div>
               <div className="flex gap-2">
                 <button
-                  onClick={() => {
-                    setShowExchangeRateModal(false);
-                    setNewExchangeRate('');
-                  }}
+                  onClick={handleExchangeRateClose}
                   className="flex-1 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg transition-colors"
+                  disabled={isLoadingRate}
                 >
                   {t.cancel || 'Cancel'}
                 </button>
                 <button
                   onClick={handleExchangeRateUpdate}
-                  className="flex-1 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
+                  className={`flex-1 py-2 ${
+                    isLoadingRate 
+                      ? 'bg-gray-400 cursor-not-allowed' 
+                      : 'bg-blue-500 hover:bg-blue-600'
+                  } text-white rounded-lg transition-colors flex items-center justify-center gap-2`}
+                  disabled={isLoadingRate}
                 >
-                  {t.update || 'Update'}
+                  {isLoadingRate ? (
+                    <>
+                      <span className="animate-spin">⏳</span>
+                      {t.loading || 'Loading...'}
+                    </>
+                  ) : (
+                    t.update || 'Update'
+                  )}
                 </button>
               </div>
             </div>

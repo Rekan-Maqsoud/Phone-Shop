@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import ModalBase from './ModalBase';
+import { EXCHANGE_RATES } from '../utils/exchangeRates';
 
 export default function EnhancedCompanyDebtModal({ show, onClose, debt, onMarkPaid, t }) {
   const [items, setItems] = useState([]);
@@ -383,9 +384,9 @@ export default function EnhancedCompanyDebtModal({ show, onClose, debt, onMarkPa
                   </div>
                   <div className="text-sm text-gray-600 dark:text-gray-300">
                     {t?.totalPaid || 'Total Paid'}: {debt.currency === 'USD' 
-                      ? `$${(multiCurrency.usdAmount + (multiCurrency.iqdAmount / 1440)).toFixed(2)}`
+                      ? `$${(multiCurrency.usdAmount + (multiCurrency.iqdAmount / EXCHANGE_RATES.USD_TO_IQD)).toFixed(2)}`
                       : debt.currency === 'IQD'
-                      ? `د.ع${(multiCurrency.iqdAmount + (multiCurrency.usdAmount * 1440)).toFixed(2)}`
+                      ? `د.ع${(multiCurrency.iqdAmount + (multiCurrency.usdAmount * EXCHANGE_RATES.USD_TO_IQD)).toFixed(2)}`
                       : `$${multiCurrency.usdAmount.toFixed(2)} + د.ع${multiCurrency.iqdAmount.toFixed(2)}`
                     }
                   </div>

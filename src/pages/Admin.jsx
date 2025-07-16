@@ -5,6 +5,7 @@ import { useLocale } from '../contexts/LocaleContext';
 import { useData } from '../contexts/DataContext';
 import { triggerCloudBackupAsync } from '../utils/cloudBackupEnhanced';
 import { playNavigationSound, playActionSound, playModalOpenSound, playModalCloseSound, playSuccessSound, playErrorSound } from '../utils/sounds';
+import { EXCHANGE_RATES, loadExchangeRatesFromDB } from '../utils/exchangeRates';
 import useAdmin from '../components/useAdmin';
 import CustomerDebtsSection from '../components/CustomerDebtsSection';
 import CompanyDebtsSection from '../components/CompanyDebtsSection';
@@ -54,6 +55,11 @@ export default function Admin() {
     localStorage.setItem('lang', lang);
   }, [lang, admin.setLang]);
   
+  // Load exchange rates from database on mount
+  useEffect(() => {
+    loadExchangeRatesFromDB().catch(console.error);
+  }, []);
+  
   // Data is automatically fetched by DataContext, no need for manual fetchAllData
   
   // Low stock notification - memoized to prevent infinite re-renders
@@ -91,7 +97,7 @@ export default function Admin() {
         
         // Get exchange rates from sale or use current rates
         const saleExchangeRates = sale.exchange_rates || {
-          usd_to_iqd: 1440,
+          usd_to_iqd: EXCHANGE_RATES.USD_TO_IQD,
           iqd_to_usd: 0.000694
         };
         
@@ -285,8 +291,7 @@ export default function Admin() {
     window.adminRefreshBalances = async () => {
       try {
         await refreshAllData();
-        // You can add any specific balance refresh logic here
-        console.log('✅ Admin balances refreshed');
+  
       } catch (error) {
         console.error('❌ Error refreshing admin balances:', error);
       }
@@ -431,14 +436,6 @@ export default function Admin() {
                 showConfirm={showConfirm}
                 setConfirm={setConfirm}
                 triggerCloudBackup={triggerCloudBackupAsync}
-              />
-            )}
-
-            {/* Multi-Currency Dashboard Section */}
-            {section === 'multiCurrencyDashboard' && (
-              <MultiCurrencyDashboard 
-                t={t}
-                admin={admin}
               />
             )}
 

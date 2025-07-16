@@ -37,7 +37,6 @@ if (!window.__secretAdminLoaded) {
     try {
       const result = await window.api?.setBalance?.(curr, amount);
       if (result) {
-        console.log(`✅ Successfully set ${curr} balance to: ${amount}`);
         // Trigger a refresh of the balance display
         if (window.adminRefreshBalances) {
           await window.adminRefreshBalances();
@@ -60,9 +59,6 @@ if (!window.__secretAdminLoaded) {
     try {
       const balances = await window.api?.getBalances?.();
       if (balances) {
-        console.log('💰 Current shop balances:');
-        console.log(`USD Balance: $${balances.usd_balance?.toFixed(2) || '0.00'}`);
-        console.log(`IQD Balance: ${balances.iqd_balance?.toFixed(2) || '0.00'} د.ع`);
         return balances;
       } else {
         console.error('❌ Could not retrieve balances. API not available.');
@@ -96,7 +92,6 @@ if (!window.__secretAdminLoaded) {
     try {
       const result = await window.api?.updateBalance?.(curr, amount);
       if (result) {
-        console.log(`✅ Successfully adjusted ${curr} balance by: ${amount > 0 ? '+' : ''}${amount}`);
         // Show new balance
         await window.__getShopBalances();
         // Trigger a refresh of the balance display
@@ -113,22 +108,6 @@ if (!window.__secretAdminLoaded) {
 
   // Show help for available secret commands
   window.__showSecretCommands = function() {
-    console.log('🔒 Secret Admin Console Commands:');
-    console.log('');
-    console.log('📊 Balance Management:');
-    console.log('  __getShopBalances()                    - Get current shop balances');
-    console.log('  __setShopBalance("USD", 1000)          - Set USD balance to specific amount');
-    console.log('  __setShopBalance("IQD", 500000)        - Set IQD balance to specific amount');
-    console.log('  __adjustShopBalance("USD", 100)        - Add 100 to USD balance');
-    console.log('  __adjustShopBalance("IQD", -50000)     - Subtract 50000 from IQD balance');
-    console.log('');
-    console.log('💡 Examples:');
-    console.log('  __setShopBalance("USD", 5000)          - Set shop USD balance to $5,000');
-    console.log('  __setShopBalance("IQD", 1000000)       - Set shop IQD balance to 1,000,000 د.ع');
-    console.log('  __adjustShopBalance("USD", -100)       - Remove $100 from current balance');
-    console.log('');
-    console.log('⚠️  WARNING: These commands directly modify the shop balance.');
-    console.log('    Use with caution and only for administrative purposes.');
     console.log('    Regular cashiers should not have access to these commands.');
   };
 

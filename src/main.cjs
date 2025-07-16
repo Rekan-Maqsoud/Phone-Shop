@@ -77,7 +77,7 @@ function createWindow() {
     ? 'http://localhost:5173/'
     : `file://${path.join(__dirname, '../dist/index.html')}`;
     
-  console.log(`Loading URL: ${urlToLoad} (dev mode: ${isDevMode})`);
+  
   win.loadURL(urlToLoad);
   // Set a secure Content Security Policy
   win.webContents.session.webRequest.onHeadersReceived((details, callback) => {
@@ -113,7 +113,6 @@ app.whenReady().then(async () => {
     try {
       const repairedCount = db.repairProductIds();
       if (repairedCount > 0) {
-        console.log(`🔧 Automatically repaired ${repairedCount} products with NULL IDs`);
       }
     } catch (repairError) {
       console.error('❌ Failed to repair product IDs:', repairError);
@@ -209,6 +208,10 @@ ipcMain.handle('addProduct', async (event, product) => {
   try {
     if (db.addProduct) {
       db.addProduct(product);
+      // Repair any NULL IDs after adding product
+      if (db.repairProductIds) {
+        db.repairProductIds();
+      }
       await autoBackupAfterChange('product');
       return { success: true };
     } else {
@@ -257,18 +260,15 @@ ipcMain.handle('getAccessories', async () => {
 });
 ipcMain.handle('getAllAccessories', async () => {
   try {
-    console.log('🔍 getAllAccessories IPC called, db available:', !!db);
-    console.log('🔍 db.getAllAccessories available:', !!db?.getAllAccessories);
     if (db && db.getAllAccessories) {
       const accessories = db.getAllAccessories();
-      console.log('🔧 getAllAccessories returned:', accessories?.length, 'accessories');
       return accessories || [];
     } else {
-      console.error('❌ Database or getAllAccessories function not available');
+      console.error('Database or getAllAccessories function not available');
       return [];
     }
   } catch (e) {
-    console.error('❌ getAllAccessories error:', e);
+    console.error('getAllAccessories error:', e);
     return [];
   }
 });
@@ -276,6 +276,10 @@ ipcMain.handle('addAccessory', async (event, accessory) => {
   try {
     if (db.addAccessory) {
       db.addAccessory(accessory);
+      // Repair any NULL IDs after adding accessory
+      if (db.repairProductIds) {
+        db.repairProductIds();
+      }
       await runAutoBackupAfterSale('accessory');
       return { success: true };
     } else {
@@ -341,6 +345,10 @@ ipcMain.handle('getSetting', async (event, key) => {
 ipcMain.handle('resetAllData', async () => {
   try {
     db.resetAllData();
+    // Repair any NULL IDs after reset
+    if (db.repairProductIds) {
+      const repaired = db.repairProductIds();
+    }
     return { success: true, message: 'All data reset successfully.' };
   } catch (e) {
     return { success: false, message: e.message };
@@ -496,11 +504,9 @@ ipcMain.handle('autoBackupAfterSale', async () => {
 
 // Debt handlers (backward compatibility)
 ipcMain.handle('addDebt', async (event, { sale_id, customer_name }) => {
-  console.log('🔍 [main.cjs] addDebt IPC called with:', { sale_id, customer_name });
   try {
     if (db.addDebt) {
       const result = db.addDebt({ sale_id, customer_name });
-      console.log('✅ [main.cjs] addDebt result:', result);
       await runAutoBackupAfterSale('debt');
       return { success: true, result };
     } else {
@@ -513,14 +519,8 @@ ipcMain.handle('addDebt', async (event, { sale_id, customer_name }) => {
   }
 });
 ipcMain.handle('getDebts', async () => {
-  console.log('🔍 [main.cjs] getDebts IPC called');
   try {
     const result = db.getDebts ? db.getDebts() : [];
-    console.log('🔍 [main.cjs] getDebts result:', result.length, 'debts found');
-    if (result.length > 0) {
-      const paidCount = result.filter(d => d.paid_at).length;
-      console.log('🔍 [main.cjs] Paid debts:', paidCount, 'of', result.length);
-    }
     return result;
   } catch (e) {
     console.error('❌ [main.cjs] getDebts error:', e);
@@ -551,7 +551,6 @@ ipcMain.handle('getCustomerDebts', async () => {
   return db.getCustomerDebts();
 });
 ipcMain.handle('markCustomerDebtPaid', async (event, id, paid_at, paymentData) => {
-  console.log('🔍 [main.cjs] markCustomerDebtPaid called:', { id, paid_at, paymentData });
   try {
     const result = db.markCustomerDebtPaid(id, { 
       paid_at, 
@@ -559,7 +558,6 @@ ipcMain.handle('markCustomerDebtPaid', async (event, id, paid_at, paymentData) =
       payment_usd_amount: paymentData?.deductUSD || paymentData?.usdAmount || 0, 
       payment_iqd_amount: paymentData?.deductIQD || paymentData?.iqdAmount || 0 
     });
-    console.log('✅ [main.cjs] markCustomerDebtPaid result:', result);
     await runAutoBackupAfterSale();
     return result;
   } catch (error) {
@@ -644,10 +642,8 @@ ipcMain.handle('resetMonthlySalesAndProfit', async () => {
 });
 
 ipcMain.handle('getDebtSales', async () => {
-  console.log('🔍 [main.cjs] getDebtSales IPC called');
   try {
     const result = db.getDebtSales ? db.getDebtSales() : [];
-    console.log('🔍 [main.cjs] getDebtSales result:', result.length, 'debt sales found');
     return result;
   } catch (e) {
     console.error('❌ [main.cjs] getDebtSales error:', e);
@@ -677,7 +673,6 @@ ipcMain.handle('getTransactions', async (event, limit = 50) => {
 // Secret balance management handlers (admin only)
 ipcMain.handle('setBalance', async (event, currency, amount) => {
   try {
-    console.log(`[ADMIN] Setting ${currency} balance to ${amount}`);
     const result = db.setBalance(currency, amount);
     await autoBackupAfterChange('balance');
     return result;
@@ -689,7 +684,6 @@ ipcMain.handle('setBalance', async (event, currency, amount) => {
 
 ipcMain.handle('updateBalance', async (event, currency, amount) => {
   try {
-    console.log(`[ADMIN] Adjusting ${currency} balance by ${amount}`);
     const result = db.updateBalance(currency, amount);
     await autoBackupAfterChange('balance');
     return result;
@@ -722,9 +716,9 @@ ipcMain.handle('getPersonalLoans', async () => {
   }
 });
 
-ipcMain.handle('markPersonalLoanPaid', async (event, id, paid_at, payment_currency_used, payment_usd_amount, payment_iqd_amount) => {
+ipcMain.handle('markPersonalLoanPaid', async (event, id, paymentData) => {
   try {
-    const result = db.markPersonalLoanPaid(id, paid_at, payment_currency_used, payment_usd_amount, payment_iqd_amount);
+    const result = db.markPersonalLoanPaid(id, paymentData);
     if (result.success) {
       await runAutoBackupAfterSale();
     }
@@ -1444,5 +1438,36 @@ ipcMain.handle('repairProductIds', async () => {
   } catch (e) {
     console.error('❌ repairProductIds error:', e);
     return { success: false, message: e.message };
+  }
+});
+
+// Exchange rate handlers
+ipcMain.handle('setExchangeRate', async (event, fromCurrency, toCurrency, rate) => {
+  try {
+    if (db && db.setExchangeRate) {
+      const result = db.setExchangeRate(fromCurrency, toCurrency, rate);
+      return result;
+    } else {
+      console.error('❌ Database or setExchangeRate function not available');
+      return null;
+    }
+  } catch (e) {
+    console.error('❌ setExchangeRate error:', e);
+    return null;
+  }
+});
+
+ipcMain.handle('getExchangeRate', async (event, fromCurrency, toCurrency) => {
+  try {
+    if (db && db.getExchangeRate) {
+      const rate = db.getExchangeRate(fromCurrency, toCurrency);
+      return rate;
+    } else {
+      console.error('❌ Database or getExchangeRate function not available');
+      return null;
+    }
+  } catch (e) {
+    console.error('❌ getExchangeRate error:', e);
+    return null;
   }
 });

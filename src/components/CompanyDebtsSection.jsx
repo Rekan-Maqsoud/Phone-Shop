@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useData } from '../contexts/DataContext';
-import { formatCurrency } from '../utils/exchangeRates';
+import { formatCurrency, EXCHANGE_RATES } from '../utils/exchangeRates';
 
 const CompanyDebtsSection = ({ 
   t, 
@@ -34,8 +34,8 @@ const CompanyDebtsSection = ({
   // Helper function to calculate total debt amount (for sorting and totals)
   const getDebtTotalValue = (debt) => {
     if (debt.currency === 'MULTI' && (debt.usd_amount > 0 || debt.iqd_amount > 0)) {
-      // Convert to USD equivalent for sorting/totaling (1 USD = 1440 IQD)
-      return debt.usd_amount + (debt.iqd_amount / 1440);
+      // Convert to USD equivalent for sorting/totaling - use dynamic exchange rate
+      return debt.usd_amount + (debt.iqd_amount / EXCHANGE_RATES.USD_TO_IQD);
     } else {
       return debt.amount;
     }

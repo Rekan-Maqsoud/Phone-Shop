@@ -18,8 +18,6 @@ function payCustomerDebt(db, id) {
 
 // Enhanced function for marking customer debt as paid with multi-currency support and balance addition
 function markCustomerDebtPaid(db, id, paymentData) {
-  console.log('🔍 [debts.cjs] markCustomerDebtPaid called:', { id, paymentData });
-  
   const { 
     paid_at, 
     payment_currency_used, 
@@ -33,7 +31,6 @@ function markCustomerDebtPaid(db, id, paymentData) {
     try {
       // Get debt info before updating for transaction record
       const debtInfo = db.prepare('SELECT customer_name, amount, description, currency FROM customer_debts WHERE id = ?').get(id);
-      console.log('🔍 [debts.cjs] Debt info found:', debtInfo);
       
       // If no specific payment amounts are provided, use the debt's original amount and currency
       let finalUSDAmount = payment_usd_amount;
@@ -68,8 +65,6 @@ function markCustomerDebtPaid(db, id, paymentData) {
         id
       );
       
-      console.log('🔍 [debts.cjs] Update result:', result);
-      
       // Record transaction - track the actual payment amounts made
       const addTransactionStmt = db.prepare(`
         INSERT INTO transactions (type, amount_usd, amount_iqd, description, reference_id, reference_type, created_at) 
@@ -89,21 +84,18 @@ function markCustomerDebtPaid(db, id, paymentData) {
       // Add to the user's balance based on the actual payment amounts received
       // Add USD amount if any USD was paid by customer
       if (finalUSDAmount > 0) {
-        console.log('💰 [debts.cjs] Adding USD to balance:', finalUSDAmount);
         settings.updateBalance(db, 'USD', finalUSDAmount);
       }
       
       // Add IQD amount if any IQD was paid by customer
       if (finalIQDAmount > 0) {
-        console.log('💰 [debts.cjs] Adding IQD to balance:', finalIQDAmount);
         settings.updateBalance(db, 'IQD', finalIQDAmount);
       }
       
-      console.log('✅ [debts.cjs] Debt marked as paid successfully');
       return { success: true, changes: result.changes };
     } catch (error) {
       console.error('❌ [debts.cjs] Error marking customer debt as paid:', error);
-      throw error;
+      return false;
     }
   });
   
@@ -229,8 +221,6 @@ function markCompanyDebtPaid(db, id, paymentData) {
             id
           );
         } catch (columnError) {
-          // Fallback to basic columns if type/reference_id columns don't exist yet
-          console.log('Falling back to basic buying_history insert:', columnError.message);
           const addBuyingHistoryUSDBasic = db.prepare(`
             INSERT INTO buying_history (item_name, quantity, unit_price, total_price, date, currency) 
             VALUES (?, ?, ?, ?, ?, ?)
@@ -265,8 +255,6 @@ function markCompanyDebtPaid(db, id, paymentData) {
             id
           );
         } catch (columnError) {
-          // Fallback to basic columns if type/reference_id columns don't exist yet
-          console.log('Falling back to basic buying_history insert:', columnError.message);
           const addBuyingHistoryIQDBasic = db.prepare(`
             INSERT INTO buying_history (item_name, quantity, unit_price, total_price, date, currency) 
             VALUES (?, ?, ?, ?, ?, ?)
@@ -297,7 +285,7 @@ function markCompanyDebtPaid(db, id, paymentData) {
       return { success: true, changes: result.changes };
     } catch (error) {
       console.error('Error marking company debt as paid:', error);
-      throw error;
+      return false;
     }
   });
   
@@ -381,13 +369,25 @@ function getPersonalLoans(db) {
 
 function addPersonalLoan(db, { person_name, amount, description, currency = 'IQD' }) {
   const now = new Date().toISOString();
-  return db.prepare('INSERT INTO personal_loans (person_name, amount, description, created_at, currency) VALUES (?, ?, ?, ?, ?)')
+  const result = db.prepare('INSERT INTO personal_loans (person_name, amount, description, created_at, currency) VALUES (?, ?, ?, ?, ?)')
     .run(person_name, amount, description, now, currency);
+  
+  if (result.changes > 0) {
+    return { success: true, id: result.lastInsertRowid };
+  } else {
+    return { success: false, message: 'Failed to insert personal loan' };
+  }
 }
 
 function payPersonalLoan(db, id) {
   const now = new Date().toISOString();
-  return db.prepare('UPDATE personal_loans SET paid_at = ? WHERE id = ?').run(now, id);
+  const result = db.prepare('UPDATE personal_loans SET paid_at = ? WHERE id = ?').run(now, id);
+  
+  if (result.changes > 0) {
+    return { success: true };
+  } else {
+    return { success: false, message: 'Failed to update personal loan or loan not found' };
+  }
 }
 
 // Enhanced function for marking personal loan as paid with multi-currency support and balance addition
@@ -454,7 +454,7 @@ function markPersonalLoanPaid(db, id, paymentData) {
       return { success: true, changes: result.changes };
     } catch (error) {
       console.error('Error marking personal loan as paid:', error);
-      throw error;
+      return false;
     }
   });
   
@@ -462,7 +462,13 @@ function markPersonalLoanPaid(db, id, paymentData) {
 }
 
 function deletePersonalLoan(db, id) {
-  return db.prepare('DELETE FROM personal_loans WHERE id = ?').run(id);
+  const result = db.prepare('DELETE FROM personal_loans WHERE id = ?').run(id);
+  
+  if (result.changes > 0) {
+    return { success: true };
+  } else {
+    return { success: false, message: 'Failed to delete personal loan or loan not found' };
+  }
 }
 
 function getTotalDebts(db) {

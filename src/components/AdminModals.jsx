@@ -50,7 +50,7 @@ export default function AdminModals({
   // Cloud Backup
   triggerCloudBackup
 }) {
-  const { refreshSales, refreshProducts, refreshAccessories, refreshCompanyDebts, refreshBuyingHistory } = useData();
+  const { refreshSales, refreshProducts, refreshAccessories, refreshCompanyDebts, refreshBuyingHistory, refreshDebts } = useData();
   
 
   return (
@@ -108,14 +108,16 @@ export default function AdminModals({
                 if (result?.success) {
                   admin.setToast?.(`Item returned successfully${quantityText}. Stock has been restored.`);
                   
-                  // Use DataContext refresh functions instead of admin.fetch functions
+                  // Use DataContext refresh functions to update data
                   await Promise.all([
                     refreshSales(),
                     refreshProducts(),
-                    refreshAccessories()
+                    refreshAccessories(),
+                    refreshDebts()
                   ]);
                   
-                  // Close the sale view after successful return
+                  // Close the modal after successful return - don't refresh view for debt sales
+                  // The refreshed data will automatically reflect in the debts section
                   admin.setViewSale(null);
                   
                   triggerCloudBackup();

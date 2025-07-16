@@ -3,7 +3,14 @@ import HistorySearchFilter from './HistorySearchFilter';
 import ConfirmModal from './ConfirmModal';
 
 // Enhanced table for buying history with item details support
-export default function BuyingHistoryTable({ buyingHistory, t, onAddPurchase, refreshBuyingHistory }) {
+export default function BuyingHistoryTable({ 
+  buyingHistory, 
+  t, 
+  onAddPurchase, 
+  refreshBuyingHistory, 
+  getBrandFromBuyingHistory, 
+  showBrandFilter = true 
+}) {
   const [expandedEntries, setExpandedEntries] = useState(new Set());
   const [filteredHistory, setFilteredHistory] = useState([]);
   const [totals, setTotals] = useState(null);
@@ -41,7 +48,12 @@ export default function BuyingHistoryTable({ buyingHistory, t, onAddPurchase, re
   }, []);
 
   // Extract brand from buying history entry
-  const getBrandFromBuyingHistory = useCallback((item) => {
+  const getBrandFromBuyingHistoryInternal = useCallback((item) => {
+    // Use external function if provided, otherwise use default logic
+    if (getBrandFromBuyingHistory) {
+      return getBrandFromBuyingHistory(item);
+    }
+    
     // Check items array first
     if (item.items && Array.isArray(item.items)) {
       const brands = item.items
@@ -53,7 +65,7 @@ export default function BuyingHistoryTable({ buyingHistory, t, onAddPurchase, re
     
     // Fallback to direct brand property
     return item.brand || null;
-  }, []);
+  }, [getBrandFromBuyingHistory]);
 
   // Handle filtered data change from search component - wrapped with useCallback to prevent infinite re-renders
   const handleFilteredDataChange = useCallback((filtered, calculatedTotals) => {
@@ -211,8 +223,8 @@ export default function BuyingHistoryTable({ buyingHistory, t, onAddPurchase, re
         showNameSearch={true}
         showTotals={true}
         calculateTotals={calculateTotals}
-        showBrandFilter={true}
-        getBrandFromItem={getBrandFromBuyingHistory}
+        showBrandFilter={showBrandFilter}
+        getBrandFromItem={getBrandFromBuyingHistoryInternal}
       />
 
       {/* Main Table */}

@@ -17,7 +17,7 @@ import {
   playErrorSound, 
   playModalOpenSound
 } from '../utils/sounds';
-import { formatCurrency } from '../utils/exchangeRates';
+import { formatCurrency, EXCHANGE_RATES, loadExchangeRatesFromDB } from '../utils/exchangeRates';
 
 export default function Cashier() {
   const [search, setSearch] = useState('');
@@ -121,6 +121,11 @@ export default function Cashier() {
     return () => clearInterval(timer);
   }, []);
 
+  // Load exchange rates from database on mount
+  useEffect(() => {
+    loadExchangeRatesFromDB().catch(console.error);
+  }, []);
+
   useEffect(() => {
     if (apiReady) {
       refreshProducts();
@@ -128,13 +133,7 @@ export default function Cashier() {
     }
   }, [apiReady, refreshProducts, refreshAccessories]);
 
-  // Debug logging for products and accessories
-  useEffect(() => {
-    if (apiReady && products.length === 0 && accessories.length === 0) {
-      console.log('⚠️ No products or accessories loaded');
-    }
-  }, [apiReady, products, accessories, allItems]);
-
+  
   const handleSearchInput = (e) => {
     setSearch(e.target.value);
     setSelectedSuggestionIndex(-1);
@@ -215,45 +214,39 @@ export default function Cashier() {
   // Cloud backup is now handled automatically by the unified backup system
   
   const handleCompleteSale = async (saleDiscount = null, discountedTotal = null, multiCurrency = null) => {
+    console.log('🎯 Starting Sale Completion:', {
+      saleDiscount,
+      discountedTotal,
+      multiCurrency,
+      isDebt,
+      customerName
+    });
+    
     if (!items.length) return;
     
     const finalTotal = discountedTotal !== null ? discountedTotal : total;
     
-    // Check for insufficient payment (both single and multi-currency)
+    console.log('💵 Sale Totals:', {
+      baseTotal: total,
+      discountedTotal,
+      finalTotal,
+      currency
+    });
+    
+    // Check for insufficient payment - simplified with new smart payment system
+    // Skip payment validation for debt sales or when discounts are applied
     let insufficientPayment = false;
     let warningDetails = '';
     
-    if (multiCurrency && (multiCurrency.usdAmount > 0 || multiCurrency.iqdAmount > 0)) {
+    if (!isDebt && !saleDiscount && multiCurrency && multiCurrency.totalPaidUSD) {
       const totalPaidUSD = multiCurrency.totalPaidUSD || 0;
-      const requiredAmount = currency === 'USD' ? finalTotal : finalTotal / 1440;
+      const requiredAmount = currency === 'USD' ? finalTotal : finalTotal / EXCHANGE_RATES.USD_TO_IQD;
       
       if (totalPaidUSD < requiredAmount) {
         insufficientPayment = true;
         warningDetails = `${t.insufficientPayment || 'Insufficient payment'}.\n` +
                         `${t.required || 'Required'}: ${formatCurrency(requiredAmount, 'USD')}\n` +
                         `${t.provided || 'Provided'}: ${formatCurrency(totalPaidUSD, 'USD')}`;
-      }
-    } else if (currency === 'IQD') {
-      const usdItems = items.filter(item => {
-        const product = allItems.find(p => p.uniqueId === item.uniqueId || p.id === item.product_id);
-        return product && (product.currency === 'USD' || !product.currency);
-      });
-      
-      if (usdItems.length > 0) {
-        const totalUSDValue = usdItems.reduce((sum, item) => {
-          const product = allItems.find(p => p.uniqueId === item.uniqueId || p.id === item.product_id);
-          const sellingPriceUSD = item.selling_price || item.buying_price || 0;
-          return sum + (sellingPriceUSD * item.quantity);
-        }, 0);
-        
-        const requiredIQD = totalUSDValue * 1440;
-        if (finalTotal < requiredIQD) {
-          insufficientPayment = true;
-          warningDetails = `${t.warningInsufficientIQDPayment || 'Warning: Insufficient IQD payment for USD items'}\n` +
-                          `${t.requiredIQD || 'Required IQD'}: ${requiredIQD.toFixed(2)}\n` +
-                          `${t.providedIQD || 'Provided IQD'}: ${finalTotal.toFixed(2)}\n` +
-                          `${t.exchangeRate || 'Exchange Rate'}: 1 USD = 1440 IQD`;
-        }
       }
     }
     
@@ -343,20 +336,25 @@ export default function Cashier() {
           multi_currency: multiCurrency || null
         };
         
+        console.log('📦 Sale Object Being Sent to Database:', {
+          saleTotal: sale.total,
+          saleIsDebt: sale.is_debt,
+          saleCurrency: sale.currency,
+          saleMultiCurrency: sale.multi_currency,
+          itemCount: sale.items.length
+        });
+        
         if (window.api?.saveSale) {
           const res = await window.api.saveSale(sale);
-          console.log('💰 Sale saved:', res);
+          
           
           if (res.success && isDebt) {
-            console.log('🔍 Processing debt sale with sale_id:', res.id || res.lastInsertRowid);
+          
             try {
               const debtResult = await window.api.addDebt({ sale_id: res.id || res.lastInsertRowid, customer_name: customerName });
-              console.log('📋 Debt creation result:', debtResult);
               if (!debtResult.success) {
                 showToast(t.saleRecordCreationFailed + (debtResult.message || t.unknownError), 'error');
-              } else {
-                console.log('✅ Debt created successfully');
-              }
+              } 
               await refreshDebts();
               await refreshDebtSales();
               // debt sales are now refreshed immediately for instant UI update

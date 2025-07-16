@@ -60,8 +60,7 @@ const CustomerDebtPaymentModal = ({
       
       if (debt && debt.id) {
         // If there's an existing debt record, mark it as paid
-        console.log('Marking existing debt as paid:', debt.id);
-        
+    
         result = await window.api?.markCustomerDebtPaid?.(debt.id, new Date().toISOString(), {
           currency: sale.currency,
           usdAmount: paymentData.usdAmount || 0,
@@ -70,12 +69,6 @@ const CustomerDebtPaymentModal = ({
           deductIQD: paymentData.deductIQD || 0
         });
       } else {
-        // If there's no debt record, create one and mark it as paid immediately
-        console.log('Creating new debt record for sale:', sale.id);
-        console.log('Sale object:', sale);
-        console.log('Sale total:', sale.total);
-        console.log('Original customer:', originalCustomer);
-        
         // Ensure we have a valid amount
         const debtAmount = sale.total || 0;
         if (debtAmount === 0) {
@@ -89,12 +82,9 @@ const CustomerDebtPaymentModal = ({
           currency: sale.currency || 'USD',
           sale_id: sale.id
         });
-        
-        console.log('New debt creation result:', newDebtResult);
-        
+   
         if (newDebtResult && newDebtResult.lastInsertRowid) {
-          console.log('Marking new debt as paid:', newDebtResult.lastInsertRowid);
-          
+      
           result = await window.api?.markCustomerDebtPaid?.(newDebtResult.lastInsertRowid, new Date().toISOString(), {
             currency: sale.currency,
             usdAmount: paymentData.usdAmount || 0,
@@ -106,9 +96,6 @@ const CustomerDebtPaymentModal = ({
           throw new Error('Failed to create debt record');
         }
       }
-      
-      console.log('Payment result:', result);
-      
       if (result && result.changes > 0) {
         admin.setToast?.(`💰 Debt of ${(sale.currency === 'USD' ? '$' : 'د.ع')}${sale.total.toFixed(2)} marked as paid for ${originalCustomer}`);
         

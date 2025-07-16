@@ -4,11 +4,11 @@ function getProducts(db) {
   return db.prepare('SELECT * FROM products WHERE archived = 0').all();
 }
 
-function addProduct(db, { name, buying_price, stock, archived = 0, ram, storage, model, category = 'phones', currency = 'IQD' }) {
+function addProduct(db, { name, buying_price, stock, archived = 0, ram, storage, model, brand, category = 'phones', currency = 'IQD' }) {
   // Check if product with same name, specs, and currency already exists
   const existingProduct = db.prepare('SELECT * FROM products WHERE name = ? AND currency = ? AND archived = 0').get(name, currency);
   
-  if (existingProduct) {
+  if (existingProduct && existingProduct.id) {
     // Calculate new average buying price
     const currentStock = existingProduct.stock;
     const currentBuyingPrice = existingProduct.buying_price;
@@ -21,23 +21,50 @@ function addProduct(db, { name, buying_price, stock, archived = 0, ram, storage,
       newBuyingPrice;
     
     // Update existing product with new stock and average buying price
-    return db.prepare('UPDATE products SET buying_price=?, stock=stock+?, ram=?, storage=?, model=?, category=?, currency=? WHERE id=?')
-      .run(averageBuyingPrice, newStock, ram || existingProduct.ram, storage || existingProduct.storage, model || existingProduct.model, category, currency, existingProduct.id);
+    const result = db.prepare('UPDATE products SET buying_price=?, stock=stock+?, ram=?, storage=?, model=?, brand=?, category=?, currency=? WHERE id=?')
+      .run(averageBuyingPrice, newStock, ram || existingProduct.ram, storage || existingProduct.storage, model || existingProduct.model, brand || existingProduct.brand, category, currency, existingProduct.id);
+    
+    return result;
   } else {
-    // Create new product
-    return db.prepare('INSERT INTO products (name, buying_price, stock, archived, ram, storage, model, category, currency) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(name, buying_price, stock, archived, ram || null, storage || null, model || null, category, currency);
+    // Create new product - force ID to be set properly
+    const result = db.prepare('INSERT INTO products (id, name, buying_price, stock, archived, ram, storage, model, brand, category, currency) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(null, name, buying_price, stock, archived, ram || null, storage || null, model || null, brand || null, category, currency);
+    
+    // CRITICAL: Verify the product was created with a valid ID and repair if needed
+    const newProductId = result.lastInsertRowid;
+    const newProduct = db.prepare('SELECT * FROM products WHERE rowid = ?').get(newProductId);
+    if (!newProduct || !newProduct.id) {
+      // Force repair immediately
+      db.prepare('UPDATE products SET id = ? WHERE rowid = ?').run(newProductId, newProductId);
+    }
+    
+    return result;
   }
 }
 
-function updateProduct(db, { id, name, buying_price, stock, archived = 0, ram, storage, model, category = 'phones', currency = 'IQD' }) {
-  return db.prepare('UPDATE products SET name=?, buying_price=?, stock=?, archived=?, ram=?, storage=?, model=?, category=?, currency=? WHERE id=?')
-    .run(name, buying_price, stock, archived, ram || null, storage || null, model || null, category, currency, id);
+// Function to ensure product IDs are properly set after operations
+function ensureValidProductId(db, productId) {
+  const product = db.prepare('SELECT id FROM products WHERE id = ?').get(productId);
+  if (!product || !product.id) {
+    console.error('⚠️ Product has NULL ID, attempting repair...');
+    // Try to find by rowid and fix
+    const productByRowid = db.prepare('SELECT rowid, * FROM products WHERE rowid = ? AND id IS NULL').get(productId);
+    if (productByRowid) {
+      db.prepare('UPDATE products SET id = ? WHERE rowid = ?').run(productByRowid.rowid, productByRowid.rowid);
+      return productByRowid.rowid;
+    }
+  }
+  return productId;
 }
 
-function updateProductNoArchive(db, { id, name, buying_price, stock, ram, storage }) {
-  return db.prepare('UPDATE products SET name=?, buying_price=?, stock=?, ram=?, storage=? WHERE id=?')
-    .run(name, buying_price, stock, ram || null, storage || null, id);
+function updateProduct(db, { id, name, buying_price, stock, archived = 0, ram, storage, model, brand, category = 'phones', currency = 'IQD' }) {
+  return db.prepare('UPDATE products SET name=?, buying_price=?, stock=?, archived=?, ram=?, storage=?, model=?, brand=?, category=?, currency=? WHERE id=?')
+    .run(name, buying_price, stock, archived, ram || null, storage || null, model || null, brand || null, category, currency, id);
+}
+
+function updateProductNoArchive(db, { id, name, buying_price, stock, ram, storage, brand }) {
+  return db.prepare('UPDATE products SET name=?, buying_price=?, stock=?, ram=?, storage=?, brand=? WHERE id=?')
+    .run(name, buying_price, stock, ram || null, storage || null, brand || null, id);
 }
 
 function addStock(db, id, amount) {
@@ -55,5 +82,6 @@ module.exports = {
   updateProduct,
   updateProductNoArchive,
   addStock,
-  deleteProduct
+  deleteProduct,
+  ensureValidProductId
 };

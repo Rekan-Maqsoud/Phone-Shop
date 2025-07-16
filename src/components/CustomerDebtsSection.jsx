@@ -37,14 +37,13 @@ const CustomerDebtsSection = ({
   };
 
   const handlePaymentComplete = async () => {
-    console.log('🔄 Starting data refresh after payment...');
     // Refresh all debt-related data
     await Promise.all([
       refreshDebts(),
       refreshDebtSales(),
       refreshSales()
     ]);
-    console.log('✅ Data refresh completed');
+   
     triggerCloudBackup();
   };
 
@@ -384,15 +383,48 @@ const CustomerDebtsSection = ({
                                 </button>
                                 
                                 {(debt ? !debt.paid_at : true) && (
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleMarkDebtPaid(debt, sale, originalCustomer);
-                                    }}
-                                    className="px-3 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm flex items-center gap-1"
-                                  >
-                                    💰 {t.markPaid || 'Mark Paid'}
-                                  </button>
+                                  <>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        showConfirm(
+                                          t.confirmReturnSale || 'Are you sure you want to return this entire sale? This will restore stock and remove the sale from records.',
+                                          async () => {
+                                            try {
+                                              const result = await window.api?.returnSale?.(sale.id);
+                                              if (result?.success) {
+                                                admin.setToast?.('Sale returned successfully. Stock has been restored.');
+                                                // Refresh all relevant data
+                                                await Promise.all([
+                                                  refreshSales(),
+                                                  refreshDebts()
+                                                ]);
+                                                triggerCloudBackup();
+                                              } else {
+                                                admin.setToast?.('Failed to return sale: ' + (result?.message || 'Unknown error'));
+                                              }
+                                            } catch (error) {
+                                              admin.setToast?.('Error returning sale: ' + error.message);
+                                            }
+                                          }
+                                        );
+                                      }}
+                                      className="px-3 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-sm flex items-center gap-1"
+                                      title={t.returnSale || 'Return Sale'}
+                                    >
+                                      ↩️ {t.returnSale || 'Return'}
+                                    </button>
+                                    
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleMarkDebtPaid(debt, sale, originalCustomer);
+                                      }}
+                                      className="px-3 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm flex items-center gap-1"
+                                    >
+                                      💰 {t.markPaid || 'Mark Paid'}
+                                    </button>
+                                  </>
                                 )}
                               </div>
                             </div>

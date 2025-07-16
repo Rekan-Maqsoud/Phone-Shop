@@ -1,0 +1,168 @@
+---
+description: 
+This is an **Electron + React + Vite desktop application** for phone shop management with cloud backup capabilities.
+
+### Core Tech Stack
+- **Frontend**: React 18 + Tailwind CSS + React Router DOM
+- **Desktop**: Electron with IPC (main.cjs + preload.js)
+- **Database**: SQLite with better-sqlite3 (modular design in `database/modules/`)
+- **Cloud**: Appwrite for authentication and backups
+- **Build**: Vite with Electron Builder
+
+### Dual-Mode Architecture
+The app has two primary interfaces:
+- **Cashier Mode** (`/cashier`): Point-of-sale operations, product lookup, cart management
+- **Admin Mode** (`/admin`): Inventory management, reports, settings, debt tracking
+
+## Critical Patterns
+
+### 1. State Management Architecture
+- **DataContext** (`src/contexts/DataContext.jsx`): Centralized data fetching and caching for all entities (products, sales, debts, etc.)
+- **useAdmin hook** (`src/components/useAdmin.js`): Admin-specific UI state and business logic
+- **Context Providers**: Theme, Locale, Sound, BackupProgress contexts wrap the app
+
+```jsx
+// Always use DataContext for data operations, not direct API calls
+const { products, sales, refreshProducts } = useData();
+```
+
+### 2. Electron IPC Pattern
+- **Main Process** (`src/main.cjs`): Database operations, file system access, cloud backup scheduling
+- **Preload Script** (`src/preload.js`): Secure IPC bridge exposing `window.api`
+- **Renderer**: React components call `window.api.methodName()`
+
+```javascript
+// Always check API availability before calling
+if (window.api?.getProducts) {
+  const products = await window.api.getProducts();
+}
+```
+
+### 3. Database Module Pattern
+Database operations are split into focused modules in `database/modules/`:
+- `products.cjs`, `accessories.cjs`, `sales.cjs`, `debts.cjs`, etc.
+- Each module exports functions that take `(db, ...params)`
+- Main database module (`database/index.cjs`) orchestrates all modules
+
+### 4. Multi-Currency System
+- Products stored in native currency (USD/IQD)
+- Sales can be in different currency with exchange rates stored per sale
+- Currency conversion logic in `utils/exchangeRates.js`
+
+## Key Development Workflows
+
+### Running the App
+```bash
+npm run dev        # Starts Vite dev server + Electron
+npm run build      # Production build
+npm run make       # Build Electron distributables
+```
+
+### State Update Pattern
+**CRITICAL**: Avoid infinite re-renders by using proper dependencies in hooks
+```jsx
+// ✅ Good - memoized with proper dependencies
+const lowStockProducts = useMemo(() => 
+  products.filter(p => p.stock < threshold && !p.archived), 
+  [products, threshold]
+);
+
+// ❌ Bad - will cause infinite re-renders
+const [data, setData] = useState([]);
+useEffect(() => {
+  fetchData().then(setData);
+}, [data]); // Wrong dependency
+```
+
+### Modal Management
+- Use `AdminModals` component for centralized modal rendering
+- State managed in useAdmin hook: `admin.setShowProductModal(true)`
+- Always play appropriate sounds: `playModalOpenSound()`, `playModalCloseSound()`
+
+### Toast Notifications
+```jsx
+// Unified toast system with auto-dismiss
+admin.setToast(message, type = 'info', duration = 3000);
+```
+
+## File Organization
+
+### Component Categories
+- **Pages**: `src/pages/` - Route-level components (Admin.jsx, Cashier.jsx)
+- **Sections**: `src/components/*Section.jsx` - Feature-specific UI sections
+- **Modals**: `src/components/*Modal.jsx` - Reusable modal components
+- **Hooks**: `src/components/hooks/` - Custom hooks for specific features
+- **Utils**: `src/utils/` - Pure functions (sounds, exchange rates, etc.)
+
+### Database Modules
+Each module in `database/modules/` handles one entity type with consistent API:
+- `getEntityName()` - Fetch all
+- `addEntityName(data)` - Create new
+- `updateEntityName(data)` - Update existing
+- `deleteEntityName(id)` - Remove
+
+## Cloud Backup Integration
+
+### Appwrite Configuration
+Environment variables in `.env`:
+```env
+VITE_APPWRITE_ENDPOINT=https://fra.cloud.appwrite.io/v1
+VITE_APPWRITE_PROJECT_ID=your-project-id
+# ... other Appwrite settings
+```
+
+### Backup Triggers
+- Automatic on major operations (sales, debt payments)
+- Manual via admin panel
+- Scheduled based on user settings
+
+## Keyboard Shortcuts & Accessibility
+
+### Admin Panel Navigation
+- `Ctrl + 1-9, 0`: Navigate between sections
+- Arrow keys: Navigate when no modals open
+- Automatic focus management for modals and inputs
+
+### Cashier Shortcuts
+- Product search with instant suggestions
+- Quantity input with automatic focus handling
+- Currency switching with keyboard support
+
+## Security & Data Flow
+
+### Context Isolation
+- Renderer process cannot directly access Node.js APIs
+- All database operations go through secure IPC channel
+- User authentication for cloud features only
+
+### Data Validation
+- SQLite schema enforces data integrity
+- Frontend validation for user experience
+- Graceful fallbacks for offline operation
+
+## Common Pitfalls to Avoid
+
+1. **Don't** fetch data directly in components - use DataContext
+2. **Don't** create new database connections - use the singleton pattern
+3. **Don't** forget to refresh related data after updates (e.g., refresh sales after debt payment)
+4. **Don't** block UI during cloud operations - use background processing
+5. **Don't** skip sound feedback - users expect audio cues for actions
+
+## Debug Tools
+
+### Secret Admin Commands
+Access via browser console in admin mode:
+```javascript
+__showSecretCommands()     // Show available commands
+__getShopBalances()       // Check current balances
+__setShopBalance(currency, amount)  // Adjust shop balance
+```
+
+### Development Scripts
+- `debug_db.js` - Database inspection tools
+- `debug_sales.js` - Sales data analysis
+- Emergency repair scripts in root directory
+
+globs: **
+alwaysApply: true
+---

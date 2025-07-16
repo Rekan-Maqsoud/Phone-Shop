@@ -89,10 +89,12 @@ export default function PersonalLoansSection({ admin, t, showConfirm }) {
       
       const result = await window.api?.markPersonalLoanPaid?.(
         selectedLoan.id, 
-        new Date().toISOString(),
-        paymentCurrency,
-        payment_usd_amount,
-        payment_iqd_amount
+        {
+          paid_at: new Date().toISOString(),
+          payment_currency_used: paymentCurrency,
+          payment_usd_amount: paymentCurrency === 'USD' ? selectedLoan.amount : 0,
+          payment_iqd_amount: paymentCurrency === 'IQD' ? selectedLoan.amount : 0
+        }
       );
       
       if (result?.success) {

@@ -22,12 +22,8 @@ export default function useCart(showToast, showConfirm, t = {}) {
         const id = product.id || product.name?.replace(/\s+/g, '_').toLowerCase() || Math.random().toString(36).substr(2, 9);
         uniqueId = `${itemType}_${id}`;
       }
-      
-      console.log('🛒 Cart: Adding product with uniqueId:', uniqueId, 'product:', { id: product.id, name: product.name });
-      
       const existing = prevItems.find(item => item.uniqueId === uniqueId && item.isReturn === isReturn);
       const availableStock = product.stock ?? 1;
-      
       // Determine item type from product or uniqueId pattern
       let itemType = product.itemType;
       if (!itemType && product.uniqueId) {
@@ -63,17 +59,15 @@ export default function useCart(showToast, showConfirm, t = {}) {
       if (existing) {
         // Calculate new total if we add this quantity
         const newTotal = (existing.quantity || 1) + quantity;
-        
         // For returns, we don't limit by stock
         if (!isReturn && newTotal > availableStock) {
           playErrorSound();
           showToast(t.cannotAddMoreStock || `Cannot add more than available stock! Available: ${availableStock}`, 'error');
           return prevItems;
         }
-        
         playActionSound();
         // Increase quantity by specified amount
-        return prevItems.map(item =>
+        const updatedItems = prevItems.map(item =>
           item.uniqueId === uniqueId && item.isReturn === isReturn
             ? { 
                 ...item, 
@@ -85,6 +79,7 @@ export default function useCart(showToast, showConfirm, t = {}) {
               }
             : item
         );
+        return updatedItems;
       } else {
         // For new items, check stock only for non-returns and only if quantity > available stock
         if (!isReturn && quantity > availableStock) {
@@ -92,7 +87,6 @@ export default function useCart(showToast, showConfirm, t = {}) {
           showToast(t.cannotAddMoreStock || `Cannot add more than available stock! Available: ${availableStock}`, 'error');
           return prevItems;
         }
-        
         playActionSound();
         // Add new item with specified quantity - ensure product_id is valid
         const newItem = {
@@ -119,21 +113,11 @@ export default function useCart(showToast, showConfirm, t = {}) {
           isReturn,
           quantity: quantity,
         };
-        
-        console.log(`🛒 CART: Adding new item to cart:`, { 
-          name: newItem.name, 
-          buying_price: newItem.buying_price, 
-          selling_price: newItem.selling_price,
-          quantity: newItem.quantity,
-          currency: newItem.currency,
-          product_id: newItem.product_id,
-          itemType: newItem.itemType
-        });
-        
-        return [
+        const updatedItems = [
           ...prevItems,
           newItem,
         ];
+        return updatedItems;
       }
     });
   };

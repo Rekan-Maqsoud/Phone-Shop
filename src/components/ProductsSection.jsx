@@ -27,6 +27,7 @@ export default function ProductsSection({ t, admin, handleEditProduct, handleArc
   // Get unique brands for filter dropdown
   const availableBrands = useMemo(() => {
     const brands = [...new Set(products.filter(p => p && !p.archived && p.brand).map(p => p.brand))];
+  
     return brands.sort();
   }, [products]);
   

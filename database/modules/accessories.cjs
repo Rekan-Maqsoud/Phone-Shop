@@ -22,12 +22,30 @@ function addAccessory(db, { name, buying_price, stock, archived = 0, brand, mode
       newBuyingPrice;
     
     // Update existing accessory with new stock and average buying price
-    return db.prepare('UPDATE accessories SET buying_price=?, stock=stock+?, type=?, currency=? WHERE id=?')
+    const result = db.prepare('UPDATE accessories SET buying_price=?, stock=stock+?, type=?, currency=? WHERE id=?')
       .run(averageBuyingPrice, newStock, type || existingAccessory.type, currency, existingAccessory.id);
+    
+    // Verify the accessory has a valid ID after update
+    const updatedAccessory = db.prepare('SELECT id FROM accessories WHERE id = ?').get(existingAccessory.id);
+    if (!updatedAccessory || !updatedAccessory.id) {
+      console.error('⚠️ Accessory update resulted in NULL ID, attempting repair...');
+      repairNullIds(db);
+    }
+    
+    return result;
   } else {
     // Create new accessory
-    return db.prepare('INSERT INTO accessories (name, buying_price, stock, archived, brand, model, type, currency) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+    const result = db.prepare('INSERT INTO accessories (name, buying_price, stock, archived, brand, model, type, currency) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
       .run(name, buying_price, stock, archived, brand || null, model || null, type || null, currency);
+    
+    // Verify the new accessory has a valid ID
+    const newAccessory = db.prepare('SELECT id FROM accessories WHERE rowid = ?').get(result.lastInsertRowid);
+    if (!newAccessory || !newAccessory.id) {
+      console.error('⚠️ Accessory insertion resulted in NULL ID, attempting repair...');
+      repairNullIds(db);
+    }
+    
+    return result;
   }
 }
 
@@ -69,6 +87,24 @@ function searchAccessories(db, searchTerm) {
       type LIKE ?
     )
   `).all(term, term, term, term);
+}
+
+// Simple repair function to fix NULL IDs
+function repairNullIds(db) {
+  try {
+    const nullAccessories = db.prepare('SELECT rowid, * FROM accessories WHERE id IS NULL').all();
+    if (nullAccessories.length > 0) {
+      console.error(`🔧 Repairing ${nullAccessories.length} accessories with NULL IDs...`);
+      
+      for (const accessory of nullAccessories) {
+        // Use rowid as the new ID
+        db.prepare('UPDATE accessories SET id = ? WHERE rowid = ?').run(accessory.rowid, accessory.rowid);
+      }
+    }
+  } catch (error) {
+    console.error('Error repairing NULL IDs:', error);
+    return 0;
+  }
 }
 
 module.exports = {

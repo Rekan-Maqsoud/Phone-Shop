@@ -158,6 +158,7 @@ const AccessoriesSection = ({
                   <th className="px-6 py-4 text-left font-bold">{t.currency || 'Currency'}</th>
                   <th className="px-6 py-4 text-left font-bold">{t.buyingPrice || 'Cost'}</th>
                   <th className="px-6 py-4 text-left font-bold">{t.stock}</th>
+                  <th className="px-6 py-4 text-left font-bold">{t.inventoryValue || 'Inventory Value'}</th>
                   <th className="px-6 py-4 text-center font-bold">{t.actions}</th>
                 </tr>
               </thead>
@@ -186,6 +187,9 @@ const AccessoriesSection = ({
                       }`}>
                         {accessory.stock}
                       </span>
+                    </td>
+                    <td className="px-6 py-4 font-semibold text-green-600 dark:text-green-400">
+                      {(accessory.currency === 'USD' ? '$' : 'د.ع')}{((Number(accessory.buying_price || 0)) * (Number(accessory.stock || 0))).toFixed(2)}
                     </td>
                     <td className="px-6 py-4 text-center">
                       <div className="flex gap-2 justify-center">

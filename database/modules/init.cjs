@@ -51,6 +51,7 @@ CREATE TABLE IF NOT EXISTS sale_items (
   product_currency TEXT DEFAULT 'IQD',
   profit_in_sale_currency INTEGER DEFAULT 0,
   buying_price_in_sale_currency INTEGER DEFAULT 0,
+  original_selling_price INTEGER DEFAULT 0,
   FOREIGN KEY(sale_id) REFERENCES sales(id),
   FOREIGN KEY(product_id) REFERENCES products(id)
 );
@@ -275,7 +276,61 @@ function runMigrations(db) {
     // Add payment tracking columns to customer_debts
     () => db.exec('ALTER TABLE customer_debts ADD COLUMN payment_usd_amount REAL DEFAULT 0'),
     () => db.exec('ALTER TABLE customer_debts ADD COLUMN payment_iqd_amount REAL DEFAULT 0'),
-    () => db.exec('ALTER TABLE customer_debts ADD COLUMN payment_currency_used TEXT DEFAULT NULL')
+    () => db.exec('ALTER TABLE customer_debts ADD COLUMN payment_currency_used TEXT DEFAULT NULL'),
+    
+    // Add per-item discount support
+    () => db.exec('ALTER TABLE sale_items ADD COLUMN discount_percent REAL DEFAULT 0'),
+    
+    // Add original selling price support for proper discount display
+    () => db.exec('ALTER TABLE sale_items ADD COLUMN original_selling_price INTEGER DEFAULT 0'),
+    
+    // Fix price precision - SQLite doesn't support ALTER COLUMN type, so we need to recreate tables
+    // First, let's add new REAL columns for prices
+    () => db.exec('ALTER TABLE sale_items ADD COLUMN price_real REAL DEFAULT 0'),
+    () => db.exec('ALTER TABLE sale_items ADD COLUMN buying_price_real REAL DEFAULT 0'),
+    () => db.exec('ALTER TABLE sale_items ADD COLUMN profit_real REAL DEFAULT 0'),
+    () => db.exec('ALTER TABLE sale_items ADD COLUMN profit_in_sale_currency_real REAL DEFAULT 0'),
+    () => db.exec('ALTER TABLE sale_items ADD COLUMN buying_price_in_sale_currency_real REAL DEFAULT 0'),
+    () => db.exec('ALTER TABLE sale_items ADD COLUMN original_selling_price_real REAL DEFAULT 0'),
+    
+    // Copy data from INTEGER columns to REAL columns
+    () => db.exec('UPDATE sale_items SET price_real = price'),
+    () => db.exec('UPDATE sale_items SET buying_price_real = buying_price'),
+    () => db.exec('UPDATE sale_items SET profit_real = profit'),
+    () => db.exec('UPDATE sale_items SET profit_in_sale_currency_real = profit_in_sale_currency'),
+    () => db.exec('UPDATE sale_items SET buying_price_in_sale_currency_real = buying_price_in_sale_currency'),
+    () => db.exec('UPDATE sale_items SET original_selling_price_real = original_selling_price'),
+    
+    // Add brand column to products table
+    () => db.exec('ALTER TABLE products ADD COLUMN brand TEXT DEFAULT NULL'),
+    
+    // Update existing products with missing brand values based on their names
+    () => {
+      const phoneUpdates = [
+        { pattern: 'iPhone', brand: 'Apple' },
+        { pattern: 'Samsung', brand: 'Samsung' },
+        { pattern: 'Galaxy', brand: 'Samsung' },
+        { pattern: 'Huawei', brand: 'Huawei' },
+        { pattern: 'Xiaomi', brand: 'Xiaomi' },
+        { pattern: 'OnePlus', brand: 'OnePlus' },
+        { pattern: 'Google Pixel', brand: 'Google' },
+        { pattern: 'Nokia', brand: 'Nokia' },
+        { pattern: 'Sony', brand: 'Sony' },
+        { pattern: 'LG', brand: 'LG' },
+        { pattern: 'Oppo', brand: 'Oppo' },
+        { pattern: 'Vivo', brand: 'Vivo' },
+        { pattern: 'Realme', brand: 'Realme' },
+        { pattern: 'Honor', brand: 'Honor' }
+      ];
+      
+      phoneUpdates.forEach(update => {
+        try {
+          db.prepare(`UPDATE products SET brand = ? WHERE name LIKE '%${update.pattern}%' AND (brand IS NULL OR brand = '')`).run(update.brand);
+        } catch (e) {
+          // Column doesn't exist yet, ignore
+        }
+      });
+    }
   ];
 
   migrations.forEach(migration => {
@@ -298,6 +353,13 @@ function runMigrations(db) {
     db.prepare('INSERT INTO balances (id, usd_balance, iqd_balance) VALUES (1, 0, 0)').run();
   }
 
+  // Initialize default exchange rates if not exists
+  const exchangeRateUSD = db.prepare('SELECT value FROM settings WHERE key = ?').get('exchange_USD_IQD');
+  if (!exchangeRateUSD) {
+    db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run('exchange_USD_IQD', '1440');
+    db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run('exchange_IQD_USD', (1/1440).toString());
+  }
+
   // Initialize sample data if tables are empty
   initializeSampleData(db);
 }
@@ -306,13 +368,13 @@ function initializeSampleData(db) {
   const productCount = db.prepare('SELECT COUNT(*) as count FROM products').get().count;
   if (productCount === 0) {
     const sampleProducts = [
-      { name: 'iPhone 15 Pro', buying_price: 1100, stock: 5, ram: '8GB', storage: '256GB', model: 'A17 Pro', category: 'phones' },
-      { name: 'Samsung Galaxy S24', buying_price: 699, stock: 8, ram: '8GB', storage: '128GB', model: 'Snapdragon 8 Gen 3', category: 'phones' },
+      { name: 'iPhone 15 Pro', buying_price: 1100, stock: 5, ram: '8GB', storage: '256GB', model: 'iPhone 15 Pro', brand: 'Apple', category: 'phones' },
+      { name: 'Samsung Galaxy S24', buying_price: 699, stock: 8, ram: '8GB', storage: '128GB', model: 'Galaxy S24', brand: 'Samsung', category: 'phones' },
     ];
     
     const insertProduct = db.prepare(`
-      INSERT INTO products (name, buying_price, stock, ram, storage, model, category) 
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO products (name, buying_price, stock, ram, storage, model, brand, category) 
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
     
     sampleProducts.forEach(product => {
@@ -323,6 +385,7 @@ function initializeSampleData(db) {
         product.ram,
         product.storage,
         product.model,
+        product.brand,
         product.category
       );
     });
@@ -331,44 +394,42 @@ function initializeSampleData(db) {
 
 function resetAllData(db) {
   try {
-    console.log('Starting reset all data...');
-    
     // Disable foreign key constraints temporarily
     db.prepare('PRAGMA foreign_keys = OFF').run();
     
     // Delete data in the correct order to avoid foreign key issues
-    try { db.prepare('DELETE FROM sale_items').run(); } catch (e) { console.log('No sale_items table:', e.message); }
-    try { db.prepare('DELETE FROM debts').run(); } catch (e) { console.log('No debts table:', e.message); }
-    try { db.prepare('DELETE FROM customer_debts').run(); } catch (e) { console.log('No customer_debts table:', e.message); }
-    try { db.prepare('DELETE FROM company_debts').run(); } catch (e) { console.log('No company_debts table:', e.message); }
-    try { db.prepare('DELETE FROM company_debt_items').run(); } catch (e) { console.log('No company_debt_items table:', e.message); }
-    try { db.prepare('DELETE FROM buying_history').run(); } catch (e) { console.log('No buying_history table:', e.message); }
-    try { db.prepare('DELETE FROM personal_loans').run(); } catch (e) { console.log('No personal_loans table:', e.message); }
-    try { db.prepare('DELETE FROM transactions').run(); } catch (e) { console.log('No transactions table:', e.message); }
-    try { db.prepare('DELETE FROM sales').run(); } catch (e) { console.log('No sales table:', e.message); }
-    try { db.prepare('DELETE FROM products').run(); } catch (e) { console.log('No products table:', e.message); }
-    try { db.prepare('DELETE FROM accessories').run(); } catch (e) { console.log('No accessories table:', e.message); }
-    try { db.prepare('DELETE FROM monthly_reports').run(); } catch (e) { console.log('No monthly_reports table:', e.message); }
+    try { db.prepare('DELETE FROM sale_items').run(); } catch (e) { }
+    try { db.prepare('DELETE FROM debts').run(); } catch (e) { }
+    try { db.prepare('DELETE FROM customer_debts').run(); } catch (e) { }
+    try { db.prepare('DELETE FROM company_debts').run(); } catch (e) { }
+    try { db.prepare('DELETE FROM company_debt_items').run(); } catch (e) { }
+    try { db.prepare('DELETE FROM buying_history').run(); } catch (e) { }
+    try { db.prepare('DELETE FROM personal_loans').run(); } catch (e) { }
+    try { db.prepare('DELETE FROM transactions').run(); } catch (e) { }
+    try { db.prepare('DELETE FROM sales').run(); } catch (e) { }
+    try { db.prepare('DELETE FROM products').run(); } catch (e) { }
+    try { db.prepare('DELETE FROM accessories').run(); } catch (e) { }
+    try { db.prepare('DELETE FROM monthly_reports').run(); } catch (e) { }
     
     // Reset auto-increment sequences for all relevant tables
     try {
       db.prepare('DELETE FROM sqlite_sequence WHERE name IN ("products", "sales", "sale_items", "debts", "customer_debts", "company_debts", "company_debt_items", "buying_history", "personal_loans", "transactions", "accessories", "monthly_reports")').run();
-    } catch (e) {
-      console.log('Error resetting sequences:', e.message);
-    }
+    } catch (e) { }
+    
+    // Repair any NULL IDs that might exist
+    try {
+      repairNullIds(db);
+    } catch (e) { }
     
     // Reset balance to default values
     try {
       db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('balanceUSD', '0');
       db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('balanceIQD', '0');
-    } catch (e) {
-      console.log('Error resetting balance:', e.message);
-    }
+    } catch (e) { }
     
     // Re-enable foreign key constraints
     db.prepare('PRAGMA foreign_keys = ON').run();
     
-    console.log('Reset all data completed successfully');
     return { success: true, message: 'All data reset successfully.' };
   } catch (error) {
     console.error('Reset error:', error);
@@ -376,8 +437,76 @@ function resetAllData(db) {
   }
 }
 
+function repairNullIds(db) {
+  // Check products table
+  const nullProducts = db.prepare('SELECT rowid, * FROM products WHERE id IS NULL').all();
+  if (nullProducts.length > 0) {
+    // Create a backup
+    const productBackups = db.prepare('SELECT * FROM products WHERE id IS NULL').all();
+    
+    // Delete NULL ID products
+    db.prepare('DELETE FROM products WHERE id IS NULL').run();
+    
+    // Re-insert with proper auto-increment IDs
+    const insertStmt = db.prepare(`
+      INSERT INTO products (name, buying_price, stock, archived, ram, storage, model, category, currency) 
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    
+    for (const product of productBackups) {
+      insertStmt.run(
+        product.name || 'Unknown Product',
+        product.buying_price || 0,
+        product.stock || 0,
+        product.archived || 0,
+        product.ram || '',
+        product.storage || '',
+        product.model || '',
+        product.category || 'phones',
+        product.currency || 'IQD'
+      );
+    }
+  }
+  
+  // Check accessories table
+  const nullAccessories = db.prepare('SELECT rowid, * FROM accessories WHERE id IS NULL').all();
+  if (nullAccessories.length > 0) {
+    // Create a backup
+    const accessoryBackups = db.prepare('SELECT * FROM accessories WHERE id IS NULL').all();
+    
+    // Delete NULL ID accessories
+    db.prepare('DELETE FROM accessories WHERE id IS NULL').run();
+    
+    // Re-insert with proper auto-increment IDs
+    const insertStmt = db.prepare(`
+      INSERT INTO accessories (name, buying_price, stock, archived, type, color, brand, currency) 
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    
+    for (const accessory of accessoryBackups) {
+      insertStmt.run(
+        accessory.name || 'Unknown Accessory',
+        accessory.buying_price || 0,
+        accessory.stock || 0,
+        accessory.archived || 0,
+        accessory.type || 'other',
+        accessory.color || '',
+        accessory.brand || '',
+        accessory.currency || 'IQD'
+      );
+    }
+  }
+  
+  return {
+    productsRepaired: nullProducts.length,
+    accessoriesRepaired: nullAccessories.length,
+    success: true
+  };
+}
+
 module.exports = {
   initializeDatabase,
   runMigrations,
-  resetAllData
+  resetAllData,
+  repairNullIds
 };

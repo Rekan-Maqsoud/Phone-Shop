@@ -41,12 +41,13 @@ const ProductTable = React.memo(function ProductTable({
             <th className="px-4 py-2 text-white">{t.currency}</th>
             <th className="px-4 py-2 text-white">{t.price}</th>
             <th className="px-4 py-2 text-white">{t.stock}</th>
+            <th className="px-4 py-2 text-white">{t.inventoryValue || 'Inventory Value'}</th>
             <th className="px-4 py-2 text-white">{t.action}</th>
           </tr>
         </thead>
         <tbody>
           {filtered.length === 0 ? (
-            <tr><td colSpan={8} className="text-center text-gray-400 py-4">{isArchived ? t.noArchivedProducts : t.noProducts}</td></tr>
+            <tr><td colSpan={9} className="text-center text-gray-400 py-4">{isArchived ? t.noArchivedProducts : t.noProducts}</td></tr>
           ) : filtered.map((p, idx) => (
             <tr key={p.id} className={`border-b last:border-b-0 dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-gray-700 transition group`}>
               <td className="px-4 py-2">{idx + 1}</td>
@@ -65,6 +66,9 @@ const ProductTable = React.memo(function ProductTable({
               </td>
               <td className="px-4 py-2">{(p.currency === 'USD' ? '$' : 'د.ع')}{Number(p.buying_price || 0).toFixed(2)}</td>
               <td className={`px-4 py-2 ${!isArchived && p.stock < lowStockThreshold ? 'text-red-600 font-bold' : ''}`}>{p.stock}</td>
+              <td className="px-4 py-2 font-semibold text-green-600 dark:text-green-400">
+                {(p.currency === 'USD' ? '$' : 'د.ع')}{((Number(p.buying_price || 0)) * (Number(p.stock || 0))).toFixed(2)}
+              </td>
               <td className="px-4 py-2 flex gap-2">
                 {!isArchived ? (
                   <>

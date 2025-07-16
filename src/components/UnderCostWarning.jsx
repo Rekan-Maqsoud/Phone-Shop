@@ -7,135 +7,71 @@ export default function UnderCostWarning({ items, allItems, t, onDismiss, discou
   const [belowCostItems, setBelowCostItems] = useState([]);
 
   useEffect(() => {
-    if (!items || !allItems) return;
+    if (!items || !Array.isArray(items) || !allItems || !Array.isArray(allItems)) {
+      return;
+    }
 
-    const underCostItems = items.filter(item => {
-      const product = allItems.find(p => p.uniqueId === item.uniqueId || p.id === item.product_id);
-      if (!product) return false;
+    const underCostItems = [];
+
+    items.forEach(item => {
+      const product = allItems.find(p => 
+        p.uniqueId === item.uniqueId || 
+        p.id === item.product_id || 
+        p.id === item.id
+      );
       
-      // Skip accessories - they use buying price as selling price by design
-      if (product.itemType === 'accessory' || product.category === 'accessories' || item.itemType === 'accessory') {
-        return false;
+      if (!product) {
+        return;
       }
       
-      const buyingPrice = product.buying_price;
-      let finalSellingPrice = item.selling_price;
+      // Skip accessories - they use buying price as selling price by design
+      if (product.itemType === 'accessory' || 
+          product.category === 'accessories' || 
+          item.itemType === 'accessory' ||
+          product.type === 'accessory') {
+        return;
+      }
       
-      // Apply discount to selling price if discount exists (either from state or parameter)
+      const buyingPrice = Number(product.buying_price) || 0;
+      let finalSellingPrice = Number(item.selling_price) || Number(item.price) || 0;
+      
+      // Apply per-item discount first if it exists
+      if (item.discount_percent && item.discount_percent > 0) {
+        finalSellingPrice = finalSellingPrice * (1 - item.discount_percent / 100);
+      }
+      
+      // Apply global discount to selling price if discount exists
       const appliedDiscount = saleDiscount || discount;
-      if (appliedDiscount && (appliedDiscount.discount_type !== 'none' || appliedDiscount.type !== 'none') && (appliedDiscount.discount_value > 0 || appliedDiscount.value > 0)) {
+      if (appliedDiscount) {
         const discountType = appliedDiscount.discount_type || appliedDiscount.type;
-        const discountValue = appliedDiscount.discount_value || appliedDiscount.value;
+        const discountValue = Number(appliedDiscount.discount_value || appliedDiscount.value) || 0;
         
-        if (discountType === 'percentage') {
-          finalSellingPrice = item.selling_price * (1 - discountValue / 100);
-        } else {
-          // Fixed amount discount - needs to be in the same currency as the cart total
-          // Convert all items to the current display currency first
-          const cartTotalInDisplayCurrency = items.reduce((sum, cartItem) => {
-            const cartProduct = allItems.find(p => p.uniqueId === cartItem.uniqueId || p.id === cartItem.product_id);
-            const itemTotal = cartItem.selling_price * cartItem.quantity;
-            
-            // Convert item total to display currency
-            if (currency === 'IQD' && (cartProduct?.currency === 'USD' || !cartProduct?.currency)) {
-              return sum + (itemTotal * EXCHANGE_RATES.USD_TO_IQD);
-            } else if (currency === 'USD' && cartProduct?.currency === 'IQD') {
-              return sum + (itemTotal * EXCHANGE_RATES.IQD_TO_USD);
-            }
-            return sum + itemTotal;
-          }, 0);
-          
-          // Calculate this item's total in display currency
-          const thisItemTotalInDisplayCurrency = (() => {
-            const itemTotal = item.selling_price * item.quantity;
-            if (currency === 'IQD' && (product.currency === 'USD' || !product.currency)) {
-              return itemTotal * EXCHANGE_RATES.USD_TO_IQD;
-            } else if (currency === 'USD' && product.currency === 'IQD') {
-              return itemTotal * EXCHANGE_RATES.IQD_TO_USD;
-            }
-            return itemTotal;
-          })();
-          
-          // Calculate discount portion for this item
-          const itemDiscountPortion = cartTotalInDisplayCurrency > 0 ? 
-            (thisItemTotalInDisplayCurrency / cartTotalInDisplayCurrency) * discountValue : 0;
-          
-          // Convert discount back to item's original currency if needed
-          let discountInItemCurrency = itemDiscountPortion;
-          if (currency === 'IQD' && (product.currency === 'USD' || !product.currency)) {
-            discountInItemCurrency = itemDiscountPortion / EXCHANGE_RATES.USD_TO_IQD;
-          } else if (currency === 'USD' && product.currency === 'IQD') {
-            discountInItemCurrency = itemDiscountPortion * EXCHANGE_RATES.USD_TO_IQD;
+        if (discountValue > 0 && discountType) {
+          if (discountType === 'percentage') {
+            finalSellingPrice = finalSellingPrice * (1 - discountValue / 100);
+          } else if (discountType === 'fixed') {
+            // Simple fixed discount approach - divide discount equally among items
+            const itemCount = items.length;
+            const discountPerItem = discountValue / itemCount;
+            finalSellingPrice = Math.max(0, finalSellingPrice - discountPerItem);
           }
-          
-          finalSellingPrice = item.selling_price - (discountInItemCurrency / item.quantity);
         }
       }
       
-      return finalSellingPrice < buyingPrice;
+      if (finalSellingPrice < buyingPrice) {
+        underCostItems.push({
+          name: product.name,
+          sellingPrice: finalSellingPrice,
+          originalPrice: Number(item.selling_price) || Number(item.price) || 0,
+          buyingPrice: buyingPrice,
+          loss: buyingPrice - finalSellingPrice,
+          currency: product.currency || 'USD'
+        });
+      }
     });
 
     if (underCostItems.length > 0) {
-      setBelowCostItems(underCostItems.map(item => {
-        const product = allItems.find(p => p.uniqueId === item.uniqueId || p.id === item.product_id);
-        const buyingPrice = product ? product.buying_price : 0;
-        let finalSellingPrice = item.selling_price;
-        
-        // Apply discount to selling price if discount exists (either from state or parameter)
-        const appliedDiscount = saleDiscount || discount;
-        if (appliedDiscount && (appliedDiscount.discount_type !== 'none' || appliedDiscount.type !== 'none') && (appliedDiscount.discount_value > 0 || appliedDiscount.value > 0)) {
-          const discountType = appliedDiscount.discount_type || appliedDiscount.type;
-          const discountValue = appliedDiscount.discount_value || appliedDiscount.value;
-          
-          if (discountType === 'percentage') {
-            finalSellingPrice = item.selling_price * (1 - discountValue / 100);
-          } else {
-            // Fixed amount discount - use same currency logic as above
-            const cartTotalInDisplayCurrency = items.reduce((sum, cartItem) => {
-              const cartProduct = allItems.find(p => p.uniqueId === cartItem.uniqueId || p.id === cartItem.product_id);
-              const itemTotal = cartItem.selling_price * cartItem.quantity;
-              
-              if (currency === 'IQD' && (cartProduct?.currency === 'USD' || !cartProduct?.currency)) {
-                return sum + (itemTotal * EXCHANGE_RATES.USD_TO_IQD);
-              } else if (currency === 'USD' && cartProduct?.currency === 'IQD') {
-                return sum + (itemTotal * EXCHANGE_RATES.IQD_TO_USD);
-              }
-              return sum + itemTotal;
-            }, 0);
-            
-            const thisItemTotalInDisplayCurrency = (() => {
-              const itemTotal = item.selling_price * item.quantity;
-              if (currency === 'IQD' && (product?.currency === 'USD' || !product?.currency)) {
-                return itemTotal * EXCHANGE_RATES.USD_TO_IQD;
-              } else if (currency === 'USD' && product?.currency === 'IQD') {
-                return itemTotal * EXCHANGE_RATES.IQD_TO_USD;
-              }
-              return itemTotal;
-            })();
-            
-            const itemDiscountPortion = cartTotalInDisplayCurrency > 0 ? 
-              (thisItemTotalInDisplayCurrency / cartTotalInDisplayCurrency) * discountValue : 0;
-            
-            let discountInItemCurrency = itemDiscountPortion;
-            if (currency === 'IQD' && (product?.currency === 'USD' || !product?.currency)) {
-              discountInItemCurrency = itemDiscountPortion / EXCHANGE_RATES.USD_TO_IQD;
-            } else if (currency === 'USD' && product?.currency === 'IQD') {
-              discountInItemCurrency = itemDiscountPortion * EXCHANGE_RATES.USD_TO_IQD;
-            }
-            
-            finalSellingPrice = item.selling_price - (discountInItemCurrency / item.quantity);
-          }
-        }
-        
-        return {
-          name: product ? product.name : t.unknown,
-          sellingPrice: finalSellingPrice,
-          originalPrice: item.selling_price,
-          buyingPrice: buyingPrice,
-          loss: buyingPrice - finalSellingPrice,
-          currency: product?.currency || 'USD'
-        };
-      }));
+      setBelowCostItems(underCostItems);
       setVisible(true);
       if (onWarningChange) onWarningChange(true);
       playWarningSound();
@@ -144,7 +80,7 @@ export default function UnderCostWarning({ items, allItems, t, onDismiss, discou
       setBelowCostItems([]);
       if (onWarningChange) onWarningChange(false);
     }
-  }, [items, allItems, t, discount, saleDiscount, currency]);
+  }, [items, allItems, discount, saleDiscount, currency]);
 
   const handleDismiss = () => {
     setVisible(false);

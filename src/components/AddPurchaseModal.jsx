@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import ModalBase from './ModalBase';
 import { phoneBrands } from './phoneBrands';
 import SearchableSelect from './SearchableSelect';
+import { EXCHANGE_RATES, loadExchangeRatesFromDB } from '../utils/exchangeRates';
 
 export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompanyDebtMode = false }) {
   const [companyName, setCompanyName] = useState('');
@@ -54,11 +55,14 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
       item_name: '', // Will be auto-generated from brand/model
       quantity: 1,
       unit_price: '',
+      stock: '', // Add stock field
+      currency: 'IQD', // Default to IQD, user can change
       ram: '',
       storage: '',
       model: '',
       brand: '',
-      type: type === 'accessory' ? '' : undefined
+      category: 'phones', // Default category for products
+      type: type === 'accessory' ? '' : undefined // Specific accessory type
     };
     setItems([...items, newItem]);
   };
@@ -94,19 +98,38 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
     let baseTotal;
     if (purchaseType === 'simple') {
       if (multiCurrency.enabled) {
-        // Calculate total based on selected currency with multi-currency amounts
-        baseTotal = currency === 'USD' 
-          ? multiCurrency.usdAmount + (multiCurrency.iqdAmount / 1440)
-          : multiCurrency.iqdAmount + (multiCurrency.usdAmount * 1440);
+        // For multi-currency simple purchases, show combined total
+        // Convert IQD to USD and add USD amount for display consistency
+        const iqdInUsd = multiCurrency.iqdAmount / EXCHANGE_RATES.USD_TO_IQD;
+        baseTotal = multiCurrency.usdAmount + iqdInUsd;
       } else {
         baseTotal = parseFloat(simpleAmount) || 0;
       }
     } else {
-      baseTotal = items.reduce((sum, item) => {
+      // Calculate total considering individual item currencies
+      let totalUSD = 0;
+      let totalIQD = 0;
+      
+      items.forEach(item => {
         const quantity = parseInt(item.quantity) || 0;
         const unitPrice = parseFloat(item.unit_price) || 0;
-        return sum + (quantity * unitPrice);
-      }, 0);
+        const itemTotal = quantity * unitPrice;
+        
+        if (item.currency === 'USD') {
+          totalUSD += itemTotal;
+        } else {
+          totalIQD += itemTotal;
+        }
+      });
+      
+      // Display combined total converted to the selected currency
+      if (currency === 'USD') {
+        const iqdInUsd = totalIQD / EXCHANGE_RATES.USD_TO_IQD;
+        baseTotal = totalUSD + iqdInUsd;
+      } else {
+        const usdInIqd = totalUSD * EXCHANGE_RATES.USD_TO_IQD;
+        baseTotal = totalIQD + usdInIqd;
+      }
     }
 
     // Apply discount if enabled
@@ -198,35 +221,37 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
       }
 
       const invalidItems = items.filter((item, index) => {
-        // For products: require brand, model, quantity, and price
+        // For products: require brand, model, quantity, price, and stock
         if (item.item_type === 'product') {
           const validations = {
             brand: !item.brand?.trim(),
             model: !item.model?.trim(),
             quantity: !item.quantity || parseInt(item.quantity) <= 0,
-            unitPrice: !item.unit_price || parseFloat(item.unit_price) <= 0
+            unitPrice: !item.unit_price || parseFloat(item.unit_price) <= 0,
+            stock: !item.stock || parseInt(item.stock) < 0
           };
           
-          const isInvalid = validations.brand || validations.model || validations.quantity || validations.unitPrice;
+          const isInvalid = validations.brand || validations.model || validations.quantity || validations.unitPrice || validations.stock;
           return isInvalid;
         }
-        // For accessories: require brand, model, quantity, and price (type is optional)
+        // For accessories: require brand, model, quantity, price, and stock (type is optional)
         else if (item.item_type === 'accessory') {
           const validations = {
             brand: !item.brand?.trim(),
             model: !item.model?.trim(),
             quantity: !item.quantity || parseInt(item.quantity) <= 0,
-            unitPrice: !item.unit_price || parseFloat(item.unit_price) <= 0
+            unitPrice: !item.unit_price || parseFloat(item.unit_price) <= 0,
+            stock: !item.stock || parseInt(item.stock) < 0
           };
           
-          const isInvalid = validations.brand || validations.model || validations.quantity || validations.unitPrice;
+          const isInvalid = validations.brand || validations.model || validations.quantity || validations.unitPrice || validations.stock;
           return isInvalid;
         }
         return true;
       });
 
       if (invalidItems.length > 0) {
-        setError(t.pleaseFillAllRequiredFields || 'Please fill in all required fields for all items (brand, model, quantity, price)');
+        setError(t.pleaseFillAllRequiredFields || 'Please fill in all required fields for all items (brand, model, quantity, price, stock)');
         return;
       }
 
@@ -235,13 +260,16 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
         item_name: item.item_name || [item.brand, item.model].filter(Boolean).join(' '), // Ensure item_name is set
         quantity: parseInt(item.quantity),
         unit_price: parseFloat(item.unit_price),
+        stock: parseInt(item.stock) || 0,
         total_price: parseInt(item.quantity) * parseFloat(item.unit_price),
         buying_price: parseFloat(item.unit_price), // Same as unit price for buying
         ram: item.ram?.trim() || null,
         storage: item.storage?.trim() || null,
         model: item.model?.trim() || null,
         brand: item.brand?.trim() || null,
-        type: item.type?.trim() || null
+        category: item.category || 'phones', // Default to phones for products
+        type: item.type?.trim() || null, // Accessory type
+        currency: item.currency || 'IQD' // Item currency
       }));
 
       const purchaseData = {
@@ -531,8 +559,8 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
                   </div>
                   <div className="text-sm text-gray-600 dark:text-gray-300">
                     {t?.totalAmount || 'Total Amount'}: {currency === 'USD' 
-                      ? `$${(multiCurrency.usdAmount + (multiCurrency.iqdAmount / 1440)).toFixed(2)}`
-                      : `د.ع${(multiCurrency.iqdAmount + (multiCurrency.usdAmount * 1440)).toFixed(2)}`
+                      ? `$${(multiCurrency.usdAmount + (multiCurrency.iqdAmount / EXCHANGE_RATES.USD_TO_IQD)).toFixed(2)}`
+                      : `د.ع${(multiCurrency.iqdAmount + (multiCurrency.usdAmount * EXCHANGE_RATES.USD_TO_IQD)).toFixed(2)}`
                     }
                   </div>
                 </div>
@@ -661,6 +689,53 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
                     />
                   </div>
 
+                  {/* Item Currency */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                      {t?.currency || 'Currency'} *
+                    </label>
+                    <div className="flex gap-1">
+                      <button
+                        type="button"
+                        onClick={() => updateItem(item.id, 'currency', 'USD')}
+                        className={`px-3 py-2 text-sm font-medium rounded-l border transition ${
+                          item.currency === 'USD'
+                            ? 'bg-blue-600 text-white border-blue-600'
+                            : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'
+                        }`}
+                      >
+                        USD
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => updateItem(item.id, 'currency', 'IQD')}
+                        className={`px-3 py-2 text-sm font-medium rounded-r border transition ${
+                          item.currency === 'IQD'
+                            ? 'bg-blue-600 text-white border-blue-600'
+                            : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'
+                        }`}
+                      >
+                        IQD
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Stock */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                      {t?.stock || 'Stock'} *
+                    </label>
+                    <input
+                      className="w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                      placeholder="0"
+                      value={item.stock}
+                      onChange={e => updateItem(item.id, 'stock', e.target.value)}
+                      type="number"
+                      min="0"
+                      required
+                    />
+                  </div>
+
                   {/* Product-specific fields */}
                   {item.item_type === 'product' && (
                     <>
@@ -686,7 +761,21 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
                           placeholder={t?.selectStorage || 'Select or type storage...'}
                         />
                       </div>
-                      <div></div> {/* Empty div for grid spacing */}
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                          {t?.category || 'Category'}
+                        </label>
+                        <select
+                          value={item.category}
+                          onChange={(e) => updateItem(item.id, 'category', e.target.value)}
+                          className="w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                          required
+                        >
+                          <option value="phones">Phones</option>
+                          <option value="tablets">Tablets</option>
+                          <option value="accessories">Accessories</option>
+                        </select>
+                      </div>
                     </>
                   )}
 
@@ -721,12 +810,24 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
                         <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                           {t?.type || 'Type'}
                         </label>
-                        <input
-                          className="w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                          placeholder="Headphones"
+                        <select
                           value={item.type}
-                          onChange={e => updateItem(item.id, 'type', e.target.value)}
-                        />
+                          onChange={(e) => updateItem(item.id, 'type', e.target.value)}
+                          className="w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                        >
+                          <option value="">{t?.selectType || 'Select Type'}</option>
+                          <option value="headphones">{t?.headphones || 'Headphones'}</option>
+                          <option value="earbuds">{t?.earbuds || 'Earbuds'}</option>
+                          <option value="charger">{t?.charger || 'Charger'}</option>
+                          <option value="cable">{t?.cable || 'Cable'}</option>
+                          <option value="case">{t?.case || 'Case'}</option>
+                          <option value="screen-protector">{t?.screenProtector || 'Screen Protector'}</option>
+                          <option value="power-bank">{t?.powerBank || 'Power Bank'}</option>
+                          <option value="wireless-charger">{t?.wirelessCharger || 'Wireless Charger'}</option>
+                          <option value="speaker">{t?.speaker || 'Speaker'}</option>
+                          <option value="smartwatch">{t?.smartwatch || 'Smart Watch'}</option>
+                          <option value="other">{t?.other || 'Other'}</option>
+                        </select>
                       </div>
                     </>
                   )}
@@ -858,8 +959,8 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
                     </div>
                     <div className="text-sm text-gray-600 dark:text-gray-300">
                       {t.totalPaid}: {currency === 'USD' 
-                        ? `$${(multiCurrency.usdAmount + (multiCurrency.iqdAmount / 1440)).toFixed(2)}`
-                        : `د.ع${(multiCurrency.iqdAmount + (multiCurrency.usdAmount * 1440)).toFixed(2)}`
+                        ? `$${(multiCurrency.usdAmount + (multiCurrency.iqdAmount / EXCHANGE_RATES.USD_TO_IQD)).toFixed(2)}`
+                        : `د.ع${(multiCurrency.iqdAmount + (multiCurrency.usdAmount * EXCHANGE_RATES.USD_TO_IQD)).toFixed(2)}`
                       }
                     </div>
                   </div>

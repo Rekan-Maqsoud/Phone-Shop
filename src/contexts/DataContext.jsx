@@ -71,7 +71,7 @@ export const DataProvider = ({ children }) => {
       
       if (window.api?.getProducts) {
         promises.push(window.api.getProducts().then(data => {
-          console.log(' DataContext: Products loaded:', (data || []).length, 'products');
+       
           setProducts(data || []);
         }).catch(err => {
           console.error('❌ DataContext: Error fetching products:', err);
@@ -81,7 +81,7 @@ export const DataProvider = ({ children }) => {
       
       if (window.api?.getAllAccessories) {
         promises.push(window.api.getAllAccessories().then(data => {
-          console.log('📦 DataContext: Accessories loaded:', (data || []).length, 'accessories');
+       
           setAccessories(data || []);
         }).catch(err => {
           console.error('❌ DataContext: Error fetching accessories:', err);
@@ -143,7 +143,15 @@ export const DataProvider = ({ children }) => {
   // Fetch all data when API becomes ready
   useEffect(() => {
     if (apiReady) {
-      fetchAllData();
+      fetchAllData().catch(error => {
+        console.error('❌ DataContext: Failed to fetch all data:', error);
+        // Fallback to empty data to prevent app crash
+        setProducts([]);
+        setBuyingHistory([]);
+        setMonthlyReports([]);
+        setSales([]);
+        setDebts([]);
+      });
     }
   }, [apiReady]); // Only depend on apiReady to prevent infinite loops
 

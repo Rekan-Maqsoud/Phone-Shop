@@ -1,6 +1,10 @@
 // Sales management functions
 
 function getSales(db) {
+  // Check if REAL columns exist for price precision
+  const checkRealColumns = db.prepare("PRAGMA table_info(sale_items)").all();
+  const hasRealColumns = checkRealColumns.some(col => col.name === 'price_real');
+  
   const stmt = db.prepare(`
     SELECT sales.*, 
            COUNT(sale_items.id) as item_count,
@@ -14,7 +18,22 @@ function getSales(db) {
   const sales = stmt.all();
   
   // Get items for each sale with detailed info including currency conversions
-  const saleItemsStmt = db.prepare(`
+  // Use REAL columns if available for precision
+  const saleItemsQuery = hasRealColumns ? `
+    SELECT si.*, 
+      COALESCE(si.price_real, si.price) as price,
+      COALESCE(si.buying_price_real, si.buying_price) as buying_price,
+      COALESCE(si.profit_real, si.profit) as profit,
+      COALESCE(si.profit_in_sale_currency_real, si.profit_in_sale_currency) as profit_in_sale_currency,
+      COALESCE(si.buying_price_in_sale_currency_real, si.buying_price_in_sale_currency) as buying_price_in_sale_currency,
+      COALESCE(si.original_selling_price_real, si.original_selling_price) as original_selling_price,
+      p.name as product_name, p.ram, p.storage, p.model, p.category, p.currency as product_currency_from_table,
+      a.name as accessory_name, a.type as accessory_type, a.currency as accessory_currency_from_table
+    FROM sale_items si
+    LEFT JOIN products p ON si.product_id = p.id AND si.is_accessory = 0
+    LEFT JOIN accessories a ON si.product_id = a.id AND si.is_accessory = 1
+    WHERE si.sale_id = ?
+  ` : `
     SELECT si.*, 
       p.name as product_name, p.ram, p.storage, p.model, p.category, p.currency as product_currency_from_table,
       a.name as accessory_name, a.type as accessory_type, a.currency as accessory_currency_from_table
@@ -22,6 +41,16 @@ function getSales(db) {
     LEFT JOIN products p ON si.product_id = p.id AND si.is_accessory = 0
     LEFT JOIN accessories a ON si.product_id = a.id AND si.is_accessory = 1
     WHERE si.sale_id = ?
+  `;
+  
+  const saleItemsStmt = db.prepare(saleItemsQuery);
+
+  // Get discounts for each sale
+  const discountsStmt = db.prepare(`
+    SELECT discount_type, discount_value, currency
+    FROM discounts
+    WHERE transaction_type = 'sale' AND reference_id = ?
+    LIMIT 1
   `);
   
   return sales.map(sale => {
@@ -49,13 +78,24 @@ function getSales(db) {
         ...item,
         product_currency: productCurrency,
         selling_price: item.price, // Map database 'price' field to frontend 'selling_price'
+        original_selling_price: item.original_selling_price || item.price, // Use stored original or fallback to current price
         // Use the pre-calculated values from sale time if available
         profit_in_sale_currency: item.profit_in_sale_currency || item.profit,
         buying_price_in_sale_currency: item.buying_price_in_sale_currency || item.buying_price
       };
     });
+
+    // Get discount information for this sale
+    const discount = discountsStmt.get(sale.id);
     
-    // No longer include payment amounts - only track if it was multi-currency
+    // Add multi-currency payment info if present
+    let multi_currency_payment = undefined;
+    if (sale.is_multi_currency) {
+      multi_currency_payment = {
+        usd_amount: sale.paid_amount_usd || 0,
+        iqd_amount: sale.paid_amount_iqd || 0
+      };
+    }
     const multi_currency = sale.is_multi_currency ? {
       enabled: true
     } : null;
@@ -64,6 +104,15 @@ function getSales(db) {
       ...sale,
       items,
       multi_currency,
+      multi_currency_payment,
+      // Add discount information in the format expected by the frontend
+      discount: discount ? {
+        type: discount.discount_type,
+        value: discount.discount_value
+      } : null,
+      discount_type: discount?.discount_type || null,
+      discount_value: discount?.discount_value || 0,
+      discount_currency: discount?.currency || sale.currency,
       // Include exchange rates for historical reference
       exchange_rates: {
         usd_to_iqd: sale.exchange_rate_usd_to_iqd || 1440,
@@ -78,10 +127,32 @@ function getSaleById(db, id) {
 }
 
 function getSaleItems(db, saleId) {
-  return db.prepare('SELECT * FROM sale_items WHERE sale_id = ?').all(saleId);
+  // Check if REAL columns exist for price precision
+  const checkRealColumns = db.prepare("PRAGMA table_info(sale_items)").all();
+  const hasRealColumns = checkRealColumns.some(col => col.name === 'price_real');
+  
+  if (hasRealColumns) {
+    return db.prepare(`
+      SELECT *,
+             COALESCE(price_real, price) as price,
+             COALESCE(buying_price_real, buying_price) as buying_price,
+             COALESCE(profit_real, profit) as profit,
+             COALESCE(profit_in_sale_currency_real, profit_in_sale_currency) as profit_in_sale_currency,
+             COALESCE(buying_price_in_sale_currency_real, buying_price_in_sale_currency) as buying_price_in_sale_currency,
+             COALESCE(original_selling_price_real, original_selling_price) as original_selling_price
+      FROM sale_items 
+      WHERE sale_id = ?
+    `).all(saleId);
+  } else {
+    return db.prepare('SELECT * FROM sale_items WHERE sale_id = ?').all(saleId);
+  }
 }
 
 function getDebtSales(db) {
+  // Check if REAL columns exist for price precision
+  const checkRealColumns = db.prepare("PRAGMA table_info(sale_items)").all();
+  const hasRealColumns = checkRealColumns.some(col => col.name === 'price_real');
+  
   const stmt = db.prepare(`
     SELECT sales.*, 
            COUNT(sale_items.id) as item_count,
@@ -96,7 +167,22 @@ function getDebtSales(db) {
   const sales = stmt.all();
   
   // Get items for each sale with detailed info including currency conversions
-  const saleItemsStmt = db.prepare(`
+  // Use REAL columns if available for precision
+  const saleItemsQuery = hasRealColumns ? `
+    SELECT si.*, 
+      COALESCE(si.price_real, si.price) as price,
+      COALESCE(si.buying_price_real, si.buying_price) as buying_price,
+      COALESCE(si.profit_real, si.profit) as profit,
+      COALESCE(si.profit_in_sale_currency_real, si.profit_in_sale_currency) as profit_in_sale_currency,
+      COALESCE(si.buying_price_in_sale_currency_real, si.buying_price_in_sale_currency) as buying_price_in_sale_currency,
+      COALESCE(si.original_selling_price_real, si.original_selling_price) as original_selling_price,
+      p.name as product_name, p.ram, p.storage, p.model, p.category, p.currency as product_currency_from_table,
+      a.name as accessory_name, a.type as accessory_type, a.currency as accessory_currency_from_table
+    FROM sale_items si
+    LEFT JOIN products p ON si.product_id = p.id AND si.is_accessory = 0
+    LEFT JOIN accessories a ON si.product_id = a.id AND si.is_accessory = 1
+    WHERE si.sale_id = ?
+  ` : `
     SELECT si.*, 
       p.name as product_name, p.ram, p.storage, p.model, p.category, p.currency as product_currency_from_table,
       a.name as accessory_name, a.type as accessory_type, a.currency as accessory_currency_from_table
@@ -104,7 +190,9 @@ function getDebtSales(db) {
     LEFT JOIN products p ON si.product_id = p.id AND si.is_accessory = 0
     LEFT JOIN accessories a ON si.product_id = a.id AND si.is_accessory = 1
     WHERE si.sale_id = ?
-  `);
+  `;
+  
+  const saleItemsStmt = db.prepare(saleItemsQuery);
   
   return sales.map(sale => {
     const items = saleItemsStmt.all(sale.id).map(item => {
@@ -131,6 +219,7 @@ function getDebtSales(db) {
         ...item,
         product_currency: productCurrency,
         selling_price: item.price, // Map database 'price' field to frontend 'selling_price'
+        original_selling_price: item.original_selling_price || item.price, // Use stored original or fallback to current price
         // Use the pre-calculated values from sale time if available
         profit_in_sale_currency: item.profit_in_sale_currency || item.profit,
         buying_price_in_sale_currency: item.buying_price_in_sale_currency || item.buying_price
