@@ -22,11 +22,19 @@
           }
         }
       } catch (e) {}
+      
+      // Ensure proper hash routing for Electron
+      if (typeof window !== 'undefined' && !window.location.hash) {
+        // Default to cashier if no hash is present
+        window.location.hash = '#/cashier';
+      }
     </script>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
     <script src="/secret-admin-console.js"></script>
+    <script src="/production-diagnostics.js"></script>
+    <script src="/route-debugger.js"></script>
   </body>
 </html>

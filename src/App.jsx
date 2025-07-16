@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { LocaleProvider } from './contexts/LocaleContext';
 import { DataProvider } from './contexts/DataContext';
@@ -7,41 +7,112 @@ import { SoundProvider } from './contexts/SoundContext';
 import { BackupProgressProvider, BackupProgressOverlay } from './contexts/BackupProgressContext';
 import Cashier from './pages/Cashier';
 import Admin from './pages/Admin';
+import AdminTestPage from './components/AdminTestPage';
 import ToastUnified from './components/ToastUnified';
 import cloudAuthService from './services/CloudAuthService';
 
-// Add error handling for router
-const router = createBrowserRouter([
-  {
-    path: '/cashier',
-    element: <Cashier />,
-    errorElement: <div className="p-4 text-red-500">Error loading Cashier page</div>
-  },
-  {
-    path: '/admin',
-    element: <Admin />,
-    errorElement: <div className="p-4 text-red-500">Error loading Admin page</div>
-  },
-  {
-    path: '/',
-    element: <Navigate to="/cashier" replace />,
-  },
-  {
-    path: '*',
-    element: <Navigate to="/cashier" replace />,
-  },
-], {
-  future: {
-    v7_relativeSplatPath: true,
-    v7_startTransition: true,
-  },
-});
+// Error boundary wrapper for route components
+class RouteErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error(`Error in ${this.props.routeName}:`, error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+          <div className="bg-white p-8 rounded-lg shadow-lg text-center max-w-md">
+            <div className="text-red-500 text-6xl mb-4">⚠️</div>
+            <h2 className="text-2xl font-bold text-gray-800 mb-4">
+              {this.props.routeName} Loading Error
+            </h2>
+            <p className="text-gray-600 mb-6">
+              Something went wrong while loading this page. Please try again.
+            </p>
+            <div className="space-y-3">
+              <button
+                onClick={() => window.location.reload()}
+                className="w-full px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+              >
+                Reload Application
+              </button>
+              <button
+                onClick={() => this.setState({ hasError: false })}
+                className="w-full px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors"
+              >
+                Try Again
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
 
 function App() {
   const [globalToast, setGlobalToast] = useState(null);
   const [authInitialized, setAuthInitialized] = useState(false);
   const [dataInitialized, setDataInitialized] = useState(false);
   const [appReady, setAppReady] = useState(false);
+
+  // Global error handling for production
+  useEffect(() => {
+    // Log current URL for debugging
+    console.log('📍 App loaded with URL:', window.location.href);
+    console.log('📍 Hash:', window.location.hash);
+    
+    const handleGlobalError = (event) => {
+      console.error('🔥 Global Error:', event.error);
+      
+      // Show user-friendly error message
+      if (window.showGlobalToast) {
+        window.showGlobalToast(
+          'An unexpected error occurred. The application will continue running.', 
+          'error', 
+          5000
+        );
+      }
+      
+      // Prevent the error from crashing the app
+      event.preventDefault();
+    };
+
+    const handleUnhandledRejection = (event) => {
+      console.error('🔥 Unhandled Promise Rejection:', event.reason);
+      
+      // Show user-friendly error message
+      if (window.showGlobalToast) {
+        window.showGlobalToast(
+          'A background operation failed. Some features may not work correctly.', 
+          'warning', 
+          5000
+        );
+      }
+      
+      // Prevent the error from crashing the app
+      event.preventDefault();
+    };
+
+    window.addEventListener('error', handleGlobalError);
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+
+    return () => {
+      window.removeEventListener('error', handleGlobalError);
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+    };
+  }, []);
 
   // Initialize authentication state on app startup
   useEffect(() => {
@@ -64,11 +135,14 @@ function App() {
     initializeAuth();
   }, []);
 
-  // Check when data is ready from DataContext
+  // Enhanced data readiness check with better fallbacks
   useEffect(() => {
     const checkDataReady = () => {
-      // Check if window.api is available and basic data fetching capabilities exist
-      if (window.api && window.api.getProducts) {
+      // More comprehensive API check
+      if (window.api && 
+          typeof window.api.getProducts === 'function' &&
+          typeof window.api.getSales === 'function' &&
+          typeof window.api.addProduct === 'function') {
         setDataInitialized(true);
         return true;
       }
@@ -79,23 +153,28 @@ function App() {
       return;
     }
 
-    // Poll for data readiness
-    const interval = setInterval(() => {
+    // Poll for data readiness with exponential backoff
+    let attempts = 0;
+    const maxAttempts = 150; // 15 seconds max
+    
+    const checkWithBackoff = () => {
+      attempts++;
       if (checkDataReady()) {
-        clearInterval(interval);
+        return;
       }
-    }, 100);
-
-    // Timeout after 15 seconds
-    const timeout = setTimeout(() => {
-      clearInterval(interval);
-      setDataInitialized(true);
-    }, 15000);
-
-    return () => {
-      clearInterval(interval);
-      clearTimeout(timeout);
+      
+      if (attempts >= maxAttempts) {
+        console.warn('[App] API not ready after maximum attempts, proceeding anyway');
+        setDataInitialized(true);
+        return;
+      }
+      
+      // Exponential backoff: start at 100ms, max 1000ms
+      const delay = Math.min(100 * Math.pow(1.1, attempts), 1000);
+      setTimeout(checkWithBackoff, delay);
     };
+
+    checkWithBackoff();
   }, []);
 
   // Set app as ready when both auth and data are initialized
@@ -119,13 +198,31 @@ function App() {
     }
   }, [authInitialized, dataInitialized, appReady]);
 
-  // Expose global toast setter
+  // Expose global toast setter and navigation helper
   useEffect(() => {
     window.showGlobalToast = (msg, type = 'info', duration = 3000) => {
       setGlobalToast({ msg, type, duration });
     };
+    
+    // Add debug navigation helpers
+    window.debugNavigation = {
+      goToAdmin: () => {
+        console.log('🔧 Debug: Navigating to admin...');
+        window.location.hash = '#/admin';
+      },
+      goToCashier: () => {
+        console.log('🔧 Debug: Navigating to cashier...');
+        window.location.hash = '#/cashier';
+      },
+      getCurrentRoute: () => {
+        console.log('📍 Current route:', window.location.hash);
+        return window.location.hash;
+      }
+    };
+    
     return () => {
       window.showGlobalToast = undefined;
+      window.debugNavigation = undefined;
     };
   }, []);
 
@@ -162,7 +259,28 @@ function App() {
           <DataProvider>
             <BackupProgressProvider>
               <div className="min-h-screen bg-gray-100">
-                <RouterProvider router={router} />
+                <HashRouter>
+                  <Routes>
+                    <Route 
+                      path="/cashier" 
+                      element={
+                        <RouteErrorBoundary routeName="Cashier">
+                          <Cashier />
+                        </RouteErrorBoundary>
+                      } 
+                    />
+                    <Route 
+                      path="/admin" 
+                      element={
+                        <RouteErrorBoundary routeName="Admin">
+                          <Admin />
+                        </RouteErrorBoundary>
+                      } 
+                    />
+                    <Route path="/" element={<Navigate to="/cashier" replace />} />
+                    <Route path="*" element={<Navigate to="/cashier" replace />} />
+                  </Routes>
+                </HashRouter>
                 <BackupProgressOverlay />
                 {globalToast && (
                   <ToastUnified

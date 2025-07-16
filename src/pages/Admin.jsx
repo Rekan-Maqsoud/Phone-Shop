@@ -19,10 +19,11 @@ import BuyingHistorySection from '../components/BuyingHistorySection';
 import AdminModals from '../components/AdminModals';
 import ToastUnified from '../components/ToastUnified';
 import AdvancedAnalytics from '../components/AdvancedAnalytics';
+import AdminLoadingFallback from '../components/AdminLoadingFallback';
 
 export default function Admin() {
   const admin = useAdmin();
-  const { sales, debts, products, refreshAllData } = useData(); // Get data directly from DataContext
+  const { sales, debts, products, refreshAllData, loading: dataLoading, apiReady } = useData();
   const { t, lang, isRTL, notoFont, setLang } = useLocale();
   const navigate = useNavigate();
   const [section, setSection] = useState('multiCurrencyDashboard'); // Start with multi-currency dashboard
@@ -37,6 +38,161 @@ export default function Admin() {
   const [showEnhancedCompanyDebtModal, setShowEnhancedCompanyDebtModal] = useState(false);
   const [selectedCompanyDebt, setSelectedCompanyDebt] = useState(null);
   const [confirm, setConfirm] = useState({ open: false, message: '', onConfirm: null });
+  const [initializationError, setInitializationError] = useState(null);
+  const [loadingTimeout, setLoadingTimeout] = useState(false);
+
+  // Enhanced initialization with error handling
+  useEffect(() => {
+    console.log('🔧 Admin component mounting...');
+    
+    const initializeAdmin = async () => {
+      try {
+        console.log('🔧 Checking admin dependencies...');
+        
+        // Check for critical dependencies
+        if (!admin) {
+          throw new Error('Admin context not available');
+        }
+        console.log('✅ Admin context available');
+        
+        if (!t) {
+          throw new Error('Locale context not available');
+        }
+        console.log('✅ Locale context available');
+        
+        // Verify window.api is available with required methods
+        const requiredApiMethods = ['getProducts', 'getSales', 'addProduct', 'editProduct'];
+        for (const method of requiredApiMethods) {
+          if (!window.api?.[method]) {
+            throw new Error(`Required API method ${method} not available`);
+          }
+        }
+        console.log('✅ All required API methods available');
+        
+        console.log('✅ Admin: All dependencies initialized successfully');
+        
+      } catch (error) {
+        console.error('❌ Admin: Initialization error:', error);
+        setInitializationError(error.message);
+        
+        // Try to recover after a delay
+        setTimeout(() => {
+          console.log('🔄 Admin: Attempting recovery...');
+          setInitializationError(null);
+        }, 5000);
+      }
+    };
+    
+    initializeAdmin();
+  }, [admin, t]);
+
+  // Loading timeout handler
+  useEffect(() => {
+    if (dataLoading || !apiReady) {
+      const timeout = setTimeout(() => {
+        setLoadingTimeout(true);
+      }, 10000); // 10 seconds timeout
+
+      return () => {
+        clearTimeout(timeout);
+        setLoadingTimeout(false);
+      };
+    } else {
+      setLoadingTimeout(false);
+    }
+  }, [dataLoading, apiReady]);
+
+  // Show loading fallback while data is loading or API isn't ready
+  if (!apiReady || (dataLoading && !products.length)) {
+    console.log('🔧 Admin: Showing loading fallback - apiReady:', apiReady, 'dataLoading:', dataLoading, 'products length:', products.length);
+    return <AdminLoadingFallback 
+      message={!apiReady ? 'Connecting to database...' : 'Loading admin data...'}
+      timeout={loadingTimeout}
+    />;
+  }
+
+  // Show error state if initialization failed
+  if (initializationError) {
+    console.log('🔧 Admin: Showing error state:', initializationError);
+    return (
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+        <div className="bg-white p-8 rounded-lg shadow-lg text-center max-w-md">
+          <div className="text-red-500 text-6xl mb-4">⚠️</div>
+          <h2 className="text-2xl font-bold text-gray-800 mb-4">
+            Admin Initialization Error
+          </h2>
+          <p className="text-gray-600 mb-6">
+            {initializationError}
+          </p>
+          <div className="space-y-3">
+            <button
+              onClick={() => window.location.reload()}
+              className="w-full px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+            >
+              Reload Application
+            </button>
+            <button
+              onClick={() => setInitializationError(null)}
+              className="w-full px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors"
+            >
+              Try Again
+            </button>
+            <button
+              onClick={() => navigate('/cashier')}
+              className="w-full px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition-colors"
+            >
+              Go to Cashier
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Always render the main admin interface, even if some data is missing
+  console.log('🔧 Admin: Rendering main interface');
+
+  // Wrap the main render in try-catch for extra safety
+  try {
+    return renderAdminInterface();
+  } catch (renderError) {
+    console.error('🔥 Admin: Render error:', renderError);
+    return (
+      <div className="min-h-screen bg-red-50 flex items-center justify-center">
+        <div className="bg-white p-8 rounded-lg shadow-lg text-center max-w-md">
+          <div className="text-red-500 text-6xl mb-4">💥</div>
+          <h2 className="text-2xl font-bold text-red-600 mb-4">
+            Admin Render Error
+          </h2>
+          <p className="text-gray-600 mb-6">
+            The admin interface encountered a rendering error. This might be due to data corruption or missing dependencies.
+          </p>
+          <div className="space-y-3">
+            <button
+              onClick={() => window.location.reload()}
+              className="w-full px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+            >
+              Reload Application
+            </button>
+            <button
+              onClick={() => navigate('/cashier')}
+              className="w-full px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition-colors"
+            >
+              Go to Cashier
+            </button>
+          </div>
+          <details className="mt-4 text-left">
+            <summary className="cursor-pointer text-sm text-gray-500">Error Details</summary>
+            <pre className="mt-2 text-xs text-gray-600 bg-gray-100 p-2 rounded overflow-auto">
+              {renderError.toString()}
+            </pre>
+          </details>
+        </div>
+      </div>
+    );
+  }
+
+  function renderAdminInterface() {
 
   // Helper function for showing confirm modals - use memoized callback
   const showConfirm = useCallback((message, onConfirm) => {
@@ -529,4 +685,5 @@ export default function Admin() {
       )}
     </div>
   );
+  }
 }

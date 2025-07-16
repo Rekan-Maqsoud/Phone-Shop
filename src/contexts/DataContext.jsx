@@ -23,10 +23,16 @@ export const DataProvider = ({ children }) => {
   const [loading, setLoading] = useState(false);
   const [apiReady, setApiReady] = useState(false);
 
-  // Check for API availability
+  // Enhanced API readiness check for production
   useEffect(() => {
     const checkApiReady = () => {
-      if (window.api && window.api.getProducts) {
+      // More comprehensive check for production environments
+      if (window.api && 
+          typeof window.api.getProducts === 'function' &&
+          typeof window.api.getSales === 'function' &&
+          typeof window.api.addProduct === 'function' &&
+          typeof window.api.editProduct === 'function') {
+        console.log('✅ DataContext: API is ready');
         setApiReady(true);
         return true;
       }
@@ -37,123 +43,131 @@ export const DataProvider = ({ children }) => {
       return;
     }
     
-    // Poll for API availability in production
-    const interval = setInterval(() => {
+    // Enhanced polling with better error handling for production
+    let attempts = 0;
+    const maxAttempts = 200; // 20 seconds max for slower systems
+    
+    const pollApiReady = () => {
+      attempts++;
+      
       if (checkApiReady()) {
-        clearInterval(interval);
+        return;
       }
-    }, 100);
-    
-    // Timeout after 10 seconds
-    const timeout = setTimeout(() => {
-      clearInterval(interval);
-      console.error('❌ DataContext: API not available after 10 seconds');
-      setApiReady(true); // Set to true anyway to prevent infinite loading
-    }, 10000);
-    
-    return () => {
-      clearInterval(interval);
-      clearTimeout(timeout);
+      
+      if (attempts >= maxAttempts) {
+        console.error('❌ DataContext: API not available after maximum attempts');
+        console.log('Available window.api methods:', window.api ? Object.keys(window.api) : 'window.api is undefined');
+        setApiReady(true); // Set to true anyway to prevent infinite loading
+        return;
+      }
+      
+      // Log progress every 50 attempts (5 seconds)
+      if (attempts % 50 === 0) {
+        console.log(`⏳ DataContext: Still waiting for API... (attempt ${attempts}/${maxAttempts})`);
+      }
+      
+      setTimeout(pollApiReady, 100);
     };
+    
+    pollApiReady();
   }, []);
 
-  // Centralized fetch all data function
+  // Enhanced data fetching with better error recovery
   const fetchAllData = useCallback(async () => {
     if (!apiReady) {
+      console.log('📊 DataContext: API not ready yet, skipping data fetch');
       return;
     }
+    
+    console.log('📊 DataContext: Starting data fetch...');
     setLoading(true);
 
-    
     try {
-      // Call fetch functions directly to avoid dependency issues
       const promises = [];
       
-      if (window.api?.getProducts) {
-        promises.push(window.api.getProducts().then(data => {
-       
-          setProducts(data || []);
-        }).catch(err => {
-          console.error('❌ DataContext: Error fetching products:', err);
-          setProducts([]);
-        }));
-      }
+      // Enhanced error handling for each data type
+      const createDataFetch = (apiMethod, setter, dataType) => {
+        if (window.api?.[apiMethod]) {
+          return window.api[apiMethod]()
+            .then(data => {
+              console.log(`✅ DataContext: Fetched ${dataType}:`, Array.isArray(data) ? `${data.length} items` : 'data');
+              setter(data || []);
+            })
+            .catch(err => {
+              console.error(`❌ DataContext: Error fetching ${dataType}:`, err);
+              setter([]);
+              // Don't throw - let other fetches continue
+            });
+        } else {
+          console.warn(`⚠️ DataContext: ${apiMethod} not available`);
+          setter([]);
+          return Promise.resolve();
+        }
+      };
       
-      if (window.api?.getAllAccessories) {
-        promises.push(window.api.getAllAccessories().then(data => {
-       
-          setAccessories(data || []);
-        }).catch(err => {
-          console.error('❌ DataContext: Error fetching accessories:', err);
-          setAccessories([]);
-        }));
-      }
-      
-      if (window.api?.getSales) {
-        promises.push(window.api.getSales().then(data => setSales(data || [])).catch(err => {
-          console.error('❌ DataContext: Error fetching sales:', err);
-          setSales([]);
-        }));
-      }
-      
-      if (window.api?.getDebts) {
-        promises.push(window.api.getDebts().then(data => setDebts(data || [])).catch(err => {
-          console.error('❌ DataContext: Error fetching debts:', err);
-          setDebts([]);
-        }));
-      }
-      
-      if (window.api?.getDebtSales) {
-        promises.push(window.api.getDebtSales().then(data => setDebtSales(data || [])).catch(err => {
-          console.error('❌ DataContext: Error fetching debt sales:', err);
-          setDebtSales([]);
-        }));
-      }
-      
-      if (window.api?.getCompanyDebts) {
-        promises.push(window.api.getCompanyDebts().then(data => setCompanyDebts(data || [])).catch(err => {
-          console.error('❌ DataContext: Error fetching company debts:', err);
-          setCompanyDebts([]);
-        }));
-      }
-      
-      if (window.api?.getBuyingHistoryWithItems) {
-        promises.push(window.api.getBuyingHistoryWithItems().then(data => setBuyingHistory(data || [])).catch(err => {
-          console.error('❌ DataContext: Error fetching buying history:', err);
-          setBuyingHistory([]);
-        }));
-      }
-      
-      if (window.api?.getMonthlyReports) {
-        promises.push(window.api.getMonthlyReports().then(data => setMonthlyReports(data || [])).catch(err => {
-          console.error('❌ DataContext: Error fetching monthly reports:', err);
-          setMonthlyReports([]);
-        }));
-      }
-      
-      await Promise.all(promises);
+      promises.push(createDataFetch('getProducts', setProducts, 'products'));
+      promises.push(createDataFetch('getAllAccessories', setAccessories, 'accessories'));
+      promises.push(createDataFetch('getSales', setSales, 'sales'));
+      promises.push(createDataFetch('getDebts', setDebts, 'debts'));
+      promises.push(createDataFetch('getDebtSales', setDebtSales, 'debt sales'));
+      promises.push(createDataFetch('getCompanyDebts', setCompanyDebts, 'company debts'));
+      promises.push(createDataFetch('getBuyingHistoryWithItems', setBuyingHistory, 'buying history'));
+      promises.push(createDataFetch('getMonthlyReports', setMonthlyReports, 'monthly reports'));
+
+      await Promise.allSettled(promises); // Use allSettled to ensure all complete even if some fail
+      console.log('✅ DataContext: Data fetch completed');
 
     } catch (error) {
-      console.error('❌ DataContext: Error fetching all data:', error);
+      console.error('❌ DataContext: Critical error during data fetch:', error);
+      // Initialize with empty arrays to prevent app crash
+      setProducts([]);
+      setAccessories([]);
+      setSales([]);
+      setDebts([]);
+      setDebtSales([]);
+      setCompanyDebts([]);
+      setBuyingHistory([]);
+      setMonthlyReports([]);
     } finally {
       setLoading(false);
     }
   }, [apiReady]);
 
-  // Fetch all data when API becomes ready
+  // Enhanced data fetching trigger with retry mechanism
   useEffect(() => {
     if (apiReady) {
-      fetchAllData().catch(error => {
-        console.error('❌ DataContext: Failed to fetch all data:', error);
-        // Fallback to empty data to prevent app crash
-        setProducts([]);
-        setBuyingHistory([]);
-        setMonthlyReports([]);
-        setSales([]);
-        setDebts([]);
-      });
+      let retryCount = 0;
+      const maxRetries = 3;
+      
+      const fetchWithRetry = async () => {
+        try {
+          await fetchAllData();
+        } catch (error) {
+          console.error(`❌ DataContext: Fetch attempt ${retryCount + 1} failed:`, error);
+          retryCount++;
+          
+          if (retryCount < maxRetries) {
+            console.log(`🔄 DataContext: Retrying in ${retryCount * 2} seconds...`);
+            setTimeout(fetchWithRetry, retryCount * 2000);
+          } else {
+            console.error('❌ DataContext: Max retries reached, setting safe defaults');
+            // Set safe defaults to prevent app crash
+            setProducts([]);
+            setAccessories([]);
+            setSales([]);
+            setDebts([]);
+            setDebtSales([]);
+            setCompanyDebts([]);
+            setBuyingHistory([]);
+            setMonthlyReports([]);
+            setLoading(false);
+          }
+        }
+      };
+      
+      fetchWithRetry();
     }
-  }, [apiReady]); // Only depend on apiReady to prevent infinite loops
+  }, [apiReady, fetchAllData]);
 
   // Refresh functions for individual data types - simplified to avoid dependency loops
   const refreshProducts = useCallback(async () => {

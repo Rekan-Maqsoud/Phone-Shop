@@ -192,6 +192,8 @@ const translations = {
     failedToPayLoan: 'Failed to pay loan',
     loanAddedSuccessfully: 'Loan added successfully!',
     failedToAddLoan: 'Failed to add loan',
+    remainingAmount: 'Remaining Amount',
+    originalLoan: 'Original Loan',
     
     // Cart messages
     stockEmptyIncrement: 'Stock is empty. Do you want to increment the stock by 1?',
@@ -936,6 +938,8 @@ const translations = {
     failedToPayLoan: 'شکستی هێنا لە پارەدانەوەی قەرز',
     loanAddedSuccessfully: 'قەرز بە سەرکەوتوویی زیاد کرا!',
     failedToAddLoan: 'شکستی هێنا لە زیادکردنی قەرز',
+    remainingAmount: 'بڕەکەی ماوە',
+    originalLoan: 'قەرزی یەکەم',
     
     // Accessory modal dropdowns
     selectType: 'جۆر هەڵبژێرە',
@@ -1787,6 +1791,8 @@ const translations = {
     failedToPayLoan: 'فشل في سداد القرض',
     loanAddedSuccessfully: 'تم إضافة القرض بنجاح!',
     failedToAddLoan: 'فشل في إضافة القرض',
+    remainingAmount: 'المبلغ المتبقي',
+    originalLoan: 'القرض الأصلي',
     
     // Advanced Analytics
     advancedAnalytics: 'التحليلات المتقدمة',

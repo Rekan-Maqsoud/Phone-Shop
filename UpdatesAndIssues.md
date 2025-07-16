@@ -1,32 +1,17 @@
+issues :
 
-updates from programmer after testing 
+1- loan payment should show the full time date , time and even seconds .
 
-## FIXED ISSUES ✅
+2-marking a company debt as paid doesnt do anything , it says successful but the debt is still there and the balance is the same . and make sure it handles both currencies nicely and accurately 
 
-1- ✅ **Purchase returns fixed** - Fixed database return functions to work with actual table structure and handle both simple purchases and items with proper stock management.
+3-in add purchase modal , the products have stock and QTY which are same , and the catagory is unnecessary since we dont actually have it in the products section
 
-2- ✅ **Loan payments fixed** - Fixed parameter mismatch in IPC handler for `markPersonalLoanPaid` function. The function now properly accepts payment data object.
+4-in add purchase modal the accessories doesnt have the same input fields as the accessories section and make sure to alien it with the products so they feel similar , for example selecting selecting brand-model or brand-name in a row , and price 
 
-4- ✅ **UnderCost warning cleaned up** - Removed debug console logs that were cluttering the output while keeping functionality intact.
+5- add purchase modal fails to add a purchase or debt with items with a database error see attached image , update it to adabt with the recent changes . 
 
-5- ✅ **Customer debt returns fixed** - Fixed the blank sale refresh issue by simplifying the return flow and properly closing the modal after successful returns.
+6- discounting 5000 when payment is on IQD the undercostwarning thinks its 5000$ discount and warns me , make sure it can handle different currencies 
 
-6- ✅ **Purchase modal currency totals fixed** - Improved currency conversion logic in AddPurchaseModal to show accurate combined totals.
+7- marking customer debt with different currency as the one we set at the time of sale isnt working, and make sure its handling change exactly like the cashier page would , it needs an overall upgrade.
 
-## REMAINING ISSUES ⚠️
-
-3- **Sales history table numbers** - The sales history table and sale details still need review for correct number display. 
-
-**Note**: Issue #3 requires more specific information about which exact numbers are wrong and what they should show instead. The current implementation shows:
-- Buying Price: Total buying cost for all items (in their original currencies)
-- Selling Price: Individual item prices with discounts applied
-- Total: Final payment amount (what customer actually paid)
-- Profit: Calculated as selling minus buying price (accounting for exchange rates)
-
-Please specify which of these calculations are incorrect and what the expected values should be.
-
-**Lines in SalesHistoryTable.jsx that control display:**
-- Line 124-200: `getSaleDetails()` function calculates all displayed values
-- Line 287-297: Table row displays buying price, selling price, total, and profit
-- Line 12-66: `calculateTotals()` function for summary statistics 
-
+8- customer debts are mistakefully added to buying history as well which should never happen .

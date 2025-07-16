@@ -79,6 +79,31 @@ function createWindow() {
     
   
   win.loadURL(urlToLoad);
+  
+  // Add URL navigation handler to prevent file:// URL issues
+  win.webContents.on('will-navigate', (event, navigationUrl) => {
+    console.log('🚀 Navigation attempt to:', navigationUrl);
+    
+    // Block file:// URLs that aren't our main file
+    if (navigationUrl.startsWith('file://') && !navigationUrl.includes('index.html')) {
+      console.warn('🚫 Blocked file:// navigation to:', navigationUrl);
+      event.preventDefault();
+      
+      // Extract potential route from the URL
+      const match = navigationUrl.match(/file:\/\/\/[A-Z]:(.*)/);
+      if (match) {
+        const route = match[1];
+        console.log('🔄 Converting to hash route:', route);
+        
+        // Convert to hash route
+        if (route === '/admin') {
+          win.webContents.executeJavaScript('window.location.hash = "#/admin"');
+        } else if (route === '/cashier') {
+          win.webContents.executeJavaScript('window.location.hash = "#/cashier"');
+        }
+      }
+    }
+  });
   // Set a secure Content Security Policy
   win.webContents.session.webRequest.onHeadersReceived((details, callback) => {
     const isDev = !app.isPackaged;

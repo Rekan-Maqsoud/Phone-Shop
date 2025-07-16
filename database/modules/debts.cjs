@@ -364,13 +364,41 @@ function updateCompanyDebtItem(db, { id, item_name, quantity, unit_price, curren
 
 // Personal loans functions
 function getPersonalLoans(db) {
-  return db.prepare('SELECT * FROM personal_loans WHERE paid_at IS NULL ORDER BY created_at DESC').all();
+  return db.prepare('SELECT * FROM personal_loans ORDER BY created_at DESC').all();
 }
 
-function addPersonalLoan(db, { person_name, amount, description, currency = 'IQD' }) {
+function addPersonalLoan(db, { person_name, usd_amount = 0, iqd_amount = 0, description }) {
   const now = new Date().toISOString();
-  const result = db.prepare('INSERT INTO personal_loans (person_name, amount, description, created_at, currency) VALUES (?, ?, ?, ?, ?)')
-    .run(person_name, amount, description, now, currency);
+  
+  // Validate that at least one amount is provided
+  if ((!usd_amount || usd_amount <= 0) && (!iqd_amount || iqd_amount <= 0)) {
+    return { success: false, message: 'At least one amount (USD or IQD) must be greater than 0' };
+  }
+
+  const transaction = db.transaction(() => {
+    // Insert the loan - include the old amount field for backward compatibility
+    const totalAmount = usd_amount > 0 ? usd_amount : iqd_amount;
+    const currency = usd_amount > 0 ? 'USD' : 'IQD';
+    
+    const result = db.prepare(`
+      INSERT INTO personal_loans (person_name, amount, currency, usd_amount, iqd_amount, description, created_at) 
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(person_name, totalAmount, currency, usd_amount || 0, iqd_amount || 0, description, now);
+    
+    // Update balances - subtract the loaned amounts from current balance
+    if (usd_amount > 0) {
+      const { updateBalance } = require('./settings.cjs');
+      updateBalance(db, 'USD', -usd_amount);
+    }
+    if (iqd_amount > 0) {
+      const { updateBalance } = require('./settings.cjs');
+      updateBalance(db, 'IQD', -iqd_amount);
+    }
+
+    return result;
+  });
+
+  const result = transaction();
   
   if (result.changes > 0) {
     return { success: true, id: result.lastInsertRowid };
@@ -394,70 +422,96 @@ function payPersonalLoan(db, id) {
 function markPersonalLoanPaid(db, id, paymentData) {
   const { 
     paid_at, 
-    payment_currency_used, 
     payment_usd_amount = 0, 
     payment_iqd_amount = 0 
   } = paymentData || {};
   
   const now = paid_at || new Date().toISOString();
   
+  // Validate that at least one payment amount is provided
+  if ((!payment_usd_amount || payment_usd_amount <= 0) && (!payment_iqd_amount || payment_iqd_amount <= 0)) {
+    return { success: false, message: 'At least one payment amount must be greater than 0' };
+  }
+
   const transaction = db.transaction(() => {
     try {
       // Get loan info before updating for transaction record
-      const loanInfo = db.prepare('SELECT person_name, amount, description, currency FROM personal_loans WHERE id = ?').get(id);
+      const loanInfo = db.prepare('SELECT person_name, usd_amount, iqd_amount, description, payment_usd_amount, payment_iqd_amount FROM personal_loans WHERE id = ?').get(id);
       
+      if (!loanInfo) {
+        return { success: false, message: 'Loan not found' };
+      }
+
+      // Calculate remaining amounts owed
+      const remainingUSD = (loanInfo.usd_amount || 0) - (loanInfo.payment_usd_amount || 0);
+      const remainingIQD = (loanInfo.iqd_amount || 0) - (loanInfo.payment_iqd_amount || 0);
+
+      // Validate payment doesn't exceed remaining amounts
+      if (payment_usd_amount > remainingUSD) {
+        return { success: false, message: `USD payment of $${payment_usd_amount} exceeds remaining balance of $${remainingUSD}` };
+      }
+      if (payment_iqd_amount > remainingIQD) {
+        return { success: false, message: `IQD payment of ${payment_iqd_amount} IQD exceeds remaining balance of ${remainingIQD} IQD` };
+      }
+
+      // Calculate new payment totals
+      const newPaymentUSD = (loanInfo.payment_usd_amount || 0) + payment_usd_amount;
+      const newPaymentIQD = (loanInfo.payment_iqd_amount || 0) + payment_iqd_amount;
+
       // Update the loan record
       const updateStmt = db.prepare(`
         UPDATE personal_loans 
         SET paid_at = ?, 
             payment_usd_amount = ?, 
-            payment_iqd_amount = ?,
-            payment_currency_used = ?
+            payment_iqd_amount = ?
         WHERE id = ?
       `);
       
       const result = updateStmt.run(
         now, 
-        payment_usd_amount || 0, 
-        payment_iqd_amount || 0,
-        payment_currency_used || 'USD',
+        newPaymentUSD,
+        newPaymentIQD,
         id
       );
+
+      if (result.changes === 0) {
+        return { success: false, message: 'Failed to update loan or loan not found' };
+      }
+
+      // Add the payment amounts to the current balance
+      if (payment_usd_amount > 0) {
+        const settings = require('./settings.cjs');
+        settings.updateBalance(db, 'USD', payment_usd_amount);
+      }
+      if (payment_iqd_amount > 0) {
+        const settings = require('./settings.cjs');
+        settings.updateBalance(db, 'IQD', payment_iqd_amount);
+      }
       
       // Record transaction - track the actual payment amounts received
+      const description = `Loan payment from ${loanInfo.person_name}`;
       const addTransactionStmt = db.prepare(`
         INSERT INTO transactions (type, amount_usd, amount_iqd, description, reference_id, reference_type, created_at) 
         VALUES (?, ?, ?, ?, ?, ?, ?)
       `);
       
       addTransactionStmt.run(
-        'personal_loan_payment',
+        'loan_payment',
         payment_usd_amount || 0,
         payment_iqd_amount || 0,
-        `Personal loan payment received: ${loanInfo.person_name} - ${loanInfo.description || 'Payment'}`,
+        description,
         id,
         'personal_loan',
         now
       );
-      
-      // Add to the user's balance based on the actual payment amounts (loan being paid back)
-      // Add USD amount if any USD was received
-      if (payment_usd_amount > 0) {
-        settings.updateBalance(db, 'USD', payment_usd_amount);
-      }
-      
-      // Add IQD amount if any IQD was received
-      if (payment_iqd_amount > 0) {
-        settings.updateBalance(db, 'IQD', payment_iqd_amount);
-      }
-      
-      return { success: true, changes: result.changes };
+
+      return { success: true };
     } catch (error) {
-      console.error('Error marking personal loan as paid:', error);
-      return false;
+      console.error('Error in markPersonalLoanPaid transaction:', error);
+      return { success: false, message: error.message || 'Failed to mark loan as paid' };
     }
   });
-  
+
   return transaction();
 }
 
@@ -486,13 +540,28 @@ function getTotalDebts(db) {
     GROUP BY currency
   `).all();
   
-  const personalLoans = db.prepare(`
-    SELECT currency, SUM(amount) as total 
+  // For personal loans, calculate totals from both USD and IQD amounts
+  const personalLoansUSD = db.prepare(`
+    SELECT SUM(usd_amount) as total 
     FROM personal_loans 
-    WHERE paid_at IS NULL 
-    GROUP BY currency
-  `).all();
+    WHERE paid_at IS NULL AND usd_amount > 0
+  `).get();
   
+  const personalLoansIQD = db.prepare(`
+    SELECT SUM(iqd_amount) as total 
+    FROM personal_loans 
+    WHERE paid_at IS NULL AND iqd_amount > 0
+  `).get();
+
+  // Combine personal loans data
+  const personalLoans = [];
+  if (personalLoansUSD.total > 0) {
+    personalLoans.push({ currency: 'USD', total: personalLoansUSD.total });
+  }
+  if (personalLoansIQD.total > 0) {
+    personalLoans.push({ currency: 'IQD', total: personalLoansIQD.total });
+  }
+
   return {
     customer: customerDebts,
     company: companyDebts,

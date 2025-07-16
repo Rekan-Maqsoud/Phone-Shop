@@ -7,25 +7,48 @@ export default function useAdmin() {
   const { t } = useLocale();
   const navigate = useNavigate();
   
-  // Get data from DataContext instead of managing it locally
+  // Enhanced error handling for DataContext
+  let dataContext;
+  try {
+    dataContext = useData();
+  } catch (error) {
+    console.error('❌ useAdmin: Error accessing DataContext:', error);
+    // Return fallback object to prevent crashes
+    return {
+      products: [],
+      accessories: [],
+      sales: [],
+      debts: [],
+      loading: false,
+      setToast: () => {},
+      // Add other essential properties with safe defaults
+      showProductModal: false,
+      setShowProductModal: () => {},
+      editProduct: null,
+      setEditProduct: () => {},
+      // ... other safe defaults
+    };
+  }
+  
+  // Get data from DataContext with fallbacks
   const {
-    products, setProducts,
-    accessories, setAccessories,
-    sales, setSales,
-    debts, setDebts,
-    debtSales, setDebtSales,
-    companyDebts, setCompanyDebts,
-    buyingHistory, setBuyingHistory,
-    monthlyReports, setMonthlyReports,
-    loading: dataLoading,
-    refreshProducts,
-    refreshAccessories,
-    refreshSales,
-    refreshDebts,
-    refreshCompanyDebts,
-    refreshBuyingHistory,
-    refreshMonthlyReports
-  } = useData();
+    products = [], setProducts = () => {},
+    accessories = [], setAccessories = () => {},
+    sales = [], setSales = () => {},
+    debts = [], setDebts = () => {},
+    debtSales = [], setDebtSales = () => {},
+    companyDebts = [], setCompanyDebts = () => {},
+    buyingHistory = [], setBuyingHistory = () => {},
+    monthlyReports = [], setMonthlyReports = () => {},
+    loading: dataLoading = false,
+    refreshProducts = () => {},
+    refreshAccessories = () => {},
+    refreshSales = () => {},
+    refreshDebts = () => {},
+    refreshCompanyDebts = () => {},
+    refreshBuyingHistory = () => {},
+    refreshMonthlyReports = () => {}
+  } = dataContext;
   
   // UI state
   const [showProductModal, setShowProductModal] = useState(false);

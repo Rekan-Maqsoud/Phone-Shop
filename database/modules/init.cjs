@@ -286,6 +286,43 @@ function runMigrations(db) {
     // Table might not exist yet, ignore
   }
 
+  // Migrate personal_loans table to support multi-currency
+  try {
+    // Check if the new columns exist
+    const tableInfo = db.prepare("PRAGMA table_info(personal_loans)").all();
+    const hasUsdAmount = tableInfo.some(col => col.name === 'usd_amount');
+    const hasIqdAmount = tableInfo.some(col => col.name === 'iqd_amount');
+    const hasPaymentUsdAmount = tableInfo.some(col => col.name === 'payment_usd_amount');
+    const hasPaymentIqdAmount = tableInfo.some(col => col.name === 'payment_iqd_amount');
+
+    if (!hasUsdAmount) {
+      // Add new columns for multi-currency support
+      db.prepare('ALTER TABLE personal_loans ADD COLUMN usd_amount REAL DEFAULT 0').run();
+    }
+    if (!hasIqdAmount) {
+      db.prepare('ALTER TABLE personal_loans ADD COLUMN iqd_amount REAL DEFAULT 0').run();
+    }
+    if (!hasPaymentUsdAmount) {
+      db.prepare('ALTER TABLE personal_loans ADD COLUMN payment_usd_amount REAL DEFAULT 0').run();
+    }
+    if (!hasPaymentIqdAmount) {
+      db.prepare('ALTER TABLE personal_loans ADD COLUMN payment_iqd_amount REAL DEFAULT 0').run();
+    }
+
+    // Migrate existing data from single amount/currency to multi-currency
+    const existingLoans = db.prepare('SELECT id, amount, currency FROM personal_loans WHERE (usd_amount = 0 AND iqd_amount = 0)').all();
+    
+    for (const loan of existingLoans) {
+      if (loan.currency === 'USD') {
+        db.prepare('UPDATE personal_loans SET usd_amount = ? WHERE id = ?').run(loan.amount || 0, loan.id);
+      } else {
+        db.prepare('UPDATE personal_loans SET iqd_amount = ? WHERE id = ?').run(loan.amount || 0, loan.id);
+      }
+    }
+  } catch (e) {
+    console.warn('Personal loans migration warning:', e.message);
+  }
+
   // Initialize sample data if tables are empty
   initializeSampleData(db);
 }

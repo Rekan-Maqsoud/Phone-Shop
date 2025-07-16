@@ -131,36 +131,18 @@ function MultiCurrencyDashboard({ admin, t }) {
       return true;
     });
     
+    // Calculate USD revenue: native USD sales only
     const todaysUSDSales = todaysSales.reduce((sum, sale) => {
-      // Calculate revenue from actual selling prices (before discount)
       if (sale.currency === 'USD') {
-        if (sale.items && sale.items.length > 0) {
-          const itemsTotal = sale.items.reduce((itemSum, item) => {
-            const qty = item.quantity || 1;
-            const sellingPrice = typeof item.selling_price === 'number' ? item.selling_price : (typeof item.buying_price === 'number' ? item.buying_price : 0);
-            return itemSum + (sellingPrice * qty);
-          }, 0);
-          return sum + itemsTotal;
-        } else {
-          return sum + (sale.total || 0);
-        }
+        return sum + (sale.total || 0);
       }
       return sum;
     }, 0);
     
+    // Calculate IQD revenue: ONLY native IQD sales (no conversion from USD)
     const todaysIQDSales = todaysSales.reduce((sum, sale) => {
-      // Calculate revenue from actual selling prices (before discount) - only IQD sales
       if (sale.currency === 'IQD') {
-        if (sale.items && sale.items.length > 0) {
-          const itemsTotal = sale.items.reduce((itemSum, item) => {
-            const qty = item.quantity || 1;
-            const sellingPrice = typeof item.selling_price === 'number' ? item.selling_price : (typeof item.buying_price === 'number' ? item.buying_price : 0);
-            return itemSum + (sellingPrice * qty);
-          }, 0);
-          return sum + itemsTotal;
-        } else {
-          return sum + (sale.total || 0);
-        }
+        return sum + (sale.total || 0);
       }
       return sum;
     }, 0);
@@ -181,36 +163,18 @@ function MultiCurrencyDashboard({ admin, t }) {
       return true;
     });
     
+    // Calculate weekly USD revenue: native USD sales only
     const weekUSDSales = thisWeeksSales.reduce((sum, sale) => {
-      // Calculate revenue from actual selling prices (before discount)
       if (sale.currency === 'USD') {
-        if (sale.items && sale.items.length > 0) {
-          const itemsTotal = sale.items.reduce((itemSum, item) => {
-            const qty = item.quantity || 1;
-            const sellingPrice = typeof item.selling_price === 'number' ? item.selling_price : (typeof item.buying_price === 'number' ? item.buying_price : 0);
-            return itemSum + (sellingPrice * qty);
-          }, 0);
-          return sum + itemsTotal;
-        } else {
-          return sum + (sale.total || 0);
-        }
+        return sum + (sale.total || 0);
       }
       return sum;
     }, 0);
     
+    // Calculate weekly IQD revenue: ONLY native IQD sales (no conversion from USD)
     const weekIQDSales = thisWeeksSales.reduce((sum, sale) => {
-      // Calculate revenue from actual selling prices (before discount) - only IQD sales
       if (sale.currency === 'IQD') {
-        if (sale.items && sale.items.length > 0) {
-          const itemsTotal = sale.items.reduce((itemSum, item) => {
-            const qty = item.quantity || 1;
-            const sellingPrice = typeof item.selling_price === 'number' ? item.selling_price : (typeof item.buying_price === 'number' ? item.buying_price : 0);
-            return itemSum + (sellingPrice * qty);
-          }, 0);
-          return sum + itemsTotal;
-        } else {
-          return sum + (sale.total || 0);
-        }
+        return sum + (sale.total || 0);
       }
       return sum;
     }, 0);
@@ -275,7 +239,10 @@ function MultiCurrencyDashboard({ admin, t }) {
       return paidDate.toDateString() === today && entry.currency === 'IQD';
     }).reduce((sum, entry) => sum + (entry.amount || 0), 0);
 
+    // Net performance: USD = native USD sales - USD spending
     const netPerformanceUSD = todaysUSDSales - todaysSpendingUSD;
+    
+    // Net performance: IQD = native IQD sales - IQD spending (no conversion mixing)
     const netPerformanceIQD = todaysIQDSales - todaysSpendingIQD;
 
     // Calculate inventory values
@@ -727,36 +694,14 @@ const SalesChart = React.memo(({ sales, t }) => {
     const usdData = last7Days.map(date => {
       return (sales || [])
         .filter(sale => sale.created_at?.split('T')[0] === date && sale.currency === 'USD')
-        .reduce((sum, sale) => {
-          if (sale.items && sale.items.length > 0) {
-            const itemsTotal = sale.items.reduce((itemSum, item) => {
-              const qty = item.quantity || 1;
-              const sellingPrice = typeof item.selling_price === 'number' ? item.selling_price : (typeof item.buying_price === 'number' ? item.buying_price : 0);
-              return itemSum + (sellingPrice * qty);
-            }, 0);
-            return sum + itemsTotal;
-          } else {
-            return sum + (sale.total || 0);
-          }
-        }, 0);
+        .reduce((sum, sale) => sum + (sale.total || 0), 0);
     });
 
-    // Calculate IQD sales from actual selling prices  
+    // Calculate IQD sales (ONLY native IQD sales, no conversion)
     const iqdData = last7Days.map(date => {
       return (sales || [])
         .filter(sale => sale.created_at?.split('T')[0] === date && sale.currency === 'IQD')
-        .reduce((sum, sale) => {
-          if (sale.items && sale.items.length > 0) {
-            const itemsTotal = sale.items.reduce((itemSum, item) => {
-              const qty = item.quantity || 1;
-              const sellingPrice = typeof item.selling_price === 'number' ? item.selling_price : (typeof item.buying_price === 'number' ? item.buying_price : 0);
-              return itemSum + (sellingPrice * qty);
-            }, 0);
-            return sum + itemsTotal;
-          } else {
-            return sum + (sale.total || 0);
-          }
-        }, 0);
+        .reduce((sum, sale) => sum + (sale.total || 0), 0);
     });
 
     return {
