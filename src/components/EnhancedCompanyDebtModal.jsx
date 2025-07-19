@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import ModalBase from './ModalBase';
-import { EXCHANGE_RATES } from '../utils/exchangeRates';
+import { EXCHANGE_RATES, formatCurrency } from '../utils/exchangeRates';
 
 export default function EnhancedCompanyDebtModal({ show, onClose, debt, onMarkPaid, t }) {
   const [items, setItems] = useState([]);
@@ -8,10 +8,47 @@ export default function EnhancedCompanyDebtModal({ show, onClose, debt, onMarkPa
   const [showItems, setShowItems] = useState(true);
   const [multiCurrency, setMultiCurrency] = useState({ enabled: false, usdAmount: 0, iqdAmount: 0, deductCurrency: 'USD' });
 
+  // Calculate payment summary similar to customer debt modal
+  const paymentSummary = useMemo(() => {
+    if (!debt) return null;
+    
+    // Calculate total debt amount in USD
+    let debtAmountUSD = 0;
+    if (debt.currency === 'MULTI') {
+      debtAmountUSD = (debt.usd_amount || 0) + ((debt.iqd_amount || 0) / EXCHANGE_RATES.USD_TO_IQD);
+    } else if (debt.currency === 'USD') {
+      debtAmountUSD = debt.amount || 0;
+    } else {
+      debtAmountUSD = (debt.amount || 0) / EXCHANGE_RATES.USD_TO_IQD;
+    }
+    
+    if (multiCurrency.enabled) {
+      const totalPayingUSD = multiCurrency.usdAmount + (multiCurrency.iqdAmount / EXCHANGE_RATES.USD_TO_IQD);
+      const difference = totalPayingUSD - debtAmountUSD;
+      
+      return {
+        debtAmount: debtAmountUSD,
+        totalPaying: totalPayingUSD,
+        difference,
+        isOverpaying: difference > 0.01,
+        isUnderpaying: difference < -0.01,
+        isPerfect: Math.abs(difference) < 0.01,
+        status: difference > 0.01 ? 'overpaying' : difference < -0.01 ? 'underpaying' : 'perfect'
+      };
+    }
+    
+    return null;
+  }, [debt, multiCurrency]);
+
   useEffect(() => {
     if (show && debt && debt.has_items) {
       fetchDebtItems();
       setShowItems(true);
+    }
+    
+    // Reset form when debt changes
+    if (show && debt) {
+      setMultiCurrency({ enabled: false, usdAmount: 0, iqdAmount: 0, deductCurrency: 'USD' });
     }
   }, [show, debt]);
 
@@ -30,36 +67,41 @@ export default function EnhancedCompanyDebtModal({ show, onClose, debt, onMarkPa
   };
 
   const handleMarkPaid = async () => {
+    // Prevent overpayment
+    if (paymentSummary && paymentSummary.isOverpaying) {
+      alert(t?.cannotOverpay || 'Cannot pay more than the debt amount. Please adjust the payment amounts.');
+      return;
+    }
+    
     let paymentData = null;
     
     if (multiCurrency.enabled) {
+      // User chose custom multi-currency payment
       paymentData = {
-        usdAmount: multiCurrency.usdAmount,
-        iqdAmount: multiCurrency.iqdAmount,
-        deductCurrency: multiCurrency.deductCurrency
+        payment_usd_amount: multiCurrency.usdAmount,
+        payment_iqd_amount: multiCurrency.iqdAmount
       };
     } else {
-      // For single currency debts, determine payment split based on debt currency
+      // Single currency payment - always use a simple approach
+      // regardless of how the original debt was created
       if (debt.currency === 'MULTI') {
-        // For multi-currency debts, use the original amounts
+        // For multi-currency debts, convert to USD and pay in USD
+        const totalUSDEquivalent = (debt.usd_amount || 0) + ((debt.iqd_amount || 0) / EXCHANGE_RATES.USD_TO_IQD);
         paymentData = {
-          usdAmount: debt.usd_amount || 0,
-          iqdAmount: debt.iqd_amount || 0,
-          deductCurrency: multiCurrency.deductCurrency
+          payment_usd_amount: totalUSDEquivalent,
+          payment_iqd_amount: 0
         };
       } else if (debt.currency === 'USD') {
         // For USD debts, pay in USD
         paymentData = {
-          usdAmount: debt.amount || 0,
-          iqdAmount: 0,
-          deductCurrency: 'USD'
+          payment_usd_amount: debt.amount || 0,
+          payment_iqd_amount: 0
         };
-      } else if (debt.currency === 'IQD') {
+      } else {
         // For IQD debts, pay in IQD
         paymentData = {
-          usdAmount: 0,
-          iqdAmount: debt.amount || 0,
-          deductCurrency: 'IQD'
+          payment_usd_amount: 0,
+          payment_iqd_amount: debt.amount || 0
         };
       }
     }
@@ -367,6 +409,8 @@ export default function EnhancedCompanyDebtModal({ show, onClose, debt, onMarkPa
                       value={multiCurrency.usdAmount}
                       onChange={(e) => setMultiCurrency(prev => ({ ...prev, usdAmount: Number(e.target.value) || 0 }))}
                       placeholder="0"
+                      min="0"
+                      step="0.01"
                       className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
                     />
                   </div>
@@ -379,20 +423,67 @@ export default function EnhancedCompanyDebtModal({ show, onClose, debt, onMarkPa
                       value={multiCurrency.iqdAmount}
                       onChange={(e) => setMultiCurrency(prev => ({ ...prev, iqdAmount: Number(e.target.value) || 0 }))}
                       placeholder="0"
+                      min="0"
+                      step="0.01"
                       className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
                     />
                   </div>
-                  <div className="text-sm text-gray-600 dark:text-gray-300">
-                    {t?.totalPaid || 'Total Paid'}: {debt.currency === 'USD' 
-                      ? `$${(multiCurrency.usdAmount + (multiCurrency.iqdAmount / EXCHANGE_RATES.USD_TO_IQD)).toFixed(2)}`
-                      : debt.currency === 'IQD'
-                      ? `د.ع${(multiCurrency.iqdAmount + (multiCurrency.usdAmount * EXCHANGE_RATES.USD_TO_IQD)).toFixed(2)}`
-                      : `$${multiCurrency.usdAmount.toFixed(2)} + د.ع${multiCurrency.iqdAmount.toFixed(2)}`
-                    }
-                  </div>
-                  <div className="text-xs text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 p-2 rounded">
-                    {t?.deductionNote || `Payment amounts will be deducted from their respective currency balances. Make sure you have sufficient funds.`}
-                  </div>
+                  
+                  {/* Payment Summary */}
+                  {paymentSummary && (
+                    <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
+                      <div className="text-sm text-blue-700 dark:text-blue-300">
+                        <div className="font-medium mb-2">{t?.paymentSummary || 'Payment Summary'}:</div>
+                        
+                        <div className="space-y-2">
+                          <div className="flex justify-between">
+                            <span>{t?.debtAmount || 'Debt Amount'}:</span>
+                            <span className="font-medium">{formatCurrency(paymentSummary.debtAmount, 'USD')}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>{t?.totalPaying || 'Total Paying'}:</span>
+                            <span className="font-medium">{formatCurrency(paymentSummary.totalPaying, 'USD')}</span>
+                          </div>
+                          <hr className="border-blue-200 dark:border-blue-700" />
+                          
+                          {paymentSummary.status === 'perfect' && (
+                            <div className="text-green-600 dark:text-green-400 font-medium flex items-center">
+                              ✅ {t?.perfectPayment || 'Perfect Payment'}
+                            </div>
+                          )}
+                          
+                          {paymentSummary.status === 'underpaying' && (
+                            <div className="text-red-600 dark:text-red-400 font-medium flex items-center">
+                              ⚠️ {t?.remaining || 'Remaining'}: {formatCurrency(Math.abs(paymentSummary.difference), 'USD')}
+                              <span className="ml-2 text-xs">
+                                (≈ د.ع{(Math.abs(paymentSummary.difference) * EXCHANGE_RATES.USD_TO_IQD).toFixed(0)})
+                              </span>
+                            </div>
+                          )}
+                          
+                          {paymentSummary.status === 'overpaying' && (
+                            <div className="text-orange-600 dark:text-orange-400 font-medium flex items-center">
+                              🚫 {t?.overpayment || 'Overpayment'}: {formatCurrency(paymentSummary.difference, 'USD')}
+                              <div className="ml-2 text-xs">
+                                {t?.cannotOverpayNote || 'Cannot pay more than debt amount'}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        
+                        <div className="text-xs mt-2 pt-2 border-t border-blue-200 dark:border-blue-700">
+                          <div>• USD: ${multiCurrency.usdAmount.toFixed(2)} → {t?.deductedFromBalance || 'Deducted from USD balance'}</div>
+                          <div>• IQD: د.ع{multiCurrency.iqdAmount.toFixed(2)} → {t?.deductedFromBalance || 'Deducted from IQD balance'}</div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {!paymentSummary && (
+                    <div className="text-xs text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 p-2 rounded">
+                      {t?.deductionNote || `Payment amounts will be deducted from their respective currency balances. Make sure you have sufficient funds.`}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -400,13 +491,27 @@ export default function EnhancedCompanyDebtModal({ show, onClose, debt, onMarkPa
         )}
 
         {/* Footer */}
-        <div className="flex justify-end pt-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-6 rounded-lg">
+        <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-6 rounded-lg">
           <button
             onClick={onClose}
             className="px-6 py-2 rounded-lg bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-500 transition font-medium"
           >
             {t?.close || 'Close'}
           </button>
+          
+          {!debt.paid_at && (
+            <button
+              onClick={handleMarkPaid}
+              disabled={paymentSummary && paymentSummary.isOverpaying}
+              className={`px-6 py-2 rounded-lg font-semibold transition ${
+                paymentSummary && paymentSummary.isOverpaying
+                  ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                  : 'bg-red-600 text-white hover:bg-red-700 shadow-lg'
+              }`}
+            >
+              💰 {t?.markAsPaid || 'Mark as Paid'}
+            </button>
+          )}
         </div>
       </div>
     </ModalBase>

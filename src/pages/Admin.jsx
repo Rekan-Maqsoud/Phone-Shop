@@ -20,9 +20,18 @@ import AdminModals from '../components/AdminModals';
 import ToastUnified from '../components/ToastUnified';
 import AdvancedAnalytics from '../components/AdvancedAnalytics';
 import AdminLoadingFallback from '../components/AdminLoadingFallback';
+import ExchangeRateIndicator from '../components/ExchangeRateIndicator';
 
 export default function Admin() {
-  const admin = useAdmin();
+  const [confirm, setConfirm] = useState({ open: false, message: '', onConfirm: null });
+  
+  // showConfirm function needed by useAdmin
+  const showConfirm = useCallback((message, onConfirm) => {
+    playModalOpenSound();
+    setConfirm({ open: true, message, onConfirm });
+  }, []);
+  
+  const admin = useAdmin(showConfirm);
   const { sales, debts, products, refreshAllData, loading: dataLoading, apiReady } = useData();
   const { t, lang, isRTL, notoFont, setLang } = useLocale();
   const navigate = useNavigate();
@@ -37,28 +46,21 @@ export default function Admin() {
   const [isCompanyDebtMode, setIsCompanyDebtMode] = useState(false); // Track if modal is for company debt
   const [showEnhancedCompanyDebtModal, setShowEnhancedCompanyDebtModal] = useState(false);
   const [selectedCompanyDebt, setSelectedCompanyDebt] = useState(null);
-  const [confirm, setConfirm] = useState({ open: false, message: '', onConfirm: null });
   const [initializationError, setInitializationError] = useState(null);
   const [loadingTimeout, setLoadingTimeout] = useState(false);
 
   // Enhanced initialization with error handling
   useEffect(() => {
-    console.log('🔧 Admin component mounting...');
-    
     const initializeAdmin = async () => {
       try {
-        console.log('🔧 Checking admin dependencies...');
-        
         // Check for critical dependencies
         if (!admin) {
           throw new Error('Admin context not available');
         }
-        console.log('✅ Admin context available');
         
         if (!t) {
           throw new Error('Locale context not available');
         }
-        console.log('✅ Locale context available');
         
         // Verify window.api is available with required methods
         const requiredApiMethods = ['getProducts', 'getSales', 'addProduct', 'editProduct'];
@@ -67,9 +69,6 @@ export default function Admin() {
             throw new Error(`Required API method ${method} not available`);
           }
         }
-        console.log('✅ All required API methods available');
-        
-        console.log('✅ Admin: All dependencies initialized successfully');
         
       } catch (error) {
         console.error('❌ Admin: Initialization error:', error);
@@ -77,7 +76,6 @@ export default function Admin() {
         
         // Try to recover after a delay
         setTimeout(() => {
-          console.log('🔄 Admin: Attempting recovery...');
           setInitializationError(null);
         }, 5000);
       }
@@ -104,7 +102,6 @@ export default function Admin() {
 
   // Show loading fallback while data is loading or API isn't ready
   if (!apiReady || (dataLoading && !products.length)) {
-    console.log('🔧 Admin: Showing loading fallback - apiReady:', apiReady, 'dataLoading:', dataLoading, 'products length:', products.length);
     return <AdminLoadingFallback 
       message={!apiReady ? 'Connecting to database...' : 'Loading admin data...'}
       timeout={loadingTimeout}
@@ -113,7 +110,6 @@ export default function Admin() {
 
   // Show error state if initialization failed
   if (initializationError) {
-    console.log('🔧 Admin: Showing error state:', initializationError);
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
         <div className="bg-white p-8 rounded-lg shadow-lg text-center max-w-md">
@@ -150,8 +146,6 @@ export default function Admin() {
   }
 
   // Always render the main admin interface, even if some data is missing
-  console.log('🔧 Admin: Rendering main interface');
-
   // Wrap the main render in try-catch for extra safety
   try {
     return renderAdminInterface();
@@ -193,12 +187,6 @@ export default function Admin() {
   }
 
   function renderAdminInterface() {
-
-  // Helper function for showing confirm modals - use memoized callback
-  const showConfirm = useCallback((message, onConfirm) => {
-    playModalOpenSound();
-    setConfirm({ open: true, message, onConfirm });
-  }, []);
 
   // Ensure theme is set before first paint
   useLayoutEffect(() => {
@@ -372,7 +360,8 @@ export default function Admin() {
 
   // Unified archive/unarchive handler - optimize dependencies
   const handleArchiveToggle = useCallback(async (item, archive) => {
-    const isAccessory = item.hasOwnProperty('brand') || item.hasOwnProperty('type'); // Simple check for accessory
+    // Better product vs accessory detection
+    const isAccessory = item.itemType === 'accessory' || (!item.model && !item.ram && !item.storage);
     const itemType = isAccessory ? 'accessory' : 'product';
     const apiCall = isAccessory ? window.api?.editAccessory : window.api?.editProduct;
     
@@ -472,6 +461,11 @@ export default function Admin() {
         {/* Keyboard shortcuts hint */}
         <div className="px-4 py-3 border-b border-white/10 dark:border-gray-700/30">
           <div className="text-xs text-gray-500 dark:text-gray-400 text-center font-mono">Keyboard Shortcuts: Ctrl+1-9, Ctrl+0</div>
+        </div>
+        
+        {/* Exchange Rate Indicator */}
+        <div className="px-4 py-2 border-b border-white/10 dark:border-gray-700/30">
+          <ExchangeRateIndicator t={t} showModal={true} size="sm" className="w-full justify-center" />
         </div>
         
         <div className="flex-1 flex flex-col py-4 space-y-2 overflow-y-auto">
@@ -578,6 +572,7 @@ export default function Admin() {
                 showPaidDebts={showPaidDebts}
                 setShowPaidDebts={setShowPaidDebts}
                 showConfirm={showConfirm}
+                setConfirm={setConfirm}
                 triggerCloudBackup={triggerCloudBackupAsync}
               />
             )}

@@ -4,8 +4,6 @@ import { useLocation } from 'react-router-dom';
 export default function AdminTestPage() {
   const location = useLocation();
   
-  console.log('🧪 AdminTestPage rendered at:', location.pathname);
-  
   return (
     <div className="min-h-screen bg-green-100 flex items-center justify-center p-8">
       <div className="bg-white p-8 rounded-lg shadow-lg text-center max-w-md">

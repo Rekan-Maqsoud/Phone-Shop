@@ -473,15 +473,6 @@ module.exports = function(dbPath) {
    * 5. Store all discount information for historical view
    */
   function saveSale({ items, total, created_at, is_debt, customer_name, currency = 'IQD', discount = null, multi_currency = null }) {
-    console.log('🏪 Database: Starting saveSale with:', {
-      itemCount: items?.length,
-      total,
-      is_debt,
-      currency,
-      discount,
-      multi_currency
-    });
-    
     // Repair any null IDs before attempting to save the sale
     const repairedCount = repairProductIds();
     
@@ -499,11 +490,6 @@ module.exports = function(dbPath) {
       currentIQDToUSD = 1 / currentUSDToIQD;
       setExchangeRate('IQD', 'USD', currentIQDToUSD);
     }
-    
-    console.log('💱 Database: Exchange rates:', {
-      USD_TO_IQD: currentUSDToIQD,
-      IQD_TO_USD: currentIQDToUSD
-    });
     
     // Calculate original total from items (for reference only)
     const originalTotal = typeof total === 'number' ? total : items.reduce((sum, i) => {
@@ -538,14 +524,6 @@ module.exports = function(dbPath) {
       isMultiCurrency = 1;
       paidAmountUSD = multi_currency.usdAmount || 0;
       paidAmountIQD = multi_currency.iqdAmount || 0;
-      console.log('💳 Database: Multi-currency detected:', {
-        usdAmount: paidAmountUSD,
-        iqdAmount: paidAmountIQD,
-        netBalanceUSD: multi_currency.netBalanceUSD,
-        netBalanceIQD: multi_currency.netBalanceIQD,
-        changeGivenUSD: multi_currency.changeGivenUSD,
-        changeGivenIQD: multi_currency.changeGivenIQD
-      });
     } else {
       // Single currency payment
       if (currency === 'USD') {
@@ -555,12 +533,6 @@ module.exports = function(dbPath) {
         paidAmountUSD = 0;
         paidAmountIQD = saleTotal;
       }
-      console.log('💰 Database: Single currency payment:', {
-        currency,
-        paidAmountUSD,
-        paidAmountIQD,
-        saleTotal
-      });
     }
 
     const transaction = db.transaction(() => {
@@ -575,6 +547,7 @@ module.exports = function(dbPath) {
         
         // Validate that the item has a valid product_id and itemType
         if (!item.product_id) {
+          console.warn('⚠️ [database] Skipping item without product_id:', item.name);
           continue; // Skip invalid items
         }
         
@@ -616,40 +589,25 @@ module.exports = function(dbPath) {
       
       // Update balances for completed sales (not for debt sales)
       if (!saleIsDebt) {
-        console.log('⚖️ Database: Starting balance updates...');
-        
         // For multi-currency sales with proper change handling
         if (isMultiCurrency) {
           // Add what customer actually gave us to balances
           const receivedUSD = multi_currency.netBalanceUSD || 0;
           const receivedIQD = multi_currency.netBalanceIQD || 0;
           
-          console.log('🔄 Database: Multi-currency balance calculation:', {
-            originalPaidUSD: paidAmountUSD,
-            originalPaidIQD: paidAmountIQD,
-            receivedUSD,
-            receivedIQD,
-            changeGivenUSD: multi_currency.changeGivenUSD || 0,
-            changeGivenIQD: multi_currency.changeGivenIQD || 0
-          });
-          
           // Add what we received from customer
           if (receivedUSD > 0) {
-            console.log(`📈 Database: Adding ${receivedUSD} USD to balance (customer payment)`);
             updateBalance('USD', receivedUSD);
           }
           if (receivedIQD > 0) {
-            console.log(`📈 Database: Adding ${receivedIQD} IQD to balance (customer payment)`);
             updateBalance('IQD', receivedIQD);
           }
           
           // Subtract change given from balances
           if (multi_currency.changeGivenUSD && multi_currency.changeGivenUSD > 0) {
-            console.log(`📉 Database: Subtracting ${multi_currency.changeGivenUSD} USD for change given`);
             updateBalance('USD', -multi_currency.changeGivenUSD);
           }
           if (multi_currency.changeGivenIQD && multi_currency.changeGivenIQD > 0) {
-            console.log(`📉 Database: Subtracting ${multi_currency.changeGivenIQD} IQD for change given`);
             updateBalance('IQD', -multi_currency.changeGivenIQD);
           }
         } else {
@@ -658,17 +616,9 @@ module.exports = function(dbPath) {
             (currency === 'USD' ? multi_currency.netBalanceUSD : multi_currency.netBalanceIQD) : 
             saleTotal;
             
-          console.log('🔄 Database: Single currency balance update:', {
-            currency,
-            netAmount: netAmount || saleTotal,
-            saleTotal
-          });
-            
           if (currency === 'USD') {
-            console.log(`📈 Database: Adding ${netAmount || saleTotal} USD to balance`);
             updateBalance('USD', netAmount || saleTotal);
           } else if (currency === 'IQD') {
-            console.log(`📈 Database: Adding ${netAmount || saleTotal} IQD to balance`);
             updateBalance('IQD', netAmount || saleTotal);
           }
         }
@@ -852,6 +802,7 @@ module.exports = function(dbPath) {
 
       // Update balances for completed sales returns (subtract from balances if it wasn't a debt sale)
       if (!sale.is_debt) {
+        // Regular sale return - subtract from balances
         // Check if this was a multi-currency sale
         if (sale.is_multi_currency) {
           // For multi-currency sales, subtract the actual amounts that were paid
@@ -896,6 +847,31 @@ module.exports = function(dbPath) {
             amount_usd: usdAmount,
             amount_iqd: iqdAmount,
             description: `Sale return${sale.customer_name ? ` - ${sale.customer_name}` : ''}`,
+            reference_id: Number(saleId),
+            reference_type: 'sale'
+          });
+        }
+      } else {
+        // Debt sale return - if the debt was paid, we need to subtract the payment amounts from balances
+        // to restore the original state as if the sale never happened
+        if (sale.paid_amount_usd > 0 || sale.paid_amount_iqd > 0) {
+          const paidUSD = Number(sale.paid_amount_usd) || 0;
+          const paidIQD = Number(sale.paid_amount_iqd) || 0;
+          
+          // Subtract the amounts that were added to balances when debt was paid
+          if (paidUSD > 0) {
+            updateBalance('USD', -paidUSD);
+          }
+          if (paidIQD > 0) {
+            updateBalance('IQD', -paidIQD);
+          }
+          
+          // Add transaction record for the debt sale return
+          addTransaction({
+            type: 'debt_sale_return',
+            amount_usd: -paidUSD,
+            amount_iqd: -paidIQD,
+            description: `Debt sale return${sale.customer_name ? ` - ${sale.customer_name}` : ''} (Balance restoration)`,
             reference_id: Number(saleId),
             reference_type: 'sale'
           });
@@ -1027,6 +1003,20 @@ module.exports = function(dbPath) {
             reference_type: 'sale'
           });
         }
+      } else if (sale && sale.is_debt) {
+        // For debt sales, reduce the debt amount by the return value
+        const updateDebtStmt = db.prepare('UPDATE customer_debts SET amount = amount - ? WHERE sale_id = ?');
+        const debtUpdateResult = updateDebtStmt.run(returnValue, Number(saleId));
+        
+        // Add transaction record for debt reduction
+        addTransaction({
+          type: 'debt_return',
+          amount_usd: sale.currency === 'USD' ? -returnValue : 0,
+          amount_iqd: sale.currency === 'IQD' ? -returnValue : 0,
+          description: `Debt reduction from item return - ${item.name}${sale.customer_name ? ` - ${sale.customer_name}` : ''} (qty: ${returnQty})`,
+          reference_id: Number(saleId),
+          reference_type: 'sale'
+        });
       }
       
       // Check if sale has any items left, if not, delete it
@@ -1035,6 +1025,15 @@ module.exports = function(dbPath) {
         // Remove debt if exists before deleting sale
         db.prepare('DELETE FROM customer_debts WHERE sale_id = ?').run(Number(saleId));
         db.prepare('DELETE FROM sales WHERE id = ?').run(Number(saleId));
+      } else if (sale && sale.is_debt) {
+        // For debt sales with remaining items, check if debt amount is now zero or negative
+        const updatedDebt = db.prepare('SELECT amount FROM customer_debts WHERE sale_id = ?').get(Number(saleId));
+        if (updatedDebt && updatedDebt.amount <= 0) {
+          // Mark debt as paid if amount is zero or negative
+          const now = new Date().toISOString();
+          db.prepare('UPDATE customer_debts SET paid_at = ?, payment_currency_used = ? WHERE sale_id = ?')
+            .run(now, sale.currency, Number(saleId));
+        }
       }
       
       return { success: true, message: 'Item returned successfully' };
@@ -1052,9 +1051,31 @@ module.exports = function(dbPath) {
         throw new Error('Buying history entry not found');
       }
 
-      // Check if this is a purchase with items (newer style with reference_id)
-      if (entry.reference_id && entry.type === 'company_purchase') {
-        // Get company debt entry and its items
+      // Check if this is a purchase with items (check has_items flag first, then fallback to reference_id)
+      if (entry.has_items) {
+        // New style - items stored in buying_history_items table
+        const items = db.prepare('SELECT * FROM buying_history_items WHERE buying_history_id = ?').all(entry.id);
+        
+        for (const item of items) {
+          const qty = Number(item.quantity) || 1;
+          if (item.item_type === 'accessory') {
+            // Decrease accessory stock
+            db.prepare('UPDATE accessories SET stock = stock - ? WHERE name = ?').run(qty, item.item_name);
+          } else {
+            // Decrease product stock
+            const productUpdate = db.prepare(`
+              UPDATE products 
+              SET stock = stock - ? 
+              WHERE name = ? AND model = ? AND ram = ? AND storage = ?
+            `);
+            productUpdate.run(qty, item.item_name, item.model || '', item.ram || '', item.storage || '');
+          }
+        }
+        
+        // Delete all items from buying_history_items table
+        db.prepare('DELETE FROM buying_history_items WHERE buying_history_id = ?').run(entry.id);
+      } else if (entry.reference_id && entry.type === 'company_purchase') {
+        // Old style - items stored in company_debt_items table
         const companyDebt = db.prepare('SELECT * FROM company_debts WHERE id = ?').get(entry.reference_id);
         if (companyDebt && companyDebt.has_items) {
           const items = db.prepare('SELECT * FROM company_debt_items WHERE debt_id = ?').all(entry.reference_id);
@@ -1134,18 +1155,12 @@ module.exports = function(dbPath) {
       }
 
       // Check if this is a purchase with items
-      if (!entry.reference_id || entry.type !== 'company_purchase') {
-        throw new Error('Buying history entry has no items or is not a company purchase');
+      if (!entry.has_items) {
+        throw new Error('Buying history entry has no items');
       }
 
-      // Get the company debt
-      const companyDebt = db.prepare('SELECT * FROM company_debts WHERE id = ?').get(entry.reference_id);
-      if (!companyDebt || !companyDebt.has_items) {
-        throw new Error('Company debt has no items');
-      }
-
-      // Get the specific item
-      const item = db.prepare('SELECT * FROM company_debt_items WHERE id = ? AND debt_id = ?').get(itemId, entry.reference_id);
+      // Get the specific item from buying_history_items table
+      const item = db.prepare('SELECT * FROM buying_history_items WHERE id = ? AND buying_history_id = ?').get(itemId, entryId);
       if (!item) {
         throw new Error('Item not found in buying history');
       }
@@ -1174,15 +1189,15 @@ module.exports = function(dbPath) {
       
       if (newQuantity <= 0) {
         // Remove the item completely
-        db.prepare('DELETE FROM company_debt_items WHERE id = ?').run(itemId);
+        db.prepare('DELETE FROM buying_history_items WHERE id = ?').run(itemId);
       } else {
         // Update the item quantity and total price
         const newTotalPrice = item.unit_price * newQuantity;
-        db.prepare('UPDATE company_debt_items SET quantity = ?, total_price = ? WHERE id = ?').run(newQuantity, newTotalPrice, itemId);
+        db.prepare('UPDATE buying_history_items SET quantity = ?, total_price = ? WHERE id = ?').run(newQuantity, newTotalPrice, itemId);
       }
       
       // Recalculate buying history entry total
-      const remainingItems = db.prepare('SELECT * FROM company_debt_items WHERE debt_id = ?').all(entry.reference_id);
+      const remainingItems = db.prepare('SELECT * FROM buying_history_items WHERE buying_history_id = ?').all(entryId);
       const newTotal = remainingItems.reduce((sum, item) => sum + item.total_price, 0);
       
       // Add transaction record for the partial return

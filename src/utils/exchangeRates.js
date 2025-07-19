@@ -134,6 +134,15 @@ export const roundIQDToNearestBill = (amount) => {
   return Math.round(amount / 250) * 250;
 };
 
+/**
+ * Update exchange rate in cache and database
+ * @param {number} usdToIqd New USD to IQD rate
+ * @returns {Promise<boolean>} Success status
+ */
+export const updateExchangeRate = async (usdToIqd) => {
+  return await saveExchangeRate(usdToIqd);
+};
+
 export const validatePaymentAmount = (totalUSD, paymentIQD) => {
   const requiredIQD = totalUSD * EXCHANGE_RATES.USD_TO_IQD;
   const roundedRequiredIQD = roundIQDToNearestBill(requiredIQD);

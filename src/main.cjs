@@ -82,8 +82,6 @@ function createWindow() {
   
   // Add URL navigation handler to prevent file:// URL issues
   win.webContents.on('will-navigate', (event, navigationUrl) => {
-    console.log('🚀 Navigation attempt to:', navigationUrl);
-    
     // Block file:// URLs that aren't our main file
     if (navigationUrl.startsWith('file://') && !navigationUrl.includes('index.html')) {
       console.warn('🚫 Blocked file:// navigation to:', navigationUrl);
@@ -93,7 +91,6 @@ function createWindow() {
       const match = navigationUrl.match(/file:\/\/\/[A-Z]:(.*)/);
       if (match) {
         const route = match[1];
-        console.log('🔄 Converting to hash route:', route);
         
         // Convert to hash route
         if (route === '/admin') {
@@ -482,8 +479,15 @@ ipcMain.handle('saveSale', async (event, sale) => {
     if (db && db.saveSale) {
       // Only call db.saveSale, which now handles all stock logic atomically
       const saleId = db.saveSale(sale);
-      // Sales are high priority and should backup quickly
-      await runAutoBackupAfterSale('sale');
+      
+      // Sales are high priority and should backup quickly - but don't let backup failure block sale
+      try {
+        await runAutoBackupAfterSale('sale');
+      } catch (backupError) {
+        console.error('⚠️ [main.cjs] Auto backup failed (non-blocking):', backupError);
+        // Continue with sale success even if backup fails
+      }
+      
       return { success: true, id: saleId, lastInsertRowid: saleId };
     } else {
       console.error('❌ Database or saveSale function not available');

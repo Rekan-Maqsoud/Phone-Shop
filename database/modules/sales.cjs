@@ -166,9 +166,14 @@ function getDebtSales(db) {
       };
     });
     
-    // No longer include payment amounts - only track if it was multi-currency
+    // For debt sales, include payment information when available
     const multi_currency = sale.is_multi_currency ? {
-      enabled: true
+      enabled: true,
+      // Include actual payment amounts if the debt was paid
+      ...(sale.paid_amount_usd > 0 || sale.paid_amount_iqd > 0 ? {
+        usdAmount: sale.paid_amount_usd || 0,
+        iqdAmount: sale.paid_amount_iqd || 0
+      } : {})
     } : null;
     
     return {

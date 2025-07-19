@@ -32,7 +32,6 @@ export const DataProvider = ({ children }) => {
           typeof window.api.getSales === 'function' &&
           typeof window.api.addProduct === 'function' &&
           typeof window.api.editProduct === 'function') {
-        console.log('✅ DataContext: API is ready');
         setApiReady(true);
         return true;
       }
@@ -56,14 +55,8 @@ export const DataProvider = ({ children }) => {
       
       if (attempts >= maxAttempts) {
         console.error('❌ DataContext: API not available after maximum attempts');
-        console.log('Available window.api methods:', window.api ? Object.keys(window.api) : 'window.api is undefined');
         setApiReady(true); // Set to true anyway to prevent infinite loading
         return;
-      }
-      
-      // Log progress every 50 attempts (5 seconds)
-      if (attempts % 50 === 0) {
-        console.log(`⏳ DataContext: Still waiting for API... (attempt ${attempts}/${maxAttempts})`);
       }
       
       setTimeout(pollApiReady, 100);
@@ -75,11 +68,9 @@ export const DataProvider = ({ children }) => {
   // Enhanced data fetching with better error recovery
   const fetchAllData = useCallback(async () => {
     if (!apiReady) {
-      console.log('📊 DataContext: API not ready yet, skipping data fetch');
       return;
     }
     
-    console.log('📊 DataContext: Starting data fetch...');
     setLoading(true);
 
     try {
@@ -90,7 +81,6 @@ export const DataProvider = ({ children }) => {
         if (window.api?.[apiMethod]) {
           return window.api[apiMethod]()
             .then(data => {
-              console.log(`✅ DataContext: Fetched ${dataType}:`, Array.isArray(data) ? `${data.length} items` : 'data');
               setter(data || []);
             })
             .catch(err => {
@@ -115,7 +105,6 @@ export const DataProvider = ({ children }) => {
       promises.push(createDataFetch('getMonthlyReports', setMonthlyReports, 'monthly reports'));
 
       await Promise.allSettled(promises); // Use allSettled to ensure all complete even if some fail
-      console.log('✅ DataContext: Data fetch completed');
 
     } catch (error) {
       console.error('❌ DataContext: Critical error during data fetch:', error);
@@ -147,7 +136,6 @@ export const DataProvider = ({ children }) => {
           retryCount++;
           
           if (retryCount < maxRetries) {
-            console.log(`🔄 DataContext: Retrying in ${retryCount * 2} seconds...`);
             setTimeout(fetchWithRetry, retryCount * 2000);
           } else {
             console.error('❌ DataContext: Max retries reached, setting safe defaults');

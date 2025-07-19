@@ -36,6 +36,10 @@ function markCustomerDebtPaid(db, id, paymentData) {
       let finalUSDAmount = payment_usd_amount;
       let finalIQDAmount = payment_iqd_amount;
       
+      // Check if this is a single currency payment (only one amount is non-zero)
+      const isSingleCurrencyPayment = (payment_usd_amount > 0 && payment_iqd_amount === 0) || 
+                                      (payment_iqd_amount > 0 && payment_usd_amount === 0);
+      
       if (payment_usd_amount === 0 && payment_iqd_amount === 0 && debtInfo) {
         // No custom payment amounts specified, use the debt's original amount
         if (debtInfo.currency === 'USD') {
@@ -45,6 +49,11 @@ function markCustomerDebtPaid(db, id, paymentData) {
           finalUSDAmount = 0;
           finalIQDAmount = debtInfo.amount;
         }
+      } else if (isSingleCurrencyPayment) {
+        // For single currency payments, respect the currency the customer actually paid with
+        // Don't force it to match the original debt currency
+        finalUSDAmount = payment_usd_amount || 0;
+        finalIQDAmount = payment_iqd_amount || 0;
       }
       
       // Update the debt record
@@ -80,6 +89,30 @@ function markCustomerDebtPaid(db, id, paymentData) {
         'customer_debt',
         now
       );
+      
+      // Update the corresponding sale record to reflect actual payment made
+      // Find the sale record linked to this debt
+      const findSaleStmt = db.prepare('SELECT sale_id FROM customer_debts WHERE id = ?');
+      const debtRecord = findSaleStmt.get(id);
+      
+      if (debtRecord && debtRecord.sale_id) {
+        // Update the sale record with actual payment information
+        const updateSaleStmt = db.prepare(`
+          UPDATE sales 
+          SET paid_amount_usd = ?, 
+              paid_amount_iqd = ?,
+              is_multi_currency = ?
+          WHERE id = ?
+        `);
+        
+        const isMultiCurrencyPayment = finalUSDAmount > 0 && finalIQDAmount > 0;
+        updateSaleStmt.run(
+          finalUSDAmount || 0,
+          finalIQDAmount || 0,
+          isMultiCurrencyPayment ? 1 : 0,
+          debtRecord.sale_id
+        );
+      }
       
       // Add to the user's balance based on the actual payment amounts received
       // Add USD amount if any USD was paid by customer

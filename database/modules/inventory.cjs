@@ -2,7 +2,16 @@
 const settings = require('./settings.cjs');
 
 function getBuyingHistory(db) {
-  return db.prepare('SELECT * FROM buying_history ORDER BY date DESC').all();
+  const buyingHistory = db.prepare('SELECT * FROM buying_history ORDER BY date DESC').all();
+  
+  // Add items to entries that have them
+  return buyingHistory.map(entry => {
+    if (entry.has_items) {
+      const items = db.prepare('SELECT * FROM buying_history_items WHERE buying_history_id = ?').all(entry.id);
+      return { ...entry, items };
+    }
+    return entry;
+  });
 }
 
 function addBuyingHistory(db, { item_name, quantity, unit_price, total_price, supplier, date, currency = 'IQD' }) {
@@ -55,17 +64,55 @@ function addDirectPurchaseWithItems(db, { supplier, date, items, currency = 'IQD
   const purchaseDate = date || new Date().toISOString();
   
   const transaction = db.transaction(() => {
-    const results = [];
     let totalAmount = 0;
     
+    // Calculate total amount
     items.forEach(item => {
-      const total_price = item.quantity * item.unit_price;
-      totalAmount += total_price;
+      totalAmount += item.quantity * item.unit_price;
+    });
+    
+    // Create a single buying history entry
+    const result = db.prepare(`
+      INSERT INTO buying_history 
+      (item_name, quantity, unit_price, total_price, supplier, date, currency, has_items) 
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      `Purchase with ${items.length} items`, // Generic description for multi-item purchase
+      items.reduce((sum, item) => sum + item.quantity, 0), // Total quantity of all items
+      totalAmount / items.reduce((sum, item) => sum + item.quantity, 0), // Average unit price
+      totalAmount,
+      supplier,
+      purchaseDate,
+      currency,
+      1 // has_items = true
+    );
+    
+    const buyingHistoryId = result.lastInsertRowid;
+    
+    // Insert all items into buying_history_items table
+    const insertItemStmt = db.prepare(`
+      INSERT INTO buying_history_items 
+      (buying_history_id, item_name, item_type, brand, model, ram, storage, type, quantity, unit_price, total_price, currency) 
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    
+    items.forEach(item => {
+      const itemTotalPrice = item.quantity * item.unit_price;
       
-      const result = db.prepare('INSERT INTO buying_history (item_name, quantity, unit_price, total_price, supplier, date, currency) VALUES (?, ?, ?, ?, ?, ?, ?)')
-        .run(item.item_name, item.quantity, item.unit_price, total_price, supplier, purchaseDate, currency);
-      
-      results.push(result);
+      insertItemStmt.run(
+        buyingHistoryId,
+        item.item_name,
+        item.item_type || 'product',
+        item.brand || null,
+        item.model || null,
+        item.ram || null,
+        item.storage || null,
+        item.type || null,
+        item.quantity,
+        item.unit_price,
+        itemTotalPrice,
+        item.currency || currency
+      );
       
       // Add stock to products or accessories
       if (item.item_type === 'product') {
@@ -141,7 +188,7 @@ function addDirectPurchaseWithItems(db, { supplier, date, items, currency = 'IQD
       usdAmount,
       iqdAmount,
       `Direct purchase with ${items.length} items from ${supplier}`,
-      results[0]?.lastInsertRowid || null,
+      buyingHistoryId,
       'buying_history',
       purchaseDate
     );
@@ -153,7 +200,7 @@ function addDirectPurchaseWithItems(db, { supplier, date, items, currency = 'IQD
       settings.updateBalance(db, 'IQD', -totalAmount);
     }
     
-    return { success: true, results, totalAmount };
+    return { success: true, buyingHistoryId, totalAmount };
   });
   
   return transaction();
@@ -292,15 +339,6 @@ function getBuyingHistoryWithItems(db) {
   // Get regular buying history with items
   const buyingHistory = getBuyingHistory(db);
   
-  // Add items to each entry if needed
-  const historyWithItems = buyingHistory.map(entry => {
-    if (entry.has_items) {
-      const items = db.prepare('SELECT * FROM company_debt_items WHERE debt_id = ?').all(entry.company_debt_id);
-      return { ...entry, items };
-    }
-    return entry;
-  });
-  
   // Get debt payment transactions
   const debtTransactions = db.prepare(`
     SELECT 
@@ -359,7 +397,7 @@ function getBuyingHistoryWithItems(db) {
   
   // Combine and sort by date
   const combined = [
-    ...historyWithItems.map(item => ({ ...item, entry_type: 'purchase' })),
+    ...buyingHistory.map(item => ({ ...item, entry_type: 'purchase' })),
     ...debtTransactions
   ].sort((a, b) => new Date(b.date) - new Date(a.date));
   

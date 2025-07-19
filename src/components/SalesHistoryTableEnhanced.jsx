@@ -54,9 +54,11 @@ export default function SalesHistoryTableEnhanced({ sales, t, onView, onPrintLas
         sale.items.forEach(item => {
           const qty = item.quantity || 1;
           const buyingPrice = item.buying_price || 0;
-          // Use the correct product currency fields
-          const itemCurrency = item.product_currency_from_table || item.product_currency || 
-                             item.accessory_currency_from_table || 'USD';
+          // Use the correct product currency fields - prioritize stored currency over fallback
+          const itemCurrency = item.product_currency || 
+                             item.product_currency_from_table || 
+                             item.accessory_currency_from_table || 
+                             'IQD';
           
           if (itemCurrency === 'USD') {
             totalBuyingCostUSD += buyingPrice * qty;
@@ -154,9 +156,11 @@ export default function SalesHistoryTableEnhanced({ sales, t, onView, onPrintLas
         const qty = item.quantity || 1;
         const sellingPrice = item.selling_price || item.price || 0;
         const buyingPrice = item.buying_price || 0;
-        // Use the correct product currency fields
-        const itemCurrency = item.product_currency_from_table || item.product_currency || 
-                           item.accessory_currency_from_table || 'USD';
+        // Use the correct product currency fields - prioritize stored currency over fallback
+        const itemCurrency = item.product_currency || 
+                           item.product_currency_from_table || 
+                           item.accessory_currency_from_table || 
+                           'IQD';
         const profit = (sellingPrice - buyingPrice) * qty;
         
         if (itemCurrency === 'USD') {

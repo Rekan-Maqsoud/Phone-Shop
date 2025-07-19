@@ -214,24 +214,9 @@ export default function Cashier() {
   // Cloud backup is now handled automatically by the unified backup system
   
   const handleCompleteSale = async (saleDiscount = null, discountedTotal = null, multiCurrency = null) => {
-    console.log('🎯 Starting Sale Completion:', {
-      saleDiscount,
-      discountedTotal,
-      multiCurrency,
-      isDebt,
-      customerName
-    });
-    
     if (!items.length) return;
     
     const finalTotal = discountedTotal !== null ? discountedTotal : total;
-    
-    console.log('💵 Sale Totals:', {
-      baseTotal: total,
-      discountedTotal,
-      finalTotal,
-      currency
-    });
     
     // Check for insufficient payment - simplified with new smart payment system
     // Skip payment validation for debt sales or when discounts are applied
@@ -305,25 +290,22 @@ export default function Cashier() {
         // Validate all items before creating sale
         const saleItems = items.map(item => {
           // Get the original product from allItems to get the real database ID
-          const originalProduct = allItems.find(p => p.uniqueId === item.uniqueId);
-          
-          if (!originalProduct) {
-            console.warn('⚠️ Could not find original product for item:', item);
-          }
+          const originalProduct = allItems.find(p => 
+            p.uniqueId === item.uniqueId || 
+            p.id === item.id || 
+            (p.name === item.name && p.itemType === item.itemType)
+          );
           
           const validatedItem = {
             ...item,
             product_id: originalProduct?.id || item.product_id || item.id,
-            itemType: item.itemType || 'product', // Ensure itemType is preserved
-            // Ensure buying_price is preserved from the original product
-            buying_price: originalProduct?.buying_price || item.buying_price || 0,
-            selling_price: item.selling_price || item.price || originalProduct?.selling_price || 0
+            itemType: item.itemType || 'product',
+            buying_price: item.buying_price || originalProduct?.buying_price || 0,
+            selling_price: item.selling_price || item.price || 0,
+            currency: item.currency || originalProduct?.currency || 'IQD'
           };
-          
           return validatedItem;
         });
-        
-
         
         const sale = {
           items: saleItems,
@@ -331,18 +313,10 @@ export default function Cashier() {
           created_at: new Date().toISOString(),
           is_debt: isDebt ? 1 : 0,
           customer_name: customerName.trim() || null,
-          currency: currency,
+          currency: isDebt ? 'USD' : currency, // Force USD for debt sales
           discount: saleDiscount,
-          multi_currency: multiCurrency || null
+          multi_currency: isDebt ? null : (multiCurrency || null) // Disable multi-currency for debt sales
         };
-        
-        console.log('📦 Sale Object Being Sent to Database:', {
-          saleTotal: sale.total,
-          saleIsDebt: sale.is_debt,
-          saleCurrency: sale.currency,
-          saleMultiCurrency: sale.multi_currency,
-          itemCount: sale.items.length
-        });
         
         if (window.api?.saveSale) {
           const res = await window.api.saveSale(sale);

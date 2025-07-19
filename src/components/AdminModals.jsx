@@ -50,7 +50,7 @@ export default function AdminModals({
   // Cloud Backup
   triggerCloudBackup
 }) {
-  const { refreshSales, refreshProducts, refreshAccessories, refreshCompanyDebts, refreshBuyingHistory, refreshDebts } = useData();
+  const { refreshSales, refreshProducts, refreshAccessories, refreshCompanyDebts, refreshBuyingHistory, refreshDebts, refreshDebtSales } = useData();
   
 
   return (
@@ -113,12 +113,24 @@ export default function AdminModals({
                     refreshSales(),
                     refreshProducts(),
                     refreshAccessories(),
-                    refreshDebts()
+                    refreshDebts(),
+                    refreshDebtSales()
                   ]);
                   
-                  // Close the modal after successful return - don't refresh view for debt sales
-                  // The refreshed data will automatically reflect in the debts section
-                  admin.setViewSale(null);
+                  // Refresh the current sale view to show updated information
+                  try {
+                    const updatedSale = await window.api?.getSaleDetails?.(saleId);
+                    if (updatedSale && updatedSale.success && updatedSale.sale) {
+                      admin.setViewSale(updatedSale.sale);
+                    } else {
+                      // Sale was completely deleted or has no items left, close modal
+                      admin.setViewSale(null);
+                    }
+                  } catch (error) {
+                    console.warn('Could not refresh sale view:', error);
+                    // Close modal on error to avoid showing blank data
+                    admin.setViewSale(null);
+                  }
                   
                   triggerCloudBackup();
                 } else {

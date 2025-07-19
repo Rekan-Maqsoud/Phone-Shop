@@ -10,6 +10,7 @@ const CustomerDebtsSection = ({
   showPaidDebts, 
   setShowPaidDebts, 
   showConfirm,
+  setConfirm,
   triggerCloudBackup 
 }) => {
   const { refreshDebts, refreshDebtSales, refreshSales } = useData();
@@ -397,7 +398,8 @@ const CustomerDebtsSection = ({
                                                 // Refresh all relevant data
                                                 await Promise.all([
                                                   refreshSales(),
-                                                  refreshDebts()
+                                                  refreshDebts(),
+                                                  refreshDebtSales()
                                                 ]);
                                                 triggerCloudBackup();
                                               } else {

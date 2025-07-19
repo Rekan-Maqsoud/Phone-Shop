@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import ProductTable from './ProductTable';
 import QuickAddProduct from './QuickAddProduct';
+import ExchangeRateIndicator from './ExchangeRateIndicator';
 import { useData } from '../contexts/DataContext';
 
 export default function ProductsSection({ t, admin, handleEditProduct, handleArchiveToggle, loading }) {
@@ -31,11 +32,6 @@ export default function ProductsSection({ t, admin, handleEditProduct, handleArc
     return brands.sort();
   }, [products]);
   
-  const handleOpenAddProductModal = () => {
-    admin.setEditProduct(null); // Clear any existing edit data
-    admin.setShowProductModal(true);
-  };
-  
   return (
     <div className="space-y-6">
       {/* Quick Add Form */}
@@ -44,6 +40,11 @@ export default function ProductsSection({ t, admin, handleEditProduct, handleArc
       {/* Search and Filter Controls */}
       <div className="bg-white/70 dark:bg-gray-800/90 rounded-xl p-4 shadow border border-white/30 mb-6">
         <div className="flex flex-col md:flex-row gap-4 items-center">
+          {/* Exchange Rate Indicator */}
+          <div className="hidden md:block">
+            <ExchangeRateIndicator t={t} showModal={true} size="sm" />
+          </div>
+          
           {/* Search Bar */}
           <div className="flex-1 min-w-0">
             <div className="relative">
@@ -99,18 +100,11 @@ export default function ProductsSection({ t, admin, handleEditProduct, handleArc
         </div>
       </div>
       
-      {/* Advanced Add Button */}
+      {/* Products Header */}
       <div className="flex justify-between items-center">
         <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">
           {t.products} {filteredProducts.length > 0 && `(${filteredProducts.length})`}
         </h3>
-        <button
-          onClick={handleOpenAddProductModal}
-          className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
-        >
-          <span>➕</span>
-          {t.addProductAdvanced || 'Advanced Add'}
-        </button>
       </div>
       
       {/* Products Table */}

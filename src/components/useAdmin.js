@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useLocale } from '../contexts/LocaleContext';
 import { useData } from '../contexts/DataContext';
 
-export default function useAdmin() {
+export default function useAdmin(showConfirm = null) {
   const { t } = useLocale();
   const navigate = useNavigate();
   
@@ -54,6 +54,9 @@ export default function useAdmin() {
   const [showProductModal, setShowProductModal] = useState(false);
   const [editProduct, setEditProduct] = useState(null);
   const [viewSale, setViewSale] = useState(null);
+  // Balance state
+  const [balanceUSD, setBalanceUSD] = useState(0);
+  const [balanceIQD, setBalanceIQD] = useState(0);
   // Toast state
   const [toast, setToastState] = useState(null);
   // Add a wrapper for toast to match expected API
@@ -82,6 +85,27 @@ export default function useAdmin() {
     navigate("/admin");
   };
 
+  // Balance loading functionality
+  const loadBalances = useCallback(async () => {
+    try {
+      if (window.api?.getBalances) {
+        const balances = await window.api.getBalances();
+        if (balances) {
+          setBalanceUSD(balances.usd || 0);
+          setBalanceIQD(balances.iqd || 0);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading balances:', error);
+      // Keep previous values on error
+    }
+  }, []);
+
+  // Load balances on component mount and when data refreshes
+  useEffect(() => {
+    loadBalances();
+  }, [loadBalances]);
+
   const handleMarkDebtPaid = async (id, paid_at) => {
     try {
       if (window.api?.markDebtPaid) {
@@ -100,6 +124,126 @@ export default function useAdmin() {
   const handleAddProduct = async (product) => {
     try {
       if (window.api?.addProduct) {
+        // Check for existing product with same name/specs but different currency
+        const existingProduct = products.find(p => 
+          p.name === product.name &&
+          p.brand === product.brand &&
+          p.model === product.model &&
+          p.ram === product.ram &&
+          p.storage === product.storage &&
+          p.currency !== product.currency &&
+          !p.archived
+        );
+
+        if (existingProduct) {
+          // Show confirmation to merge with existing product
+          if (showConfirm) {
+            showConfirm(
+              `A product with the same specs already exists in ${existingProduct.currency}. Do you want to update its currency to ${product.currency} and merge the prices?`,
+              async () => {
+                // Convert the existing product to new currency and merge
+                const { convertCurrency } = await import('../utils/exchangeRates');
+                
+                let newBuyingPrice = product.buying_price;
+                let newStock = existingProduct.stock + (product.stock || 0);
+                
+                // If we want to average the prices, convert and calculate
+                if (existingProduct.buying_price && product.buying_price) {
+                  const convertedExistingPrice = convertCurrency(
+                    existingProduct.buying_price, 
+                    existingProduct.currency, 
+                    product.currency
+                  );
+                  
+                  // Calculate weighted average based on stock quantities
+                  const existingWeight = existingProduct.stock || 1;
+                  const newWeight = product.stock || 1;
+                  const totalWeight = existingWeight + newWeight;
+                  
+                  newBuyingPrice = ((convertedExistingPrice * existingWeight) + (product.buying_price * newWeight)) / totalWeight;
+                  
+                  // Round appropriately
+                  if (product.currency === 'USD') {
+                    newBuyingPrice = Math.round(newBuyingPrice * 100) / 100;
+                  } else {
+                    newBuyingPrice = Math.round(newBuyingPrice);
+                  }
+                }
+                
+                const updatedProduct = {
+                  ...existingProduct,
+                  currency: product.currency,
+                  buying_price: newBuyingPrice,
+                  stock: newStock
+                };
+                
+                const res = await window.api.editProduct(updatedProduct);
+                if (res.success) {
+                  setToast(`Product merged successfully: ${product.name} (${product.currency})`);
+                  await refreshProducts();
+                  setShowProductModal(false);
+                  setEditProduct(null);
+                } else {
+                  setToast(res.message || 'Failed to merge product.');
+                }
+              }
+            );
+            return;
+          } else {
+            // Fallback to native confirm if showConfirm not available
+            const confirmMerge = window.confirm(
+              `A product with the same specs already exists in ${existingProduct.currency}. Do you want to update its currency to ${product.currency} and merge the prices?`
+            );
+            
+            if (confirmMerge) {
+              // Same merge logic as above
+              const { convertCurrency } = await import('../utils/exchangeRates');
+              
+              let newBuyingPrice = product.buying_price;
+              let newStock = existingProduct.stock + (product.stock || 0);
+              
+              if (existingProduct.buying_price && product.buying_price) {
+                const convertedExistingPrice = convertCurrency(
+                  existingProduct.buying_price, 
+                  existingProduct.currency, 
+                  product.currency
+                );
+                
+                const existingWeight = existingProduct.stock || 1;
+                const newWeight = product.stock || 1;
+                const totalWeight = existingWeight + newWeight;
+                
+                newBuyingPrice = ((convertedExistingPrice * existingWeight) + (product.buying_price * newWeight)) / totalWeight;
+                
+                if (product.currency === 'USD') {
+                  newBuyingPrice = Math.round(newBuyingPrice * 100) / 100;
+                } else {
+                  newBuyingPrice = Math.round(newBuyingPrice);
+                }
+              }
+              
+              const updatedProduct = {
+                ...existingProduct,
+                currency: product.currency,
+                buying_price: newBuyingPrice,
+                stock: newStock
+              };
+              
+              const res = await window.api.editProduct(updatedProduct);
+              if (res.success) {
+                setToast(`Product merged successfully: ${product.name} (${product.currency})`);
+                await refreshProducts();
+                setShowProductModal(false);
+                setEditProduct(null);
+              } else {
+                setToast(res.message || 'Failed to merge product.');
+              }
+              return;
+            }
+          }
+        }
+
+        // If no existing product or user chose not to merge, add normally
         const res = await window.api.addProduct(product);
         if (res.success) {
           setToast(`${t.productAdded} ${product.name}`);
@@ -119,6 +263,120 @@ export default function useAdmin() {
   const handleAddAccessory = async (accessory) => {
     try {
       if (window.api?.addAccessory) {
+        // Check for existing accessory with same name but different currency
+        const existingAccessory = accessories.find(a => 
+          a.name === accessory.name &&
+          a.brand === accessory.brand &&
+          a.type === accessory.type &&
+          a.currency !== accessory.currency &&
+          !a.archived
+        );
+
+        if (existingAccessory) {
+          // Show confirmation to merge with existing accessory
+          if (showConfirm) {
+            showConfirm(
+              `An accessory with the same name already exists in ${existingAccessory.currency}. Do you want to update its currency to ${accessory.currency} and merge the prices?`,
+              async () => {
+                // Convert the existing accessory to new currency and merge
+                const { convertCurrency } = await import('../utils/exchangeRates');
+                
+                let newBuyingPrice = accessory.buying_price;
+                let newStock = existingAccessory.stock + (accessory.stock || 0);
+                
+                // If we want to average the prices, convert and calculate
+                if (existingAccessory.buying_price && accessory.buying_price) {
+                  const convertedExistingPrice = convertCurrency(
+                    existingAccessory.buying_price, 
+                    existingAccessory.currency, 
+                    accessory.currency
+                  );
+                  
+                  // Calculate weighted average based on stock quantities
+                  const existingWeight = existingAccessory.stock || 1;
+                  const newWeight = accessory.stock || 1;
+                  const totalWeight = existingWeight + newWeight;
+                  
+                  newBuyingPrice = ((convertedExistingPrice * existingWeight) + (accessory.buying_price * newWeight)) / totalWeight;
+                  
+                  // Round appropriately
+                  if (accessory.currency === 'USD') {
+                    newBuyingPrice = Math.round(newBuyingPrice * 100) / 100;
+                  } else {
+                    newBuyingPrice = Math.round(newBuyingPrice);
+                  }
+                }
+                
+                const updatedAccessory = {
+                  ...existingAccessory,
+                  currency: accessory.currency,
+                  buying_price: newBuyingPrice,
+                  stock: newStock
+                };
+                
+                const res = await window.api.editAccessory(updatedAccessory);
+                if (res.success) {
+                  setToast(`Accessory merged successfully: ${accessory.name} (${accessory.currency})`);
+                  await refreshAccessories();
+                } else {
+                  setToast(res.message || 'Failed to merge accessory.');
+                }
+              }
+            );
+            return;
+          } else {
+            // Fallback to native confirm if showConfirm not available
+            const confirmMerge = window.confirm(
+              `An accessory with the same name already exists in ${existingAccessory.currency}. Do you want to update its currency to ${accessory.currency} and merge the prices?`
+            );
+            
+            if (confirmMerge) {
+              // Same merge logic as above
+              const { convertCurrency } = await import('../utils/exchangeRates');
+              
+              let newBuyingPrice = accessory.buying_price;
+              let newStock = existingAccessory.stock + (accessory.stock || 0);
+              
+              if (existingAccessory.buying_price && accessory.buying_price) {
+                const convertedExistingPrice = convertCurrency(
+                  existingAccessory.buying_price, 
+                  existingAccessory.currency, 
+                  accessory.currency
+                );
+                
+                const existingWeight = existingAccessory.stock || 1;
+                const newWeight = accessory.stock || 1;
+                const totalWeight = existingWeight + newWeight;
+                
+                newBuyingPrice = ((convertedExistingPrice * existingWeight) + (accessory.buying_price * newWeight)) / totalWeight;
+                
+                if (accessory.currency === 'USD') {
+                  newBuyingPrice = Math.round(newBuyingPrice * 100) / 100;
+                } else {
+                  newBuyingPrice = Math.round(newBuyingPrice);
+                }
+              }
+              
+              const updatedAccessory = {
+                ...existingAccessory,
+                currency: accessory.currency,
+                buying_price: newBuyingPrice,
+                stock: newStock
+              };
+              
+              const res = await window.api.editAccessory(updatedAccessory);
+              if (res.success) {
+                setToast(`Accessory merged successfully: ${accessory.name} (${accessory.currency})`);
+                await refreshAccessories();
+              } else {
+                setToast(res.message || 'Failed to merge accessory.');
+              }
+              return;
+            }
+          }
+        }
+
+        // If no existing accessory or user chose not to merge, add normally
         const res = await window.api.addAccessory(accessory);
         if (res.success) {
           setToast(`${t.accessoryAdded || 'Accessory added'}: ${accessory.name}`);
@@ -392,6 +650,7 @@ export default function useAdmin() {
     handleMarkCompanyDebtPaid,
     setToast, toast,
     loading: dataLoading,
+    balanceUSD, balanceIQD, loadBalances,
     monthlySales, totalRevenue, inventoryValue,
     notificationsEnabled, setNotificationsEnabled,
     lowStockThreshold, setLowStockThreshold,
@@ -399,7 +658,7 @@ export default function useAdmin() {
     goToAdmin,
   }), [
     products, accessories, sales, showProductModal, editProduct, viewSale, debts, debtSales, companyDebts, buyingHistory, monthlyReports,
-    toast, dataLoading, notificationsEnabled, lowStockThreshold, adminModal, adminPassword, adminError, resetConfirmOpen
+    toast, dataLoading, balanceUSD, balanceIQD, notificationsEnabled, lowStockThreshold, adminModal, adminPassword, adminError, resetConfirmOpen
   ]); // Removed function dependencies and apiReady that change on every render
   return adminObject;
 }

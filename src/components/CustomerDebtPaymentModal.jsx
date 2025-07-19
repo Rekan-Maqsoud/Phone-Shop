@@ -15,6 +15,7 @@ const CustomerDebtPaymentModal = ({
     usdAmount: 0, 
     iqdAmount: 0 
   });
+  const [paymentCurrency, setPaymentCurrency] = useState('IQD'); // Default to IQD
 
   // Calculate payment summary
   const paymentSummary = useMemo(() => {
@@ -29,18 +30,22 @@ const CustomerDebtPaymentModal = ({
       
       let changeInfo = null;
       if (difference > 0) {
-        // Calculate change
+        // Calculate change - prefer IQD and ignore change less than 250 IQD
         const changeIQD = difference * EXCHANGE_RATES.USD_TO_IQD;
         const roundedChangeIQD = roundIQDToNearestBill(changeIQD);
-        const iqdDifference = Math.abs(changeIQD - roundedChangeIQD);
-        const shouldUseUSD = iqdDifference > (difference * 0.1);
         
-        changeInfo = {
-          changeUSD: difference,
-          changeIQD: changeIQD,
-          changeInUSD: shouldUseUSD ? difference : 0,
-          changeInIQD: shouldUseUSD ? 0 : roundedChangeIQD
-        };
+        // If change is less than 250 IQD, ignore it (no change given)
+        if (roundedChangeIQD < 250) {
+          changeInfo = null; // No change given for amounts less than 250 IQD
+        } else {
+          // Always give change in IQD for debt payments
+          changeInfo = {
+            changeUSD: 0, // Don't give USD change for debt payments
+            changeIQD: changeIQD,
+            changeInUSD: 0, // Always prefer IQD for debt payment change
+            changeInIQD: roundedChangeIQD
+          };
+        }
       }
       
       return {
@@ -62,6 +67,7 @@ const CustomerDebtPaymentModal = ({
     setShowPaymentModal(false);
     setSelectedDebt(null);
     setMultiCurrency({ enabled: false, usdAmount: 0, iqdAmount: 0 });
+    setPaymentCurrency('IQD'); // Reset to IQD default
   };
 
   const processPayment = async () => {
@@ -97,28 +103,33 @@ const CustomerDebtPaymentModal = ({
           deductIQD: netIQD  // What we actually keep after change
         };
       } else {
-        // Default payment based on debt currency
-        if (sale.currency === 'USD') {
+        // Default payment based on selected payment currency
+        if (paymentCurrency === 'USD') {
+          // Pay with USD regardless of debt currency
+          const usdAmount = sale.currency === 'USD' ? sale.total : (sale.total / EXCHANGE_RATES.USD_TO_IQD);
           paymentData = {
-            usdAmount: sale.total,
+            usdAmount: usdAmount,
             iqdAmount: 0,
-            deductUSD: sale.total,
+            deductUSD: usdAmount,
             deductIQD: 0
           };
-        } else if (sale.currency === 'IQD') {
+        } else if (paymentCurrency === 'IQD') {
+          // Pay with IQD regardless of debt currency
+          const iqdAmount = sale.currency === 'IQD' ? sale.total : (sale.total * EXCHANGE_RATES.USD_TO_IQD);
           paymentData = {
             usdAmount: 0,
-            iqdAmount: sale.total,
+            iqdAmount: iqdAmount,
             deductUSD: 0,
-            deductIQD: sale.total
+            deductIQD: iqdAmount
           };
         } else {
-          // Fallback for any other currency value
+          // Fallback - use IQD
+          const iqdAmount = sale.currency === 'IQD' ? sale.total : (sale.total * EXCHANGE_RATES.USD_TO_IQD);
           paymentData = {
             usdAmount: 0,
-            iqdAmount: sale.total,
+            iqdAmount: iqdAmount,
             deductUSD: 0,
-            deductIQD: sale.total
+            deductIQD: iqdAmount
           };
         }
       }
@@ -165,6 +176,11 @@ const CustomerDebtPaymentModal = ({
       }
       if (result && result.changes > 0) {
         admin.setToast?.(`💰 Debt of ${(sale.currency === 'USD' ? '$' : 'د.ع')}${sale.total.toFixed(2)} marked as paid for ${originalCustomer}`);
+        
+        // Refresh balances to show updated amounts
+        if (admin.loadBalances) {
+          await admin.loadBalances();
+        }
         
         // Call the completion callback to refresh data
         if (onPaymentComplete) {
@@ -244,23 +260,58 @@ const CustomerDebtPaymentModal = ({
             </div>
             
             {!multiCurrency.enabled && (
-              <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
+              <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg space-y-4">
                 <h5 className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">
                   {t.defaultPayment || 'Default Payment'}
                 </h5>
+                
+                {/* Payment Currency Selection */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-2">
+                    {t.payWith || 'Pay with'}:
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setPaymentCurrency('USD')}
+                      className={`p-3 rounded-lg text-sm font-medium transition-colors ${
+                        paymentCurrency === 'USD'
+                          ? 'bg-green-500 text-white'
+                          : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300'
+                      }`}
+                    >
+                      💵 USD
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPaymentCurrency('IQD')}
+                      className={`p-3 rounded-lg text-sm font-medium transition-colors ${
+                        paymentCurrency === 'IQD'
+                          ? 'bg-yellow-500 text-white'
+                          : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300'
+                      }`}
+                    >
+                      🏛️ IQD
+                    </button>
+                  </div>
+                </div>
+                
                 <div className="text-sm text-blue-700 dark:text-blue-300">
-                  {sale.currency === 'USD' ? (
+                  {paymentCurrency === 'USD' ? (
                     <div>
-                      <div>USD: ${sale.total.toFixed(2)}</div>
+                      <div>Pay with USD: ${sale.currency === 'USD' ? sale.total.toFixed(2) : (sale.total / EXCHANGE_RATES.USD_TO_IQD).toFixed(2)}</div>
                       <div className="text-xs mt-1 text-blue-600 dark:text-blue-400">
-                        Amount will be added to your USD balance
+                        {sale.currency === 'IQD' && `Equivalent to د.ع${sale.total.toFixed(2)} debt`}
                       </div>
                     </div>
                   ) : (
                     <div>
-                      <div>IQD: د.ع{sale.total.toFixed(2)}</div>
+                      <div>Pay with IQD: د.ع{sale.currency === 'IQD' ? sale.total.toFixed(2) : (sale.total * EXCHANGE_RATES.USD_TO_IQD).toFixed(2)}</div>
                       <div className="text-xs mt-1 text-blue-600 dark:text-blue-400">
-                        Amount will be added to your IQD balance
+                        {sale.currency === 'USD' && `Equivalent to $${sale.total.toFixed(2)} debt`}
+                      </div>
+                      <div className="text-xs mt-1 text-orange-600 dark:text-orange-400">
+                        Change less than 250 IQD will be ignored
                       </div>
                     </div>
                   )}

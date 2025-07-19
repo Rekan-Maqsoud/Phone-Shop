@@ -1,23 +1,18 @@
 // Settings and configuration management functions
-
 function getSetting(db, key) {
   const result = db.prepare('SELECT value FROM settings WHERE key = ?').get(key);
   return result ? result.value : null;
 }
-
 function setSetting(db, key, value) {
   return db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)')
     .run(key, value);
 }
-
 function deleteSetting(db, key) {
   return db.prepare('DELETE FROM settings WHERE key = ?').run(key);
 }
-
 function getAllSettings(db) {
   return db.prepare('SELECT * FROM settings').all();
 }
-
 // Currency exchange rates
 function getExchangeRate(db, fromCurrency, toCurrency) {
   const key = `exchange_${fromCurrency}_${toCurrency}`;
@@ -35,33 +30,26 @@ function getExchangeRate(db, fromCurrency, toCurrency) {
   }
   return rate ? parseFloat(rate) : 1;
 }
-
 function setExchangeRate(db, fromCurrency, toCurrency, rate) {
   const key = `exchange_${fromCurrency}_${toCurrency}`;
-  
   // Use a transaction to ensure both rates are saved atomically
   const transaction = db.transaction(() => {
     // Save the direct rate
     setSetting(db, key, rate.toString());
-    
     // Save the inverse rate for the opposite direction
     const inverseKey = `exchange_${toCurrency}_${fromCurrency}`;
     const inverseRate = 1 / rate;
     setSetting(db, inverseKey, inverseRate.toString());
   });
-  
   return transaction();
 }
-
 // App configuration helpers
 function getDefaultCurrency(db) {
   return getSetting(db, 'default_currency') || 'IQD';
 }
-
 function setDefaultCurrency(db, currency) {
   return setSetting(db, 'default_currency', currency);
 }
-
 function getStoreSettings(db) {
   return {
     storeName: getSetting(db, 'store_name') || 'Mobile Roma',
@@ -72,20 +60,16 @@ function getStoreSettings(db) {
     enableNotifications: getSetting(db, 'enable_notifications') === 'true'
   };
 }
-
 function getBalances(db) {
   const usdBalance = getSetting(db, 'balanceUSD');
   const iqdBalance = getSetting(db, 'balanceIQD');
-  
   return {
     usd_balance: usdBalance ? parseFloat(usdBalance) : 0,
     iqd_balance: iqdBalance ? parseFloat(iqdBalance) : 0
   };
 }
-
 function updateStoreSettings(db, settings) {
   const updates = [];
-  
   if (settings.storeName !== undefined) {
     updates.push(() => setSetting(db, 'store_name', settings.storeName));
   }
@@ -104,14 +88,11 @@ function updateStoreSettings(db, settings) {
   if (settings.enableNotifications !== undefined) {
     updates.push(() => setSetting(db, 'enable_notifications', settings.enableNotifications.toString()));
   }
-  
   const transaction = db.transaction(() => {
     updates.forEach(update => update());
   });
-  
   return transaction();
 }
-
 // Backup and restore helpers
 function createBackup(db, backupPath) {
   const backup = db.backup(backupPath);
@@ -121,7 +102,6 @@ function createBackup(db, backupPath) {
     }).catch(reject);
   });
 }
-
 function restoreBackup(db, backupPath) {
   const restore = db.backup(backupPath, { restore: true });
   return new Promise((resolve, reject) => {
@@ -130,41 +110,31 @@ function restoreBackup(db, backupPath) {
     }).catch(reject);
   });
 }
-
 // Database maintenance
 function optimizeDatabase(db) {
   db.exec('VACUUM');
   db.exec('ANALYZE');
   return true;
 }
-
 function getDatabaseInfo(db) {
   const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all();
   const info = {};
-  
   tables.forEach(table => {
     const count = db.prepare(`SELECT COUNT(*) as count FROM ${table.name}`).get();
     info[table.name] = count.count;
   });
-  
   return {
     tables: info,
     totalTables: tables.length,
     dbSize: db.prepare("SELECT page_count * page_size as size FROM pragma_page_count(), pragma_page_size()").get()
   };
 }
-
 function updateBalance(db, currency, amount) {
-  console.log(`💰 Settings: updateBalance called with currency=${currency}, amount=${amount}`);
-  
   // Update both balance systems simultaneously
   const balanceKey = currency === 'USD' ? 'balanceUSD' : 'balanceIQD';
   const balanceColumn = currency === 'USD' ? 'usd_balance' : 'iqd_balance';
-  
   // Get current balance before update
   const currentBalance = getSetting(db, balanceKey);
-  console.log(`📊 Settings: Current ${currency} balance: ${currentBalance || 0}`);
-  
   const transaction = db.transaction(() => {
     // Update settings table
     db.prepare(`
@@ -172,7 +142,6 @@ function updateBalance(db, currency, amount) {
       SET value = CAST((COALESCE(CAST(value AS REAL), 0) + ?) AS TEXT) 
       WHERE key = ?
     `).run(amount, balanceKey);
-    
     // Update balances table
     db.prepare(`
       UPDATE balances 
@@ -181,25 +150,18 @@ function updateBalance(db, currency, amount) {
       WHERE id = 1
     `).run(amount);
   });
-  
   const result = transaction();
-  
   // Get new balance after update
   const newBalance = getSetting(db, balanceKey);
-  console.log(`📊 Settings: New ${currency} balance: ${newBalance || 0} (change: ${amount})`);
-  
   return result;
 }
-
 function setBalance(db, currency, amount) {
   // Set both balance systems to specific amounts
   const balanceKey = currency === 'USD' ? 'balanceUSD' : 'balanceIQD';
   const balanceColumn = currency === 'USD' ? 'usd_balance' : 'iqd_balance';
-  
   const transaction = db.transaction(() => {
     // Update settings table
     setSetting(db, balanceKey, amount.toString());
-    
     // Update balances table
     db.prepare(`
       UPDATE balances 
@@ -208,10 +170,8 @@ function setBalance(db, currency, amount) {
       WHERE id = 1
     `).run(amount);
   });
-  
   return transaction();
 }
-
 module.exports = {
   getSetting,
   setSetting,

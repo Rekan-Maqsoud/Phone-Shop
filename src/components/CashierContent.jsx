@@ -117,8 +117,11 @@ export default function CashierContent({
   };
 
   // Calculate totals based on selected currency with per-item discounts
+  // For debt sales, always use USD as the base currency
   const convertedTotal = useMemo(() => {
-    if (currency === 'IQD') {
+    const effectiveCurrency = isDebt ? 'USD' : currency;
+    
+    if (effectiveCurrency === 'IQD') {
       return items.reduce((sum, item) => {
         const baseItemTotal = item.selling_price * item.quantity;
         const discountAmount = baseItemTotal * ((item.discount_percent || 0) / 100);
@@ -141,14 +144,15 @@ export default function CashierContent({
         return sum + discountedItemTotal;
       }, 0);
     }
-  }, [items, currency]);
+  }, [items, currency, isDebt]);
 
   // Calculate discounted total
   const discountedTotal = useMemo(() => {
     const baseTotal = convertedTotal;
+    const effectiveCurrency = isDebt ? 'USD' : currency;
     
     if (discount.type === 'none' || !discount.value || discount.value <= 0) {
-      return currency === 'IQD' ? getRoundedTotal(baseTotal, currency) : baseTotal;
+      return effectiveCurrency === 'IQD' ? getRoundedTotal(baseTotal, effectiveCurrency) : baseTotal;
     }
     
     let finalTotal;
@@ -159,8 +163,8 @@ export default function CashierContent({
       finalTotal = Math.max(0, baseTotal - discount.value);
     }
     
-    return currency === 'IQD' ? getRoundedTotal(finalTotal, currency) : finalTotal;
-  }, [convertedTotal, discount, currency]);
+    return effectiveCurrency === 'IQD' ? getRoundedTotal(finalTotal, effectiveCurrency) : finalTotal;
+  }, [convertedTotal, discount, currency, isDebt]);
 
   // Calculate actual discount amount for display
   const discountAmount = useMemo(() => {
@@ -242,6 +246,27 @@ export default function CashierContent({
       return;
     }
 
+    // For debt sales, use USD as default currency and disable multi-currency
+    if (isDebt) {
+      const finalPayment = {
+        change: null,
+        netBalanceUSD: 0, // No balance updates for debt sales
+        netBalanceIQD: 0, // No balance updates for debt sales
+        changeGivenUSD: 0,
+        changeGivenIQD: 0
+      };
+      
+      handleCompleteSale(
+        discount.type !== 'none' && discount.value > 0 ? { 
+          discount_type: discount.type, 
+          discount_value: discount.value 
+        } : null,
+        discountedTotal,
+        finalPayment
+      );
+      return;
+    }
+
     const totalRequiredUSD = currency === 'USD' ? discountedTotal : discountedTotal / EXCHANGE_RATES.USD_TO_IQD;
     
     let finalPayment = {};
@@ -277,16 +302,6 @@ export default function CashierContent({
           changeFromIQD = change.changeInIQD;
         }
 
-        // Debug logging for payment calculation
-        console.log('💰 Payment Calculation:', {
-          totalRequired: formatCurrency(totalRequiredUSD, 'USD'),
-          totalPaid: formatCurrency(totalPaidUSD, 'USD'),
-          receivedUSD: formatCurrency(receivedUSD, 'USD'),
-          receivedIQD: formatCurrency(receivedIQD, 'IQD'),
-          changeGivenUSD: formatCurrency(changeFromUSD, 'USD'),
-          changeGivenIQD: formatCurrency(changeFromIQD, 'IQD')
-        });
-
         finalPayment = {
           usdAmount: multiCurrency.usdAmount,
           iqdAmount: multiCurrency.iqdAmount,
@@ -301,12 +316,6 @@ export default function CashierContent({
         };
       } else {
         // No overpayment, use actual amounts paid
-        console.log('💰 No Overpayment - Using Actual Amounts:', {
-          usdPaid: formatCurrency(multiCurrency.usdAmount, 'USD'),
-          iqdPaid: formatCurrency(multiCurrency.iqdAmount, 'IQD'),
-          totalRequired: formatCurrency(totalRequiredUSD, 'USD')
-        });
-        
         finalPayment = {
           usdAmount: multiCurrency.usdAmount,
           iqdAmount: multiCurrency.iqdAmount,
@@ -320,11 +329,6 @@ export default function CashierContent({
       }
     } else {
       // Single currency payment - no overpayment tracking, assume exact amount
-      console.log('💰 Single Currency Payment:', {
-        currency: currency,
-        amount: formatCurrency(discountedTotal, currency)
-      });
-      
       finalPayment = {
         change: null,
         netBalanceUSD: currency === 'USD' ? discountedTotal : 0,
@@ -708,54 +712,68 @@ export default function CashierContent({
 
       {/* Column 2: Checkout & Payment */}
       <div className="flex flex-col gap-4 h-full overflow-y-auto pb-6">
-        {/* Currency Toggle Button with Exchange Rate */}
-        <div className="flex items-center gap-3 mb-4">
-          <div className="flex bg-slate-100 dark:bg-slate-700 rounded-lg p-1">
-            <button
-              onClick={() => setCurrency('USD')}
-              className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
-                currency === 'USD'
-                  ? 'bg-blue-500 text-white shadow-sm'
-                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-white'
-              }`}
-            >
-              💵 USD
-            </button>
-            <button
-              onClick={() => setCurrency('IQD')}
-              className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
-                currency === 'IQD'
-                  ? 'bg-blue-500 text-white shadow-sm'
-                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-white'
-              }`}
-            >
-              🏛️ IQD
-            </button>
+        {/* Currency Toggle Button with Exchange Rate - disabled for debt sales */}
+        {!isDebt && (
+          <div className="flex items-center gap-3 mb-4">
+            <div className="flex bg-slate-100 dark:bg-slate-700 rounded-lg p-1">
+              <button
+                onClick={() => setCurrency('USD')}
+                className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
+                  currency === 'USD'
+                    ? 'bg-blue-500 text-white shadow-sm'
+                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-white'
+                }`}
+              >
+                💵 USD
+              </button>
+              <button
+                onClick={() => setCurrency('IQD')}
+                className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
+                  currency === 'IQD'
+                    ? 'bg-blue-500 text-white shadow-sm'
+                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-white'
+                }`}
+              >
+                🏛️ IQD
+              </button>
+            </div>
+            <div className="flex-1 text-right">
+              <OfflineIndicator className="text-xs" />
+              <button
+                onClick={handleExchangeRateClick}
+                disabled={isLoadingRate}
+                className={`px-3 py-2 ${
+                  isLoadingRate 
+                    ? 'bg-gray-400 cursor-not-allowed' 
+                    : 'bg-blue-500 hover:bg-blue-600'
+                } text-white text-sm rounded-lg transition-colors shadow-lg flex items-center gap-2`}
+              >
+                {isLoadingRate ? (
+                  <>
+                    <span className="animate-spin">⏳</span>
+                    {t.loadingRate || 'Loading...'}
+                  </>
+                ) : (
+                  <>
+                    1$ = {EXCHANGE_RATES.USD_TO_IQD}IQD
+                  </>
+                )}
+              </button>
+            </div>
           </div>
-          <div className="flex-1 text-right">
-            <OfflineIndicator className="text-xs" />
-            <button
-              onClick={handleExchangeRateClick}
-              disabled={isLoadingRate}
-              className={`px-3 py-2 ${
-                isLoadingRate 
-                  ? 'bg-gray-400 cursor-not-allowed' 
-                  : 'bg-blue-500 hover:bg-blue-600'
-              } text-white text-sm rounded-lg transition-colors shadow-lg flex items-center gap-2`}
-            >
-              {isLoadingRate ? (
-                <>
-                  <span className="animate-spin">⏳</span>
-                  {t.loadingRate || 'Loading...'}
-                </>
-              ) : (
-                <>
-                  1$ = {EXCHANGE_RATES.USD_TO_IQD}IQD
-                </>
-              )}
-            </button>
+        )}
+
+        {/* For debt sales, show a simple message about using default currency */}
+        {isDebt && (
+          <div className="bg-orange-50 dark:bg-orange-900/20 rounded-xl p-4 mb-4 border border-orange-200 dark:border-orange-800">
+            <div className="flex items-center gap-2 text-orange-700 dark:text-orange-300">
+              <span>📋</span>
+              <span className="text-sm font-medium">
+                {t.debtSaleNote || 'Debt sales save item values only. Payment currency will be chosen when the debt is paid back.'}
+              </span>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Discount Section */}
         <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg p-4">
@@ -792,7 +810,7 @@ export default function CashierContent({
                       }
                     }
                   }}
-                  placeholder={discount.type === 'percentage' ? '0-100%' : formatCurrency(0, currency)}
+                  placeholder={discount.type === 'percentage' ? '0-100%' : formatCurrency(0, isDebt ? 'USD' : currency)}
                   min="0"
                   max={discount.type === 'percentage' ? "100" : undefined}
                   step={discount.type === 'percentage' ? "0.1" : "0.01"}
@@ -804,7 +822,7 @@ export default function CashierContent({
               <div className="text-sm text-green-600 text-center">
                 {discount.value > 0 && discountAmount > 0 && (
                   <>
-                    {t.discount}: -{formatCurrency(discountAmount, currency)}
+                    {t.discount}: -{formatCurrency(discountAmount, isDebt ? 'USD' : currency)}
                     {discount.type === 'percentage' && ` (${discount.value}%)`}
                   </>
                 )}
@@ -813,27 +831,28 @@ export default function CashierContent({
           </div>
         </div>
 
-        {/* Multi-Currency Payment */}
-        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg p-4">
-          <div className="flex justify-between items-center mb-3">
-            <h3 className="text-lg font-semibold text-slate-800 dark:text-white">
-              {t.multiCurrencyPayment}
-            </h3>
-            <div className="flex items-center gap-2">
-              {/* Smart suggestion for currency */}
-              {!multiCurrency.enabled && items.length > 0 && (
-                <span className="text-xs text-blue-600 dark:text-blue-400">
-                  {(() => {
-                    const totalRequiredUSD = currency === 'USD' ? discountedTotal : discountedTotal / EXCHANGE_RATES.USD_TO_IQD;
-                    if (totalRequiredUSD > 100) {
-                      return t.suggestMixedPayment || 'Consider mixed payment for large amounts';
-                    }
-                    return null;
-                  })()}
-                </span>
-              )}
-              <button
-                onClick={() => setMultiCurrency(prev => ({ ...prev, enabled: !prev.enabled }))}
+        {/* Multi-Currency Payment - disabled for debt sales */}
+        {!isDebt && (
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg p-4">
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="text-lg font-semibold text-slate-800 dark:text-white">
+                {t.multiCurrencyPayment}
+              </h3>
+              <div className="flex items-center gap-2">
+                {/* Smart suggestion for currency */}
+                {!multiCurrency.enabled && items.length > 0 && (
+                  <span className="text-xs text-blue-600 dark:text-blue-400">
+                    {(() => {
+                      const totalRequiredUSD = currency === 'USD' ? discountedTotal : discountedTotal / EXCHANGE_RATES.USD_TO_IQD;
+                      if (totalRequiredUSD > 100) {
+                        return t.suggestMixedPayment || 'Consider mixed payment for large amounts';
+                      }
+                      return null;
+                    })()}
+                  </span>
+                )}
+                <button
+                  onClick={() => setMultiCurrency(prev => ({ ...prev, enabled: !prev.enabled }))}
                 className={`px-3 py-1 rounded-lg text-sm transition-colors ${
                   multiCurrency.enabled
                     ? 'bg-green-500 text-white'
@@ -983,6 +1002,7 @@ export default function CashierContent({
             </div>
           )}
         </div>
+        )}
 
         {/* Total and Checkout */}
         <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg p-4">
@@ -990,14 +1010,14 @@ export default function CashierContent({
             <div className="flex justify-between text-lg">
               <span className="text-slate-600 dark:text-slate-300">{t.subtotal}:</span>
               <span className="font-semibold text-slate-800 dark:text-white">
-                {formatCurrency(convertedTotal, currency)}
+                {formatCurrency(convertedTotal, isDebt ? 'USD' : currency)}
               </span>
             </div>
             {discount.type !== 'none' && discount.value > 0 && discountAmount > 0 && (
               <div className="flex justify-between text-sm text-green-600">
                 <span>{t.discount}:</span>
                 <span>
-                  -{formatCurrency(discountAmount, currency)}
+                  -{formatCurrency(discountAmount, isDebt ? 'USD' : currency)}
                   {discount.type === 'percentage' && ` (${discount.value}%)`}
                 </span>
               </div>
@@ -1005,10 +1025,10 @@ export default function CashierContent({
             <div className="flex justify-between text-xl font-bold border-t border-slate-200 dark:border-slate-700 pt-2">
               <span className="text-slate-800 dark:text-white">{t.total}:</span>
               <span className="text-slate-800 dark:text-white">
-                {formatCurrency(discountedTotal, currency)}
+                {formatCurrency(discountedTotal, isDebt ? 'USD' : currency)}
               </span>
             </div>
-            {currency === 'IQD' && discountedTotal !== getRoundedTotal(convertedTotal, currency) && (
+            {!isDebt && currency === 'IQD' && discountedTotal !== getRoundedTotal(convertedTotal, currency) && (
               <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
                 {IQD_BILL_ROUNDING_MESSAGE}
               </div>

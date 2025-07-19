@@ -5,8 +5,13 @@ function getProducts(db) {
 }
 
 function addProduct(db, { name, buying_price, stock, archived = 0, ram, storage, model, brand, category = 'phones', currency = 'IQD' }) {
-  // Check if product with same name, specs, and currency already exists
-  const existingProduct = db.prepare('SELECT * FROM products WHERE name = ? AND currency = ? AND archived = 0').get(name, currency);
+  // Check if product with same name, brand, model, RAM, storage, and currency already exists
+  const existingProduct = db.prepare(`
+    SELECT * FROM products 
+    WHERE name = ? AND COALESCE(brand, '') = ? AND COALESCE(model, '') = ? 
+    AND COALESCE(ram, '') = ? AND COALESCE(storage, '') = ? 
+    AND currency = ? AND archived = 0
+  `).get(name, brand || '', model || '', ram || '', storage || '', currency);
   
   if (existingProduct && existingProduct.id) {
     // Calculate new average buying price

@@ -69,10 +69,6 @@ function App() {
 
   // Global error handling for production
   useEffect(() => {
-    // Log current URL for debugging
-    console.log('📍 App loaded with URL:', window.location.href);
-    console.log('📍 Hash:', window.location.hash);
-    
     const handleGlobalError = (event) => {
       console.error('🔥 Global Error:', event.error);
       
@@ -202,22 +198,6 @@ function App() {
   useEffect(() => {
     window.showGlobalToast = (msg, type = 'info', duration = 3000) => {
       setGlobalToast({ msg, type, duration });
-    };
-    
-    // Add debug navigation helpers
-    window.debugNavigation = {
-      goToAdmin: () => {
-        console.log('🔧 Debug: Navigating to admin...');
-        window.location.hash = '#/admin';
-      },
-      goToCashier: () => {
-        console.log('🔧 Debug: Navigating to cashier...');
-        window.location.hash = '#/cashier';
-      },
-      getCurrentRoute: () => {
-        console.log('📍 Current route:', window.location.hash);
-        return window.location.hash;
-      }
     };
     
     return () => {

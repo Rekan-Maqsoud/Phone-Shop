@@ -135,7 +135,25 @@ CREATE TABLE IF NOT EXISTS buying_history (
   currency TEXT DEFAULT 'IQD',
   type TEXT,
   reference_id INTEGER,
-  amount REAL
+  amount REAL,
+  has_items INTEGER DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS buying_history_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  buying_history_id INTEGER NOT NULL,
+  item_name TEXT NOT NULL,
+  item_type TEXT DEFAULT 'product',
+  brand TEXT,
+  model TEXT,
+  ram TEXT,
+  storage TEXT,
+  type TEXT,
+  quantity INTEGER NOT NULL,
+  unit_price REAL NOT NULL,
+  total_price REAL NOT NULL,
+  currency TEXT DEFAULT 'IQD',
+  FOREIGN KEY(buying_history_id) REFERENCES buying_history(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS settings (
@@ -343,6 +361,18 @@ function runMigrations(db) {
     console.warn('Company debts migration warning:', e.message);
   }
 
+  // Migrate buying_history table to support has_items column
+  try {
+    const buyingHistoryTableInfo = db.prepare("PRAGMA table_info(buying_history)").all();
+    const hasItemsColumn = buyingHistoryTableInfo.some(col => col.name === 'has_items');
+
+    if (!hasItemsColumn) {
+      db.prepare('ALTER TABLE buying_history ADD COLUMN has_items INTEGER DEFAULT 0').run();
+    }
+  } catch (e) {
+    console.warn('Buying history migration warning:', e.message);
+  }
+
   // Initialize sample data if tables are empty
   initializeSampleData(db);
 }
@@ -378,11 +408,19 @@ function resetAllData(db) {
       // Ignore if sqlite_sequence doesn't exist
     }
     
-    // Reset balances
+    // Reset balances in both locations
     try {
       db.prepare('UPDATE balances SET usd_balance = 0, iqd_balance = 0 WHERE id = 1').run();
     } catch (e) {
       // Table might not exist, ignore
+    }
+    
+    // Reset balance settings
+    try {
+      db.prepare('UPDATE settings SET value = ? WHERE key = ?').run('0', 'balanceUSD');
+      db.prepare('UPDATE settings SET value = ? WHERE key = ?').run('0', 'balanceIQD');
+    } catch (e) {
+      // Settings might not exist, ignore
     }
     
     // Re-enable foreign key constraints
