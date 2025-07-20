@@ -154,6 +154,11 @@ module.exports = function(dbPath) {
     return debts.payCustomerDebt(db, id);
   }
 
+  // Legacy function for backward compatibility
+  function markDebtPaid(id, paid_at) {
+    return debts.markCustomerDebtPaid(db, id, { paid_at });
+  }
+
   function deleteCustomerDebt(id) {
     return debts.deleteCustomerDebt(db, id);
   }
@@ -361,12 +366,21 @@ module.exports = function(dbPath) {
     return reports.getMonthlyReports(db);
   }
 
+  function createMonthlyReport(month, year) {
+    return reports.createMonthlyReport(db, month, year);
+  }
+
   // Settings functions
   function getSetting(key) {
     return settings.getSetting(db, key);
   }
 
   function setSetting(key, value) {
+    return settings.setSetting(db, key, value);
+  }
+
+  // Legacy function for backward compatibility
+  function saveSetting(key, value) {
     return settings.setSetting(db, key, value);
   }
 
@@ -473,6 +487,35 @@ module.exports = function(dbPath) {
    * 5. Store all discount information for historical view
    */
   function saveSale({ items, total, created_at, is_debt, customer_name, currency = 'IQD', discount = null, multi_currency = null }) {
+    // CRITICAL: Validate input data before proceeding
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      throw new Error('Invalid sale data: items array is required and cannot be empty');
+    }
+    
+    if (!total || typeof total !== 'number' || total <= 0) {
+      throw new Error('Invalid sale data: total must be a positive number');
+    }
+    
+    if (!currency || !['USD', 'IQD'].includes(currency)) {
+      throw new Error('Invalid sale data: currency must be USD or IQD');
+    }
+    
+    // Validate each item has required fields
+    for (const item of items) {
+      if (!item.product_id || (!item.name && !item.item_name)) {
+        throw new Error(`Invalid item data: missing product_id or name for item: ${JSON.stringify(item)}`);
+      }
+      
+      if (!item.quantity || item.quantity <= 0) {
+        throw new Error(`Invalid item data: quantity must be positive for item: ${item.name || item.item_name}`);
+      }
+      
+      const sellingPrice = item.selling_price || item.price;
+      if (sellingPrice === undefined || sellingPrice < 0) {
+        throw new Error(`Invalid item data: selling price cannot be negative for item: ${item.name || item.item_name}`);
+      }
+    }
+    
     // Repair any null IDs before attempting to save the sale
     const repairedCount = repairProductIds();
     
@@ -547,8 +590,8 @@ module.exports = function(dbPath) {
         
         // Validate that the item has a valid product_id and itemType
         if (!item.product_id) {
-          console.warn('⚠️ [database] Skipping item without product_id:', item.name);
-          continue; // Skip invalid items
+          console.error('❌ [database] Skipping item without product_id:', item.name || item.item_name);
+          throw new Error(`Sale cannot proceed: item "${item.name || item.item_name || 'Unknown'}" has no valid product_id`);
         }
         
         let product = null;
@@ -563,13 +606,13 @@ module.exports = function(dbPath) {
         const itemData = isAccessory ? accessory : product;
         const qty = Number(item.quantity) || 1;
         
-        // Skip validation if itemData is null (this can happen after database resets)
+        // CRITICAL: Throw error if item doesn't exist in database
         if (!itemData) {
-          continue;
+          throw new Error(`Sale cannot proceed: ${isAccessory ? 'accessory' : 'product'} with ID ${item.product_id} not found in database`);
         }
         
         if (itemData.stock < qty) {
-          throw new Error(`Insufficient stock for ${isAccessory ? 'accessory' : 'product'}: ${itemData.name}`);
+          throw new Error(`Insufficient stock for ${isAccessory ? 'accessory' : 'product'}: ${itemData.name}. Available: ${itemData.stock}, Required: ${qty}`);
         }
         
         // Decrement stock for all sales (normal and debt) - only if item exists
@@ -679,9 +722,9 @@ module.exports = function(dbPath) {
         
         const finalItemData = isAccessory ? accessory : product;
         
-        // Skip items that don't have valid product_id or don't exist in database
+        // CRITICAL: Validate item exists before proceeding with sale item creation
         if (!item.product_id || !finalItemData) {
-          continue;
+          throw new Error(`Sale cannot proceed: ${isAccessory ? 'accessory' : 'product'} "${item.name || 'Unknown'}" with ID ${item.product_id || 'N/A'} not found in database`);
         }
         
         const qty = Number(item.quantity) || 1;
@@ -1355,6 +1398,7 @@ module.exports = function(dbPath) {
     getDebts: getCustomerDebts, // Alias for backward compatibility
     addCustomerDebt,
     payCustomerDebt,
+    markDebtPaid, // Legacy function for backward compatibility
     deleteCustomerDebt,
     getCompanyDebts,
     addCompanyDebt,
@@ -1412,10 +1456,12 @@ module.exports = function(dbPath) {
     getCustomerAnalysis,
     getDashboardStats,
     getMonthlyReports,
+    createMonthlyReport,
     
     // Settings
     getSetting,
     setSetting,
+    saveSetting, // Legacy function for backward compatibility
     deleteSetting,
     getAllSettings,
     getExchangeRate,

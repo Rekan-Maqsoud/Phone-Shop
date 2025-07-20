@@ -2,18 +2,56 @@
 const settings = require('./settings.cjs');
 
 function getCustomerDebts(db) {
-  return db.prepare('SELECT * FROM customer_debts ORDER BY created_at DESC').all();
+  try {
+    return db.prepare('SELECT * FROM customer_debts ORDER BY created_at DESC').all();
+  } catch (error) {
+    console.error('❌ [debts.cjs] Error getting customer debts:', error);
+    return [];
+  }
 }
 
 function addCustomerDebt(db, { customer_name, amount, description, currency = 'IQD', sale_id = null }) {
-  const now = new Date().toISOString();
-  return db.prepare('INSERT INTO customer_debts (customer_name, amount, description, created_at, currency, sale_id) VALUES (?, ?, ?, ?, ?, ?)')
-    .run(customer_name, amount, description, now, currency, sale_id);
+  try {
+    // Validate required parameters
+    if (!customer_name || !amount || amount <= 0) {
+      throw new Error('Invalid customer debt data: customer_name and positive amount are required');
+    }
+    
+    const now = new Date().toISOString();
+    const transaction = db.transaction(() => {
+      return db.prepare('INSERT INTO customer_debts (customer_name, amount, description, created_at, currency, sale_id) VALUES (?, ?, ?, ?, ?, ?)')
+        .run(customer_name, amount, description, now, currency, sale_id);
+    });
+    
+    return transaction();
+  } catch (error) {
+    console.error('❌ [debts.cjs] Error adding customer debt:', error);
+    throw error;
+  }
 }
 
 function payCustomerDebt(db, id) {
-  const now = new Date().toISOString();
-  return db.prepare('UPDATE customer_debts SET paid_at = ? WHERE id = ?').run(now, id);
+  try {
+    if (!id || isNaN(Number(id))) {
+      throw new Error('Invalid debt ID provided');
+    }
+    
+    const now = new Date().toISOString();
+    const transaction = db.transaction(() => {
+      // Check if debt exists and is unpaid
+      const debt = db.prepare('SELECT * FROM customer_debts WHERE id = ? AND paid_at IS NULL').get(id);
+      if (!debt) {
+        throw new Error('Debt not found or already paid');
+      }
+      
+      return db.prepare('UPDATE customer_debts SET paid_at = ? WHERE id = ?').run(now, id);
+    });
+    
+    return transaction();
+  } catch (error) {
+    console.error('❌ [debts.cjs] Error paying customer debt:', error);
+    throw error;
+  }
 }
 
 // Enhanced function for marking customer debt as paid with multi-currency support and balance addition
@@ -115,7 +153,7 @@ function markCustomerDebtPaid(db, id, paymentData) {
       }
       
       // Add to the user's balance based on the actual payment amounts received
-      // Add USD amount if any USD was paid by customer
+      // This correctly tracks what currency the customer actually paid with
       if (finalUSDAmount > 0) {
         settings.updateBalance(db, 'USD', finalUSDAmount);
       }
@@ -136,30 +174,65 @@ function markCustomerDebtPaid(db, id, paymentData) {
 }
 
 function deleteCustomerDebt(db, id) {
-  return db.prepare('DELETE FROM customer_debts WHERE id = ?').run(id);
+  try {
+    if (!id || isNaN(Number(id))) {
+      throw new Error('Invalid debt ID provided');
+    }
+    
+    const transaction = db.transaction(() => {
+      // Check if debt exists
+      const debt = db.prepare('SELECT * FROM customer_debts WHERE id = ?').get(id);
+      if (!debt) {
+        throw new Error('Debt not found');
+      }
+      
+      return db.prepare('DELETE FROM customer_debts WHERE id = ?').run(id);
+    });
+    
+    return transaction();
+  } catch (error) {
+    console.error('❌ [debts.cjs] Error deleting customer debt:', error);
+    throw error;
+  }
 }
 
 function getCompanyDebts(db) {
-  return db.prepare('SELECT * FROM company_debts WHERE paid_at IS NULL ORDER BY created_at DESC').all();
+  try {
+    return db.prepare('SELECT * FROM company_debts WHERE paid_at IS NULL ORDER BY created_at DESC').all();
+  } catch (error) {
+    console.error('❌ [debts.cjs] Error getting company debts:', error);
+    return [];
+  }
 }
 
-function addCompanyDebt(db, { company_name, amount, description, has_items = 0, currency = 'IQD', multi_currency = null }) {
+function addCompanyDebt(db, { company_name, amount, description, has_items = 0, currency = 'USD', discount = null }) {
   const now = new Date().toISOString();
   
-  // If multi-currency is enabled, store both amounts and set currency to 'MULTI'
-  if (multi_currency && multi_currency.enabled) {
-    return db.prepare(`INSERT INTO company_debts 
-      (company_name, amount, description, created_at, has_items, currency, usd_amount, iqd_amount) 
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
-      .run(company_name, 0, description, now, has_items, 'MULTI', 
-           multi_currency.usdAmount || 0, multi_currency.iqdAmount || 0);
-  } else {
-    // Single currency
-    return db.prepare(`INSERT INTO company_debts 
-      (company_name, amount, description, created_at, has_items, currency) 
-      VALUES (?, ?, ?, ?, ?, ?)`)
-      .run(company_name, amount, description, now, has_items, currency);
+  // Apply discount if provided
+  let finalAmount = amount;
+  if (discount && discount.discount_value) {
+    if (discount.discount_type === 'percentage') {
+      finalAmount = amount * (1 - discount.discount_value / 100);
+    } else {
+      // Fixed amount discount
+      finalAmount = Math.max(0, amount - discount.discount_value);
+    }
   }
+  
+  // Simplified: Always store debts in USD value equivalent and ignore original currency
+  // Convert to USD if the amount was originally in IQD
+  let usdAmount = finalAmount;
+  if (currency === 'IQD') {
+    // Convert IQD to USD equivalent for storage
+    const EXCHANGE_RATES = { USD_TO_IQD: 1440 }; // Use default rate
+    usdAmount = finalAmount / EXCHANGE_RATES.USD_TO_IQD;
+  }
+  
+  // Always store as single USD amount for simplicity
+  return db.prepare(`INSERT INTO company_debts 
+    (company_name, amount, description, created_at, has_items, currency) 
+    VALUES (?, ?, ?, ?, ?, ?)`)
+    .run(company_name, usdAmount, description, now, has_items, 'USD');
 }
 
 function payCompanyDebt(db, id) {
@@ -167,38 +240,75 @@ function payCompanyDebt(db, id) {
   return db.prepare('UPDATE company_debts SET paid_at = ? WHERE id = ?').run(now, id);
 }
 
-// Enhanced function for marking company debt as paid with multi-currency support and balance deduction
+// Enhanced function for marking company debt as paid with simplified currency logic and change skipping
 function markCompanyDebtPaid(db, id, paymentData) {
   const { 
     paid_at, 
-    payment_currency_used, 
-    payment_usd_amount = 0, 
-    payment_iqd_amount = 0 
+    payment_currency = 'USD', // Which currency the user is paying with
+    payment_amount = 0 // The actual amount being paid
   } = paymentData || {};
   
   const now = paid_at || new Date().toISOString();
+  const EXCHANGE_RATES = { USD_TO_IQD: 1440, IQD_TO_USD: 1/1440 }; // Use default rates
   
   const transaction = db.transaction(() => {
     try {
       // Get debt info before updating for transaction record
-      const debtInfo = db.prepare('SELECT company_name, amount, description, currency, usd_amount, iqd_amount FROM company_debts WHERE id = ?').get(id);
+      const debtInfo = db.prepare('SELECT company_name, amount, description, currency FROM company_debts WHERE id = ?').get(id);
       
-      // If no specific payment amounts are provided, use the debt's original amount and currency
-      let finalUSDAmount = payment_usd_amount;
-      let finalIQDAmount = payment_iqd_amount;
+      if (!debtInfo) {
+        return { success: false, message: 'Company debt not found' };
+      }
       
-      if (payment_usd_amount === 0 && payment_iqd_amount === 0 && debtInfo) {
-        // No custom payment amounts specified, use the debt's original amount
-        if (debtInfo.currency === 'MULTI') {
-          finalUSDAmount = debtInfo.usd_amount || 0;
-          finalIQDAmount = debtInfo.iqd_amount || 0;
-        } else if (debtInfo.currency === 'USD') {
-          finalUSDAmount = debtInfo.amount;
-          finalIQDAmount = 0;
+      // Debt is always stored in USD, so we know the debt amount in USD
+      const debtAmountUSD = debtInfo.amount || 0;
+      
+      let finalUSDAmount = 0;
+      let finalIQDAmount = 0;
+      let changeUSD = 0;
+      let changeIQD = 0;
+      
+      if (payment_currency === 'USD') {
+        // User is paying with USD
+        const overpaymentUSD = payment_amount - debtAmountUSD;
+        
+        if (overpaymentUSD > 0) {
+          // Calculate change in USD
+          changeUSD = overpaymentUSD;
+          
+          // Skip change if less than $1 USD
+          if (changeUSD < 1) {
+            changeUSD = 0; // No change given
+            finalUSDAmount = payment_amount; // User keeps the small overpayment as profit
+          } else {
+            finalUSDAmount = debtAmountUSD; // Only deduct the actual debt amount
+          }
         } else {
-          finalUSDAmount = 0;
-          finalIQDAmount = debtInfo.amount;
+          // Exact payment or underpayment
+          finalUSDAmount = payment_amount;
         }
+        finalIQDAmount = 0; // No IQD involved when paying with USD
+      } else {
+        // User is paying with IQD
+        const debtAmountIQD = debtAmountUSD * EXCHANGE_RATES.USD_TO_IQD;
+        const overpaymentIQD = payment_amount - debtAmountIQD;
+        
+        if (overpaymentIQD > 0) {
+          // Calculate change in IQD
+          changeIQD = overpaymentIQD;
+          
+          // Skip change if less than 1000 IQD
+          if (changeIQD < 1000) {
+            changeIQD = 0; // No change given
+            finalIQDAmount = payment_amount; // User keeps the small overpayment as profit
+          } else {
+            finalIQDAmount = debtAmountIQD; // Only deduct the actual debt amount
+          }
+        } else {
+          // Exact payment or underpayment
+          finalIQDAmount = payment_amount;
+        }
+        finalUSDAmount = 0; // No USD involved when paying with IQD
       }
       
       // Update the debt record
@@ -215,11 +325,11 @@ function markCompanyDebtPaid(db, id, paymentData) {
         now, 
         finalUSDAmount || 0, 
         finalIQDAmount || 0,
-        payment_currency_used || debtInfo?.currency || 'USD',
+        payment_currency || 'USD',
         id
       );
       
-      // Record transaction - track the actual payment amounts made
+      // Record transaction - track the actual payment amounts deducted
       const addTransactionStmt = db.prepare(`
         INSERT INTO transactions (type, amount_usd, amount_iqd, description, reference_id, reference_type, created_at) 
         VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -235,90 +345,70 @@ function markCompanyDebtPaid(db, id, paymentData) {
         now
       );
       
-      // Add entries to buying history for spending tracking
-      if (finalUSDAmount > 0) {
-        try {
-          const addBuyingHistoryUSD = db.prepare(`
-            INSERT INTO buying_history (item_name, quantity, unit_price, total_price, date, currency, type, reference_id) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-          `);
-          
-          addBuyingHistoryUSD.run(
-            `Company debt payment: ${debtInfo.company_name}`,
-            1,
-            finalUSDAmount,
-            finalUSDAmount,
-            now,
-            'USD',
-            'debt_payment',
-            id
-          );
-        } catch (columnError) {
-          const addBuyingHistoryUSDBasic = db.prepare(`
-            INSERT INTO buying_history (item_name, quantity, unit_price, total_price, date, currency) 
-            VALUES (?, ?, ?, ?, ?, ?)
-          `);
-          
-          addBuyingHistoryUSDBasic.run(
-            `Company debt payment: ${debtInfo.company_name}`,
-            1,
-            finalUSDAmount,
-            finalUSDAmount,
-            now,
-            'USD'
-          );
+      // Add entries to buying history for spending tracking - create one consolidated entry
+      const totalPaidAmount = finalUSDAmount + (finalIQDAmount / EXCHANGE_RATES.USD_TO_IQD);
+      const primaryCurrency = finalUSDAmount > 0 ? 'USD' : 'IQD';
+      const primaryAmount = finalUSDAmount > 0 ? finalUSDAmount : finalIQDAmount;
+      
+      // Create a single buying history entry in the primary currency
+      try {
+        const addBuyingHistory = db.prepare(`
+          INSERT INTO buying_history (item_name, quantity, unit_price, total_price, date, currency, type, reference_id) 
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `);
+        
+        let description = `Company debt payment: ${debtInfo.company_name}`;
+        if (finalUSDAmount > 0 && finalIQDAmount > 0) {
+          description += ` (Multi-currency: $${finalUSDAmount.toFixed(2)} + د.ع${finalIQDAmount.toFixed(0)})`;
         }
+        
+        addBuyingHistory.run(
+          description,
+          1,
+          primaryAmount,
+          primaryAmount,
+          now,
+          primaryCurrency,
+          'debt_payment',
+          id
+        );
+      } catch (columnError) {
+        // Fallback without type and reference_id columns
+        const addBuyingHistoryBasic = db.prepare(`
+          INSERT INTO buying_history (item_name, quantity, unit_price, total_price, date, currency) 
+          VALUES (?, ?, ?, ?, ?, ?)
+        `);
+        
+        let description = `Company debt payment: ${debtInfo.company_name}`;
+        if (finalUSDAmount > 0 && finalIQDAmount > 0) {
+          description += ` (Multi-currency: $${finalUSDAmount.toFixed(2)} + د.ع${finalIQDAmount.toFixed(0)})`;
+        }
+        
+        addBuyingHistoryBasic.run(
+          description,
+          1,
+          primaryAmount,
+          primaryAmount,
+          now,
+          primaryCurrency
+        );
       }
       
-      if (finalIQDAmount > 0) {
-        try {
-          const addBuyingHistoryIQD = db.prepare(`
-            INSERT INTO buying_history (item_name, quantity, unit_price, total_price, date, currency, type, reference_id) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-          `);
-          
-          addBuyingHistoryIQD.run(
-            `Company debt payment: ${debtInfo.company_name}`,
-            1,
-            finalIQDAmount,
-            finalIQDAmount,
-            now,
-            'IQD',
-            'debt_payment',
-            id
-          );
-        } catch (columnError) {
-          const addBuyingHistoryIQDBasic = db.prepare(`
-            INSERT INTO buying_history (item_name, quantity, unit_price, total_price, date, currency) 
-            VALUES (?, ?, ?, ?, ?, ?)
-          `);
-          
-          addBuyingHistoryIQDBasic.run(
-            `Company debt payment: ${debtInfo.company_name}`,
-            1,
-            finalIQDAmount,
-            finalIQDAmount,
-            now,
-            'IQD'
-          );
-        }
-      }
-      
-      // Deduct from the user's balance based on the actual payment amounts
+      // Deduct from the user's balance based on the actual payment amounts deducted
       // Deduct USD amount if any USD was paid
       if (finalUSDAmount > 0) {
         settings.updateBalance(db, 'USD', -finalUSDAmount);
       }
       
-      // Deduct IQD amount if any IQD was paid
+      // Deduct IQD amount if any IQD was paid  
       if (finalIQDAmount > 0) {
         settings.updateBalance(db, 'IQD', -finalIQDAmount);
       }
       
-      return { success: true, changes: result.changes };
+      return { success: true, changes: result.changes, changeGiven: { changeUSD, changeIQD } };
     } catch (error) {
       console.error('Error marking company debt as paid:', error);
-      return false;
+      return { success: false, message: error.message || 'Failed to mark debt as paid' };
     }
   });
   
@@ -337,32 +427,42 @@ function deleteCompanyDebt(db, id) {
   return transaction();
 }
 
-function addCompanyDebtWithItems(db, { company_name, description, items, currency = 'IQD', multi_currency = null }) {
+function addCompanyDebtWithItems(db, { company_name, description, items, currency = 'USD', discount = null }) {
   const now = new Date().toISOString();
   
-  // Calculate total amount from items
-  const totalAmount = items.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
+  // Calculate total amount from items in USD equivalent
+  let totalUSDAmount = 0;
+  items.forEach(item => {
+    let itemUSDPrice = item.unit_price;
+    if (item.currency === 'IQD') {
+      // Convert IQD to USD equivalent for storage
+      const EXCHANGE_RATES = { USD_TO_IQD: 1440 }; // Use default rate
+      itemUSDPrice = item.unit_price / EXCHANGE_RATES.USD_TO_IQD;
+    }
+    totalUSDAmount += item.quantity * itemUSDPrice;
+  });
+  
+  // Apply discount if provided
+  let finalAmount = totalUSDAmount;
+  if (discount && discount.discount_value) {
+    if (discount.discount_type === 'percentage') {
+      finalAmount = totalUSDAmount * (1 - discount.discount_value / 100);
+    } else {
+      // Fixed amount discount
+      finalAmount = Math.max(0, totalUSDAmount - discount.discount_value);
+    }
+  }
   
   const transaction = db.transaction(() => {
-    let debtResult;
-    
-    // Create the main debt record
-    if (multi_currency && multi_currency.enabled) {
-      debtResult = db.prepare(`INSERT INTO company_debts 
-        (company_name, amount, description, created_at, has_items, currency, usd_amount, iqd_amount) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
-        .run(company_name, 0, description, now, 1, 'MULTI', 
-             multi_currency.usdAmount || 0, multi_currency.iqdAmount || 0);
-    } else {
-      debtResult = db.prepare(`INSERT INTO company_debts 
-        (company_name, amount, description, created_at, has_items, currency) 
-        VALUES (?, ?, ?, ?, ?, ?)`)
-        .run(company_name, totalAmount, description, now, 1, currency);
-    }
+    // Create the main debt record - always in USD for simplicity
+    const debtResult = db.prepare(`INSERT INTO company_debts 
+      (company_name, amount, description, created_at, has_items, currency) 
+      VALUES (?, ?, ?, ?, ?, ?)`)
+      .run(company_name, finalAmount, description, now, 1, 'USD');
     
     const debtId = debtResult.lastInsertRowid;
     
-    // Add all items
+    // Add all items (storing original currency info for reference)
     const insertItem = db.prepare(`INSERT INTO company_debt_items 
       (debt_id, item_name, item_type, model, ram, storage, quantity, unit_price, total_price, currency) 
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
@@ -548,19 +648,46 @@ function markPersonalLoanPaid(db, id, paymentData) {
       const remainingUSD = (loanInfo.usd_amount || 0) - (loanInfo.payment_usd_amount || 0);
       const remainingIQD = (loanInfo.iqd_amount || 0) - (loanInfo.payment_iqd_amount || 0);
 
-      // Validate payment doesn't exceed remaining amounts
-      if (payment_usd_amount > remainingUSD) {
-        return { success: false, message: `USD payment of $${payment_usd_amount} exceeds remaining balance of $${remainingUSD}` };
-      }
-      if (payment_iqd_amount > remainingIQD) {
-        return { success: false, message: `IQD payment of ${payment_iqd_amount} IQD exceeds remaining balance of ${remainingIQD} IQD` };
+      // Enhanced validation for cross-currency payments
+      // Convert payment to equivalent values for validation
+      const paymentUSDEquivalent = payment_usd_amount + (payment_iqd_amount * EXCHANGE_RATES.IQD_TO_USD);
+      const remainingTotalUSDEquivalent = remainingUSD + (remainingIQD * EXCHANGE_RATES.IQD_TO_USD);
+      
+      // Allow cross-currency payment as long as total doesn't exceed remaining loan
+      if (paymentUSDEquivalent > remainingTotalUSDEquivalent + 0.01) { // Small tolerance for rounding
+        return { 
+          success: false, 
+          message: `Total payment of ${payment_usd_amount > 0 ? `$${payment_usd_amount}` : ''}${payment_usd_amount > 0 && payment_iqd_amount > 0 ? ' + ' : ''}${payment_iqd_amount > 0 ? `${payment_iqd_amount} IQD` : ''} exceeds remaining loan balance of $${remainingTotalUSDEquivalent.toFixed(2)} equivalent` 
+        };
       }
 
-      // Calculate new payment totals
-      const newPaymentUSD = (loanInfo.payment_usd_amount || 0) + payment_usd_amount;
-      const newPaymentIQD = (loanInfo.payment_iqd_amount || 0) + payment_iqd_amount;
+      // For cross-currency payments, we need to handle the conversion logic
+      let finalPaymentUSD = payment_usd_amount;
+      let finalPaymentIQD = payment_iqd_amount;
+      
+      // If paying more than what's owed in that specific currency, convert excess to the other currency
+      if (payment_usd_amount > remainingUSD && remainingIQD > 0) {
+        // Paying more USD than owed, convert excess to IQD payment
+        const excessUSD = payment_usd_amount - remainingUSD;
+        const excessAsIQD = excessUSD * EXCHANGE_RATES.USD_TO_IQD;
+        finalPaymentUSD = remainingUSD;
+        finalPaymentIQD = Math.min(payment_iqd_amount + excessAsIQD, remainingIQD);
+      } else if (payment_iqd_amount > remainingIQD && remainingUSD > 0) {
+        // Paying more IQD than owed, convert excess to USD payment
+        const excessIQD = payment_iqd_amount - remainingIQD;
+        const excessAsUSD = excessIQD * EXCHANGE_RATES.IQD_TO_USD;
+        finalPaymentIQD = remainingIQD;
+        finalPaymentUSD = Math.min(payment_usd_amount + excessAsUSD, remainingUSD);
+      }
 
-      // Update the loan record
+      // Calculate new payment totals using the final amounts after cross-currency conversion
+      const newPaymentUSD = (loanInfo.payment_usd_amount || 0) + finalPaymentUSD;
+      const newPaymentIQD = (loanInfo.payment_iqd_amount || 0) + finalPaymentIQD;
+
+      // Check if loan is fully paid after this payment
+      const isFullyPaid = (newPaymentUSD >= (loanInfo.usd_amount || 0)) && (newPaymentIQD >= (loanInfo.iqd_amount || 0));
+      
+      // Update the loan record - only set paid_at if fully paid
       const updateStmt = db.prepare(`
         UPDATE personal_loans 
         SET paid_at = ?, 
@@ -570,7 +697,7 @@ function markPersonalLoanPaid(db, id, paymentData) {
       `);
       
       const result = updateStmt.run(
-        now, 
+        isFullyPaid ? now : null, // Only mark as paid if fully paid
         newPaymentUSD,
         newPaymentIQD,
         id
@@ -580,17 +707,17 @@ function markPersonalLoanPaid(db, id, paymentData) {
         return { success: false, message: 'Failed to update loan or loan not found' };
       }
 
-      // Add the payment amounts to the current balance
-      if (payment_usd_amount > 0) {
+      // Add the payment amounts to the current balance (using final converted amounts)
+      if (finalPaymentUSD > 0) {
         const settings = require('./settings.cjs');
-        settings.updateBalance(db, 'USD', payment_usd_amount);
+        settings.updateBalance(db, 'USD', finalPaymentUSD);
       }
-      if (payment_iqd_amount > 0) {
+      if (finalPaymentIQD > 0) {
         const settings = require('./settings.cjs');
-        settings.updateBalance(db, 'IQD', payment_iqd_amount);
+        settings.updateBalance(db, 'IQD', finalPaymentIQD);
       }
       
-      // Record transaction - track the actual payment amounts received
+      // Record transaction - track the actual payment amounts received (original amounts paid by customer)
       const description = `Loan payment from ${loanInfo.person_name}`;
       const addTransactionStmt = db.prepare(`
         INSERT INTO transactions (type, amount_usd, amount_iqd, description, reference_id, reference_type, created_at) 
@@ -599,7 +726,7 @@ function markPersonalLoanPaid(db, id, paymentData) {
       
       addTransactionStmt.run(
         'loan_payment',
-        payment_usd_amount || 0,
+        payment_usd_amount || 0, // Use original payment amounts for transaction record
         payment_iqd_amount || 0,
         description,
         id,

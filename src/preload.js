@@ -56,6 +56,7 @@ contextBridge.exposeInMainWorld('api', {
   // Monthly reports functionality
   createMonthlyReport: (month, year) => ipcRenderer.invoke('createMonthlyReport', month, year),
   getMonthlyReports: () => ipcRenderer.invoke('getMonthlyReports'),
+  getMonthlyReport: (year, month) => ipcRenderer.invoke('getMonthlyReport', year, month),
   resetMonthlySalesAndProfit: () => ipcRenderer.invoke('resetMonthlySalesAndProfit'),
   
   // Accessory functionality

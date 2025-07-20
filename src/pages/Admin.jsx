@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useLayoutEffect, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useLayoutEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLocale } from '../contexts/LocaleContext';
@@ -21,6 +21,7 @@ import ToastUnified from '../components/ToastUnified';
 import AdvancedAnalytics from '../components/AdvancedAnalytics';
 import AdminLoadingFallback from '../components/AdminLoadingFallback';
 import ExchangeRateIndicator from '../components/ExchangeRateIndicator';
+import MonthlyReportsSection from '../components/MonthlyReportsSection';
 
 export default function Admin() {
   const [confirm, setConfirm] = useState({ open: false, message: '', onConfirm: null });
@@ -111,31 +112,31 @@ export default function Admin() {
   // Show error state if initialization failed
   if (initializationError) {
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-        <div className="bg-white p-8 rounded-lg shadow-lg text-center max-w-md">
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
+        <div className="bg-white p-8 rounded-lg shadow-lg text-center max-w-2xl w-full">
           <div className="text-red-500 text-6xl mb-4">⚠️</div>
           <h2 className="text-2xl font-bold text-gray-800 mb-4">
             Admin Initialization Error
           </h2>
-          <p className="text-gray-600 mb-6">
+          <p className="text-gray-600 mb-6 text-lg">
             {initializationError}
           </p>
           <div className="space-y-3">
             <button
               onClick={() => window.location.reload()}
-              className="w-full px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+              className="w-full px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-lg font-medium"
             >
               Reload Application
             </button>
             <button
               onClick={() => setInitializationError(null)}
-              className="w-full px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors"
+              className="w-full px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors text-lg font-medium"
             >
               Try Again
             </button>
             <button
               onClick={() => navigate('/cashier')}
-              className="w-full px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition-colors"
+              className="w-full px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-lg font-medium"
             >
               Go to Cashier
             </button>
@@ -152,30 +153,30 @@ export default function Admin() {
   } catch (renderError) {
     console.error('🔥 Admin: Render error:', renderError);
     return (
-      <div className="min-h-screen bg-red-50 flex items-center justify-center">
-        <div className="bg-white p-8 rounded-lg shadow-lg text-center max-w-md">
+      <div className="min-h-screen bg-red-50 flex items-center justify-center p-4">
+        <div className="bg-white p-8 rounded-lg shadow-lg text-center max-w-2xl w-full">
           <div className="text-red-500 text-6xl mb-4">💥</div>
           <h2 className="text-2xl font-bold text-red-600 mb-4">
             Admin Render Error
           </h2>
-          <p className="text-gray-600 mb-6">
+          <p className="text-gray-600 mb-6 text-lg">
             The admin interface encountered a rendering error. This might be due to data corruption or missing dependencies.
           </p>
           <div className="space-y-3">
             <button
               onClick={() => window.location.reload()}
-              className="w-full px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+              className="w-full px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-lg font-medium"
             >
               Reload Application
             </button>
             <button
               onClick={() => navigate('/cashier')}
-              className="w-full px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition-colors"
+              className="w-full px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-lg font-medium"
             >
               Go to Cashier
             </button>
           </div>
-          <details className="mt-4 text-left">
+          <details className="mt-6 text-left">
             <summary className="cursor-pointer text-sm text-gray-500">Error Details</summary>
             <pre className="mt-2 text-xs text-gray-600 bg-gray-100 p-2 rounded overflow-auto">
               {renderError.toString()}
@@ -212,11 +213,23 @@ export default function Admin() {
     return products.filter(p => p.stock < admin.lowStockThreshold);
   }, [products, admin.notificationsEnabled, admin.lowStockThreshold]);
 
+  // FIXED: Use useRef to track if notification was already shown to prevent re-triggering
+  const lastNotificationRef = useRef('');
+  
   useEffect(() => {
     if (lowStockNotificationProducts.length > 0) {
-      admin.setToast(`${t.lowStockAlert}: ${lowStockNotificationProducts.map(p => p.name).join(', ')}`);
+      const notificationKey = lowStockNotificationProducts.map(p => `${p.id}-${p.stock}`).join(',');
+      
+      // Only show notification if products or stock levels have changed
+      if (notificationKey !== lastNotificationRef.current) {
+        admin.setToast(`${t.lowStockAlert}: ${lowStockNotificationProducts.map(p => p.name).join(', ')}`);
+        lastNotificationRef.current = notificationKey;
+      }
+    } else {
+      // Reset when no low stock items
+      lastNotificationRef.current = '';
     }
-  }, [lowStockNotificationProducts, admin.setToast, t]);
+  }, [lowStockNotificationProducts, admin.setToast, t.lowStockAlert]);
 
   // Calculate total profit (for main page use, most calculations moved to AdminStatsSidebar) - memoized
   const totalProfit = useMemo(() => {
@@ -287,6 +300,7 @@ export default function Admin() {
     { key: 'customerDebts', label: t.customerDebts, icon: '💳', shortcut: '8' },
     { key: 'companyDebts', label: t.companyDebts, icon: '💸', shortcut: '9' },
     { key: 'personalLoans', label: t.personalLoans || 'Personal Loans', icon: '🤝', shortcut: '0' },
+    { key: 'monthlyReports', label: t.monthlyReports || 'Monthly Reports', icon: '📊', shortcut: '-' },
     { key: 'backup', label: t.cloudBackup, icon: '☁️', action: () => setShowBackupManager(true) },
     { key: 'settings', label: t.settings, icon: '⚙️' },
     { key: 'logout', label: t.logout, icon: '🚪', action: () => navigate('/cashier'), isLogout: true },
@@ -311,9 +325,9 @@ export default function Admin() {
         return;
       }
       
-      // Handle number keys for navigation (only with Ctrl modifier)
-      const numberKeys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'];
-      if (numberKeys.includes(e.key) && e.ctrlKey) {
+      // Handle number keys and dash for navigation (only with Ctrl modifier)
+      const shortcutKeys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-'];
+      if (shortcutKeys.includes(e.key) && e.ctrlKey) {
         e.preventDefault();
         const navItem = navItems.find(item => item.shortcut === e.key);
         if (navItem && !navItem.action) {
@@ -603,6 +617,15 @@ export default function Admin() {
               <PersonalLoansSection 
                 t={t}
                 admin={admin}
+              />
+            )}
+
+            {/* Monthly Reports Section */}
+            {section === 'monthlyReports' && (
+              <MonthlyReportsSection 
+                t={t}
+                admin={admin}
+                showConfirm={showConfirm}
               />
             )}
           </div>

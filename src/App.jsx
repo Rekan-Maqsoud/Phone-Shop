@@ -5,6 +5,7 @@ import { LocaleProvider } from './contexts/LocaleContext';
 import { DataProvider } from './contexts/DataContext';
 import { SoundProvider } from './contexts/SoundContext';
 import { BackupProgressProvider, BackupProgressOverlay } from './contexts/BackupProgressContext';
+import ErrorBoundary from './components/ErrorBoundary';
 import Cashier from './pages/Cashier';
 import Admin from './pages/Admin';
 import AdminTestPage from './components/AdminTestPage';
@@ -29,25 +30,25 @@ class RouteErrorBoundary extends React.Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-          <div className="bg-white p-8 rounded-lg shadow-lg text-center max-w-md">
+        <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
+          <div className="bg-white p-8 rounded-lg shadow-lg text-center max-w-2xl w-full">
             <div className="text-red-500 text-6xl mb-4">⚠️</div>
             <h2 className="text-2xl font-bold text-gray-800 mb-4">
               {this.props.routeName} Loading Error
             </h2>
-            <p className="text-gray-600 mb-6">
+            <p className="text-gray-600 mb-6 text-lg">
               Something went wrong while loading this page. Please try again.
             </p>
             <div className="space-y-3">
               <button
                 onClick={() => window.location.reload()}
-                className="w-full px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+                className="w-full px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-lg font-medium"
               >
                 Reload Application
               </button>
               <button
                 onClick={() => this.setState({ hasError: false })}
-                className="w-full px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors"
+                className="w-full px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors text-lg font-medium"
               >
                 Try Again
               </button>
@@ -232,50 +233,53 @@ function App() {
     );
   }
 
+  // CRITICAL: Wrap the entire application in ErrorBoundary for comprehensive error handling
   return (
-    <ThemeProvider>
-      <LocaleProvider>
-        <SoundProvider>
-          <DataProvider>
-            <BackupProgressProvider>
-              <div className="min-h-screen bg-gray-100">
-                <HashRouter>
-                  <Routes>
-                    <Route 
-                      path="/cashier" 
-                      element={
-                        <RouteErrorBoundary routeName="Cashier">
-                          <Cashier />
-                        </RouteErrorBoundary>
-                      } 
+    <ErrorBoundary>
+      <ThemeProvider>
+        <LocaleProvider>
+          <SoundProvider>
+            <DataProvider>
+              <BackupProgressProvider>
+                <div className="min-h-screen bg-gray-100">
+                  <HashRouter>
+                    <Routes>
+                      <Route 
+                        path="/cashier" 
+                        element={
+                          <RouteErrorBoundary routeName="Cashier">
+                            <Cashier />
+                          </RouteErrorBoundary>
+                        } 
+                      />
+                      <Route 
+                        path="/admin" 
+                        element={
+                          <RouteErrorBoundary routeName="Admin">
+                            <Admin />
+                          </RouteErrorBoundary>
+                        } 
+                      />
+                      <Route path="/" element={<Navigate to="/cashier" replace />} />
+                      <Route path="*" element={<Navigate to="/cashier" replace />} />
+                    </Routes>
+                  </HashRouter>
+                  <BackupProgressOverlay />
+                  {globalToast && (
+                    <ToastUnified
+                      message={globalToast.msg}
+                      type={globalToast.type}
+                      duration={globalToast.duration}
+                      onClose={handleCloseToast}
                     />
-                    <Route 
-                      path="/admin" 
-                      element={
-                        <RouteErrorBoundary routeName="Admin">
-                          <Admin />
-                        </RouteErrorBoundary>
-                      } 
-                    />
-                    <Route path="/" element={<Navigate to="/cashier" replace />} />
-                    <Route path="*" element={<Navigate to="/cashier" replace />} />
-                  </Routes>
-                </HashRouter>
-                <BackupProgressOverlay />
-                {globalToast && (
-                  <ToastUnified
-                    message={globalToast.msg}
-                    type={globalToast.type}
-                    duration={globalToast.duration}
-                    onClose={handleCloseToast}
-                  />
-                )}
-              </div>
-            </BackupProgressProvider>
-          </DataProvider>
-        </SoundProvider>
-      </LocaleProvider>
-    </ThemeProvider>
+                  )}
+                </div>
+              </BackupProgressProvider>
+            </DataProvider>
+          </SoundProvider>
+        </LocaleProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   );
 }
 

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useData } from '../contexts/DataContext';
 import CustomerDebtPaymentModal from './CustomerDebtPaymentModal';
+import UniversalPaymentModal from './UniversalPaymentModal';
 
 const CustomerDebtsSection = ({ 
   t, 
@@ -442,15 +443,18 @@ const CustomerDebtsSection = ({
         );
       })()}
 
-      {/* Enhanced Payment Modal */}
-      <CustomerDebtPaymentModal
-        showPaymentModal={showPaymentModal}
-        setShowPaymentModal={setShowPaymentModal}
-        selectedDebt={selectedDebt}
-        setSelectedDebt={setSelectedDebt}
+      {/* Universal Payment Modal */}
+      <UniversalPaymentModal
+        show={showPaymentModal}
+        onClose={() => {
+          setShowPaymentModal(false);
+          setSelectedDebt(null);
+        }}
+        debtData={selectedDebt}
+        paymentType="customer"
+        onPaymentComplete={handlePaymentComplete}
         admin={admin}
         t={t}
-        onPaymentComplete={handlePaymentComplete}
       />
     </div>
   );

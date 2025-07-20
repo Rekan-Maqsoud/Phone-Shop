@@ -1,11 +1,20 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import HistorySearchFilter from './HistorySearchFilter';
 
-export default function SalesHistoryTableEnhanced({ sales, t, onView, onPrintLast, onReturn }) {
+// Enhanced Sales History Table with performance optimizations
+const SalesHistoryTableEnhanced = React.memo(function SalesHistoryTableEnhanced({ sales, t, onView, onPrintLast, onReturn }) {
   const [filteredSales, setFilteredSales] = useState(sales || []);
   const [totals, setTotals] = useState(null);
   const [sortOrder, setSortOrder] = useState('desc');
   const [expandedSales, setExpandedSales] = useState(new Set());
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 50; // Performance optimization: limit to 50 items per page
+
+  // Reset pagination when sales data changes
+  useEffect(() => {
+    setFilteredSales(sales || []);
+    setCurrentPage(1); // Reset to first page when data changes
+  }, [sales]);
 
   // Simple currency formatter with proper decimal handling
   const formatCurrency = (amount, currency) => {
@@ -123,6 +132,12 @@ export default function SalesHistoryTableEnhanced({ sales, t, onView, onPrintLas
       return sortOrder === 'desc' ? dateB - dateA : dateA - dateB;
     });
   }, [filteredSales, sortOrder]);
+
+  // Pagination calculations for performance
+  const totalPages = Math.ceil(sortedSales.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedSales = sortedSales.slice(startIndex, endIndex);
 
   // Toggle sale expansion
   const toggleSaleExpansion = (saleId) => {
@@ -245,6 +260,36 @@ export default function SalesHistoryTableEnhanced({ sales, t, onView, onPrintLas
         getBrandFromItem={getBrandFromSalesHistory}
       />
 
+      {/* Pagination controls */}
+      {sortedSales.length > itemsPerPage && (
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 mb-4">
+          <div className="flex justify-between items-center">
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              Showing {startIndex + 1}-{Math.min(endIndex, sortedSales.length)} of {sortedSales.length} entries
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                ← {t?.previous || 'Previous'}
+              </button>
+              <span className="px-3 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-lg">
+                {currentPage} / {totalPages}
+              </span>
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+                className="px-3 py-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {t?.next || 'Next'} →
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Sales Table */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 w-full">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4">
@@ -281,14 +326,14 @@ export default function SalesHistoryTableEnhanced({ sales, t, onView, onPrintLas
               </tr>
             </thead>
             <tbody>
-              {sortedSales.length === 0 ? (
+              {paginatedSales.length === 0 ? (
                 <tr>
                   <td colSpan="9" className="text-center text-gray-400 py-4">
                     {t.noSalesFound || 'No sales found'}
                   </td>
                 </tr>
               ) : (
-                sortedSales.map((sale, idx) => {
+                paginatedSales.map((sale, idx) => {
                   const breakdown = getSaleCurrencyBreakdown(sale);
                   const isExpanded = expandedSales.has(sale.id);
                   const hasMultipleCurrencies = (breakdown.usd.items.length > 0 && breakdown.iqd.items.length > 0) || 
@@ -411,4 +456,6 @@ export default function SalesHistoryTableEnhanced({ sales, t, onView, onPrintLas
       </div>
     </div>
   );
-}
+});
+
+export default SalesHistoryTableEnhanced;

@@ -33,7 +33,7 @@ export default function Cashier() {
   const [quantity, setQuantity] = useState(1);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1);
-  const [currency, setCurrency] = useState('USD');
+  const [currency, setCurrency] = useState('IQD'); // Default to IQD as requested
   const [discount, setDiscount] = useState(null);
   const inputRef = useRef();
   const navigate = useNavigate();

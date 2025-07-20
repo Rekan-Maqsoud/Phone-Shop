@@ -15,6 +15,10 @@ import {
 } from 'chart.js';
 import { Bar, Line, Doughnut, Radar, Pie } from 'react-chartjs-2';
 
+// Import shared utilities instead of duplicating
+import { formatCurrency, CHART_COLORS, getCommonChartOptions } from '../utils/chartUtils';
+import { EXCHANGE_RATES } from '../utils/exchangeRates';
+
 ChartJS.register(
   CategoryScale,
   LinearScale,
@@ -27,16 +31,6 @@ ChartJS.register(
   ArcElement,
   RadialLinearScale
 );
-
-const formatCurrency = (amount, currency = 'USD') => {
-  if (currency === 'IQD') {
-    return `${Math.round(amount).toLocaleString()} IQD`;
-  }
-  // Format with 2 decimal places for USD, but remove .00 for whole numbers
-  const formatted = Number(amount).toFixed(2);
-  const cleanFormatted = formatted.endsWith('.00') ? formatted.slice(0, -3) : formatted;
-  return `$${cleanFormatted}`;
-};
 
 export default function AdvancedAnalytics({ admin, t }) {
   const { products, accessories, sales, debts, buyingHistory, refreshAllData } = useData();

@@ -155,7 +155,7 @@ export const DataProvider = ({ children }) => {
       
       fetchWithRetry();
     }
-  }, [apiReady, fetchAllData]);
+  }, [apiReady]); // FIXED: Removed fetchAllData dependency to prevent infinite loop
 
   // Refresh functions for individual data types - simplified to avoid dependency loops
   const refreshProducts = useCallback(async () => {

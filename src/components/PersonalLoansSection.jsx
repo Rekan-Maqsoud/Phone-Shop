@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { EXCHANGE_RATES } from '../utils/exchangeRates';
+import UniversalPaymentModal from './UniversalPaymentModal';
 
 const formatCurrency = (amount, currency = 'USD') => {
   if (currency === 'IQD') {
@@ -593,170 +594,24 @@ export default function PersonalLoansSection({ admin, t, showConfirm }) {
         </div>
       )}
 
-      {/* Payment Modal - Multi-Currency Payment Support */}
-      {showPaymentModal && selectedLoan && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md">
-            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-              <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100">
-                💰 {t?.recordLoanPayment || 'Record Loan Payment'}
-              </h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
-                {t?.markingLoanPaidFor || 'Recording payment for'} <strong>{selectedLoan.person_name}</strong>
-              </p>
-              <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                <div className="text-sm text-gray-700 dark:text-gray-300">
-                  {t?.originalLoan || 'Original Loan'}:
-                </div>
-                <div className="flex gap-2 mt-1">
-                  {(selectedLoan.usd_amount || 0) > 0 && (
-                    <span className="text-lg font-bold text-blue-600 dark:text-blue-400">
-                      {formatCurrency(selectedLoan.usd_amount, 'USD')}
-                    </span>
-                  )}
-                  {(selectedLoan.iqd_amount || 0) > 0 && (
-                    <span className="text-lg font-bold text-orange-600 dark:text-orange-400">
-                      {formatCurrency(selectedLoan.iqd_amount, 'IQD')}
-                    </span>
-                  )}
-                </div>
-                
-                {/* Show remaining amounts */}
-                <div className="text-sm text-gray-700 dark:text-gray-300 mt-2">
-                  {t?.remainingAmount || 'Remaining Amount'}:
-                </div>
-                <div className="flex gap-2 mt-1">
-                  {(() => {
-                    const remainingUSD = (selectedLoan.usd_amount || 0) - (selectedLoan.payment_usd_amount || 0);
-                    const remainingIQD = (selectedLoan.iqd_amount || 0) - (selectedLoan.payment_iqd_amount || 0);
-                    return (
-                      <>
-                        {remainingUSD > 0 && (
-                          <span className="text-lg font-bold text-red-600 dark:text-red-400">
-                            {formatCurrency(remainingUSD, 'USD')}
-                          </span>
-                        )}
-                        {remainingIQD > 0 && (
-                          <span className="text-lg font-bold text-red-600 dark:text-red-400">
-                            {formatCurrency(remainingIQD, 'IQD')}
-                          </span>
-                        )}
-                      </>
-                    );
-                  })()}
-                </div>
-              </div>
-            </div>
-            
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                  {t?.enterPaymentAmounts || 'Enter payment amounts:'}
-                </label>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
-                      💵 USD Payment
-                      {(() => {
-                        const remainingUSD = (selectedLoan.usd_amount || 0) - (selectedLoan.payment_usd_amount || 0);
-                        return remainingUSD > 0 ? (
-                          <span className="text-red-500 ml-1">(Max: {formatCurrency(remainingUSD, 'USD')})</span>
-                        ) : null;
-                      })()}
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      max={(selectedLoan.usd_amount || 0) - (selectedLoan.payment_usd_amount || 0)}
-                      step="0.01"
-                      value={paymentAmountUSD}
-                      onChange={(e) => setPaymentAmountUSD(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="0.00"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
-                      💰 IQD Payment
-                      {(() => {
-                        const remainingIQD = (selectedLoan.iqd_amount || 0) - (selectedLoan.payment_iqd_amount || 0);
-                        return remainingIQD > 0 ? (
-                          <span className="text-red-500 ml-1">(Max: {formatCurrency(remainingIQD, 'IQD')})</span>
-                        ) : null;
-                      })()}
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      max={(selectedLoan.iqd_amount || 0) - (selectedLoan.payment_iqd_amount || 0)}
-                      step="1"
-                      value={paymentAmountIQD}
-                      onChange={(e) => setPaymentAmountIQD(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                      placeholder="0"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Current Balance Display */}
-              <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-3">
-                <div className="text-sm text-green-800 dark:text-green-200 mb-2">
-                  💳 {t?.currentBalance || 'Current Balance'}:
-                </div>
-                <div className="flex gap-4 text-sm">
-                  <span className="text-green-700 dark:text-green-300">
-                    USD: {formatCurrency(balances.usd_balance, 'USD')}
-                  </span>
-                  <span className="text-green-700 dark:text-green-300">
-                    IQD: {formatCurrency(balances.iqd_balance, 'IQD')}
-                  </span>
-                </div>
-              </div>
-
-              {/* Payment Preview */}
-              {(paymentAmountUSD || paymentAmountIQD) && (
-                <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3">
-                  <div className="text-sm text-blue-800 dark:text-blue-200 mb-2">
-                    📝 {t?.paymentSummary || 'Payment Summary'}:
-                  </div>
-                  <div className="text-sm text-blue-700 dark:text-blue-300">
-                    {paymentAmountUSD && `+${formatCurrency(parseFloat(paymentAmountUSD), 'USD')}`}
-                    {paymentAmountUSD && paymentAmountIQD && ' + '}
-                    {paymentAmountIQD && `+${formatCurrency(parseFloat(paymentAmountIQD), 'IQD')}`}
-                  </div>
-                  <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                    {t?.willBeAddedToBalance || 'Will be added to your balance'}
-                  </div>
-                </div>
-              )}
-            </div>
-            
-            <div className="p-6 border-t border-gray-200 dark:border-gray-700 flex gap-4">
-              <button
-                onClick={() => {
-                  setShowPaymentModal(false);
-                  setSelectedLoan(null);
-                  setPaymentAmountUSD('');
-                  setPaymentAmountIQD('');
-                }}
-                className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition"
-              >
-                {t?.cancel || 'Cancel'}
-              </button>
-              <button
-                onClick={processPayment}
-                disabled={processingPayment.has(selectedLoan.id) || (!paymentAmountUSD && !paymentAmountIQD)}
-                className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-semibold disabled:bg-gray-400 disabled:cursor-not-allowed"
-              >
-                💰 {t?.recordPayment || 'Record Payment'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Universal Payment Modal */}
+      <UniversalPaymentModal
+        show={showPaymentModal}
+        onClose={() => {
+          setShowPaymentModal(false);
+          setSelectedLoan(null);
+          setPaymentAmountUSD('');
+          setPaymentAmountIQD('');
+        }}
+        debtData={selectedLoan}
+        paymentType="personal"
+        onPaymentComplete={async () => {
+          fetchLoans();
+          fetchBalances();
+        }}
+        admin={admin}
+        t={t}
+      />
     </div>
   );
 }

@@ -42,23 +42,23 @@ class ErrorBoundary extends React.Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="flex items-center justify-center min-h-screen bg-gray-100">
-          <div className="text-center p-8 max-w-md mx-auto">
+        <div className="flex items-center justify-center min-h-screen bg-gray-100 p-4">
+          <div className="text-center p-8 max-w-2xl w-full mx-auto">
             <div className="text-red-500 text-6xl mb-4">⚠️</div>
             <h1 className="text-2xl font-bold text-red-600 mb-4">Application Error</h1>
-            <p className="text-gray-600 mb-6">
+            <p className="text-gray-600 mb-6 text-lg">
               Something went wrong. This error has been logged for debugging.
             </p>
             <div className="space-y-3">
               <button 
                 onClick={() => window.location.reload()}
-                className="w-full px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+                className="w-full px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-lg font-medium"
               >
                 Reload Application
               </button>
               <button
                 onClick={() => this.setState({ hasError: false, error: null, errorInfo: null })}
-                className="w-full px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors"
+                className="w-full px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors text-lg font-medium"
               >
                 Try to Continue
               </button>

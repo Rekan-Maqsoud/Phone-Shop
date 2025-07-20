@@ -2,8 +2,8 @@ import React, { useState, useCallback, useEffect } from 'react';
 import HistorySearchFilter from './HistorySearchFilter';
 import ConfirmModal from './ConfirmModal';
 
-// Enhanced table for buying history with item details support
-export default function BuyingHistoryTable({ 
+// Enhanced table for buying history with item details support - Memoized for performance
+const BuyingHistoryTable = React.memo(function BuyingHistoryTable({ 
   buyingHistory, 
   t, 
   onAddPurchase, 
@@ -17,10 +17,13 @@ export default function BuyingHistoryTable({
   const [showReturnModal, setShowReturnModal] = useState(false);
   const [returnModalData, setReturnModalData] = useState(null);
   const [confirmModal, setConfirmModal] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 50; // Performance optimization: limit to 50 items per page
 
   // Update filtered history when buyingHistory changes
   useEffect(() => {
     setFilteredHistory(buyingHistory || []);
+    setCurrentPage(1); // Reset to first page when data changes
   }, [buyingHistory]);
 
   // Calculate totals for filtered buying history by currency
@@ -73,7 +76,8 @@ export default function BuyingHistoryTable({
     setTotals(calculatedTotals);
   }, []);
 
-  const toggleExpanded = (entryId) => {
+  // Memoize toggleExpanded to prevent unnecessary re-renders
+  const toggleExpanded = useCallback((entryId) => {
     const newExpanded = new Set(expandedEntries);
     if (newExpanded.has(entryId)) {
       newExpanded.delete(entryId);
@@ -81,7 +85,7 @@ export default function BuyingHistoryTable({
       newExpanded.add(entryId);
     }
     setExpandedEntries(newExpanded);
-  };
+  }, [expandedEntries]);
 
   // Handle return entry with confirmation modal
   const handleReturnEntry = useCallback((entryId, amount) => {
@@ -227,30 +231,68 @@ export default function BuyingHistoryTable({
         getBrandFromItem={getBrandFromBuyingHistoryInternal}
       />
 
-      {/* Main Table */}
-      <div className="bg-white/60 dark:bg-gray-800/80 rounded-2xl shadow-2xl overflow-hidden border border-white/20">
-        <div className="overflow-x-auto">
-          <table className="w-full" dir="auto">
-            <thead className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white">
-              <tr>
-                <th className="px-6 py-4 text-right font-bold">{t?.date || 'Date'}</th>
-                <th className="px-6 py-4 text-right font-bold">{t?.companyName || 'Company'}</th>
-                <th className="px-6 py-4 text-right font-bold">{t?.currency || 'Currency'}</th>
-                <th className="px-6 py-4 text-right font-bold">{t?.amount || 'Amount'}</th>
-                <th className="px-6 py-4 text-right font-bold">{t?.description || 'Description'}</th>
-                <th className="px-6 py-4 text-right font-bold">{t?.items || 'Items'}</th>
-                <th className="px-6 py-4 text-right font-bold">{t?.actions || 'Actions'}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredHistory.length === 0 ? (
-                <tr>
-                  <td colSpan="7" className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
-                    {t?.noPurchasesFound || 'No purchases found'}
-                  </td>
-                </tr>
-              ) : (
-                filteredHistory.map((entry, idx) => (
+      {/* Pagination controls */}
+      {(() => {
+        const totalPages = Math.ceil(filteredHistory.length / itemsPerPage);
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        const endIndex = startIndex + itemsPerPage;
+        const paginatedHistory = filteredHistory.slice(startIndex, endIndex);
+
+        return (
+          <>
+            {filteredHistory.length > itemsPerPage && (
+              <div className="bg-white/60 dark:bg-gray-800/80 rounded-2xl shadow-2xl mb-4 p-4 border border-white/20">
+                <div className="flex justify-between items-center">
+                  <div className="text-sm text-gray-600 dark:text-gray-400">
+                    Showing {startIndex + 1}-{Math.min(endIndex, filteredHistory.length)} of {filteredHistory.length} entries
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                      disabled={currentPage === 1}
+                      className="px-3 py-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      ← {t?.previous || 'Previous'}
+                    </button>
+                    <span className="px-3 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-lg">
+                      {currentPage} / {totalPages}
+                    </span>
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                      disabled={currentPage === totalPages}
+                      className="px-3 py-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {t?.next || 'Next'} →
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Main Table */}
+            <div className="bg-white/60 dark:bg-gray-800/80 rounded-2xl shadow-2xl overflow-hidden border border-white/20">
+              <div className="overflow-x-auto">
+                <table className="w-full" dir="auto">
+                  <thead className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white">
+                    <tr>
+                      <th className="px-6 py-4 text-right font-bold">{t?.date || 'Date'}</th>
+                      <th className="px-6 py-4 text-right font-bold">{t?.companyName || 'Company'}</th>
+                      <th className="px-6 py-4 text-right font-bold">{t?.currency || 'Currency'}</th>
+                      <th className="px-6 py-4 text-right font-bold">{t?.amount || 'Amount'}</th>
+                      <th className="px-6 py-4 text-right font-bold">{t?.description || 'Description'}</th>
+                      <th className="px-6 py-4 text-right font-bold">{t?.items || 'Items'}</th>
+                      <th className="px-6 py-4 text-right font-bold">{t?.actions || 'Actions'}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paginatedHistory.length === 0 ? (
+                      <tr>
+                        <td colSpan="7" className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
+                          {t?.noPurchasesFound || 'No purchases found'}
+                        </td>
+                      </tr>
+                    ) : (
+                      paginatedHistory.map((entry, idx) => (
                 <React.Fragment key={entry.id || idx}>
                   <tr className={`border-b dark:border-gray-700 ${idx % 2 === 0 ? 'bg-gray-50 dark:bg-gray-900/50' : 'bg-white dark:bg-gray-800/50'} hover:bg-blue-50 dark:hover:bg-cyan-900/20 transition-colors`}>
                     <td className="px-6 py-4">
@@ -378,6 +420,9 @@ export default function BuyingHistoryTable({
           </table>
         </div>
       </div>
+          </>
+        );
+      })()}
       
       {/* Return Quantity Modal */}
       {showReturnModal && returnModalData && (
@@ -427,7 +472,7 @@ export default function BuyingHistoryTable({
       )}
     </div>
   );
-}
+});
 
 // Return Quantity Form Component
 function ReturnQuantityForm({ maxQuantity, unitPrice, onReturn, onCancel, t }) {
@@ -482,3 +527,5 @@ function ReturnQuantityForm({ maxQuantity, unitPrice, onReturn, onCancel, t }) {
     </form>
   );
 }
+
+export default BuyingHistoryTable;

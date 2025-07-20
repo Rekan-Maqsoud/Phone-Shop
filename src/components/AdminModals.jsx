@@ -7,6 +7,7 @@ import BackupManager from './BackupManager';
 import AddPurchaseModal from './AddPurchaseModal';
 import ConfirmModal from './ConfirmModal';
 import EnhancedCompanyDebtModal from './EnhancedCompanyDebtModal';
+import UniversalPaymentModal from './UniversalPaymentModal';
 import ToastUnified from './ToastUnified';
 
 export default function AdminModals({
@@ -245,7 +246,8 @@ export default function AdminModals({
                       amount: purchaseData.amount,
                       description: purchaseData.description,
                       currency: purchaseData.currency,
-                      multi_currency: purchaseData.multi_currency
+                      multi_currency: purchaseData.multi_currency,
+                      discount: purchaseData.discount
                     });
                     if (!result || (!result.lastInsertRowid && !result.success)) {
                       throw new Error(result?.message || 'Failed to add company debt');
@@ -262,7 +264,8 @@ export default function AdminModals({
                       description: purchaseData.description,
                       items: purchaseData.items,
                       currency: purchaseData.currency,
-                      multi_currency: purchaseData.multi_currency
+                      multi_currency: purchaseData.multi_currency,
+                      discount: purchaseData.discount
                     });
                     if (!result || (!result.lastInsertRowid && !result.success)) {
                       throw new Error(result?.message || 'Failed to add company debt with items');
@@ -304,77 +307,24 @@ export default function AdminModals({
         t={t}
       />
 
-      {/* Enhanced Company Debt Modal */}
+      {/* Universal Payment Modal for Company Debts */}
       {showEnhancedCompanyDebtModal && selectedCompanyDebt && (
-        <EnhancedCompanyDebtModal
+        <UniversalPaymentModal
           show={showEnhancedCompanyDebtModal}
           onClose={() => {
             setShowEnhancedCompanyDebtModal(false);
             setSelectedCompanyDebt(null);
           }}
-          debt={selectedCompanyDebt}
-          onMarkPaid={async (debtId, multiCurrency) => {
-            try {
-              setLoading(true);
-              
-              const paid_at = new Date().toISOString();
-              let payment_currency_used = 'USD';
-              let payment_usd_amount = 0;
-              let payment_iqd_amount = 0;
-              
-              // Get the actual debt being paid
-              const debt = selectedCompanyDebt;
-              
-              if (multiCurrency && multiCurrency.enabled) {
-                payment_currency_used = multiCurrency.deductCurrency || 'USD';
-                // If it's a multi-currency debt, use the actual debt amounts
-                if (debt.currency === 'MULTI') {
-                  payment_usd_amount = debt.usd_amount || 0;
-                  payment_iqd_amount = debt.iqd_amount || 0;
-                } else if (payment_currency_used === 'USD') {
-                  payment_usd_amount = debt.amount || 0;
-                  payment_iqd_amount = 0;
-                } else {
-                  payment_usd_amount = 0;
-                  payment_iqd_amount = debt.amount || 0;
-                }
-              } else {
-                // Single currency payment - use the debt amount in its original currency
-                if (debt.currency === 'MULTI') {
-                  // For multi-currency debts, default to USD portion
-                  payment_usd_amount = debt.usd_amount || 0;
-                  payment_iqd_amount = debt.iqd_amount || 0;
-                } else if (debt.currency === 'USD') {
-                  payment_currency_used = 'USD';
-                  payment_usd_amount = debt.amount || 0;
-                } else {
-                  payment_currency_used = 'IQD';
-                  payment_iqd_amount = debt.amount || 0;
-                }
-              }
-              
-              await window.api?.markCompanyDebtPaid?.(
-                debtId, 
-                {
-                  paid_at,
-                  payment_currency_used,
-                  payment_usd_amount,
-                  payment_iqd_amount
-                }
-              );
-              
-              await refreshCompanyDebts();
-              await refreshBuyingHistory();
-              setShowEnhancedCompanyDebtModal(false);
-              setSelectedCompanyDebt(null);
-              setToast(t.debtMarkedAsPaid || 'Debt marked as paid successfully');
-              triggerCloudBackup();
-            } catch (error) {
-              console.error('Error marking debt as paid:', error);
-              setToast(t.errorMarkingDebtPaid || 'Error marking debt as paid');
-            } finally {
-              setLoading(false);
-            }
+          debtData={selectedCompanyDebt}
+          paymentType="company"
+          onPaymentComplete={async () => {
+            await refreshCompanyDebts();
+            await refreshBuyingHistory();
+            triggerCloudBackup();
+          }}
+          admin={{
+            ...admin,
+            setToast: (msg, type) => setToast(msg)
           }}
           t={t}
         />

@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLocale } from '../contexts/LocaleContext';
 import { useData } from '../contexts/DataContext';
+import { convertCurrency } from '../utils/exchangeRates';
 
 export default function useAdmin(showConfirm = null) {
   const { t } = useLocale();
@@ -91,8 +92,8 @@ export default function useAdmin(showConfirm = null) {
       if (window.api?.getBalances) {
         const balances = await window.api.getBalances();
         if (balances) {
-          setBalanceUSD(balances.usd || 0);
-          setBalanceIQD(balances.iqd || 0);
+          setBalanceUSD(balances.usd_balance || 0);
+          setBalanceIQD(balances.iqd_balance || 0);
         }
       }
     } catch (error) {
@@ -142,7 +143,6 @@ export default function useAdmin(showConfirm = null) {
               `A product with the same specs already exists in ${existingProduct.currency}. Do you want to update its currency to ${product.currency} and merge the prices?`,
               async () => {
                 // Convert the existing product to new currency and merge
-                const { convertCurrency } = await import('../utils/exchangeRates');
                 
                 let newBuyingPrice = product.buying_price;
                 let newStock = existingProduct.stock + (product.stock || 0);
@@ -197,7 +197,6 @@ export default function useAdmin(showConfirm = null) {
             
             if (confirmMerge) {
               // Same merge logic as above
-              const { convertCurrency } = await import('../utils/exchangeRates');
               
               let newBuyingPrice = product.buying_price;
               let newStock = existingProduct.stock + (product.stock || 0);
@@ -279,7 +278,6 @@ export default function useAdmin(showConfirm = null) {
               `An accessory with the same name already exists in ${existingAccessory.currency}. Do you want to update its currency to ${accessory.currency} and merge the prices?`,
               async () => {
                 // Convert the existing accessory to new currency and merge
-                const { convertCurrency } = await import('../utils/exchangeRates');
                 
                 let newBuyingPrice = accessory.buying_price;
                 let newStock = existingAccessory.stock + (accessory.stock || 0);
@@ -332,7 +330,6 @@ export default function useAdmin(showConfirm = null) {
             
             if (confirmMerge) {
               // Same merge logic as above
-              const { convertCurrency } = await import('../utils/exchangeRates');
               
               let newBuyingPrice = accessory.buying_price;
               let newStock = existingAccessory.stock + (accessory.stock || 0);

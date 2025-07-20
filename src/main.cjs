@@ -357,11 +357,31 @@ ipcMain.handle('changeAdminPassword', async (event, { current, next }) => {
 });
 // Settings
 ipcMain.handle('saveSetting', async (event, { key, value }) => {
-  db.saveSetting(key, value);
-  return { success: true };
+  try {
+    if (db && db.saveSetting) {
+      db.saveSetting(key, value);
+      return { success: true };
+    } else {
+      console.error('❌ Database or saveSetting function not available');
+      return { success: false, message: 'Database function not available' };
+    }
+  } catch (e) {
+    console.error('❌ saveSetting error:', e);
+    return { success: false, message: e.message };
+  }
 });
 ipcMain.handle('getSetting', async (event, key) => {
-  return db.getSetting(key);
+  try {
+    if (db && db.getSetting) {
+      return db.getSetting(key);
+    } else {
+      console.error('❌ Database or getSetting function not available');
+      return null;
+    }
+  } catch (e) {
+    console.error('❌ getSetting error:', e);
+    return null;
+  }
 });
 // Danger zone: reset all data
 ipcMain.handle('resetAllData', async () => {
@@ -451,13 +471,84 @@ ipcMain.handle('getSales', async () => {
 });
 // IPC handler for restore backup
 ipcMain.handle('runRestore', async () => {
-  // TODO: Implement restore logic (e.g., select file, restore DB)
-  return { success: false, message: 'Restore not implemented yet.' };
+  try {
+    const { dialog } = require('electron');
+    const fs = require('fs').promises;
+    const path = require('path');
+    
+    // Show file dialog to select backup file
+    const result = await dialog.showOpenDialog(mainWindow, {
+      properties: ['openFile'],
+      filters: [
+        { name: 'SQLite Database', extensions: ['sqlite', 'db'] },
+        { name: 'All Files', extensions: ['*'] }
+      ]
+    });
+    
+    if (result.canceled) {
+      return { success: false, message: 'Restore cancelled by user.' };
+    }
+    
+    const backupPath = result.filePaths[0];
+    const currentDbPath = path.join(__dirname, '../database/shop.sqlite');
+    
+    // Create backup of current database before restore
+    const backupCurrentDb = currentDbPath + '.backup.' + Date.now();
+    await fs.copyFile(currentDbPath, backupCurrentDb);
+    
+    // Restore the selected backup
+    await fs.copyFile(backupPath, currentDbPath);
+    
+    return { 
+      success: true, 
+      message: 'Database restored successfully. Current database backed up to ' + path.basename(backupCurrentDb) 
+    };
+  } catch (error) {
+    return { success: false, message: 'Restore failed: ' + error.message };
+  }
 });
 // IPC handler for saving logo file
 ipcMain.handle('saveLogoFile', async (event, file) => {
-  // TODO: Implement file save logic (use fs, dialog, etc.)
-  return null;
+  try {
+    const { dialog } = require('electron');
+    const fs = require('fs').promises;
+    const path = require('path');
+    
+    if (!file || !file.data) {
+      return { success: false, message: 'No file data provided' };
+    }
+    
+    // Show save dialog
+    const result = await dialog.showSaveDialog(mainWindow, {
+      defaultPath: file.name || 'logo.png',
+      filters: [
+        { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'bmp'] },
+        { name: 'All Files', extensions: ['*'] }
+      ]
+    });
+    
+    if (result.canceled) {
+      return { success: false, message: 'Save cancelled by user.' };
+    }
+    
+    // Convert base64 to buffer if needed
+    let fileData = file.data;
+    if (typeof fileData === 'string' && fileData.startsWith('data:')) {
+      const base64Data = fileData.split(',')[1];
+      fileData = Buffer.from(base64Data, 'base64');
+    }
+    
+    // Save the file
+    await fs.writeFile(result.filePath, fileData);
+    
+    return { 
+      success: true, 
+      message: 'Logo saved successfully',
+      path: result.filePath 
+    };
+  } catch (error) {
+    return { success: false, message: 'Save failed: ' + error.message };
+  }
 });
 // IPC handler for admin password check
 ipcMain.handle('checkAdminPassword', async (event, password) => {
@@ -534,7 +625,7 @@ ipcMain.handle('autoBackupAfterSale', async () => {
 // Debt handlers (backward compatibility)
 ipcMain.handle('addDebt', async (event, { sale_id, customer_name }) => {
   try {
-    if (db.addDebt) {
+    if (db && db.addDebt) {
       const result = db.addDebt({ sale_id, customer_name });
       await runAutoBackupAfterSale('debt');
       return { success: true, result };
@@ -549,8 +640,13 @@ ipcMain.handle('addDebt', async (event, { sale_id, customer_name }) => {
 });
 ipcMain.handle('getDebts', async () => {
   try {
-    const result = db.getDebts ? db.getDebts() : [];
-    return result;
+    if (db && db.getDebts) {
+      const result = db.getDebts();
+      return result || [];
+    } else {
+      console.error('❌ [main.cjs] getDebts function not available');
+      return [];
+    }
   } catch (e) {
     console.error('❌ [main.cjs] getDebts error:', e);
     return [];
@@ -558,34 +654,56 @@ ipcMain.handle('getDebts', async () => {
 });
 ipcMain.handle('markDebtPaid', async (event, id, paid_at) => {
   try {
-    if (db.markDebtPaid) {
+    if (db && db.markDebtPaid) {
       const result = db.markDebtPaid(id, paid_at);
       await runAutoBackupAfterSale('debt');
       return result;
     } else {
+      console.error('❌ Database or markDebtPaid function not available');
       return { success: false, message: 'Database function not available' };
     }
   } catch (e) {
+    console.error('❌ markDebtPaid error:', e);
     return { success: false, message: e.message };
   }
 });
 
 // Customer debt handlers
 ipcMain.handle('addCustomerDebt', async (event, debtData) => {
-  const result = db.addCustomerDebt(debtData);
-  await runAutoBackupAfterSale();
-  return result;
+  try {
+    if (db && db.addCustomerDebt) {
+      const result = db.addCustomerDebt(debtData);
+      await runAutoBackupAfterSale('debt');
+      return result;
+    } else {
+      console.error('❌ Database or addCustomerDebt function not available');
+      return { success: false, message: 'Database function not available' };
+    }
+  } catch (error) {
+    console.error('❌ addCustomerDebt error:', error);
+    return { success: false, message: error.message };
+  }
 });
 ipcMain.handle('getCustomerDebts', async () => {
-  return db.getCustomerDebts();
+  try {
+    if (db && db.getCustomerDebts) {
+      return db.getCustomerDebts();
+    } else {
+      console.error('❌ Database or getCustomerDebts function not available');
+      return [];
+    }
+  } catch (error) {
+    console.error('❌ getCustomerDebts error:', error);
+    return [];
+  }
 });
 ipcMain.handle('markCustomerDebtPaid', async (event, id, paid_at, paymentData) => {
   try {
     const result = db.markCustomerDebtPaid(id, { 
       paid_at, 
-      payment_currency_used: paymentData?.currency || 'USD',
-      payment_usd_amount: paymentData?.deductUSD || paymentData?.usdAmount || 0, 
-      payment_iqd_amount: paymentData?.deductIQD || paymentData?.iqdAmount || 0 
+      payment_currency_used: paymentData?.payment_currency_used || paymentData?.currency || 'USD',
+      payment_usd_amount: paymentData?.payment_usd_amount || paymentData?.deductUSD || paymentData?.usdAmount || 0, 
+      payment_iqd_amount: paymentData?.payment_iqd_amount || paymentData?.deductIQD || paymentData?.iqdAmount || 0 
     });
     await runAutoBackupAfterSale();
     return result;
@@ -596,14 +714,24 @@ ipcMain.handle('markCustomerDebtPaid', async (event, id, paid_at, paymentData) =
 });
 
 // Company debt handlers
-ipcMain.handle('addCompanyDebt', async (event, { company_name, amount, description, currency = 'IQD', multi_currency = null }) => {
-  const result = db.addCompanyDebt({ company_name, amount, description, currency, multi_currency });
-  await runAutoBackupAfterSale();
-  return result;
-});
-ipcMain.handle('addCompanyDebtWithItems', async (event, { company_name, description, items, currency = 'IQD', multi_currency = null }) => {
+ipcMain.handle('addCompanyDebt', async (event, { company_name, amount, description, currency = 'IQD', multi_currency = null, discount = null }) => {
   try {
-    const result = db.addCompanyDebtWithItems({ company_name, description, items, currency, multi_currency });
+    if (db && db.addCompanyDebt) {
+      const result = db.addCompanyDebt({ company_name, amount, description, currency, multi_currency, discount });
+      await runAutoBackupAfterSale('debt');
+      return result;
+    } else {
+      console.error('❌ Database or addCompanyDebt function not available');
+      return { success: false, message: 'Database function not available' };
+    }
+  } catch (error) {
+    console.error('❌ addCompanyDebt error:', error);
+    return { success: false, message: error.message };
+  }
+});
+ipcMain.handle('addCompanyDebtWithItems', async (event, { company_name, description, items, currency = 'IQD', multi_currency = null, discount = null }) => {
+  try {
+    const result = db.addCompanyDebtWithItems({ company_name, description, items, currency, multi_currency, discount });
     await runAutoBackupAfterSale();
     return { success: true, result };
   } catch (error) {
@@ -612,7 +740,17 @@ ipcMain.handle('addCompanyDebtWithItems', async (event, { company_name, descript
   }
 });
 ipcMain.handle('getCompanyDebts', async () => {
-  return db.getCompanyDebts();
+  try {
+    if (db && db.getCompanyDebts) {
+      return db.getCompanyDebts();
+    } else {
+      console.error('❌ Database or getCompanyDebts function not available');
+      return [];
+    }
+  } catch (error) {
+    console.error('❌ getCompanyDebts error:', error);
+    return [];
+  }
 });
 ipcMain.handle('getCompanyDebtItems', async (event, debtId) => {
   return db.getCompanyDebtItems(debtId);
@@ -657,17 +795,60 @@ ipcMain.handle('addDirectPurchaseWithItems', async (event, purchaseData) => {
 
 // Monthly reports handlers
 ipcMain.handle('createMonthlyReport', async (event, month, year) => {
-  const result = db.createMonthlyReport(month, year);
-  await runAutoBackupAfterSale();
-  return result;
+  try {
+    if (db && db.createMonthlyReport) {
+      const result = db.createMonthlyReport(month, year);
+      await runAutoBackupAfterSale('report');
+      return result;
+    } else {
+      console.error('❌ Database or createMonthlyReport function not available');
+      return { success: false, message: 'Database function not available' };
+    }
+  } catch (error) {
+    console.error('❌ createMonthlyReport error:', error);
+    return { success: false, message: error.message };
+  }
 });
 ipcMain.handle('getMonthlyReports', async () => {
-  return db.getMonthlyReports();
+  try {
+    if (db && db.getMonthlyReports) {
+      return db.getMonthlyReports();
+    } else {
+      console.error('❌ Database or getMonthlyReports function not available');
+      return [];
+    }
+  } catch (error) {
+    console.error('❌ getMonthlyReports error:', error);
+    return [];
+  }
+});
+ipcMain.handle('getMonthlyReport', async (event, year, month) => {
+  try {
+    if (db && db.getMonthlyReport) {
+      return db.getMonthlyReport(year, month);
+    } else {
+      console.error('❌ Database or getMonthlyReport function not available');
+      return null;
+    }
+  } catch (error) {
+    console.error('❌ getMonthlyReport error:', error);
+    return null;
+  }
 });
 ipcMain.handle('resetMonthlySalesAndProfit', async () => {
-  const result = db.resetMonthlySalesAndProfit();
-  await runAutoBackupAfterSale();
-  return result;
+  try {
+    if (db && db.resetMonthlySalesAndProfit) {
+      const result = db.resetMonthlySalesAndProfit();
+      await runAutoBackupAfterSale('reset');
+      return result;
+    } else {
+      console.error('❌ Database or resetMonthlySalesAndProfit function not available');
+      return { success: false, message: 'Database function not available' };
+    }
+  } catch (error) {
+    console.error('❌ resetMonthlySalesAndProfit error:', error);
+    return { success: false, message: error.message };
+  }
 });
 
 ipcMain.handle('getDebtSales', async () => {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useData } from '../contexts/DataContext';
 import {
   Chart as ChartJS,
@@ -14,14 +14,16 @@ import {
 } from 'chart.js';
 import { Bar, Line, Doughnut } from 'react-chartjs-2';
 
-// Exchange rates - should match the rates in exchangeRates.js
-// Load dynamic exchange rates
+// Import shared utilities
 import { EXCHANGE_RATES } from '../utils/exchangeRates';
-
-const LEGACY_EXCHANGE_RATES = {
-  USD_TO_IQD: 1440, // Legacy fallback - prefer EXCHANGE_RATES
-  IQD_TO_USD: 1 / 1440 // Legacy fallback - prefer EXCHANGE_RATES
-};
+import { 
+  formatCurrency, 
+  filterPaidSales, 
+  calculateRevenueByCurrency, 
+  generateDateRange,
+  getCommonChartOptions,
+  CHART_COLORS
+} from '../utils/chartUtils';
 
 ChartJS.register(
   CategoryScale,
@@ -35,25 +37,6 @@ ChartJS.register(
   ArcElement
 );
 
-const formatCurrency = (amount, currency = 'USD') => {
-  if (currency === 'IQD') {
-    // IQD always shows as whole numbers (no decimals ever)
-    return `${Math.round(amount).toLocaleString()} IQD`;
-  }
-  
-  // For USD: Show whole numbers when possible, otherwise show minimal decimals
-  const numAmount = Number(amount);
-  if (numAmount === Math.floor(numAmount)) {
-    // It's a whole number, show without decimals
-    return `$${Math.floor(numAmount).toLocaleString()}`;
-  } else {
-    // It has decimals, format with minimal decimal places
-    const formatted = numAmount.toFixed(2);
-    const cleanFormatted = formatted.replace(/\.?0+$/, '');
-    return `$${cleanFormatted}`;
-  }
-};
-
 function MultiCurrencyDashboard({ admin, t }) {
   const { products, accessories, sales, debts, buyingHistory, companyDebts, refreshAllData, refreshDebts } = useData();
   const [balances, setBalances] = useState({ usd_balance: 0, iqd_balance: 0 });
@@ -61,7 +44,8 @@ function MultiCurrencyDashboard({ admin, t }) {
   const [transactions, setTransactions] = useState([]);
   const [personalLoans, setPersonalLoans] = useState([]);
 
-  const fetchBalanceData = async () => {
+  // Memoize fetchBalanceData to prevent unnecessary API calls
+  const fetchBalanceData = useCallback(async () => {
     try {
       // Try getBalances first as it's more reliable
       if (window.api?.getBalances) {
@@ -91,11 +75,11 @@ function MultiCurrencyDashboard({ admin, t }) {
       // Set safe defaults on error
       setBalances({ usd_balance: 0, iqd_balance: 0 });
     }
-  };
+  }, []); // Empty dependency array since we only fetch data, don't depend on external state
 
   useEffect(() => {
     fetchBalanceData();
-  }, []);
+  }, [fetchBalanceData]);
 
   // Refresh data when sales, buyingHistory, debts, or companyDebts change
   // Use a debounced effect to prevent excessive refreshes
@@ -118,34 +102,11 @@ function MultiCurrencyDashboard({ admin, t }) {
     const today = currentDate.toDateString();
 
     // Today's sales by currency - exclude unpaid debt sales
-    const todaysSales = (sales || []).filter(sale => {
-      const isToday = new Date(sale.created_at).toDateString() === today;
-      if (!isToday) return false;
-      
-      // For debt sales, check if the debt is paid by looking up in debts array
-      if (sale.is_debt) {
-        const debt = (debts || []).find(d => d.sale_id === sale.id);
-        if (!debt || (!debt.paid_at && !debt.paid)) return false; // Skip unpaid debts
-      }
-      
-      return true;
-    });
+    const todaysSales = filterPaidSales(sales, debts, today);
     
-    // Calculate USD revenue: native USD sales only
-    const todaysUSDSales = todaysSales.reduce((sum, sale) => {
-      if (sale.currency === 'USD') {
-        return sum + (sale.total || 0);
-      }
-      return sum;
-    }, 0);
-    
-    // Calculate IQD revenue: ONLY native IQD sales (no conversion from USD)
-    const todaysIQDSales = todaysSales.reduce((sum, sale) => {
-      if (sale.currency === 'IQD') {
-        return sum + (sale.total || 0);
-      }
-      return sum;
-    }, 0);
+    // Calculate USD and IQD revenue using shared utility
+    const todaysUSDSales = calculateRevenueByCurrency(todaysSales, 'USD');
+    const todaysIQDSales = calculateRevenueByCurrency(todaysSales, 'IQD');
 
     // This week's sales by currency - exclude unpaid debt sales
     const oneWeekAgo = new Date();
@@ -157,27 +118,15 @@ function MultiCurrencyDashboard({ admin, t }) {
       // For debt sales, check if the debt is paid by looking up in debts array
       if (sale.is_debt) {
         const debt = (debts || []).find(d => d.sale_id === sale.id);
-        if (!debt || (!debt.paid_at && !debt.paid)) return false; // Skip unpaid debts
+        return debt && (debt.paid_at || debt.paid);
       }
       
       return true;
     });
     
-    // Calculate weekly USD revenue: native USD sales only
-    const weekUSDSales = thisWeeksSales.reduce((sum, sale) => {
-      if (sale.currency === 'USD') {
-        return sum + (sale.total || 0);
-      }
-      return sum;
-    }, 0);
-    
-    // Calculate weekly IQD revenue: ONLY native IQD sales (no conversion from USD)
-    const weekIQDSales = thisWeeksSales.reduce((sum, sale) => {
-      if (sale.currency === 'IQD') {
-        return sum + (sale.total || 0);
-      }
-      return sum;
-    }, 0);
+    // Calculate weekly revenue using shared utility
+    const weekUSDSales = calculateRevenueByCurrency(thisWeeksSales, 'USD');
+    const weekIQDSales = calculateRevenueByCurrency(thisWeeksSales, 'IQD');
 
     // Outstanding debts by currency (customer debts)
     // Use debtSales to get all debt sales, then check if they're paid via debts table
@@ -681,99 +630,104 @@ function MultiCurrencyDashboard({ admin, t }) {
 
 export default React.memo(MultiCurrencyDashboard);
 
-// Sales Chart Component - Separate charts for USD and IQD
+// Sales Chart Component - Improved with proper USD/IQD separation
 const SalesChart = React.memo(({ sales, t }) => {
   const chartData = useMemo(() => {
-    const last7Days = Array.from({ length: 7 }, (_, i) => {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-      return date.toISOString().split('T')[0];
-    }).reverse();
+    const dateRange = generateDateRange(7);
 
     // Calculate USD sales from actual selling prices
-    const usdData = last7Days.map(date => {
+    const usdData = dateRange.map(({ iso }) => {
       return (sales || [])
-        .filter(sale => sale.created_at?.split('T')[0] === date && sale.currency === 'USD')
+        .filter(sale => sale.created_at?.split('T')[0] === iso && sale.currency === 'USD')
         .reduce((sum, sale) => sum + (sale.total || 0), 0);
     });
 
     // Calculate IQD sales (ONLY native IQD sales, no conversion)
-    const iqdData = last7Days.map(date => {
+    const iqdData = dateRange.map(({ iso }) => {
       return (sales || [])
-        .filter(sale => sale.created_at?.split('T')[0] === date && sale.currency === 'IQD')
+        .filter(sale => sale.created_at?.split('T')[0] === iso && sale.currency === 'IQD')
         .reduce((sum, sale) => sum + (sale.total || 0), 0);
     });
 
+    const labels = dateRange.map(({ short }) => short);
+
     return {
-      usd: {
-        labels: last7Days.map(date => new Date(date).toLocaleDateString()),
-        datasets: [
-          {
-            label: 'USD Sales',
-            data: usdData,
-            backgroundColor: 'rgba(34, 197, 94, 0.5)',
-            borderColor: 'rgba(34, 197, 94, 1)',
-            borderWidth: 2,
-            tension: 0.1,
-          },
-        ],
-      },
-      iqd: {
-        labels: last7Days.map(date => new Date(date).toLocaleDateString()),
-        datasets: [
-          {
-            label: 'IQD Sales',
-            data: iqdData,
-            backgroundColor: 'rgba(168, 85, 247, 0.5)',
-            borderColor: 'rgba(168, 85, 247, 1)',
-            borderWidth: 2,
-            tension: 0.1,
-          },
-        ],
-      },
+      labels,
+      datasets: [
+        {
+          label: t?.usdSales || 'USD Sales',
+          data: usdData,
+          backgroundColor: CHART_COLORS.USD.secondary,
+          borderColor: CHART_COLORS.USD.primary,
+          borderWidth: 2,
+          tension: 0.1,
+        },
+        {
+          label: t?.iqdSales || 'IQD Sales (scaled)',
+          data: iqdData.map(value => value * EXCHANGE_RATES.IQD_TO_USD), // Scale for visualization
+          backgroundColor: CHART_COLORS.IQD.secondary,
+          borderColor: CHART_COLORS.IQD.primary,
+          borderWidth: 2,
+          tension: 0.1,
+          yAxisID: 'y1', // Use secondary axis
+        },
+      ],
     };
-  }, [sales]);
+  }, [sales, t]);
 
   const options = useMemo(() => ({
-    responsive: true,
-    maintainAspectRatio: false,
-    animation: {
-      duration: 300, // Faster animations
-    },
-    interaction: {
-      intersect: false,
-    },
-    plugins: {
-      legend: {
-        position: 'top',
-      },
-    },
+    ...getCommonChartOptions(),
     scales: {
       y: {
+        type: 'linear',
+        display: true,
+        position: 'left',
         beginAtZero: true,
+        title: {
+          display: true,
+          text: 'USD Amount',
+        },
+      },
+      y1: {
+        type: 'linear',
+        display: true,
+        position: 'right',
+        beginAtZero: true,
+        title: {
+          display: true,
+          text: 'IQD Amount (USD equiv)',
+        },
+        grid: {
+          drawOnChartArea: false,
+        },
+      },
+    },
+    plugins: {
+      ...getCommonChartOptions().plugins,
+      tooltip: {
+        callbacks: {
+          label: function(context) {
+            const label = context.dataset.label || '';
+            const value = context.parsed.y;
+            if (label.includes('IQD')) {
+              const originalIQD = value / EXCHANGE_RATES.IQD_TO_USD;
+              return `${label}: ${formatCurrency(originalIQD, 'IQD')} (~${formatCurrency(value, 'USD')})`;
+            }
+            return `${label}: ${formatCurrency(value, 'USD')}`;
+          }
+        }
       },
     },
   }), []);
 
   return (
-    <div className="space-y-4">
-      <div className="bg-white dark:bg-gray-800 p-4 rounded-lg" style={{ height: '300px' }}>
-        <h3 className="text-lg font-semibold mb-4 text-gray-800 dark:text-gray-100">USD Sales (7 Days)</h3>
-        <div style={{ height: '250px' }}>
-          <Line data={chartData.usd} options={options} />
-        </div>
-      </div>
-      <div className="bg-white dark:bg-gray-800 p-4 rounded-lg" style={{ height: '300px' }}>
-        <h3 className="text-lg font-semibold mb-4 text-gray-800 dark:text-gray-100">IQD Sales (7 Days)</h3>
-        <div style={{ height: '250px' }}>
-          <Line data={chartData.iqd} options={options} />
-        </div>
-      </div>
+    <div style={{ height: '300px' }}>
+      <Line data={chartData} options={options} />
     </div>
   );
 });
 
-// Balance Chart Component - All balances in one pie chart with exchange rate scaling
+// Balance Chart Component - Optimized with better USD representation
 const BalanceChart = React.memo(({ 
   usdBalance, 
   iqdBalance, 
@@ -786,7 +740,7 @@ const BalanceChart = React.memo(({
   t 
 }) => {
   const chartData = useMemo(() => {
-    // Convert everything to USD equivalent for proper visualization
+    // Keep original values for USD, convert IQD to USD equivalent for comparison
     const iqdBalanceUSD = (iqdBalance || 0) * EXCHANGE_RATES.IQD_TO_USD;
     const iqdCustomerDebtsUSD = (iqdCustomerDebts || 0) * EXCHANGE_RATES.IQD_TO_USD;
     const iqdCompanyDebtsUSD = (iqdCompanyDebts || 0) * EXCHANGE_RATES.IQD_TO_USD;
@@ -801,44 +755,37 @@ const BalanceChart = React.memo(({
       iqdCompanyDebtsUSD,
       usdPersonalLoans || 0,
       iqdPersonalLoansUSD,
-    ];
+    ].filter(value => value > 0); // Only show non-zero values
     
     const labels = [
-      `USD Balance (${formatCurrency(usdBalance || 0, 'USD')})`,
-      `IQD Balance (${formatCurrency(iqdBalance || 0, 'IQD')})`,
-      `USD Customer Debts (${formatCurrency(usdCustomerDebts || 0, 'USD')})`,
-      `IQD Customer Debts (${formatCurrency(iqdCustomerDebts || 0, 'IQD')})`,
-      `USD Company Debts (${formatCurrency(usdCompanyDebts || 0, 'USD')})`,
-      `IQD Company Debts (${formatCurrency(iqdCompanyDebts || 0, 'IQD')})`,
-      `USD Personal Loans (${formatCurrency(usdPersonalLoans || 0, 'USD')})`,
-      `IQD Personal Loans (${formatCurrency(iqdPersonalLoans || 0, 'IQD')})`,
-    ];
+      usdBalance > 0 ? `USD Balance (${formatCurrency(usdBalance, 'USD')})` : null,
+      iqdBalance > 0 ? `IQD Balance (${formatCurrency(iqdBalance, 'IQD')})` : null,
+      usdCustomerDebts > 0 ? `USD Customer Debts (${formatCurrency(usdCustomerDebts, 'USD')})` : null,
+      iqdCustomerDebts > 0 ? `IQD Customer Debts (${formatCurrency(iqdCustomerDebts, 'IQD')})` : null,
+      usdCompanyDebts > 0 ? `USD Company Debts (${formatCurrency(usdCompanyDebts, 'USD')})` : null,
+      iqdCompanyDebts > 0 ? `IQD Company Debts (${formatCurrency(iqdCompanyDebts, 'IQD')})` : null,
+      usdPersonalLoans > 0 ? `USD Personal Loans (${formatCurrency(usdPersonalLoans, 'USD')})` : null,
+      iqdPersonalLoans > 0 ? `IQD Personal Loans (${formatCurrency(iqdPersonalLoans, 'IQD')})` : null,
+    ].filter(Boolean); // Remove null values
+
+    const colors = [
+      CHART_COLORS.USD.primary,     // USD Balance - Green
+      CHART_COLORS.IQD.primary,     // IQD Balance - Purple
+      CHART_COLORS.danger.primary,  // USD Customer Debts - Red
+      '#dc2626',                    // IQD Customer Debts - Dark Red
+      '#f59e0b',                    // USD Company Debts - Orange
+      '#d97706',                    // IQD Company Debts - Dark Orange
+      CHART_COLORS.profit.primary,  // USD Personal Loans - Blue
+      '#1d4ed8',                    // IQD Personal Loans - Dark Blue
+    ].slice(0, data.length);
 
     return {
-      labels: labels,
+      labels,
       datasets: [
         {
-          data: data,
-          backgroundColor: [
-            'rgba(34, 197, 94, 0.8)',    // USD Balance - Green
-            'rgba(168, 85, 247, 0.8)',   // IQD Balance - Purple
-            'rgba(239, 68, 68, 0.8)',    // USD Customer Debts - Red
-            'rgba(220, 38, 127, 0.8)',   // IQD Customer Debts - Pink
-            'rgba(245, 158, 11, 0.8)',   // USD Company Debts - Orange
-            'rgba(217, 119, 6, 0.8)',    // IQD Company Debts - Dark Orange
-            'rgba(59, 130, 246, 0.8)',   // USD Personal Loans - Blue
-            'rgba(29, 78, 216, 0.8)',    // IQD Personal Loans - Dark Blue
-          ],
-          borderColor: [
-            'rgba(34, 197, 94, 1)',
-            'rgba(168, 85, 247, 1)',
-            'rgba(239, 68, 68, 1)',
-            'rgba(220, 38, 127, 1)',
-            'rgba(245, 158, 11, 1)',
-            'rgba(217, 119, 6, 1)',
-            'rgba(59, 130, 246, 1)',
-            'rgba(29, 78, 216, 1)',
-          ],
+          data,
+          backgroundColor: colors.map(color => color.replace('1)', '0.8)')),
+          borderColor: colors,
           borderWidth: 2,
         },
       ],
@@ -849,10 +796,7 @@ const BalanceChart = React.memo(({
     responsive: true,
     maintainAspectRatio: false,
     animation: {
-      duration: 200, // Reduce animation time for better performance
-    },
-    interaction: {
-      intersect: false, // Faster hover detection
+      duration: 200, // Fast animations
     },
     plugins: {
       legend: {
@@ -860,20 +804,15 @@ const BalanceChart = React.memo(({
         labels: {
           boxWidth: 12,
           padding: 8,
-          font: {
-            size: 10
-          }
+          font: { size: 10 }
         }
       },
       tooltip: {
-        enabled: true,
-        mode: 'nearest',
         callbacks: {
           label: function(context) {
             const label = context.label || '';
             const value = context.parsed;
-            // Show the value in USD equivalent for comparison
-            return `${label}: ~${formatCurrency(value, 'USD')} equiv`;
+            return `${label}: ~${formatCurrency(value, 'USD')} equivalent`;
           }
         }
       }
@@ -887,7 +826,7 @@ const BalanceChart = React.memo(({
   );
 });
 
-// Top Selling Products Chart Component
+// Top Selling Products Chart Component - Optimized
 const TopSellingProductsChart = React.memo(({ sales, t }) => {
   const chartData = useMemo(() => {
     const productSales = {};
@@ -898,10 +837,7 @@ const TopSellingProductsChart = React.memo(({ sales, t }) => {
           const productName = item.name || 'Unknown Product';
           const qty = item.quantity || 1;
           
-          if (!productSales[productName]) {
-            productSales[productName] = 0;
-          }
-          productSales[productName] += qty;
+          productSales[productName] = (productSales[productName] || 0) + qty;
         });
       }
     });
@@ -913,11 +849,11 @@ const TopSellingProductsChart = React.memo(({ sales, t }) => {
     
     if (topProducts.length === 0) {
       return {
-        labels: ['No sales data'],
+        labels: [t?.noSalesData || 'No sales data'],
         datasets: [{
           data: [1],
-          backgroundColor: ['rgba(156, 163, 175, 0.5)'],
-          borderColor: ['rgba(156, 163, 175, 1)'],
+          backgroundColor: [CHART_COLORS.USD.secondary],
+          borderColor: [CHART_COLORS.USD.primary],
           borderWidth: 1,
         }]
       };
@@ -926,38 +862,35 @@ const TopSellingProductsChart = React.memo(({ sales, t }) => {
     return {
       labels: topProducts.map(([name]) => name.length > 20 ? name.substring(0, 20) + '...' : name),
       datasets: [{
-        label: 'Units Sold',
+        label: t?.unitsSold || 'Units Sold',
         data: topProducts.map(([, quantity]) => quantity),
         backgroundColor: [
-          'rgba(34, 197, 94, 0.6)',
-          'rgba(59, 130, 246, 0.6)',
-          'rgba(168, 85, 247, 0.6)',
+          CHART_COLORS.USD.secondary,
+          CHART_COLORS.profit.secondary,
+          CHART_COLORS.IQD.secondary,
+          CHART_COLORS.danger.secondary,
           'rgba(245, 158, 11, 0.6)',
-          'rgba(239, 68, 68, 0.6)',
         ],
         borderColor: [
-          'rgba(34, 197, 94, 1)',
-          'rgba(59, 130, 246, 1)',
-          'rgba(168, 85, 247, 1)',
+          CHART_COLORS.USD.primary,
+          CHART_COLORS.profit.primary,
+          CHART_COLORS.IQD.primary,
+          CHART_COLORS.danger.primary,
           'rgba(245, 158, 11, 1)',
-          'rgba(239, 68, 68, 1)',
         ],
         borderWidth: 2,
       }]
     };
-  }, [sales]);
+  }, [sales, t]);
 
   const options = useMemo(() => ({
-    responsive: true,
-    maintainAspectRatio: false,
+    ...getCommonChartOptions(),
     plugins: {
-      legend: {
-        display: false
-      },
+      legend: { display: false },
       tooltip: {
         callbacks: {
           label: function(context) {
-            return `${context.label}: ${context.parsed.y} units sold`;
+            return `${context.label}: ${context.parsed.y} ${t?.unitsSold || 'units sold'}`;
           }
         }
       }
@@ -965,12 +898,10 @@ const TopSellingProductsChart = React.memo(({ sales, t }) => {
     scales: {
       y: {
         beginAtZero: true,
-        ticks: {
-          precision: 0
-        }
+        ticks: { precision: 0 }
       }
     }
-  }), []);
+  }), [t]);
 
   return (
     <div style={{ height: '250px' }}>
@@ -979,7 +910,7 @@ const TopSellingProductsChart = React.memo(({ sales, t }) => {
   );
 });
 
-// Monthly Profit Chart Component
+// Monthly Profit Chart Component - Fixed USD calculation
 const MonthlyProfitChart = React.memo(({ sales, t }) => {
   const chartData = useMemo(() => {
     const last6Months = Array.from({ length: 6 }, (_, i) => {
@@ -998,18 +929,18 @@ const MonthlyProfitChart = React.memo(({ sales, t }) => {
           if (sale.items && sale.items.length > 0) {
             const saleProfit = sale.items.reduce((itemProfit, item) => {
               const qty = item.quantity || 1;
-              const buyingPrice = typeof item.buying_price === 'number' ? item.buying_price : 0;
-              const sellingPrice = typeof item.selling_price === 'number' ? item.selling_price : buyingPrice;
+              const buyingPrice = Number(item.buying_price) || 0;
+              const sellingPrice = Number(item.selling_price) || buyingPrice;
               
-              // Convert to USD for consistency
-              const saleCurrency = sale.currency || 'USD';
-              let profitInUSD = (sellingPrice - buyingPrice) * qty;
+              // Calculate profit in native currency first
+              let profitAmount = (sellingPrice - buyingPrice) * qty;
               
-              if (saleCurrency === 'IQD') {
-                profitInUSD = profitInUSD * EXCHANGE_RATES.IQD_TO_USD;
+              // Convert to USD only if sale is in IQD for consistent comparison
+              if (sale.currency === 'IQD') {
+                profitAmount = profitAmount * EXCHANGE_RATES.IQD_TO_USD;
               }
               
-              return itemProfit + profitInUSD;
+              return itemProfit + profitAmount;
             }, 0);
             return totalProfit + saleProfit;
           }
@@ -1020,28 +951,25 @@ const MonthlyProfitChart = React.memo(({ sales, t }) => {
     return {
       labels: last6Months.map(({ label }) => label),
       datasets: [{
-        label: 'Monthly Profit (USD)',
+        label: t?.monthlyProfitUSD || 'Monthly Profit (USD equivalent)',
         data: monthlyProfits,
-        backgroundColor: 'rgba(34, 197, 94, 0.2)',
-        borderColor: 'rgba(34, 197, 94, 1)',
+        backgroundColor: CHART_COLORS.profit.background,
+        borderColor: CHART_COLORS.profit.primary,
         borderWidth: 3,
         fill: true,
         tension: 0.4,
       }]
     };
-  }, [sales]);
+  }, [sales, t]);
 
   const options = useMemo(() => ({
-    responsive: true,
-    maintainAspectRatio: false,
+    ...getCommonChartOptions(),
     plugins: {
-      legend: {
-        display: false
-      },
+      legend: { display: false },
       tooltip: {
         callbacks: {
           label: function(context) {
-            return `Profit: ${formatCurrency(context.parsed.y, 'USD')}`;
+            return `${t?.profit || 'Profit'}: ${formatCurrency(context.parsed.y, 'USD')}`;
           }
         }
       }
@@ -1051,12 +979,12 @@ const MonthlyProfitChart = React.memo(({ sales, t }) => {
         beginAtZero: true,
         ticks: {
           callback: function(value) {
-            return '$' + value.toFixed(0);
+            return formatCurrency(value, 'USD');
           }
         }
       }
     }
-  }), []);
+  }), [t]);
 
   return (
     <div style={{ height: '250px' }}>
@@ -1135,47 +1063,33 @@ const LowStockAlerts = React.memo(({ products, accessories, t }) => {
   );
 });
 
-// Sales by Currency Chart Component
+// Sales by Currency Chart Component - Simplified
 const SalesByCurrencyChart = React.memo(({ sales, t }) => {
   const chartData = useMemo(() => {
-    let usdSales = 0;
-    let iqdSales = 0;
-    
-    (sales || []).forEach(sale => {
-      if (sale.currency === 'USD') {
-        usdSales++;
-      } else {
-        iqdSales++;
-      }
-    });
+    const usdSales = (sales || []).filter(sale => sale.currency === 'USD').length;
+    const iqdSales = (sales || []).filter(sale => sale.currency === 'IQD').length;
     
     const total = usdSales + iqdSales;
     if (total === 0) {
       return {
-        labels: ['No sales'],
+        labels: [t?.noSales || 'No sales'],
         datasets: [{
           data: [1],
-          backgroundColor: ['rgba(156, 163, 175, 0.5)'],
+          backgroundColor: [CHART_COLORS.USD.secondary],
         }]
       };
     }
     
     return {
-      labels: [`USD Sales (${usdSales})`, `IQD Sales (${iqdSales})`],
+      labels: [`${t?.usdSales || 'USD Sales'} (${usdSales})`, `${t?.iqdSales || 'IQD Sales'} (${iqdSales})`],
       datasets: [{
         data: [usdSales, iqdSales],
-        backgroundColor: [
-          'rgba(34, 197, 94, 0.8)',
-          'rgba(168, 85, 247, 0.8)',
-        ],
-        borderColor: [
-          'rgba(34, 197, 94, 1)',
-          'rgba(168, 85, 247, 1)',
-        ],
+        backgroundColor: [CHART_COLORS.USD.secondary, CHART_COLORS.IQD.secondary],
+        borderColor: [CHART_COLORS.USD.primary, CHART_COLORS.IQD.primary],
         borderWidth: 2,
       }]
     };
-  }, [sales]);
+  }, [sales, t]);
 
   const options = useMemo(() => ({
     responsive: true,
@@ -1183,9 +1097,7 @@ const SalesByCurrencyChart = React.memo(({ sales, t }) => {
     plugins: {
       legend: {
         position: 'bottom',
-        labels: {
-          font: { size: 12 }
-        }
+        labels: { font: { size: 12 } }
       }
     }
   }), []);

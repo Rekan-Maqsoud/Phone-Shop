@@ -1,6 +1,31 @@
 // Reports and analytics functions
 
 function getMonthlyReport(db, year, month) {
+  // First, try to get from stored monthly_reports table
+  const storedReport = db.prepare('SELECT * FROM monthly_reports WHERE month = ? AND year = ?').get(month, year);
+  
+  if (storedReport) {
+    // Parse JSON fields
+    try {
+      const topProducts = storedReport.top_products ? JSON.parse(storedReport.top_products) : [];
+      const enhanced = storedReport.analytics_data ? JSON.parse(storedReport.analytics_data) : {};
+      
+      return {
+        ...storedReport,
+        topProducts,
+        enhanced,
+        avgTransactionValue: {
+          usd: storedReport.avg_transaction_usd,
+          iqd: storedReport.avg_transaction_iqd
+        },
+        totalTransactions: storedReport.transaction_count
+      };
+    } catch (error) {
+      console.error('Error parsing stored report JSON:', error);
+    }
+  }
+  
+  // Fallback to generating report on-the-fly
   const startDate = `${year}-${month.toString().padStart(2, '0')}-01`;
   const endDate = new Date(year, month, 0).toISOString().split('T')[0]; // Last day of month
   
@@ -233,7 +258,91 @@ function getDashboardStats(db) {
 }
 
 function getMonthlyReports(db) {
-  return db.prepare('SELECT * FROM monthly_reports ORDER BY year DESC, month DESC').all();
+  const reports = db.prepare('SELECT * FROM monthly_reports ORDER BY year DESC, month DESC').all();
+  
+  return reports.map(report => {
+    try {
+      return {
+        ...report,
+        topProducts: report.top_products ? JSON.parse(report.top_products) : [],
+        enhanced: report.analytics_data ? JSON.parse(report.analytics_data) : {},
+        avgTransactionValue: {
+          usd: report.avg_transaction_usd,
+          iqd: report.avg_transaction_iqd
+        },
+        totalTransactions: report.transaction_count
+      };
+    } catch (error) {
+      console.error('Error parsing report JSON:', error);
+      return report;
+    }
+  });
+}
+
+function createMonthlyReport(db, month, year) {
+  // Generate comprehensive monthly report
+  const monthStr = `${year}-${month.toString().padStart(2, '0')}`;
+  const startDate = `${monthStr}-01`;
+  const endDate = new Date(year, month, 0).toISOString().split('T')[0];
+  
+  // Check if report already exists
+  const existingReport = db.prepare('SELECT * FROM monthly_reports WHERE month = ? AND year = ?').get(month, year);
+  if (existingReport) {
+    return { success: false, message: 'Report already exists for this month' };
+  }
+  
+  // Get basic monthly report data
+  const baseReport = getMonthlyReport(db, year, month);
+  
+  // Calculate additional metrics
+  const totalSalesUSD = baseReport.sales.find(s => s.currency === 'USD')?.total_revenue || 0;
+  const totalSalesIQD = baseReport.sales.find(s => s.currency === 'IQD')?.total_revenue || 0;
+  
+  const totalPurchasesUSD = baseReport.purchases.find(p => p.currency === 'USD')?.total_cost || 0;
+  const totalPurchasesIQD = baseReport.purchases.find(p => p.currency === 'IQD')?.total_cost || 0;
+  
+  // Calculate profit (simplified)
+  const profitUSD = totalSalesUSD - totalPurchasesUSD;
+  const profitIQD = totalSalesIQD - totalPurchasesIQD;
+  
+  // Insert into database with correct column names
+  const reportData = {
+    month,
+    year,
+    total_sales_usd: totalSalesUSD,
+    total_sales_iqd: totalSalesIQD,
+    total_profit_usd: profitUSD,
+    total_profit_iqd: profitIQD,
+    total_spent_usd: totalPurchasesUSD,
+    total_spent_iqd: totalPurchasesIQD,
+    created_at: new Date().toISOString()
+  };
+  
+  try {
+    const result = db.prepare(`
+      INSERT OR REPLACE INTO monthly_reports 
+      (month, year, total_sales_usd, total_sales_iqd, total_profit_usd, total_profit_iqd, 
+       total_spent_usd, total_spent_iqd, transaction_count, avg_transaction_usd, avg_transaction_iqd,
+       top_products, analytics_data, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      reportData.month, reportData.year, reportData.total_sales_usd, reportData.total_sales_iqd,
+      reportData.total_profit_usd, reportData.total_profit_iqd, reportData.total_spent_usd,
+      reportData.total_spent_iqd, baseReport.totalTransactions, 
+      baseReport.avgTransactionValue?.usd || 0, baseReport.avgTransactionValue?.iqd || 0,
+      JSON.stringify(baseReport.topProducts || []), 
+      JSON.stringify(baseReport.enhanced || {}),
+      reportData.created_at
+    );
+    
+    return { 
+      success: true, 
+      id: result.lastInsertRowid,
+      data: { ...reportData, ...baseReport }
+    };
+  } catch (error) {
+    return { success: false, message: error.message };
+  }
 }
 
 module.exports = {
@@ -244,5 +353,6 @@ module.exports = {
   getInventoryValue,
   getCustomerAnalysis,
   getDashboardStats,
-  getMonthlyReports
+  getMonthlyReports,
+  createMonthlyReport
 };

@@ -192,7 +192,13 @@ CREATE TABLE IF NOT EXISTS monthly_reports (
   total_profit_iqd REAL DEFAULT 0,
   total_spent_usd REAL DEFAULT 0,
   total_spent_iqd REAL DEFAULT 0,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  transaction_count INTEGER DEFAULT 0,
+  avg_transaction_usd REAL DEFAULT 0,
+  avg_transaction_iqd REAL DEFAULT 0,
+  top_products TEXT, -- JSON string of top selling products
+  analytics_data TEXT, -- JSON string for enhanced analytics
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(month, year)
 );
 
 CREATE TABLE IF NOT EXISTS transactions (
