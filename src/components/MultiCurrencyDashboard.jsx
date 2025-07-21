@@ -15,7 +15,7 @@ import {
 import { Bar, Line, Doughnut } from 'react-chartjs-2';
 
 // Import shared utilities
-import { EXCHANGE_RATES } from '../utils/exchangeRates';
+import { EXCHANGE_RATES, formatCurrencyWithTranslation } from '../utils/exchangeRates';
 import { 
   formatCurrency, 
   filterPaidSales, 
@@ -24,6 +24,7 @@ import {
   getCommonChartOptions,
   CHART_COLORS
 } from '../utils/chartUtils';
+import { Icon } from '../utils/icons.jsx';
 
 ChartJS.register(
   CategoryScale,
@@ -239,13 +240,16 @@ function MultiCurrencyDashboard({ admin, t }) {
   }, [sales, debts, buyingHistory, personalLoans, companyDebts, products, accessories]);
 
   return (
-    <div className="space-y-6">
+    <div className="w-full h-full p-8 space-y-6">
       {/* Header */}
       <div className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 rounded-3xl p-8 text-white shadow-2xl">
-        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+        <div className="flex flex-row justify-between items-center gap-4">
           <div>
-            <h1 className="text-3xl font-bold mb-2">
-              📊 {t?.multiCurrencyDashboard || 'Multi-Currency Dashboard'}
+            <h1 className="text-3xl font-bold mb-2 flex items-center gap-3">
+              <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/>
+              </svg>
+              {t?.multiCurrencyDashboard || 'Multi-Currency Dashboard'}
             </h1>
             <p className="text-blue-100 text-lg">
               {t?.realTimeBusinessMetrics || 'Real-time business metrics across USD and IQD'}
@@ -255,36 +259,42 @@ function MultiCurrencyDashboard({ admin, t }) {
       </div>
 
       {/* Balance Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-2 gap-6">
         <div className="bg-gradient-to-br from-green-400 to-green-600 rounded-2xl p-6 text-white shadow-lg">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-3xl">💵</span>
+            <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/>
+            </svg>
             <span className="text-green-100 text-sm">{t?.currentBalance || 'Current Balance'}</span>
           </div>
-          <div className="text-3xl font-bold">{formatCurrency(balances.usd_balance || 0, 'USD')}</div>
+          <div className="text-3xl font-bold">{formatCurrencyWithTranslation(balances.usd_balance || 0, 'USD', t)}</div>
           <div className="text-green-100 text-sm">{t?.usdBalance || 'USD Balance'}</div>
         </div>
 
         <div className="bg-gradient-to-br from-yellow-400 to-orange-500 rounded-2xl p-6 text-white shadow-lg">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-3xl">💰</span>
+            <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+            </svg>
             <span className="text-orange-100 text-sm">{t?.currentBalance || 'Current Balance'}</span>
           </div>
-          <div className="text-3xl font-bold">{formatCurrency(balances.iqd_balance || 0, 'IQD')}</div>
+          <div className="text-3xl font-bold">{formatCurrencyWithTranslation(balances.iqd_balance || 0, 'IQD', t)}</div>
           <div className="text-orange-100 text-sm">{t?.iqdBalance || 'IQD Balance'}</div>
         </div>
       </div>
 
       {/* Sales Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-4 gap-6">
         {/* Today's USD Sales */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg border border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-2xl">🇺🇸</span>
-            <span className="text-gray-500 dark:text-gray-400 text-sm">{t?.todayUSD || "Today's USD"}</span>
+            <svg className="w-6 h-6 text-blue-600" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/>
+            </svg>
+            <span className="text-gray-500 dark:text-gray-400 text-sm">{t?.todaysSales || "Today's Sales"} ({t?.usd || 'USD'})</span>
           </div>
           <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-            {formatCurrency(metrics.todaysUSDSales, 'USD')}
+            {formatCurrencyWithTranslation(metrics.todaysUSDSales, 'USD', t)}
           </div>
           <div className="text-gray-500 dark:text-gray-400 text-sm">{t?.salesRevenue || 'Sales Revenue'}</div>
         </div>
@@ -292,11 +302,13 @@ function MultiCurrencyDashboard({ admin, t }) {
         {/* Today's IQD Sales */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg border border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-2xl">🇮🇶</span>
-            <span className="text-gray-500 dark:text-gray-400 text-sm">{t?.todayIQD || "Today's IQD"}</span>
+            <svg className="w-6 h-6 text-yellow-600" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+            </svg>
+            <span className="text-gray-500 dark:text-gray-400 text-sm">{t?.todaysSales || "Today's Sales"} ({t?.iqd || 'IQD'})</span>
           </div>
           <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-            {formatCurrency(metrics.todaysIQDSales, 'IQD')}
+            {formatCurrencyWithTranslation(metrics.todaysIQDSales, 'IQD', t)}
           </div>
           <div className="text-gray-500 dark:text-gray-400 text-sm">{t?.salesRevenue || 'Sales Revenue'}</div>
         </div>
@@ -304,11 +316,13 @@ function MultiCurrencyDashboard({ admin, t }) {
         {/* Weekly USD Sales */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg border border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-2xl">📈</span>
-            <span className="text-gray-500 dark:text-gray-400 text-sm">{t?.weeklyUSD || 'Weekly USD'}</span>
+            <svg className="w-6 h-6 text-blue-600" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/>
+            </svg>
+            <span className="text-gray-500 dark:text-gray-400 text-sm">{t?.weeklySales || 'Weekly Sales'} ({t?.usd || 'USD'})</span>
           </div>
           <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-            {formatCurrency(metrics.weekUSDSales, 'USD')}
+            {formatCurrencyWithTranslation(metrics.weekUSDSales, 'USD', t)}
           </div>
           <div className="text-gray-500 dark:text-gray-400 text-sm">{t?.weeklyRevenue || 'Weekly Revenue'}</div>
         </div>
@@ -316,91 +330,113 @@ function MultiCurrencyDashboard({ admin, t }) {
         {/* Weekly IQD Sales */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg border border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-2xl">📊</span>
-            <span className="text-gray-500 dark:text-gray-400 text-sm">{t?.weeklyIQD || 'Weekly IQD'}</span>
+            <svg className="w-6 h-6 text-purple-600" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/>
+            </svg>
+            <span className="text-gray-500 dark:text-gray-400 text-sm">{t?.weeklySales || 'Weekly Sales'} ({t?.iqd || 'IQD'})</span>
           </div>
           <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
-            {formatCurrency(metrics.weekIQDSales, 'IQD')}
+            {formatCurrencyWithTranslation(metrics.weekIQDSales, 'IQD', t)}
           </div>
           <div className="text-gray-500 dark:text-gray-400 text-sm">{t?.weeklyRevenue || 'Weekly Revenue'}</div>
         </div>
       </div>
 
       {/* Debt and Loan Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6">
+      <div className="grid grid-cols-6 gap-6">
         {/* USD Customer Debts */}
         <div className="bg-gradient-to-br from-red-400 to-red-600 rounded-2xl p-6 text-white shadow-lg">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-2xl">⚠️</span>
+            <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+            </svg>
             <span className="text-red-100 text-sm">{t?.customerUSD || 'Customer USD'}</span>
           </div>
-          <div className="text-2xl font-bold">{formatCurrency(metrics.unpaidUSDDebts, 'USD')}</div>
+          <div className="text-2xl font-bold">{formatCurrencyWithTranslation(metrics.unpaidUSDDebts, 'USD', t)}</div>
           <div className="text-red-100 text-sm">{t?.customerDebts || 'Customer Debts'}</div>
         </div>
 
         {/* IQD Customer Debts */}
         <div className="bg-gradient-to-br from-orange-400 to-red-500 rounded-2xl p-6 text-white shadow-lg">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-2xl">💳</span>
+            <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M20,4H4C2.89,4 2,4.89 2,6V18A2,2 0 0,0 4,20H20A2,2 0 0,0 22,18V6C22,4.89 21.1,4 20,4M20,18H4V8H20V18Z"/>
+            </svg>
             <span className="text-orange-100 text-sm">{t?.customerIQD || 'Customer IQD'}</span>
           </div>
-          <div className="text-2xl font-bold">{formatCurrency(metrics.unpaidIQDDebts, 'IQD')}</div>
+          <div className="text-2xl font-bold">{formatCurrencyWithTranslation(metrics.unpaidIQDDebts, 'IQD', t)}</div>
           <div className="text-orange-100 text-sm">{t?.customerDebts || 'Customer Debts'}</div>
         </div>
 
         {/* USD Company Debts */}
         <div className="bg-gradient-to-br from-pink-400 to-red-600 rounded-2xl p-6 text-white shadow-lg">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-2xl">🏢</span>
+            <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12,7V3H2V21H22V7H12M6,19H4V17H6V19M6,15H4V13H6V15M6,11H4V9H6V11M6,7H4V5H6V7M10,19H8V17H10V19M10,15H8V13H10V15M10,11H8V9H10V11M10,7H8V5H10V7M20,19H12V17H20V19M20,15H12V13H20V15M20,11H12V9H20V11Z"/>
+            </svg>
             <span className="text-pink-100 text-sm">{t?.companyUSD || 'Company USD'}</span>
           </div>
-          <div className="text-2xl font-bold">{formatCurrency(metrics.unpaidCompanyUSDDebts, 'USD')}</div>
+          <div className="text-2xl font-bold">{formatCurrencyWithTranslation(metrics.unpaidCompanyUSDDebts, 'USD', t)}</div>
           <div className="text-pink-100 text-sm">{t?.companyDebts || 'Company Debts'}</div>
         </div>
 
         {/* IQD Company Debts */}
         <div className="bg-gradient-to-br from-purple-400 to-pink-500 rounded-2xl p-6 text-white shadow-lg">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-2xl">🏭</span>
+            <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12,1L21,5V11C21,16.55 17.16,21.74 12,23C6.84,21.74 3,16.55 3,11V5L12,1M12,7C10.89,7 10,7.89 10,9A2,2 0 0,0 12,11A2,2 0 0,0 14,9C14,7.89 13.1,7 12,7M12,14C11.33,14 10.67,14.12 10.04,14.34C9.67,14.05 9,13.66 9,13V12C9,11.45 9.45,11 10,11H14C14.55,11 15,11.45 15,12V13C15,13.66 14.33,14.05 13.96,14.34C13.33,14.12 12.67,14 12,14Z"/>
+            </svg>
             <span className="text-purple-100 text-sm">{t?.companyIQD || 'Company IQD'}</span>
           </div>
-          <div className="text-2xl font-bold">{formatCurrency(metrics.unpaidCompanyIQDDebts, 'IQD')}</div>
+          <div className="text-2xl font-bold">{formatCurrencyWithTranslation(metrics.unpaidCompanyIQDDebts, 'IQD', t)}</div>
           <div className="text-purple-100 text-sm">{t?.companyDebts || 'Company Debts'}</div>
         </div>
 
         {/* USD Loans */}
         <div className="bg-gradient-to-br from-indigo-400 to-purple-600 rounded-2xl p-6 text-white shadow-lg">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-2xl">🤝</span>
+            <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M15,14C17.67,14 23,15.33 23,18V20H7V18C7,15.33 12.33,14 15,14M15,12A4,4 0 0,1 11,8A4,4 0 0,1 15,4A4,4 0 0,1 19,8A4,4 0 0,1 15,12M5,9.59L7.12,7.46L8.54,8.88L5,12.41L2.88,10.29L4.29,8.88L5,9.59Z"/>
+            </svg>
             <span className="text-indigo-100 text-sm">{t?.loansUSD || 'Loans USD'}</span>
           </div>
-          <div className="text-2xl font-bold">{formatCurrency(metrics.unpaidUSDLoans, 'USD')}</div>
+          <div className="text-2xl font-bold">{formatCurrencyWithTranslation(metrics.unpaidUSDLoans, 'USD', t)}</div>
           <div className="text-indigo-100 text-sm">{t?.personalLoans || 'Personal Loans'}</div>
         </div>
 
         {/* IQD Loans */}
         <div className="bg-gradient-to-br from-pink-400 to-purple-600 rounded-2xl p-6 text-white shadow-lg">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-2xl">💎</span>
+            <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M5,16L3,14L5,12L6.4,13.4L4.8,15L6.4,16.6L5,18M12,16C15.9,16 19,12.9 19,9S15.9,2 12,2S5,5.1 5,9C5,11.4 6.2,13.5 8,14.7V16H10V15C10.8,15 11.5,14.7 12,14.2C12.5,14.7 13.2,15 14,15V16H16V14.7C17.8,13.5 19,11.4 19,9C19,12.9 15.9,16 12,16M10,10A1,1 0 0,1 9,9A1,1 0 0,1 10,8A1,1 0 0,1 11,9A1,1 0 0,1 10,10M14,10A1,1 0 0,1 13,9A1,1 0 0,1 14,8A1,1 0 0,1 15,9A1,1 0 0,1 14,10Z"/>
+            </svg>
             <span className="text-pink-100 text-sm">{t?.loansIQD || 'Loans IQD'}</span>
           </div>
-          <div className="text-2xl font-bold">{formatCurrency(metrics.unpaidIQDLoans, 'IQD')}</div>
+          <div className="text-2xl font-bold">{formatCurrencyWithTranslation(metrics.unpaidIQDLoans, 'IQD', t)}</div>
           <div className="text-pink-100 text-sm">{t?.personalLoans || 'Personal Loans'}</div>
         </div>
       </div>
 
       {/* Net Performance */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-2 gap-6">
         <div className={`rounded-2xl p-6 text-white shadow-lg ${
           metrics.netPerformanceUSD >= 0 
             ? 'bg-gradient-to-br from-green-500 to-emerald-600' 
             : 'bg-gradient-to-br from-red-500 to-red-600'
         }`}>
           <div className="flex items-center justify-between mb-3">
-            <span className="text-3xl">{metrics.netPerformanceUSD >= 0 ? '📈' : '📉'}</span>
+            <span className="text-3xl">{metrics.netPerformanceUSD >= 0 ? (
+              <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/>
+              </svg>
+            ) : (
+              <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M16 18l2.29-2.29-4.88-4.88-4 4L2 7.41 3.41 6l6 6 4-4 6.3 6.29L22 12v6z"/>
+              </svg>
+            )}</span>
             <span className="text-green-100 text-sm">{t?.netPerformanceUSD || 'Net Performance USD'}</span>
           </div>
-          <div className="text-3xl font-bold">{formatCurrency(Math.abs(metrics.netPerformanceUSD), 'USD')}</div>
+          <div className="text-3xl font-bold">{formatCurrencyWithTranslation(Math.abs(metrics.netPerformanceUSD), 'USD', t)}</div>
           <div className="text-green-100 text-sm">
             {metrics.netPerformanceUSD >= 0 ? (t?.profit || 'Profit') : (t?.loss || 'Loss')} {t?.today || 'Today'}
           </div>
@@ -412,10 +448,18 @@ function MultiCurrencyDashboard({ admin, t }) {
             : 'bg-gradient-to-br from-red-500 to-red-600'
         }`}>
           <div className="flex items-center justify-between mb-3">
-            <span className="text-3xl">{metrics.netPerformanceIQD >= 0 ? '📈' : '📉'}</span>
+            <span className="text-3xl">{metrics.netPerformanceIQD >= 0 ? (
+              <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/>
+              </svg>
+            ) : (
+              <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M16 18l2.29-2.29-4.88-4.88-4 4L2 7.41 3.41 6l6 6 4-4 6.3 6.29L22 12v6z"/>
+              </svg>
+            )}</span>
             <span className="text-green-100 text-sm">{t?.netPerformanceIQD || 'Net Performance IQD'}</span>
           </div>
-          <div className="text-3xl font-bold">{formatCurrency(Math.abs(metrics.netPerformanceIQD), 'IQD')}</div>
+          <div className="text-3xl font-bold">{formatCurrencyWithTranslation(Math.abs(metrics.netPerformanceIQD), 'IQD', t)}</div>
           <div className="text-green-100 text-sm">
             {metrics.netPerformanceIQD >= 0 ? (t?.profit || 'Profit') : (t?.loss || 'Loss')} {t?.today || 'Today'}
           </div>
@@ -423,31 +467,37 @@ function MultiCurrencyDashboard({ admin, t }) {
       </div>
 
       {/* Inventory Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-4 gap-6">
         {/* Total Inventory Value USD */}
         <div className="bg-gradient-to-br from-blue-500 to-blue-700 rounded-2xl p-6 text-white shadow-lg">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-2xl">📦</span>
+            <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M16.2,16.2L11,13V7H12.5V12.2L17,15.4L16.2,16.2Z"/>
+            </svg>
             <span className="text-blue-100 text-sm">{t?.inventoryValueUSD || 'Inventory Value USD'}</span>
           </div>
-          <div className="text-2xl font-bold">{formatCurrency(metrics.inventoryValueUSD, 'USD')}</div>
+          <div className="text-2xl font-bold">{formatCurrencyWithTranslation(metrics.inventoryValueUSD, 'USD', t)}</div>
           <div className="text-blue-100 text-sm">{t?.totalInventoryValue || 'Total Inventory Value'}</div>
         </div>
 
         {/* Total Inventory Value IQD */}
         <div className="bg-gradient-to-br from-orange-500 to-orange-700 rounded-2xl p-6 text-white shadow-lg">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-2xl">📦</span>
+            <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M16.2,16.2L11,13V7H12.5V12.2L17,15.4L16.2,16.2Z"/>
+            </svg>
             <span className="text-orange-100 text-sm">{t?.inventoryValueIQD || 'Inventory Value IQD'}</span>
           </div>
-          <div className="text-2xl font-bold">{formatCurrency(metrics.inventoryValueIQD, 'IQD')}</div>
+          <div className="text-2xl font-bold">{formatCurrencyWithTranslation(metrics.inventoryValueIQD, 'IQD', t)}</div>
           <div className="text-orange-100 text-sm">{t?.totalInventoryValue || 'Total Inventory Value'}</div>
         </div>
 
         {/* Products Count */}
         <div className="bg-gradient-to-br from-purple-500 to-purple-700 rounded-2xl p-6 text-white shadow-lg">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-2xl">📱</span>
+            <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M17,19H7V5H17M17,1H7C5.89,1 5,1.89 5,3V21A2,2 0 0,0 7,23H17A2,2 0 0,0 19,21V3C19,1.89 18.1,1 17,1Z"/>
+            </svg>
             <span className="text-purple-100 text-sm">{t?.productsInventory || 'Products'}</span>
           </div>
           <div className="text-2xl font-bold">{metrics.totalProductsCount}</div>
@@ -457,7 +507,9 @@ function MultiCurrencyDashboard({ admin, t }) {
         {/* Accessories Count */}
         <div className="bg-gradient-to-br from-teal-500 to-teal-700 rounded-2xl p-6 text-white shadow-lg">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-2xl">🔌</span>
+            <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M16,12A2,2 0 0,1 18,10A2,2 0 0,1 20,12A2,2 0 0,1 18,14A2,2 0 0,1 16,12M10,12A2,2 0 0,1 12,10A2,2 0 0,1 14,12A2,2 0 0,1 12,14A2,2 0 0,1 10,12M4,12A2,2 0 0,1 6,10A2,2 0 0,1 8,12A2,2 0 0,1 6,14A2,2 0 0,1 4,12Z"/>
+            </svg>
             <span className="text-teal-100 text-sm">{t?.accessoriesInventory || 'Accessories'}</span>
           </div>
           <div className="text-2xl font-bold">{metrics.totalAccessoriesCount}</div>
@@ -467,10 +519,13 @@ function MultiCurrencyDashboard({ admin, t }) {
 
       {/* Combined Inventory Summary */}
       <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 rounded-2xl p-6 text-white shadow-lg">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div className="flex flex-row justify-between items-center gap-4">
           <div>
-            <h3 className="text-2xl font-bold mb-2">
-              🏪 {t?.totalInventorySummary || 'Total Inventory Summary'}
+            <h3 className="text-2xl font-bold mb-2 flex items-center gap-3">
+              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12,3L2,12H5V20H19V12H22L12,3M12,8.75A2.25,2.25 0 0,1 14.25,11A2.25,2.25 0 0,1 12,13.25A2.25,2.25 0 0,1 9.75,11A2.25,2.25 0 0,1 12,8.75Z"/>
+              </svg>
+              {t?.totalInventorySummary || 'Total Inventory Summary'}
             </h3>
             <p className="text-white/80">
               {t?.combinedInventoryValue || 'Combined inventory value across all currencies'}
@@ -478,7 +533,7 @@ function MultiCurrencyDashboard({ admin, t }) {
           </div>
           <div className="text-right">
             <div className="text-3xl font-bold">
-              {formatCurrency(metrics.inventoryValueUSD, 'USD')} + {formatCurrency(metrics.inventoryValueIQD, 'IQD')}
+              {formatCurrencyWithTranslation(metrics.inventoryValueUSD, 'USD', t)} + {formatCurrencyWithTranslation(metrics.inventoryValueIQD, 'IQD', t)}
             </div>
             <div className="text-white/80 text-sm">
               {metrics.totalStockCount} {t?.totalItems || 'total items in stock'}
@@ -488,19 +543,25 @@ function MultiCurrencyDashboard({ admin, t }) {
       </div>
 
       {/* Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-2 gap-6">
         {/* Sales Performance Chart */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg border border-gray-200 dark:border-gray-700">
-          <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">
-            📈 {t?.salesPerformance || 'Sales Performance'}
+          <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
+            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/>
+            </svg>
+            {t?.salesPerformance || 'Sales Performance'}
           </h3>
           <SalesChart sales={sales} t={t} />
         </div>
 
         {/* Balance Overview Chart */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg border border-gray-200 dark:border-gray-700">
-          <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">
-            💰 {t?.balanceOverview || 'Balance Overview'}
+          <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
+            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/>
+            </svg>
+            {t?.balanceOverview || 'Balance Overview'}
           </h3>
           <BalanceChart 
             usdBalance={balances.usd_balance || 0} 
@@ -518,13 +579,16 @@ function MultiCurrencyDashboard({ admin, t }) {
 
       {/* Recent Transactions */}
       <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg border border-gray-200 dark:border-gray-700">
-        <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">
-          📝 {t?.recentTransactions || 'Recent Transactions'}
+        <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
+          <Icon name="fileText" size={20} />
+          {t?.recentTransactions || 'Recent Transactions'}
         </h3>
         
         {transactions.length === 0 ? (
           <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-            <div className="text-4xl mb-2">📄</div>
+            <div className="text-4xl mb-2 flex justify-center">
+              <Icon name="fileText" size={32} />
+            </div>
             <p>{t?.noTransactions || 'No transactions yet'}</p>
           </div>
         ) : (
@@ -540,12 +604,14 @@ function MultiCurrencyDashboard({ admin, t }) {
                     transaction.type === 'debt_payment' ? 'bg-blue-500' :
                     'bg-gray-500'
                   }`}>
-                    {transaction.type === 'sale' ? '💰' :
-                     transaction.type === 'debt_sale' ? '💳' :
-                     transaction.type === 'purchase' ? '🛒' :
-                     transaction.type === 'loan' ? '🤝' :
-                     transaction.type === 'debt_payment' ? '💸' :
-                     '📄'}
+                    <Icon name={
+                      transaction.type === 'sale' ? 'dollarSign' :
+                      transaction.type === 'debt_sale' ? 'creditCard' :
+                      transaction.type === 'purchase' ? 'shoppingCart' :
+                      transaction.type === 'loan' ? 'handHeart' :
+                      transaction.type === 'debt_payment' ? 'banknote' :
+                      'fileText'
+                    } size={16} className="text-white" />
                   </div>
                   <div>
                     <div className="text-sm font-medium text-gray-800 dark:text-gray-200">
@@ -561,14 +627,14 @@ function MultiCurrencyDashboard({ admin, t }) {
                     <div className={`text-sm font-bold ${
                       transaction.amount_usd > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
                     }`}>
-                      {transaction.amount_usd > 0 ? '+' : ''}{formatCurrency(transaction.amount_usd, 'USD')}
+                      {transaction.amount_usd > 0 ? '+' : ''}{formatCurrencyWithTranslation(transaction.amount_usd, 'USD', t)}
                     </div>
                   )}
                   {transaction.amount_iqd !== 0 && (
                     <div className={`text-sm font-bold ${
                       transaction.amount_iqd > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
                     }`}>
-                      {transaction.amount_iqd > 0 ? '+' : ''}{formatCurrency(transaction.amount_iqd, 'IQD')}
+                      {transaction.amount_iqd > 0 ? '+' : ''}{formatCurrencyWithTranslation(transaction.amount_iqd, 'IQD', t)}
                     </div>
                   )}
                 </div>
@@ -579,46 +645,51 @@ function MultiCurrencyDashboard({ admin, t }) {
       </div>
 
       {/* Additional Analytics Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-2 gap-6">
         {/* Top Selling Products */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg border border-gray-200 dark:border-gray-700">
-          <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">
-            🏆 {t?.topSellingProducts || 'Top Selling Products'}
+          <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
+            <Icon name="award" size={20} />
+            {t?.topSellingProducts || 'Top Selling Products'}
           </h3>
           <TopSellingProductsChart sales={sales} t={t} />
         </div>
 
         {/* Monthly Profit Trends */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg border border-gray-200 dark:border-gray-700">
-          <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">
-            📊 {t?.monthlyProfitTrends || 'Monthly Profit Trends'}
+          <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
+            <Icon name="barChart3" size={20} />
+            {t?.monthlyProfitTrends || 'Monthly Profit Trends'}
           </h3>
           <MonthlyProfitChart sales={sales} t={t} />
         </div>
       </div>
 
       {/* Inventory Alerts and Summary */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-3 gap-6">
         {/* Low Stock Alerts */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg border border-gray-200 dark:border-gray-700">
-          <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">
-            ⚠️ {t?.lowStockAlerts || 'Low Stock Alerts'}
+          <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
+            <Icon name="alertTriangle" size={20} />
+            {t?.lowStockAlerts || 'Low Stock Alerts'}
           </h3>
           <LowStockAlerts products={products} accessories={accessories} t={t} />
         </div>
 
         {/* Sales Summary by Currency */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg border border-gray-200 dark:border-gray-700">
-          <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">
-            💱 {t?.salesByCurrency || 'Sales by Currency'}
+          <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
+            <Icon name="coins" size={20} />
+            {t?.salesByCurrency || 'Sales by Currency'}
           </h3>
           <SalesByCurrencyChart sales={sales} t={t} />
         </div>
 
         {/* Quick Stats */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg border border-gray-200 dark:border-gray-700">
-          <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">
-            📈 {t?.quickStats || 'Quick Stats'}
+          <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
+            <Icon name="trendingUp" size={20} />
+            {t?.quickStats || 'Quick Stats'}
           </h3>
           <QuickStatsDisplay sales={sales} products={products} accessories={accessories} t={t} />
         </div>
@@ -630,7 +701,7 @@ function MultiCurrencyDashboard({ admin, t }) {
 
 export default React.memo(MultiCurrencyDashboard);
 
-// Sales Chart Component - Improved with proper USD/IQD separation
+// Sales Chart Component - Single Y-axis with USD equivalent values
 const SalesChart = React.memo(({ sales, t }) => {
   const chartData = useMemo(() => {
     const dateRange = generateDateRange(7);
@@ -642,11 +713,12 @@ const SalesChart = React.memo(({ sales, t }) => {
         .reduce((sum, sale) => sum + (sale.total || 0), 0);
     });
 
-    // Calculate IQD sales (ONLY native IQD sales, no conversion)
+    // Calculate IQD sales converted to USD equivalent for single axis comparison
     const iqdData = dateRange.map(({ iso }) => {
-      return (sales || [])
+      const iqdTotal = (sales || [])
         .filter(sale => sale.created_at?.split('T')[0] === iso && sale.currency === 'IQD')
         .reduce((sum, sale) => sum + (sale.total || 0), 0);
+      return iqdTotal * EXCHANGE_RATES.IQD_TO_USD; // Convert to USD equivalent
     });
 
     const labels = dateRange.map(({ short }) => short);
@@ -655,21 +727,22 @@ const SalesChart = React.memo(({ sales, t }) => {
       labels,
       datasets: [
         {
-          label: t?.usdSales || 'USD Sales',
+          label: t?.usdSales || 'فرۆشتنی دۆلار',
           data: usdData,
           backgroundColor: CHART_COLORS.USD.secondary,
           borderColor: CHART_COLORS.USD.primary,
-          borderWidth: 2,
-          tension: 0.1,
+          borderWidth: 3,
+          fill: true,
+          tension: 0.4,
         },
         {
-          label: t?.iqdSales || 'IQD Sales (scaled)',
-          data: iqdData.map(value => value * EXCHANGE_RATES.IQD_TO_USD), // Scale for visualization
+          label: t?.iqdSales || 'فرۆشتنی دینار',
+          data: iqdData,
           backgroundColor: CHART_COLORS.IQD.secondary,
           borderColor: CHART_COLORS.IQD.primary,
-          borderWidth: 2,
-          tension: 0.1,
-          yAxisID: 'y1', // Use secondary axis
+          borderWidth: 3,
+          fill: true,
+          tension: 0.4,
         },
       ],
     };
@@ -681,24 +754,10 @@ const SalesChart = React.memo(({ sales, t }) => {
       y: {
         type: 'linear',
         display: true,
-        position: 'left',
         beginAtZero: true,
         title: {
           display: true,
-          text: 'USD Amount',
-        },
-      },
-      y1: {
-        type: 'linear',
-        display: true,
-        position: 'right',
-        beginAtZero: true,
-        title: {
-          display: true,
-          text: 'IQD Amount (USD equiv)',
-        },
-        grid: {
-          drawOnChartArea: false,
+          text: t?.usdEquivalent || 'قیمەتی دۆلار',
         },
       },
     },
@@ -709,16 +768,16 @@ const SalesChart = React.memo(({ sales, t }) => {
           label: function(context) {
             const label = context.dataset.label || '';
             const value = context.parsed.y;
-            if (label.includes('IQD')) {
+            if (label.includes(t?.iqdSales || 'فرۆشتنی دینار') || label.includes('IQD') || label.includes('دینار')) {
               const originalIQD = value / EXCHANGE_RATES.IQD_TO_USD;
-              return `${label}: ${formatCurrency(originalIQD, 'IQD')} (~${formatCurrency(value, 'USD')})`;
+              return `${label}: ${formatCurrency(originalIQD, 'IQD')} (≈${formatCurrency(value, 'USD')})`;
             }
             return `${label}: ${formatCurrency(value, 'USD')}`;
           }
         }
       },
     },
-  }), []);
+  }), [t]);
 
   return (
     <div style={{ height: '300px' }}>
@@ -758,8 +817,8 @@ const BalanceChart = React.memo(({
     ].filter(value => value > 0); // Only show non-zero values
     
     const labels = [
-      usdBalance > 0 ? `USD Balance (${formatCurrency(usdBalance, 'USD')})` : null,
-      iqdBalance > 0 ? `IQD Balance (${formatCurrency(iqdBalance, 'IQD')})` : null,
+      usdBalance > 0 ? `${t?.usdBalance || 'USD Balance'} (${formatCurrency(usdBalance, 'USD')})` : null,
+      iqdBalance > 0 ? `${t?.iqdBalance || 'IQD Balance'} (${formatCurrency(iqdBalance, 'IQD')})` : null,
       usdCustomerDebts > 0 ? `USD Customer Debts (${formatCurrency(usdCustomerDebts, 'USD')})` : null,
       iqdCustomerDebts > 0 ? `IQD Customer Debts (${formatCurrency(iqdCustomerDebts, 'IQD')})` : null,
       usdCompanyDebts > 0 ? `USD Company Debts (${formatCurrency(usdCompanyDebts, 'USD')})` : null,
@@ -1029,7 +1088,9 @@ const LowStockAlerts = React.memo(({ products, accessories, t }) => {
     <div className="space-y-3 max-h-64 overflow-y-auto">
       {lowStockItems.length === 0 ? (
         <div className="text-center py-4 text-gray-500 dark:text-gray-400">
-          <div className="text-2xl mb-2">✅</div>
+          <div className="text-2xl mb-2 flex justify-center">
+            <Icon name="checkCircle" size={24} />
+          </div>
           <p>{t?.allStockGood || 'All items in stock'}</p>
         </div>
       ) : (

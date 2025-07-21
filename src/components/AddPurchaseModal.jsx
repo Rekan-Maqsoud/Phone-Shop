@@ -3,6 +3,7 @@ import ModalBase from './ModalBase';
 import { phoneBrands, accessoryModels } from './phoneBrands';
 import SearchableSelect from './SearchableSelect';
 import { EXCHANGE_RATES, loadExchangeRatesFromDB } from '../utils/exchangeRates';
+import { Icon } from '../utils/icons.jsx';
 
 export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompanyDebtMode = false }) {
   const [companyName, setCompanyName] = useState('');
@@ -300,8 +301,9 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
     <ModalBase show={show} onClose={onClose} maxWidth="4xl">
       <div className="max-h-[80vh] overflow-y-auto">
         <form onSubmit={handleSubmit} className="space-y-6">
-          <h2 className="text-2xl font-bold mb-4 text-gray-800 dark:text-gray-100">
-            ➕ {isCompanyDebtMode ? (t?.addCompanyDebt || 'Add Company Debt') : (t?.addPurchase || 'Add Purchase')}
+          <h2 className="text-2xl font-bold mb-4 text-gray-800 dark:text-gray-100 flex items-center gap-2">
+            <Icon name="plus" size={24} />
+            {isCompanyDebtMode ? (t?.addCompanyDebt || 'Add Company Debt') : (t?.addPurchase || 'Add Purchase')}
           </h2>
 
         {/* Company Name */}
@@ -344,11 +346,13 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
               className={`p-4 rounded-xl border-2 transition-all ${
                 purchaseType === 'simple'
                   ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
-                  : 'border-gray-300 dark:border-gray-600 hover:border-blue-300 dark:hover:border-blue-500'
+                  : 'border-gray-300 dark:border-gray-600 hover:border-blue-300 dark:hover:border-blue-500 text-gray-700 dark:text-gray-300'
               }`}
             >
               <div className="text-center">
-                <div className="text-2xl mb-2">💰</div>
+                <div className="text-2xl mb-2 flex justify-center">
+                  <Icon name="dollarSign" size={32} />
+                </div>
                 <div className="font-semibold">{t?.simplePurchase || 'Simple Purchase'}</div>
                 <div className="text-sm text-gray-600 dark:text-gray-400">
                   {t?.justAmount || 'Just specify the amount'}
@@ -361,11 +365,13 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
               className={`p-4 rounded-xl border-2 transition-all ${
                 purchaseType === 'withItems'
                   ? 'border-green-500 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300'
-                  : 'border-gray-300 dark:border-gray-600 hover:border-green-300 dark:hover:border-green-500'
+                  : 'border-gray-300 dark:border-gray-600 hover:border-green-300 dark:hover:border-green-500 text-gray-700 dark:text-gray-300'
               }`}
             >
               <div className="text-center">
-                <div className="text-2xl mb-2">📦</div>
+                <div className="text-2xl mb-2 flex justify-center">
+                  <Icon name="package" size={32} />
+                </div>
                 <div className="font-semibold">{t?.purchaseWithItems || 'Purchase with Items'}</div>
                 <div className="text-sm text-gray-600 dark:text-gray-400">
                   {t?.addItemsToInventory || 'Add items to inventory'}
@@ -388,11 +394,13 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
                 className={`p-4 rounded-xl border-2 transition-all ${
                   paymentStatus === 'debt'
                     ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300'
-                    : 'border-gray-300 dark:border-gray-600 hover:border-orange-300 dark:hover:border-orange-500'
+                    : 'border-gray-300 dark:border-gray-600 hover:border-orange-300 dark:hover:border-orange-500 text-gray-700 dark:text-gray-300'
                 }`}
               >
                 <div className="text-center">
-                  <div className="text-2xl mb-2">📝</div>
+                  <div className="text-2xl mb-2 flex justify-center">
+                    <Icon name="edit" size={32} />
+                  </div>
                   <div className="font-semibold">{t?.buyOnCredit || 'Buy on Credit'}</div>
                   <div className="text-sm text-gray-600 dark:text-gray-400">
                     {t?.payLaterCreatesDebt || 'Pay later - creates company debt'}
@@ -405,11 +413,13 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
                 className={`p-4 rounded-xl border-2 transition-all ${
                   paymentStatus === 'paid'
                     ? 'border-green-500 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300'
-                    : 'border-gray-300 dark:border-gray-600 hover:border-green-300 dark:hover:border-green-500'
+                    : 'border-gray-300 dark:border-gray-600 hover:border-green-300 dark:hover:border-green-500 text-gray-700 dark:text-gray-300'
                 }`}
               >
                 <div className="text-center">
-                  <div className="text-2xl mb-2">💳</div>
+                  <div className="text-2xl mb-2 flex justify-center">
+                    <Icon name="creditCard" size={32} />
+                  </div>
                   <div className="font-semibold">{t?.payNow || 'Pay Now'}</div>
                   <div className="text-sm text-gray-600 dark:text-gray-400">
                     {t?.immediatePaymentHistory || 'Immediate payment - goes to buying history'}
@@ -428,7 +438,9 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
             </label>
             <div className="p-4 rounded-xl border-2 border-orange-500 bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300">
               <div className="text-center">
-                <div className="text-2xl mb-2">📝</div>
+                <div className="text-2xl mb-2 flex justify-center">
+                  <Icon name="edit" size={32} />
+                </div>
                 <div className="font-semibold">{t?.buyOnCredit || 'Buy on Credit'}</div>
                 <div className="text-sm text-gray-600 dark:text-gray-400">
                   {t?.companyDebtMode || 'Company debt mode - payment will be tracked as unpaid debt'}
@@ -450,11 +462,13 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
               className={`p-4 rounded-xl border-2 transition-all ${
                 currency === 'USD'
                   ? 'border-green-500 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300'
-                  : 'border-gray-300 dark:border-gray-600 hover:border-green-300 dark:hover:border-green-500'
+                  : 'border-gray-300 dark:border-gray-600 hover:border-green-300 dark:hover:border-green-500 text-gray-700 dark:text-gray-300'
               }`}
             >
               <div className="text-center">
-                <div className="text-2xl mb-2">💵</div>
+                <div className="text-2xl mb-2 flex justify-center">
+                  <Icon name="dollarSign" size={32} />
+                </div>
                 <div className="font-semibold">USD ($)</div>
                 <div className="text-sm text-gray-600 dark:text-gray-400">
                   {t?.usDollars || 'US Dollars'}
@@ -467,11 +481,13 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
               className={`p-4 rounded-xl border-2 transition-all ${
                 currency === 'IQD'
                   ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
-                  : 'border-gray-300 dark:border-gray-600 hover:border-blue-300 dark:hover:border-blue-500'
+                  : 'border-gray-300 dark:border-gray-600 hover:border-blue-300 dark:hover:border-blue-500 text-gray-700 dark:text-gray-300'
               }`}
             >
               <div className="text-center">
-                <div className="text-2xl mb-2">🪙</div>
+                <div className="text-2xl mb-2 flex justify-center">
+                  <Icon name="coins" size={32} />
+                </div>
                 <div className="font-semibold">IQD (د.ع)</div>
                 <div className="text-sm text-gray-600 dark:text-gray-400">
                   {t?.iraqiDinars || 'Iraqi Dinars'}
@@ -569,23 +585,23 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
         {purchaseType === 'withItems' && (
           <div className="space-y-4">
             <div className="flex justify-between items-center">
-              <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200">
-                📦 {t?.items || 'Items'}
+              <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2">
+                <Icon name="package" size={20} /> {t?.items || 'Items'}
               </h3>
               <div className="flex gap-2">
                 <button
                   type="button"
                   onClick={() => addItem('product')}
-                  className="px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition text-sm"
+                  className="px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition text-sm flex items-center gap-2"
                 >
-                  📱 {t?.addProduct || 'Add Product'}
+                  <Icon name="smartphone" size={16} /> {t?.addProduct || 'Add Product'}
                 </button>
                 <button
                   type="button"
                   onClick={() => addItem('accessory')}
-                  className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm"
+                  className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm flex items-center gap-2"
                 >
-                  🎧 {t?.addAccessory || 'Add Accessory'}
+                  <Icon name="headphones" size={16} /> {t?.addAccessory || 'Add Accessory'}
                 </button>
               </div>
             </div>
@@ -605,15 +621,16 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
               }`}>
                 <div className="flex justify-between items-center mb-3">
                   <h4 className="font-medium flex items-center gap-2">
-                    {item.item_type === 'product' ? '📱' : '🎧'}
+                    <Icon name={item.item_type === 'product' ? 'smartphone' : 'headphones'} size={16} />
                     {item.item_type === 'product' ? (t?.product || 'Product') : (t?.accessory || 'Accessory')}
                   </h4>
                   <button
                     type="button"
                     onClick={() => removeItem(item.id)}
-                    className="text-red-600 hover:text-red-800 font-bold"
+                    className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 transition-colors"
+                    title={t?.removeItem || 'Remove item'}
                   >
-                    ✕
+                    <Icon name="x" size={16} />
                   </button>
                 </div>
 
@@ -978,15 +995,17 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
           <button 
             type="button" 
             onClick={onClose} 
-            className="px-6 py-2 rounded-lg bg-gray-300 dark:bg-gray-600 text-gray-800 dark:text-gray-200 hover:bg-gray-400 dark:hover:bg-gray-500 transition"
+            className="px-6 py-2 rounded-lg bg-gray-300 dark:bg-gray-600 text-gray-800 dark:text-gray-200 hover:bg-gray-400 dark:hover:bg-gray-500 transition flex items-center gap-2"
           >
+            <Icon name="x" size={16} />
             {t?.cancel || 'Cancel'}
           </button>
           <button 
             type="submit" 
-            className="px-6 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 font-semibold transition"
+            className="px-6 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 font-semibold transition flex items-center gap-2"
           >
-            ➕ {t?.addPurchase || 'Add Purchase'}
+            <Icon name="plus" size={16} />
+            {t?.addPurchase || 'Add Purchase'}
           </button>
         </div>
         </form>

@@ -8,6 +8,7 @@ import {
 } from '../utils/exchangeRates';
 import OfflineIndicator from './OfflineIndicator';
 import UnderCostWarning from './UnderCostWarning';
+import { Icon } from '../utils/icons.jsx';
 import useOnlineStatus from './hooks/useOnlineStatus';
 import { useSound } from '../contexts/SoundContext';
 import { playActionSound, playSystemSound } from '../utils/sounds';
@@ -607,7 +608,7 @@ export default function CashierContent({
                                   showToast(`Maximum available stock: ${maxQuantity}`, 'warning');
                                 }
                               }}
-                              className="w-16 px-2 py-1 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-600 text-center font-medium"
+                              className="w-16 px-2 py-1 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-600 text-center font-medium text-slate-800 dark:text-white"
                             />
                           </div>
                           <div className="flex items-center gap-2">
@@ -724,7 +725,12 @@ export default function CashierContent({
                     : 'text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-white'
                 }`}
               >
-                💵 USD
+                <span className="flex items-center gap-2">
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/>
+                  </svg>
+                  USD
+                </span>
               </button>
               <button
                 onClick={() => setCurrency('IQD')}
@@ -734,7 +740,12 @@ export default function CashierContent({
                     : 'text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-white'
                 }`}
               >
-                🏛️ IQD
+                <span className="flex items-center gap-2">
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                  </svg>
+                  IQD
+                </span>
               </button>
             </div>
             <div className="flex-1 text-right">
@@ -767,7 +778,7 @@ export default function CashierContent({
         {isDebt && (
           <div className="bg-orange-50 dark:bg-orange-900/20 rounded-xl p-4 mb-4 border border-orange-200 dark:border-orange-800">
             <div className="flex items-center gap-2 text-orange-700 dark:text-orange-300">
-              <span>📋</span>
+              <Icon name="clipboard" size={20} />
               <span className="text-sm font-medium">
                 {t.debtSaleNote || 'Debt sales save item values only. Payment currency will be chosen when the debt is paid back.'}
               </span>
@@ -1050,7 +1061,7 @@ export default function CashierContent({
               </>
             ) : (
               <>
-                <span>✅</span>
+                <Icon name="check" className="inline mr-2" size={16} />
                 {t.completeSale}
                 <span className="text-sm opacity-75">(Enter)</span>
               </>
@@ -1124,7 +1135,7 @@ export default function CashierContent({
                 onClick={() => setShowFilters(!showFilters)}
                 className="px-3 py-1 bg-gray-500 hover:bg-gray-600 text-white text-sm rounded-lg transition-colors"
               >
-                🔍 Filter
+                <Icon name="filter" className="inline mr-1" size={16} />Filter
               </button>
             </div>
             
@@ -1204,7 +1215,7 @@ export default function CashierContent({
           <div className="flex-1 min-h-0 overflow-y-auto p-4">
             {filteredItems.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
-                <div className="text-6xl mb-4">📱</div>
+                <Icon name="smartphone" size={60} className="text-slate-300 mb-4" />
                 <div className="text-lg font-medium text-slate-600 dark:text-slate-300 mb-2">
                   {allItems.length === 0 ? t.noProductsLoaded || 'No Products Loaded' : t.noProductsFound || 'No Products Found'}
                 </div>
@@ -1222,7 +1233,7 @@ export default function CashierContent({
                     }}
                     className="mt-4 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
                   >
-                    🔄 {t.refreshProducts || 'Refresh Products'}
+                    <Icon name="refresh-cw" className="inline mr-2" size={16} />{t.refreshProducts || 'Refresh Products'}
                   </button>
                 )}
               </div>

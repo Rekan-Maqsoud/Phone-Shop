@@ -75,6 +75,28 @@ This command will:
 - Launch Electron in development mode
 - Enable hot reloading for React components
 
+## Sample Data
+
+To help you get started quickly, a comprehensive sample data generator is included:
+
+```bash
+npm run add-sample-data
+```
+
+This creates a `sample-data.sql` file with:
+- **📱 15 Products**: iPhones, Samsung Galaxy, Xiaomi, and local brand phones
+- **🔌 18 Accessories**: Cases, chargers, cables, power banks, headphones
+- **💰 Financial Records**: Customer debts, company debts, personal loans, incentives
+- **📦 Business Data**: Sales history, buying history, and shop settings
+- **🏪 Shop Configuration**: Initial balances ($5,000 USD + 7,200,000 IQD)
+
+**Application Methods:**
+1. Start the application - sample data may be included during initialization
+2. Use SQLite command line: `sqlite3 database/shop.sqlite ".read sample-data.sql"`
+3. Import via SQLite browser/client
+
+See [SAMPLE_DATA_GUIDE.md](./SAMPLE_DATA_GUIDE.md) for detailed information.
+
 ## Building
 
 ### Build for current platform:

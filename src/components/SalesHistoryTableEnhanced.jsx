@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import HistorySearchFilter from './HistorySearchFilter';
+import { Icon } from '../utils/icons.jsx';
 
 // Enhanced Sales History Table with performance optimizations
 const SalesHistoryTableEnhanced = React.memo(function SalesHistoryTableEnhanced({ sales, t, onView, onPrintLast, onReturn }) {
@@ -297,24 +298,26 @@ const SalesHistoryTableEnhanced = React.memo(function SalesHistoryTableEnhanced(
           {onPrintLast && (
             <button
               onClick={onPrintLast}
-              className="bg-green-600 text-white px-4 py-1 rounded hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-400 transition"
+              className="bg-green-600 text-white px-4 py-1 rounded hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-400 transition flex items-center gap-2"
               title="Print last receipt"
             >
-              🖨️ {t.testPrint}
+              <Icon name="printer" size={16} />
+              {t.testPrint}
             </button>
           )}
         </div>
         
         <div className="overflow-x-auto">
           <table className="min-w-full text-left border rounded-lg">
-            <thead className="bg-gray-800 text-white">
+            <thead className="bg-gray-800 dark:bg-gray-700 text-white">
               <tr>
                 <th className="px-4 py-2 w-10"></th>
                 <th 
-                  className="px-4 py-2 cursor-pointer hover:bg-gray-700"
+                  className="px-4 py-2 cursor-pointer hover:bg-gray-700 transition-colors flex items-center gap-2"
                   onClick={() => setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')}
                 >
-                  {t.date} {sortOrder === 'desc' ? '↓' : '↑'}
+                  {t.date}
+                  <Icon name={sortOrder === 'desc' ? "arrowDown" : "arrowUp"} size={14} />
                 </th>
                 <th className="px-4 py-2">{t.customer_name || 'Customer'}</th>
                 <th className="px-4 py-2">{t.items || 'Items'}</th>
@@ -328,7 +331,7 @@ const SalesHistoryTableEnhanced = React.memo(function SalesHistoryTableEnhanced(
             <tbody>
               {paginatedSales.length === 0 ? (
                 <tr>
-                  <td colSpan="9" className="text-center text-gray-400 py-4">
+                  <td colSpan="9" className="text-center text-gray-500 dark:text-gray-400 py-4">
                     {t.noSalesFound || 'No sales found'}
                   </td>
                 </tr>
@@ -346,45 +349,46 @@ const SalesHistoryTableEnhanced = React.memo(function SalesHistoryTableEnhanced(
                           {hasMultipleCurrencies && (
                             <button
                               onClick={() => toggleSaleExpansion(sale.id)}
-                              className="text-blue-500 hover:text-blue-700 focus:outline-none"
+                              className="text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 focus:outline-none transition-colors"
                               title="Show currency breakdown"
                             >
-                              {isExpanded ? '▼' : '▶'}
+                              <Icon name={isExpanded ? "chevronDown" : "chevronRight"} size={16} />
                             </button>
                           )}
                         </td>
-                        <td className="px-4 py-2 text-sm">
+                        <td className="px-4 py-2 text-sm text-gray-800 dark:text-gray-200">
                           {new Date(sale.created_at).toLocaleString()}
                         </td>
-                        <td className="px-4 py-2">{sale.customer_name || t.walkInCustomer || 'Walk-in'}</td>
-                        <td className="px-4 py-2 text-sm">
+                        <td className="px-4 py-2 text-gray-800 dark:text-gray-200">{sale.customer_name || t.walkInCustomer || 'Walk-in'}</td>
+                        <td className="px-4 py-2 text-sm text-gray-800 dark:text-gray-200">
                           {sale.items ? `${sale.items.length} items (${sale.items.reduce((sum, item) => sum + (item.quantity || 1), 0)} total)` : '0 items'}
                         </td>
-                        <td className="px-4 py-2 text-sm">
+                        <td className="px-4 py-2 text-sm text-gray-800 dark:text-gray-200">
                           {breakdown.usd.buyingTotal > 0 && formatCurrency(breakdown.usd.buyingTotal, 'USD')}
                           {breakdown.usd.buyingTotal > 0 && breakdown.iqd.buyingTotal > 0 && ' + '}
                           {breakdown.iqd.buyingTotal > 0 && formatCurrency(breakdown.iqd.buyingTotal, 'IQD')}
                         </td>
-                        <td className="px-4 py-2 text-sm">
+                        <td className="px-4 py-2 text-sm text-gray-800 dark:text-gray-200">
                           {breakdown.usd.sellingTotal > 0 && formatCurrency(breakdown.usd.sellingTotal, 'USD')}
                           {breakdown.usd.sellingTotal > 0 && breakdown.iqd.sellingTotal > 0 && ' + '}
                           {breakdown.iqd.sellingTotal > 0 && formatCurrency(breakdown.iqd.sellingTotal, 'IQD')}
                         </td>
-                        <td className="px-4 py-2 text-sm font-semibold">
+                        <td className="px-4 py-2 text-sm font-semibold text-gray-800 dark:text-gray-200">
                           {breakdown.usd.paid > 0 && formatCurrency(breakdown.usd.paid, 'USD')}
                           {breakdown.usd.paid > 0 && breakdown.iqd.paid > 0 && ' + '}
                           {breakdown.iqd.paid > 0 && formatCurrency(breakdown.iqd.paid, 'IQD')}
                         </td>
-                        <td className="px-4 py-2 text-sm font-semibold">
-                          {breakdown.usd.actualProfit !== 0 && (
-                            <span className={breakdown.usd.actualProfit >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
-                              {formatCurrency(breakdown.usd.actualProfit, 'USD')}
+                        <td className="px-4 py-2 text-sm font-semibold text-gray-800 dark:text-gray-200">
+                          {/* Show profit only in the currency of the products sold */}
+                          {breakdown.usd.profit > 0 && (
+                            <span className={breakdown.usd.profit >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
+                              {formatCurrency(breakdown.usd.profit, 'USD')}
                             </span>
                           )}
-                          {breakdown.usd.actualProfit !== 0 && breakdown.iqd.actualProfit !== 0 && ' + '}
-                          {breakdown.iqd.actualProfit !== 0 && (
-                            <span className={breakdown.iqd.actualProfit >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
-                              {formatCurrency(breakdown.iqd.actualProfit, 'IQD')}
+                          {breakdown.usd.profit > 0 && breakdown.iqd.profit > 0 && ' + '}
+                          {breakdown.iqd.profit > 0 && (
+                            <span className={breakdown.iqd.profit >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
+                              {formatCurrency(breakdown.iqd.profit, 'IQD')}
                             </span>
                           )}
                         </td>
@@ -392,8 +396,10 @@ const SalesHistoryTableEnhanced = React.memo(function SalesHistoryTableEnhanced(
                           <div className="flex gap-2">
                             <button
                               onClick={() => onView && onView(sale)}
-                              className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition text-sm"
+                              className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition text-sm flex items-center gap-1"
+                              title={t.view}
                             >
+                              <Icon name="eye" size={14} />
                               {t.view}
                             </button>
                             {onReturn && (
@@ -401,8 +407,10 @@ const SalesHistoryTableEnhanced = React.memo(function SalesHistoryTableEnhanced(
                                 onClick={() => {
                                   onReturn(sale.id);
                                 }}
-                                className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 transition text-sm"
+                                className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 transition text-sm flex items-center gap-1"
+                                title={t.return}
                               >
+                                <Icon name="undo" size={14} />
                                 {t.return}
                               </button>
                             )}
@@ -417,11 +425,11 @@ const SalesHistoryTableEnhanced = React.memo(function SalesHistoryTableEnhanced(
                           {breakdown.usd.items.length > 0 && (
                             <tr className="bg-blue-50 dark:bg-blue-900/20 border-b">
                               <td className="px-4 py-2"></td>
-                              <td className="px-8 py-2 text-sm text-blue-600 dark:text-blue-400 font-medium">USD Details</td>
-                              <td className="px-4 py-2 text-sm">{breakdown.usd.items.length} items</td>
-                              <td className="px-4 py-2 text-sm">{formatCurrency(breakdown.usd.buyingTotal, 'USD')}</td>
-                              <td className="px-4 py-2 text-sm">{formatCurrency(breakdown.usd.sellingTotal, 'USD')}</td>
-                              <td className="px-4 py-2 text-sm font-semibold">{formatCurrency(breakdown.usd.paid, 'USD')}</td>
+                              <td className="px-8 py-2 text-sm text-blue-600 dark:text-blue-400 font-medium">{t?.usd || 'USD'} Details</td>
+                              <td className="px-4 py-2 text-sm text-gray-800 dark:text-gray-200">{breakdown.usd.items.length} items</td>
+                              <td className="px-4 py-2 text-sm text-gray-800 dark:text-gray-200">{formatCurrency(breakdown.usd.buyingTotal, 'USD')}</td>
+                              <td className="px-4 py-2 text-sm text-gray-800 dark:text-gray-200">{formatCurrency(breakdown.usd.sellingTotal, 'USD')}</td>
+                              <td className="px-4 py-2 text-sm font-semibold text-gray-800 dark:text-gray-200">{formatCurrency(breakdown.usd.paid, 'USD')}</td>
                               <td className={`px-4 py-2 text-sm font-semibold ${breakdown.usd.actualProfit >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                                 {formatCurrency(breakdown.usd.actualProfit, 'USD')}
                               </td>
@@ -433,11 +441,11 @@ const SalesHistoryTableEnhanced = React.memo(function SalesHistoryTableEnhanced(
                           {breakdown.iqd.items.length > 0 && (
                             <tr className="bg-green-50 dark:bg-green-900/20 border-b">
                               <td className="px-4 py-2"></td>
-                              <td className="px-8 py-2 text-sm text-green-600 dark:text-green-400 font-medium">IQD Details</td>
-                              <td className="px-4 py-2 text-sm">{breakdown.iqd.items.length} items</td>
-                              <td className="px-4 py-2 text-sm">{formatCurrency(breakdown.iqd.buyingTotal, 'IQD')}</td>
-                              <td className="px-4 py-2 text-sm">{formatCurrency(breakdown.iqd.sellingTotal, 'IQD')}</td>
-                              <td className="px-4 py-2 text-sm font-semibold">{formatCurrency(breakdown.iqd.paid, 'IQD')}</td>
+                              <td className="px-8 py-2 text-sm text-green-600 dark:text-green-400 font-medium">{t?.iqd || 'IQD'} Details</td>
+                              <td className="px-4 py-2 text-sm text-gray-800 dark:text-gray-200">{breakdown.iqd.items.length} items</td>
+                              <td className="px-4 py-2 text-sm text-gray-800 dark:text-gray-200">{formatCurrency(breakdown.iqd.buyingTotal, 'IQD')}</td>
+                              <td className="px-4 py-2 text-sm text-gray-800 dark:text-gray-200">{formatCurrency(breakdown.iqd.sellingTotal, 'IQD')}</td>
+                              <td className="px-4 py-2 text-sm font-semibold text-gray-800 dark:text-gray-200">{formatCurrency(breakdown.iqd.paid, 'IQD')}</td>
                               <td className={`px-4 py-2 text-sm font-semibold ${breakdown.iqd.actualProfit >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                                 {formatCurrency(breakdown.iqd.actualProfit, 'IQD')}
                               </td>

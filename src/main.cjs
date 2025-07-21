@@ -761,6 +761,97 @@ ipcMain.handle('markCompanyDebtPaid', async (event, id, paymentData) => {
   return result;
 });
 
+// Incentive handlers
+ipcMain.handle('getIncentives', async () => {
+  try {
+    if (db && db.getIncentives) {
+      return db.getIncentives();
+    } else {
+      console.error('❌ Database or getIncentives function not available');
+      return [];
+    }
+  } catch (error) {
+    console.error('❌ getIncentives error:', error);
+    return [];
+  }
+});
+
+ipcMain.handle('addIncentive', async (event, { company_name, amount, description, currency = 'IQD' }) => {
+  try {
+    if (db && db.addIncentive) {
+      const result = db.addIncentive({ company_name, amount, description, currency });
+      await runAutoBackupAfterSale();
+      return { success: true, data: result };
+    } else {
+      console.error('❌ Database or addIncentive function not available');
+      return { success: false, message: 'Database not available' };
+    }
+  } catch (error) {
+    console.error('❌ addIncentive error:', error);
+    return { success: false, message: error.message };
+  }
+});
+
+ipcMain.handle('removeIncentive', async (event, id) => {
+  try {
+    if (db && db.removeIncentive) {
+      const result = db.removeIncentive(id);
+      await runAutoBackupAfterSale();
+      return { success: true, data: result };
+    } else {
+      console.error('❌ Database or removeIncentive function not available');
+      return { success: false, message: 'Database not available' };
+    }
+  } catch (error) {
+    console.error('❌ removeIncentive error:', error);
+    return { success: false, message: error.message };
+  }
+});
+
+ipcMain.handle('updateIncentive', async (event, id, incentiveData) => {
+  try {
+    if (db && db.updateIncentive) {
+      const result = db.updateIncentive(id, incentiveData);
+      await runAutoBackupAfterSale();
+      return { success: true, data: result };
+    } else {
+      console.error('❌ Database or updateIncentive function not available');
+      return { success: false, message: 'Database not available' };
+    }
+  } catch (error) {
+    console.error('❌ updateIncentive error:', error);
+    return { success: false, message: error.message };
+  }
+});
+
+ipcMain.handle('getIncentivesByCompany', async (event, companyName) => {
+  try {
+    if (db && db.getIncentivesByCompany) {
+      return db.getIncentivesByCompany(companyName);
+    } else {
+      console.error('❌ Database or getIncentivesByCompany function not available');
+      return [];
+    }
+  } catch (error) {
+    console.error('❌ getIncentivesByCompany error:', error);
+    return [];
+  }
+});
+
+ipcMain.handle('getIncentiveTotals', async () => {
+  try {
+    if (db && db.getIncentiveTotals) {
+      return db.getIncentiveTotals();
+    } else {
+      console.error('❌ Database or getIncentiveTotals function not available');
+      return { USD: 0, IQD: 0 };
+    }
+  } catch (error) {
+    console.error('❌ getIncentiveTotals error:', error);
+    return { USD: 0, IQD: 0 };
+  }
+});
+
 // Buying history handlers
 ipcMain.handle('getBuyingHistory', async () => {
   return db.getBuyingHistory();
@@ -789,6 +880,17 @@ ipcMain.handle('addDirectPurchaseWithItems', async (event, purchaseData) => {
     return result;
   } catch (error) {
     console.error('[IPC] addDirectPurchaseWithItems error:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('addDirectPurchaseMultiCurrency', async (event, purchaseData) => {
+  try {
+    const result = db.addDirectPurchaseMultiCurrency(purchaseData);
+    await runAutoBackupAfterSale();
+    return result;
+  } catch (error) {
+    console.error('[IPC] addDirectPurchaseMultiCurrency error:', error);
     throw error;
   }
 });

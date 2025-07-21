@@ -228,6 +228,15 @@ CREATE TABLE IF NOT EXISTS discounts (
   currency TEXT DEFAULT 'IQD',
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS incentives (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  company_name TEXT NOT NULL,
+  amount REAL NOT NULL,
+  description TEXT,
+  created_at DATETIME NOT NULL,
+  currency TEXT DEFAULT 'IQD'
+);
 `;
   
   // Execute initial schema
@@ -252,6 +261,9 @@ CREATE TABLE IF NOT EXISTS discounts (
       CREATE INDEX IF NOT EXISTS idx_customer_debts_paid_at ON customer_debts(paid_at);
       CREATE INDEX IF NOT EXISTS idx_customer_debts_sale_id ON customer_debts(sale_id);
       CREATE INDEX IF NOT EXISTS idx_company_debts_paid_at ON company_debts(paid_at);
+      CREATE INDEX IF NOT EXISTS idx_incentives_company_name ON incentives(company_name);
+      CREATE INDEX IF NOT EXISTS idx_incentives_created_at ON incentives(created_at);
+      CREATE INDEX IF NOT EXISTS idx_incentives_currency ON incentives(currency);
       CREATE INDEX IF NOT EXISTS idx_transactions_type ON transactions(type);
       CREATE INDEX IF NOT EXISTS idx_transactions_created_at ON transactions(created_at);
       CREATE INDEX IF NOT EXISTS idx_buying_history_date ON buying_history(date);

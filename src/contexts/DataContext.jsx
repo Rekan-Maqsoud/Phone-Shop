@@ -20,6 +20,7 @@ export const DataProvider = ({ children }) => {
   const [companyDebts, setCompanyDebts] = useState([]);
   const [buyingHistory, setBuyingHistory] = useState([]);
   const [monthlyReports, setMonthlyReports] = useState([]);
+  const [incentives, setIncentives] = useState([]);
   const [loading, setLoading] = useState(false);
   const [apiReady, setApiReady] = useState(false);
 
@@ -103,6 +104,7 @@ export const DataProvider = ({ children }) => {
       promises.push(createDataFetch('getCompanyDebts', setCompanyDebts, 'company debts'));
       promises.push(createDataFetch('getBuyingHistoryWithItems', setBuyingHistory, 'buying history'));
       promises.push(createDataFetch('getMonthlyReports', setMonthlyReports, 'monthly reports'));
+      promises.push(createDataFetch('getIncentives', setIncentives, 'incentives'));
 
       await Promise.allSettled(promises); // Use allSettled to ensure all complete even if some fail
 
@@ -117,6 +119,7 @@ export const DataProvider = ({ children }) => {
       setCompanyDebts([]);
       setBuyingHistory([]);
       setMonthlyReports([]);
+      setIncentives([]);
     } finally {
       setLoading(false);
     }
@@ -148,6 +151,7 @@ export const DataProvider = ({ children }) => {
             setCompanyDebts([]);
             setBuyingHistory([]);
             setMonthlyReports([]);
+            setIncentives([]);
             setLoading(false);
           }
         }
@@ -208,6 +212,16 @@ export const DataProvider = ({ children }) => {
     }
   }, [apiReady]);
   
+  const refreshIncentives = useCallback(async () => {
+    if (!apiReady || !window.api?.getIncentives) return;
+    try {
+      const data = await window.api.getIncentives();
+      setIncentives(data || []);
+    } catch (error) {
+      console.error('❌ DataContext: Error refreshing incentives:', error);
+    }
+  }, [apiReady]);
+  
   const refreshBuyingHistory = useCallback(async () => {
     if (!apiReady || !window.api?.getBuyingHistoryWithItems) return;
     try {
@@ -252,6 +266,7 @@ export const DataProvider = ({ children }) => {
       setCompanyDebts([]);
       setBuyingHistory([]);
       setMonthlyReports([]);
+      setIncentives([]);
       
       // Wait a moment for UI to update
       await new Promise(resolve => setTimeout(resolve, 100));
@@ -275,6 +290,7 @@ export const DataProvider = ({ children }) => {
     companyDebts,
     buyingHistory,
     monthlyReports,
+    incentives,
     loading,
     apiReady,
     
@@ -287,6 +303,7 @@ export const DataProvider = ({ children }) => {
     setCompanyDebts,
     setBuyingHistory,
     setMonthlyReports,
+    setIncentives,
     
     // Fetch functions
     fetchAllData,
@@ -298,7 +315,8 @@ export const DataProvider = ({ children }) => {
     refreshDebtSales,
     refreshCompanyDebts,
     refreshBuyingHistory,
-    refreshMonthlyReports
+    refreshMonthlyReports,
+    refreshIncentives
   };
 
   return (

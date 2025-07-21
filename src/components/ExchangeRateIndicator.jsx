@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { EXCHANGE_RATES, loadExchangeRatesFromDB, updateExchangeRate } from '../utils/exchangeRates';
+import { Icon } from '../utils/icons.jsx';
 
 export default function ExchangeRateIndicator({ 
   t = {}, 
@@ -42,7 +43,7 @@ export default function ExchangeRateIndicator({
     const success = await updateExchangeRate(rate);
     if (success) {
       setShowExchangeRateModal(false);
-      alert(t.exchangeRateUpdated || `Exchange rate updated successfully to 1$ = ${rate}IQD`);
+      alert(t.exchangeRateUpdated || `Exchange rate updated successfully to 1$ = ${rate}${t?.iqd || 'IQD'}`);
     } else {
       alert(t.exchangeRateUpdateFailed || 'Failed to update exchange rate');
     }
@@ -67,11 +68,11 @@ export default function ExchangeRateIndicator({
         disabled={isLoadingRate}
         className={`${getSizeClasses()} ${
           isLoadingRate 
-            ? 'bg-gray-400 cursor-not-allowed' 
+            ? 'bg-gray-400 cursor-not-allowed text-white' 
             : showModal 
-              ? 'bg-blue-500 hover:bg-blue-600 cursor-pointer' 
-              : 'bg-gray-600 cursor-default'
-        } text-white rounded-lg transition-colors shadow-sm flex items-center gap-2 ${className}`}
+              ? 'bg-blue-500 hover:bg-blue-600 cursor-pointer text-white' 
+              : 'bg-gray-600 cursor-default text-white'
+        } rounded-lg transition-colors shadow-sm flex items-center gap-2 ${className}`}
         title={showModal ? (t.clickToChangeRate || 'Click to change exchange rate') : undefined}
       >
         {isLoadingRate ? (
@@ -81,7 +82,8 @@ export default function ExchangeRateIndicator({
           </>
         ) : (
           <>
-            💱 1$ = {EXCHANGE_RATES.USD_TO_IQD.toLocaleString()}IQD
+            <Icon name="dollar-sign" size={size === 'lg' ? 20 : size === 'md' ? 16 : 14} />
+            1$ = {EXCHANGE_RATES.USD_TO_IQD.toLocaleString()}{t?.iqd || 'IQD'}
           </>
         )}
       </button>
@@ -90,12 +92,12 @@ export default function ExchangeRateIndicator({
       {showExchangeRateModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold mb-4 dark:text-white">
+            <h3 className="text-lg font-semibold mb-4 text-gray-800 dark:text-white">
               {t.updateExchangeRate || 'Update Exchange Rate'}
             </h3>
             <div className="mb-4">
-              <label className="block text-sm font-medium mb-2 dark:text-gray-300">
-                {t.currentRate || 'Current Rate'}: 1$ = {EXCHANGE_RATES.USD_TO_IQD}IQD
+              <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
+                {t.currentRate || 'Current Rate'}: 1$ = {EXCHANGE_RATES.USD_TO_IQD}{t?.iqd || 'IQD'}
               </label>
               <input
                 type="number"

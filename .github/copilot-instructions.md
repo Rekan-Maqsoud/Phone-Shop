@@ -51,11 +51,16 @@ Database operations are split into focused modules in `database/modules/`:
 - Sales can be in different currency with exchange rates stored per sale
 - Currency conversion logic in `utils/exchangeRates.js`
 
+### 5. Sound System Integration
+- Comprehensive audio feedback system in `src/utils/sounds.js`
+- All UI actions should trigger appropriate sounds: modal open/close, success, error, warnings
+- Sound settings stored in localStorage with user preferences
+
 ## Key Development Workflows
 
 ### Running the App
 ```bash
-npm run dev        # Starts Vite dev server + Electron
+npm run dev        # Starts Vite dev server + Electron concurrently
 npm run build      # Production build
 npm run make       # Build Electron distributables
 ```
@@ -76,6 +81,21 @@ useEffect(() => {
 }, [data]); // Wrong dependency
 ```
 
+### API Ready Pattern
+DataContext implements sophisticated API readiness checking for production environments:
+```jsx
+// Enhanced polling with better error handling for production
+const checkApiReady = () => {
+  if (window.api && 
+      typeof window.api.getProducts === 'function' &&
+      typeof window.api.getSales === 'function') {
+    setApiReady(true);
+    return true;
+  }
+  return false;
+};
+```
+
 ### Modal Management
 - Use `AdminModals` component for centralized modal rendering
 - State managed in useAdmin hook: `admin.setShowProductModal(true)`
@@ -93,15 +113,12 @@ admin.setToast(message, type = 'info', duration = 3000);
 - **Pages**: `src/pages/` - Route-level components (Admin.jsx, Cashier.jsx)
 - **Sections**: `src/components/*Section.jsx` - Feature-specific UI sections
 - **Modals**: `src/components/*Modal.jsx` - Reusable modal components
-- **Hooks**: `src/components/hooks/` - Custom hooks for specific features
-- **Utils**: `src/utils/` - Pure functions (sounds, exchange rates, etc.)
+- **Utils**: `src/utils/` - Pure functions (sounds, exchange rates, charts, icons)
 
-### Database Modules
-Each module in `database/modules/` handles one entity type with consistent API:
-- `getEntityName()` - Fetch all
-- `addEntityName(data)` - Create new
-- `updateEntityName(data)` - Update existing
-- `deleteEntityName(id)` - Remove
+### Database Architecture
+- **Factory Pattern**: `database/index.cjs` exports factory function taking dbPath
+- **Module System**: Each entity has dedicated module in `database/modules/`
+- **Consistent API**: `getEntityName()`, `addEntityName(data)`, `updateEntityName(data)`, `deleteEntityName(id)`
 
 ## Cloud Backup Integration
 
@@ -110,25 +127,25 @@ Environment variables in `.env`:
 ```env
 VITE_APPWRITE_ENDPOINT=https://fra.cloud.appwrite.io/v1
 VITE_APPWRITE_PROJECT_ID=your-project-id
-# ... other Appwrite settings
+# Fallback values used if not set
 ```
 
-### Backup Triggers
-- Automatic on major operations (sales, debt payments)
-- Manual via admin panel
-- Scheduled based on user settings
+### CloudBackupService Pattern
+- Initialized in main process (`src/main.cjs`)
+- Auto-backup scheduling with user settings
+- Background processing to avoid UI blocking
 
-## Keyboard Shortcuts & Accessibility
+## Multi-Currency & Dashboard Systems
 
-### Admin Panel Navigation
-- `Ctrl + 1-9, 0`: Navigate between sections
-- Arrow keys: Navigate when no modals open
-- Automatic focus management for modals and inputs
+### Currency Handling
+- `EXCHANGE_RATES` constant in `utils/exchangeRates.js`
+- Conversion functions handle USD/IQD operations
+- Sales store exchange rate at time of transaction
 
-### Cashier Shortcuts
-- Product search with instant suggestions
-- Quantity input with automatic focus handling
-- Currency switching with keyboard support
+### Dashboard Components
+- `MultiCurrencyDashboard` implements debounced data fetching
+- Chart.js integration with shared utilities in `utils/chartUtils.js`
+- Memoized calculations to prevent performance issues
 
 ## Security & Data Flow
 
@@ -137,10 +154,10 @@ VITE_APPWRITE_PROJECT_ID=your-project-id
 - All database operations go through secure IPC channel
 - User authentication for cloud features only
 
-### Data Validation
-- SQLite schema enforces data integrity
-- Frontend validation for user experience
-- Graceful fallbacks for offline operation
+### Secret Admin Console
+- Browser console commands for authorized admins only
+- `public/secret-admin-console.js` - Balance adjustment tools
+- Security check: only works in admin panel context
 
 ## Common Pitfalls to Avoid
 
@@ -149,6 +166,7 @@ VITE_APPWRITE_PROJECT_ID=your-project-id
 3. **Don't** forget to refresh related data after updates (e.g., refresh sales after debt payment)
 4. **Don't** block UI during cloud operations - use background processing
 5. **Don't** skip sound feedback - users expect audio cues for actions
+6. **Don't** use direct effects without debouncing in data-heavy components
 
 ## Debug Tools
 
@@ -160,7 +178,7 @@ __getShopBalances()       // Check current balances
 __setShopBalance(currency, amount)  // Adjust shop balance
 ```
 
-### Development Scripts
-- `debug_db.js` - Database inspection tools
-- `debug_sales.js` - Sales data analysis
-- Emergency repair scripts in root directory
+### Development & Diagnostic Files
+- `SECRET_ADMIN_COMMANDS.md` - Documentation for console commands
+- `public/production-diagnostics.js` - Production debugging tools
+- `public/route-debugger.js` - Route navigation debugging

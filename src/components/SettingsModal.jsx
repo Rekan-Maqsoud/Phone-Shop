@@ -43,7 +43,7 @@ export default function SettingsModal({
   const isRTL = lang === 'ar' || lang === 'ku';
   return (
     <div className="fixed inset-0 bg-gray-900/50 dark:bg-black/50 flex items-center justify-center z-50" role="dialog" aria-modal="true">
-      <div className="bg-white dark:bg-gray-900 rounded-lg shadow-lg w-full max-w-lg p-6 relative max-h-[90vh] overflow-y-auto" dir={isRTL ? 'rtl' : 'ltr'}>
+      <div className="bg-white dark:bg-gray-900 rounded-lg shadow-lg w-full max-w-2xl p-6 relative max-h-[90vh] overflow-y-auto" dir={isRTL ? 'rtl' : 'ltr'}>
         <button
           className={`absolute top-2 ${isRTL ? 'left-2' : 'right-2'} text-gray-500 hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-200 text-2xl bg-gray-200 hover:bg-gray-300 dark:bg-black/20 dark:hover:bg-black/30 rounded-full w-8 h-8 flex items-center justify-center transition-colors z-10`}
           onClick={onClose}
@@ -74,7 +74,7 @@ export default function SettingsModal({
             >
               <span
                 className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  soundSettings.enabled ? 'translate-x-6' : 'translate-x-1'
+                  soundSettings.enabled ? 'translate-x-5' : 'translate-x-1'
                 }`}
               />
             </button>
@@ -207,8 +207,8 @@ export default function SettingsModal({
         </div>
         
         {/* App Info */}
-        <div className="mt-6 text-xs text-gray-500 text-center select-none">
-          <span>Made by Rekan M Koye &middot; v1.0.21</span>
+        <div className="mt-6 text-xs text-gray-500 dark:text-gray-400 text-center select-none">
+          <span>{t.madeBy || 'Made by'} Rekan M Koye &middot; v1.0.21</span>
         </div>
       </div>
     </div>

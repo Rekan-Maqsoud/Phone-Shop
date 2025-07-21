@@ -1,12 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { EXCHANGE_RATES } from '../utils/exchangeRates';
+import { EXCHANGE_RATES, formatCurrencyWithTranslation } from '../utils/exchangeRates';
 import UniversalPaymentModal from './UniversalPaymentModal';
+import { Icon } from '../utils/icons.jsx';
 
-const formatCurrency = (amount, currency = 'USD') => {
-  if (currency === 'IQD') {
-    return `${Math.round(amount).toLocaleString()} IQD`;
-  }
-  return `$${Number(amount).toFixed(2)}`;
+const formatCurrency = (amount, currency = 'USD', t) => {
+  return formatCurrencyWithTranslation(amount, currency, t);
 };
 
 export default function PersonalLoansSection({ admin, t, showConfirm }) {
@@ -61,7 +59,7 @@ export default function PersonalLoansSection({ admin, t, showConfirm }) {
     const iqdAmount = parseFloat(formData.iqd_amount) || 0;
     
     if (!formData.person_name.trim() || (usdAmount <= 0 && iqdAmount <= 0)) {
-      admin.setToast?.('❌ Please enter person name and at least one amount', 'error');
+      admin.setToast?.(`${t.error || 'Error'}: Please enter person name and at least one amount`, 'error');
       return;
     }
 
@@ -78,20 +76,20 @@ export default function PersonalLoansSection({ admin, t, showConfirm }) {
 
       if (result?.success) {
         const amounts = [];
-        if (usdAmount > 0) amounts.push(formatCurrency(usdAmount, 'USD'));
-        if (iqdAmount > 0) amounts.push(formatCurrency(iqdAmount, 'IQD'));
+        if (usdAmount > 0) amounts.push(formatCurrency(usdAmount, 'USD', t));
+        if (iqdAmount > 0) amounts.push(formatCurrency(iqdAmount, 'IQD', t));
         
-        admin.setToast?.(`💰 Loan of ${amounts.join(' + ')} added to ${formData.person_name}`, 'success');
+        admin.setToast?.(`${t.success || 'Success'}: Loan of ${amounts.join(' + ')} added to ${formData.person_name}`, 'success');
         setFormData({ person_name: '', usd_amount: '', iqd_amount: '', description: '' });
         setShowModal(false);
         fetchLoans();
         fetchBalances(); // Refresh balances after adding loan
       } else {
-        admin.setToast?.('❌ Failed to add loan: ' + (result?.message || result?.error || 'Unknown error'), 'error');
+        admin.setToast?.(`${t.error || 'Error'}: Failed to add loan: ` + (result?.message || result?.error || 'Unknown error'), 'error');
       }
     } catch (error) {
       console.error('Error adding loan:', error);
-      admin.setToast?.('❌ Error adding loan', 'error');
+      admin.setToast?.(`${t.error || 'Error'}: Error adding loan`, 'error');
     } finally {
       setLoading(false);
     }
@@ -119,7 +117,7 @@ export default function PersonalLoansSection({ admin, t, showConfirm }) {
     const iqdPayment = parseFloat(paymentAmountIQD) || 0;
     
     if (usdPayment <= 0 && iqdPayment <= 0) {
-      admin.setToast?.('❌ Please enter at least one payment amount', 'error');
+      admin.setToast?.(`${t.error || 'Error'}: Please enter at least one payment amount`, 'error');
       return;
     }
 
@@ -129,11 +127,11 @@ export default function PersonalLoansSection({ admin, t, showConfirm }) {
 
     // Validate payment doesn't exceed remaining amounts
     if (usdPayment > remainingUSD) {
-      admin.setToast?.(`❌ USD payment of $${usdPayment} exceeds remaining balance of $${remainingUSD}`, 'error');
+      admin.setToast?.(`${t.error || 'Error'}: ${t?.usd || 'USD'} payment of $${usdPayment} exceeds remaining balance of $${remainingUSD}`, 'error');
       return;
     }
     if (iqdPayment > remainingIQD) {
-      admin.setToast?.(`❌ IQD payment of ${iqdPayment} IQD exceeds remaining balance of ${remainingIQD} IQD`, 'error');
+      admin.setToast?.(`${t.error || 'Error'}: ${t?.iqd || 'IQD'} payment of ${iqdPayment} ${t?.iqd || 'IQD'} exceeds remaining balance of ${remainingIQD} ${t?.iqd || 'IQD'}`, 'error');
       return;
     }
 
@@ -150,20 +148,20 @@ export default function PersonalLoansSection({ admin, t, showConfirm }) {
 
       if (result?.success) {
         const amounts = [];
-        if (usdPayment > 0) amounts.push(formatCurrency(usdPayment, 'USD'));
-        if (iqdPayment > 0) amounts.push(formatCurrency(iqdPayment, 'IQD'));
+        if (usdPayment > 0) amounts.push(formatCurrency(usdPayment, 'USD', t));
+        if (iqdPayment > 0) amounts.push(formatCurrency(iqdPayment, 'IQD', t));
         
-        admin.setToast?.(`💰 Loan payment of ${amounts.join(' + ')} received from ${selectedLoan.person_name}`, 'success');
+        admin.setToast?.(`${t.success || 'Success'}: Loan payment of ${amounts.join(' + ')} received from ${selectedLoan.person_name}`, 'success');
         fetchLoans();
         fetchBalances(); // Refresh balances after payment
         setShowPaymentModal(false);
         setSelectedLoan(null);
       } else {
-        admin.setToast?.('❌ Failed to mark loan as paid: ' + (result?.message || result?.error || 'Unknown error'), 'error');
+        admin.setToast?.(`${t.error || 'Error'}: Failed to mark loan as paid: ` + (result?.message || result?.error || 'Unknown error'), 'error');
       }
     } catch (error) {
       console.error('Error marking loan as paid:', error);
-      admin.setToast?.('❌ Error marking loan as paid', 'error');
+      admin.setToast?.(`${t.error || 'Error'}: Error marking loan as paid`, 'error');
     } finally {
       setProcessingPayment(prev => {
         const newSet = new Set(prev);
@@ -237,26 +235,35 @@ export default function PersonalLoansSection({ admin, t, showConfirm }) {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-white/60 dark:bg-gray-800/80 rounded-2xl shadow p-6 border border-white/20">
-        <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between mb-6">
+    <div className="w-full h-full p-8 space-y-8">
+      {/* Header Section */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8">
+        <div className="flex items-center gap-4 mb-4">
+          <div className="p-3 bg-purple-100 dark:bg-purple-900 rounded-xl">
+            <Icon name="personalLoans" size={32} className="text-purple-600 dark:text-purple-400" />
+          </div>
           <div>
-            <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-2">
-              🤝 {t?.personalLoans || 'Personal Loans'}
-            </h2>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              {t?.personalLoansDesc || 'Track money lent to friends and family with multi-currency support'}
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
+              {t?.personalLoans || 'Personal Loans'}
+            </h1>
+            <p className="text-gray-600 dark:text-gray-300 text-lg">
+              {t?.personalLoansDescription || 'Track and manage personal loans and payments'}
             </p>
           </div>
-          
+        </div>
+        
+        <div className="flex justify-end">
           <button
             onClick={() => setShowModal(true)}
             className="px-6 py-3 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-xl hover:from-purple-600 hover:to-indigo-700 transition font-semibold shadow-lg"
           >
-            ➕ {t?.addLoan || 'Add Loan'}
+            <Icon name="plus" className="inline mr-2" size={16} />{t?.addLoan || 'Add Loan'}
           </button>
         </div>
+      </div>
+
+      {/* Search and Filter Controls */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8">
 
         {/* Controls */}
         <div className="flex gap-4 items-center flex-wrap">
@@ -269,7 +276,7 @@ export default function PersonalLoansSection({ admin, t, showConfirm }) {
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full border rounded-xl px-4 py-2 pl-10 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-400 dark:focus:ring-purple-600 transition"
             />
-            <span className="absolute left-3 top-2.5 text-gray-400">🔍</span>
+            <Icon name="search" className="absolute left-3 top-2.5 text-gray-400" size={16} />
           </div>
 
           {/* Toggle Paid/Unpaid */}
@@ -281,42 +288,46 @@ export default function PersonalLoansSection({ admin, t, showConfirm }) {
                 : 'bg-purple-600 text-white hover:bg-purple-700'
             }`}
           >
-            {showPaidLoans ? '✅ ' + (t?.paidLoans || 'Paid Loans') : '💰 ' + (t?.activeLoans || 'Active Loans')}
+            {showPaidLoans ? <><Icon name="check" className="inline mr-1" size={16} />{(t?.paidLoans || 'Paid Loans')}</> : <><Icon name="dollar-sign" className="inline mr-1" size={16} />{(t?.activeLoans || 'Active Loans')}</>}
           </button>
         </div>
       </div>
 
       {/* Summary Cards */}
       {!showPaidLoans && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-3 gap-6">
           <div className="bg-gradient-to-br from-green-400 to-green-600 rounded-2xl p-6 text-white shadow-lg">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-3xl">💵</span>
+              <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/>
+              </svg>
               <span className="text-green-100 text-sm">{t?.outstandingUSD || 'Outstanding USD'}</span>
             </div>
-            <div className="text-3xl font-bold">{formatCurrency(totalUnpaidUSD, 'USD')}</div>
+            <div className="text-3xl font-bold">{formatCurrency(totalUnpaidUSD, 'USD', t)}</div>
             <div className="text-green-100 text-sm">{t?.totalLoaned || 'Total Loaned'}</div>
           </div>
 
           <div className="bg-gradient-to-br from-yellow-400 to-orange-500 rounded-2xl p-6 text-white shadow-lg">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-3xl">💰</span>
+              <Icon name="dollar-sign" size={24} className="text-white" />
               <span className="text-orange-100 text-sm">{t?.outstandingIQD || 'Outstanding IQD'}</span>
             </div>
-            <div className="text-3xl font-bold">{formatCurrency(totalUnpaidIQD, 'IQD')}</div>
+            <div className="text-3xl font-bold">{formatCurrency(totalUnpaidIQD, 'IQD', t)}</div>
             <div className="text-orange-100 text-sm">{t?.totalLoaned || 'Total Loaned'}</div>
           </div>
 
           <div className="bg-gradient-to-br from-blue-400 to-blue-600 rounded-2xl p-6 text-white shadow-lg">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-3xl">🏦</span>
+              <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M11.5,1L2,6V8H21V6M16,10V17H19V19H5V17H8V10H10V17H14V10"/>
+              </svg>
               <span className="text-blue-100 text-sm">{t?.currentBalance || 'Current Balance'}</span>
             </div>
             <div className="text-lg font-bold">
-              {formatCurrency(balances.usd_balance, 'USD')}
+              {formatCurrency(balances.usd_balance, 'USD', t)}
             </div>
             <div className="text-lg font-bold">
-              {formatCurrency(balances.iqd_balance, 'IQD')}
+              {formatCurrency(balances.iqd_balance, 'IQD', t)}
             </div>
           </div>
         </div>
@@ -326,7 +337,9 @@ export default function PersonalLoansSection({ admin, t, showConfirm }) {
       <div className="bg-white/60 dark:bg-gray-800/80 rounded-2xl shadow border border-white/20">
         {filteredGroups.length === 0 ? (
           <div className="text-center py-12 text-gray-500 dark:text-gray-400">
-            <div className="text-4xl mb-2">🤝</div>
+            <div className="p-4 bg-purple-100 dark:bg-purple-900 rounded-full mb-4">
+              <Icon name="personalLoans" size={48} className="text-purple-600 dark:text-purple-400" />
+            </div>
             <p>{showPaidLoans ? (t?.noPaidLoans || 'No paid loans') : (t?.noActiveLoans || 'No active loans')}</p>
           </div>
         ) : (
@@ -359,12 +372,12 @@ export default function PersonalLoansSection({ admin, t, showConfirm }) {
                           <div>
                             {group.paidUSD > 0 && (
                               <div className="text-lg font-bold text-green-600 dark:text-green-400">
-                                ✅ {formatCurrency(group.paidUSD, 'USD')}
+                                <Icon name="check" className="inline mr-1" size={16} />{formatCurrency(group.paidUSD, 'USD')}
                               </div>
                             )}
                             {group.paidIQD > 0 && (
                               <div className="text-lg font-bold text-green-600 dark:text-green-400">
-                                ✅ {formatCurrency(group.paidIQD, 'IQD')}
+                                <Icon name="check" className="inline mr-1" size={16} />{formatCurrency(group.paidIQD, 'IQD')}
                               </div>
                             )}
                           </div>
@@ -372,12 +385,12 @@ export default function PersonalLoansSection({ admin, t, showConfirm }) {
                           <div>
                             {group.unpaidUSD > 0 && (
                               <div className="text-lg font-bold text-purple-600 dark:text-purple-400">
-                                💰 {formatCurrency(group.unpaidUSD, 'USD')}
+                                <Icon name="dollar-sign" className="inline mr-1" size={16} />{formatCurrency(group.unpaidUSD, 'USD')}
                               </div>
                             )}
                             {group.unpaidIQD > 0 && (
                               <div className="text-lg font-bold text-purple-600 dark:text-purple-400">
-                                💰 {formatCurrency(group.unpaidIQD, 'IQD')}
+                                <Icon name="dollar-sign" className="inline mr-1" size={16} />{formatCurrency(group.unpaidIQD, 'IQD')}
                               </div>
                             )}
                           </div>
@@ -385,7 +398,7 @@ export default function PersonalLoansSection({ admin, t, showConfirm }) {
                       </div>
                       
                       <div className="text-2xl text-gray-400 transition-transform duration-200">
-                        {expandedPersons.has(group.person_name) ? '⬆️' : '⬇️'}
+                        {expandedPersons.has(group.person_name) ? <Icon name="chevron-up" size={20} /> : <Icon name="chevron-down" size={20} />}
                       </div>
                     </div>
                   </div>
@@ -433,7 +446,7 @@ export default function PersonalLoansSection({ admin, t, showConfirm }) {
                               
                               {loan.paid_at && (
                                 <div className="text-xs text-green-600 dark:text-green-400 mt-1">
-                                  ✅ {t?.paidOn || 'Paid on'} {new Date(loan.paid_at).toLocaleDateString()} {new Date(loan.paid_at).toLocaleTimeString()}
+                                  <Icon name="check" className="inline mr-1" size={12} />{t?.paidOn || 'Paid on'} {new Date(loan.paid_at).toLocaleDateString()} {new Date(loan.paid_at).toLocaleTimeString()}
                                   {(loan.payment_usd_amount > 0 || loan.payment_iqd_amount > 0) && (
                                     <span className="ml-2">
                                       (
@@ -458,9 +471,9 @@ export default function PersonalLoansSection({ admin, t, showConfirm }) {
                                 }`}
                               >
                                 {processingPayment.has(loan.id) ? (
-                                  <>⏳ {t?.processing || 'Processing...'}</>
+                                  <><Icon name="clock" className="inline mr-1" size={16} />{t?.processing || 'Processing...'}</>
                                 ) : (
-                                  <>💰 {t?.markPaid || 'Mark Paid'}</>
+                                  <><Icon name="dollar-sign" className="inline mr-1" size={16} />{t?.markPaid || 'Mark Paid'}</>
                                 )}
                               </button>
                             )}
@@ -479,10 +492,10 @@ export default function PersonalLoansSection({ admin, t, showConfirm }) {
       {/* Add Loan Modal - Multi-Currency Support */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-lg">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-2xl">
             <div className="p-6 border-b border-gray-200 dark:border-gray-700">
               <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100">
-                ➕ {t?.addPersonalLoan || 'Add Personal Loan'}
+                <Icon name="plus" className="inline mr-2" size={20} />{t?.addPersonalLoan || 'Add Personal Loan'}
               </h3>
               <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                 Multi-currency loan support - enter amounts in USD and/or IQD
@@ -522,7 +535,7 @@ export default function PersonalLoansSection({ admin, t, showConfirm }) {
                 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    💰 {t?.iqdAmount || 'IQD Amount'}
+                    <Icon name="dollar-sign" className="inline mr-1" size={16} />{t?.iqdAmount || 'IQD Amount'}
                   </label>
                   <input
                     type="number"
@@ -540,7 +553,8 @@ export default function PersonalLoansSection({ admin, t, showConfirm }) {
               {(formData.usd_amount || formData.iqd_amount) && (
                 <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3">
                   <div className="text-sm text-blue-800 dark:text-blue-200">
-                    💱 {t?.exchangeRateInfo || 'Exchange Rate Info'}:
+                    <Icon name="dollar-sign" size={16} className="mr-1" />
+                    {t?.exchangeRateInfo || 'Exchange Rate Info'}:
                   </div>
                   <div className="text-xs text-blue-700 dark:text-blue-300 mt-1">
                     1 USD = {EXCHANGE_RATES.USD_TO_IQD.toLocaleString()} IQD

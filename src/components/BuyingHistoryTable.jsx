@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import HistorySearchFilter from './HistorySearchFilter';
 import ConfirmModal from './ConfirmModal';
+import { Icon } from '../utils/icons.jsx';
 
 // Enhanced table for buying history with item details support - Memoized for performance
 const BuyingHistoryTable = React.memo(function BuyingHistoryTable({ 
@@ -34,12 +35,18 @@ const BuyingHistoryTable = React.memo(function BuyingHistoryTable({
 
     historyData.forEach(entry => {
       const currency = entry.currency || 'USD';
-      const amount = entry.total_price || entry.amount || 0;
       
-      if (currency === 'USD') {
-        totalAmountUSD += amount;
+      if (currency === 'MULTI') {
+        // For multi-currency entries, add the actual amounts to their respective totals
+        totalAmountUSD += entry.multi_currency_usd || 0;
+        totalAmountIQD += entry.multi_currency_iqd || 0;
       } else {
-        totalAmountIQD += amount;
+        const amount = entry.total_price || entry.amount || 0;
+        if (currency === 'USD') {
+          totalAmountUSD += amount;
+        } else {
+          totalAmountIQD += amount;
+        }
       }
     });
 
@@ -308,11 +315,27 @@ const BuyingHistoryTable = React.memo(function BuyingHistoryTable({
                     </td>
                     <td className="px-6 py-4">
                       <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                        {entry.currency || 'USD'}
+                        {entry.currency === 'MULTI' ? 'Multi' : (entry.currency || 'USD')}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-blue-600 dark:text-blue-400 font-bold">
-                      {(entry.currency === 'USD' ? '$' : 'د.ع')}{(entry.total_price || entry.amount || 0).toFixed(2)}
+                      {entry.currency === 'MULTI' ? (
+                        // For multi-currency entries, display both amounts
+                        <div className="text-sm">
+                          {entry.multi_currency_usd > 0 && (
+                            <div>${entry.multi_currency_usd.toFixed(2)}</div>
+                          )}
+                          {entry.multi_currency_iqd > 0 && (
+                            <div>د.ع{entry.multi_currency_iqd.toFixed(2)}</div>
+                          )}
+                          {(!entry.multi_currency_usd || entry.multi_currency_usd === 0) && 
+                           (!entry.multi_currency_iqd || entry.multi_currency_iqd === 0) && (
+                            <div className="text-gray-500">Multi-currency</div>
+                          )}
+                        </div>
+                      ) : (
+                        `${(entry.currency === 'USD' ? '$' : 'د.ع')}${(entry.total_price || entry.amount || 0).toFixed(2)}`
+                      )}
                     </td>
                     <td className="px-6 py-4 text-gray-700 dark:text-gray-300">
                       {entry.item_name || entry.description || '-'}
@@ -320,11 +343,11 @@ const BuyingHistoryTable = React.memo(function BuyingHistoryTable({
                     <td className="px-6 py-4">
                       {!!entry.has_items ? (
                         <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
-                          📦 {t?.withItems || 'With Items'}
+                          <Icon name="package" size={16} className="mr-2" /> {t?.withItems || 'With Items'}
                         </span>
                       ) : (
                         <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200">
-                          💰 {t?.cashOnly || 'Cash Only'}
+                          <Icon name="money" size={16} className="mr-2" /> {t?.cashOnly || 'Cash Only'}
                         </span>
                       )}
                     </td>
@@ -355,13 +378,13 @@ const BuyingHistoryTable = React.memo(function BuyingHistoryTable({
                       <td colSpan="6" className="px-6 py-4">
                         <div className="space-y-3">
                           <h4 className="font-semibold text-gray-800 dark:text-gray-200 mb-3">
-                            📦 {t?.purchasedItems || 'Purchased Items'}
+                            <Icon name="package" size={16} className="mr-2" /> {t?.purchasedItems || 'Purchased Items'}
                           </h4>
                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                             {entry.items.map((item, itemIdx) => (
                               <div key={itemIdx} className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-blue-200 dark:border-blue-700">
                                 <div className="flex items-center gap-2 mb-2">
-                                  <span className="text-lg">{item.item_type === 'product' ? '📱' : '🎧'}</span>
+                                  <Icon name={item.item_type === 'product' ? 'phone' : 'accessories'} size={18} className="text-blue-600 dark:text-blue-400" />
                                   <span className="font-medium text-gray-800 dark:text-gray-200">
                                     {item.item_name}
                                   </span>
@@ -427,7 +450,7 @@ const BuyingHistoryTable = React.memo(function BuyingHistoryTable({
       {/* Return Quantity Modal */}
       {showReturnModal && returnModalData && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-96 max-w-md mx-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-96 max-w-2xl mx-4">
             <h3 className="text-lg font-bold text-gray-800 dark:text-gray-100 mb-4">
               {t?.returnItem || 'Return Item'}
             </h3>
@@ -513,7 +536,7 @@ function ReturnQuantityForm({ maxQuantity, unitPrice, onReturn, onCancel, t }) {
         <button
           type="button"
           onClick={onCancel}
-          className="flex-1 px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition"
+          className="flex-1 px-4 py-2 bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-400 dark:hover:bg-gray-500 transition"
         >
           {t?.cancel || 'Cancel'}
         </button>

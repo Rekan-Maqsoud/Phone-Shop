@@ -4,13 +4,32 @@ const settings = require('./settings.cjs');
 function getBuyingHistory(db) {
   const buyingHistory = db.prepare('SELECT * FROM buying_history ORDER BY date DESC').all();
   
-  // Add items to entries that have them
+  // Add items to entries that have them and transaction data for multi-currency entries
   return buyingHistory.map(entry => {
+    let enhancedEntry = { ...entry };
+    
     if (entry.has_items) {
       const items = db.prepare('SELECT * FROM buying_history_items WHERE buying_history_id = ?').all(entry.id);
-      return { ...entry, items };
+      enhancedEntry.items = items;
     }
-    return entry;
+    
+    // For MULTI currency entries, get the actual USD and IQD amounts from transactions
+    if (entry.currency === 'MULTI') {
+      const transaction = db.prepare(`
+        SELECT amount_usd, amount_iqd 
+        FROM transactions 
+        WHERE reference_id = ? AND reference_type = 'buying_history' AND type = 'direct_purchase'
+        ORDER BY created_at DESC 
+        LIMIT 1
+      `).get(entry.id);
+      
+      if (transaction) {
+        enhancedEntry.multi_currency_usd = transaction.amount_usd || 0;
+        enhancedEntry.multi_currency_iqd = transaction.amount_iqd || 0;
+      }
+    }
+    
+    return enhancedEntry;
   });
 }
 
@@ -206,6 +225,71 @@ function addDirectPurchaseWithItems(db, { supplier, date, items, currency = 'IQD
   return transaction();
 }
 
+function addDirectPurchaseMultiCurrency(db, { item_name, quantity, supplier, date, usdAmount, iqdAmount }) {
+  const purchaseDate = date || new Date().toISOString();
+  const total_usd = usdAmount || 0;
+  const total_iqd = iqdAmount || 0;
+  
+  if (total_usd <= 0 && total_iqd <= 0) {
+    throw new Error('At least one currency amount must be greater than 0');
+  }
+  
+  const transaction = db.transaction(() => {
+    // Calculate combined total in IQD for display purposes (using standard exchange rate)
+    const EXCHANGE_RATE_USD_TO_IQD = 1440; // Standard rate for display
+    const totalInIQD = (total_usd * EXCHANGE_RATE_USD_TO_IQD) + total_iqd;
+    
+    // Create a description that shows both currencies
+    const currencyDesc = [];
+    if (total_usd > 0) currencyDesc.push(`$${total_usd.toFixed(2)}`);
+    if (total_iqd > 0) currencyDesc.push(`د.ع${total_iqd.toFixed(2)}`);
+    const multiCurrencyItemName = `${item_name} (${currencyDesc.join(' + ')})`;
+    
+    // Add to buying history with MULTI currency indicator  
+    const result = db.prepare(`
+      INSERT INTO buying_history 
+      (item_name, quantity, unit_price, total_price, supplier, date, currency) 
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      multiCurrencyItemName, 
+      quantity, 
+      totalInIQD / quantity, // Average unit price in IQD for display
+      totalInIQD, 
+      supplier, 
+      purchaseDate, 
+      'MULTI' // Special currency indicator
+    );
+    
+    // Record transaction for tracking spending with both amounts
+    const addTransactionStmt = db.prepare(`
+      INSERT INTO transactions (type, amount_usd, amount_iqd, description, reference_id, reference_type, created_at) 
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+    
+    addTransactionStmt.run(
+      'direct_purchase',
+      total_usd,
+      total_iqd,
+      `Multi-currency purchase: ${item_name} from ${supplier} (${currencyDesc.join(' + ')})`,
+      result.lastInsertRowid,
+      'buying_history',
+      purchaseDate
+    );
+    
+    // Deduct from both balances
+    if (total_usd > 0) {
+      settings.updateBalance(db, 'USD', -total_usd);
+    }
+    if (total_iqd > 0) {
+      settings.updateBalance(db, 'IQD', -total_iqd);
+    }
+    
+    return result;
+  });
+  
+  return transaction();
+}
+
 function deleteBuyingHistory(db, id) {
   return db.prepare('DELETE FROM buying_history WHERE id = ?').run(id);
 }
@@ -369,6 +453,8 @@ function getBuyingHistoryWithItems(db) {
         WHEN t.amount_iqd > 0 THEN t.amount_iqd
         ELSE 0
       END as amount,
+      t.amount_usd as multi_currency_usd,
+      t.amount_iqd as multi_currency_iqd,
       CASE 
         WHEN t.type = 'company_debt_payment' THEN 'Company debt payment'
         WHEN t.type = 'personal_loan_payment' THEN 'Personal loan payment'
@@ -422,5 +508,6 @@ module.exports = {
   getLowStockAccessories,
   getBuyingHistoryWithItems,
   addDirectPurchase,
-  addDirectPurchaseWithItems
+  addDirectPurchaseWithItems,
+  addDirectPurchaseMultiCurrency
 };

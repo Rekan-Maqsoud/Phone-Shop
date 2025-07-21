@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import SalesHistoryTableEnhanced from './SalesHistoryTableEnhanced';
 import SearchableSelect from './SearchableSelect';
 import { useData } from '../contexts/DataContext';
+import { Icon } from '../utils/icons.jsx';
 
 export default function SalesHistorySection({ 
   t, 
@@ -66,12 +67,12 @@ export default function SalesHistorySection({
   }, [admin.sales, debts, brandFilter, itemFilter]);
 
   return (
-    <div className="space-y-6">
+    <div className="w-full h-full p-8 space-y-8">
       {/* Search and Filter Controls */}
-      <div className="bg-white/70 dark:bg-gray-800/90 rounded-xl p-4 shadow border border-white/30">
-        <div className="flex flex-col md:flex-row gap-4 items-center">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8">
+        <div className="flex flex-row gap-4 items-center">
           {/* Brand Filter */}
-          <div className="w-full md:w-64">
+          <div className="w-64">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               {t.filterByBrand || 'Filter by Brand'}
             </label>
@@ -85,7 +86,7 @@ export default function SalesHistorySection({
           </div>
           
           {/* Item Filter */}
-          <div className="w-full md:w-64">
+          <div className="w-64">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               {t.filterByItem || 'Filter by Item'}
             </label>

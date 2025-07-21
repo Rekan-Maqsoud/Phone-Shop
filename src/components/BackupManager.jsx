@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import cloudAuthService from '../services/CloudAuthService';
 import ModalBase from './ModalBase';
+import { Icon } from '../utils/icons.jsx';
 
 export default function BackupManager({ show, onClose, t }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -288,7 +289,7 @@ export default function BackupManager({ show, onClose, t }) {
         {/* Header with title and close button */}
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">
-            ☁️ {t.cloudBackupManager || 'Cloud Backup Manager'}
+            <Icon name="cloud" size={24} className="mr-2" /> {t.cloudBackupManager || 'Cloud Backup Manager'}
           </h2>
           <button
             onClick={onClose}
@@ -434,7 +435,7 @@ export default function BackupManager({ show, onClose, t }) {
             <div className="space-y-6">
               {/* Cloud Backups */}
               <div>
-                <h4 className="font-semibold mb-4 text-gray-800 dark:text-gray-100">☁️ {t.cloudBackups || 'Cloud Backups'} ({backups.length} {t.backups || 'backups'})</h4>
+                <h4 className="font-semibold mb-4 text-gray-800 dark:text-gray-100"><Icon name="cloud" size={20} className="inline mr-2" /> {t.cloudBackups || 'Cloud Backups'} ({backups.length} {t.backups || 'backups'})</h4>
                 
                 {loading && <p className="text-center py-4 text-gray-600 dark:text-gray-400">{t.loading || 'Loading...'}</p>}
                 

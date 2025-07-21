@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { EXCHANGE_RATES, formatCurrency, roundIQDToNearestBill } from '../utils/exchangeRates';
+import { Icon } from '../utils/icons.jsx';
 
 const UniversalPaymentModal = ({ 
   show, 
@@ -224,7 +225,7 @@ const UniversalPaymentModal = ({
         if (paymentData.payment_usd_amount > 0) amounts.push(formatCurrency(paymentData.payment_usd_amount, 'USD'));
         if (paymentData.payment_iqd_amount > 0) amounts.push(formatCurrency(paymentData.payment_iqd_amount, 'IQD'));
         
-        admin.setToast?.(`💰 ${t?.paymentReceived || 'Payment received'}: ${amounts.join(' + ')}`, 'success');
+        admin.setToast?.(`Payment received: ${amounts.join(' + ')}`, 'success');
         
         if (onPaymentComplete) {
           await onPaymentComplete();
@@ -266,8 +267,11 @@ const UniversalPaymentModal = ({
         {/* Header */}
         <div className="p-6 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-700 rounded-t-2xl">
           <div className="flex justify-between items-start mb-4">
-            <h3 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-              💰 {getTitle()}
+            <h3 className="text-2xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-3">
+              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/>
+              </svg>
+              {getTitle()}
             </h3>
             <button
               onClick={handleClose}
@@ -308,7 +312,8 @@ const UniversalPaymentModal = ({
           <div>
             <div className="flex justify-between items-center mb-4">
               <h4 className="text-lg font-semibold text-gray-800 dark:text-gray-200">
-                💳 {t?.paymentOptions || 'Payment Options'}
+                <Icon name="creditCard" size={20} className="mr-2" />
+                {t?.paymentOptions || 'Payment Options'}
               </h4>
               <button
                 type="button"
@@ -334,7 +339,12 @@ const UniversalPaymentModal = ({
                       : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300'
                   }`}
                 >
-                  💵 {t?.payWithUSD || 'Pay with USD'}
+                  <span className="flex items-center gap-2">
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/>
+                    </svg>
+                    {t?.payWithUSD || 'Pay with USD'}
+                  </span>
                 </button>
                 <button
                   type="button"
@@ -345,7 +355,12 @@ const UniversalPaymentModal = ({
                       : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300'
                   }`}
                 >
-                  🏛️ {t?.payWithIQD || 'Pay with IQD'}
+                  <span className="flex items-center gap-2">
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                    </svg>
+                    {t?.payWithIQD || 'Pay with IQD'}
+                  </span>
                 </button>
               </div>
             )}

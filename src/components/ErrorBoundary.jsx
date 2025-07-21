@@ -72,16 +72,16 @@ class ErrorBoundary extends React.Component {
         );
       }
 
-      // Default error UI
+      // Default error UI - Fixed for full screen
       return (
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-xl p-8 max-w-2xl w-full">
+        <div className="fixed inset-0 z-50 bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-8 max-w-2xl w-full">
             <div className="text-center mb-6">
               <div className="text-red-500 text-6xl mb-4">⚠️</div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">
                 Something went wrong
               </h1>
-              <p className="text-gray-600">
+              <p className="text-gray-600 dark:text-gray-300">
                 The application encountered an unexpected error. Don't worry, your data is safe.
               </p>
             </div>
@@ -112,10 +112,10 @@ class ErrorBoundary extends React.Component {
 
             {process.env.NODE_ENV === 'development' && error && (
               <details className="mt-6">
-                <summary className="cursor-pointer text-sm font-medium text-gray-700 hover:text-gray-900">
+                <summary className="cursor-pointer text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100">
                   Error Details (Development Only)
                 </summary>
-                <div className="mt-3 p-4 bg-gray-100 rounded-lg">
+                <div className="mt-3 p-4 bg-gray-100 dark:bg-gray-700 rounded-lg">
                   <h3 className="font-medium text-red-600 mb-2">Error:</h3>
                   <pre className="text-xs text-red-600 mb-4 overflow-auto">
                     {error.toString()}
@@ -124,7 +124,7 @@ class ErrorBoundary extends React.Component {
                   {errorInfo && (
                     <>
                       <h3 className="font-medium text-red-600 mb-2">Component Stack:</h3>
-                      <pre className="text-xs text-gray-600 overflow-auto">
+                      <pre className="text-xs text-gray-600 dark:text-gray-400 overflow-auto">
                         {errorInfo.componentStack}
                       </pre>
                     </>
@@ -134,7 +134,7 @@ class ErrorBoundary extends React.Component {
             )}
             
             <div className="mt-6 text-center">
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-gray-500 dark:text-gray-400">
                 If this problem persists, please contact support with the error details above.
               </p>
             </div>

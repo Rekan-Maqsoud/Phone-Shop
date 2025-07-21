@@ -8,6 +8,7 @@ const inventory = require('./modules/inventory.cjs');
 const reports = require('./modules/reports.cjs');
 const settings = require('./modules/settings.cjs');
 const transactions = require('./modules/transactions.cjs');
+const incentives = require('./modules/incentives.cjs');
 
 // Export as a factory function that takes dbPath
 module.exports = function(dbPath) {
@@ -211,6 +212,31 @@ module.exports = function(dbPath) {
     return debts.updateCompanyDebtItem(db, itemData);
   }
 
+  // Incentive functions
+  function getIncentives() {
+    return incentives.getIncentives(db);
+  }
+
+  function addIncentive(incentiveData) {
+    return incentives.addIncentive(db, incentiveData);
+  }
+
+  function removeIncentive(id) {
+    return incentives.removeIncentive(db, id);
+  }
+
+  function updateIncentive(id, incentiveData) {
+    return incentives.updateIncentive(db, id, incentiveData);
+  }
+
+  function getIncentivesByCompany(companyName) {
+    return incentives.getIncentivesByCompany(db, companyName);
+  }
+
+  function getIncentiveTotals() {
+    return incentives.getIncentiveTotals(db);
+  }
+
   function getPersonalLoans() {
     return debts.getPersonalLoans(db);
   }
@@ -250,6 +276,10 @@ module.exports = function(dbPath) {
 
   function addDirectPurchaseWithItems(purchaseData) {
     return inventory.addDirectPurchaseWithItems(db, purchaseData);
+  }
+
+  function addDirectPurchaseMultiCurrency(purchaseData) {
+    return inventory.addDirectPurchaseMultiCurrency(db, purchaseData);
   }
 
   function deleteBuyingHistory(id) {
@@ -1412,11 +1442,28 @@ module.exports = function(dbPath) {
     addCompanyDebtItem,
     deleteCompanyDebtItem,
     updateCompanyDebtItem,
+    
+    // Incentives
+    getIncentives,
+    addIncentive,
+    removeIncentive,
+    updateIncentive,
+    getIncentivesByCompany,
+    getIncentiveTotals,
+    
     getPersonalLoans,
     addPersonalLoan,
     payPersonalLoan,
     deletePersonalLoan,
     getTotalDebts,
+    
+    // Incentives
+    getIncentives,
+    addIncentive,
+    removeIncentive,
+    updateIncentive,
+    getIncentivesByCompany,
+    getIncentiveTotals,
     
     // Inventory
     getBuyingHistory,
@@ -1424,6 +1471,7 @@ module.exports = function(dbPath) {
     addBuyingHistory,
     addDirectPurchase,
     addDirectPurchaseWithItems,
+    addDirectPurchaseMultiCurrency,
     deleteBuyingHistory,
     updateBuyingHistory,
     getBuyingHistoryInDateRange,

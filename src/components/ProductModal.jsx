@@ -209,8 +209,8 @@ export default function ProductModal({
               defaultValue={initialProduct?.currency || 'IQD'}
               className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 dark:bg-gray-700 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400"
             >
-              <option value="USD">💵 USD</option>
-              <option value="IQD">💰 IQD</option>
+              <option value="USD">{t?.usd || 'USD'}</option>
+              <option value="IQD">{t?.iqd || 'د.ع IQD'}</option>
             </select>
           </div>
 

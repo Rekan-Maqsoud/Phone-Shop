@@ -42,11 +42,11 @@ class ErrorBoundary extends React.Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="flex items-center justify-center min-h-screen bg-gray-100 p-4">
+        <div className="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-900 p-4">
           <div className="text-center p-8 max-w-2xl w-full mx-auto">
             <div className="text-red-500 text-6xl mb-4">⚠️</div>
-            <h1 className="text-2xl font-bold text-red-600 mb-4">Application Error</h1>
-            <p className="text-gray-600 mb-6 text-lg">
+            <h1 className="text-2xl font-bold text-red-600 dark:text-red-400 mb-4">Application Error</h1>
+            <p className="text-gray-600 dark:text-gray-300 mb-6 text-lg">
               Something went wrong. This error has been logged for debugging.
             </p>
             <div className="space-y-3">
@@ -64,9 +64,9 @@ class ErrorBoundary extends React.Component {
               </button>
             </div>
             {import.meta.env.DEV && this.state.error && (
-              <details className="mt-6 p-4 bg-gray-50 rounded text-left">
-                <summary className="cursor-pointer font-medium">Error Details (Dev Only)</summary>
-                <pre className="mt-2 text-xs text-gray-700 overflow-auto">
+              <details className="mt-6 p-4 bg-gray-50 dark:bg-gray-800 rounded text-left">
+                <summary className="cursor-pointer font-medium text-gray-700 dark:text-gray-300">Error Details (Dev Only)</summary>
+                <pre className="mt-2 text-xs text-gray-700 dark:text-gray-300 overflow-auto">
                   {this.state.error.toString()}
                   {this.state.errorInfo?.componentStack}
                 </pre>

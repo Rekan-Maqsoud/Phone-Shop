@@ -60,13 +60,15 @@ export default function QuickAddProduct({ t, onAdd, loading }) {
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-6">
       <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4 flex items-center gap-2">
-        <span>⚡</span>
+        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M13,14H11V10H13M13,18H11V16H13M1,21H23L12,2L1,21Z"/>
+        </svg>
         {t.quickAddProduct || 'Quick Add Product'}
       </h3>
       
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* First Row: Brand and Model */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               {t.company || 'Brand'} *
@@ -165,8 +167,8 @@ export default function QuickAddProduct({ t, onAdd, loading }) {
               onChange={e => setCurrency(e.target.value)}
               className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white text-gray-900 dark:bg-gray-700 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400"
             >
-              <option value="IQD">💰 IQD</option>
-              <option value="USD">💵 USD</option>
+              <option value="IQD">{t?.iqd || 'د.ع IQD'}</option>
+              <option value="USD">{t?.usd || 'USD'}</option>
             </select>
           </div>
           

@@ -42,19 +42,6 @@ const formatCurrency = (amount, currency = 'USD', t) => {
   return formatCurrencyWithTranslation(amount, currency, t);
 };
 
-// Normalize currency values for chart display
-const normalizeCurrencyForChart = (amount, fromCurrency) => {
-  if (fromCurrency?.toUpperCase() === 'IQD') {
-    return amount * EXCHANGE_RATES.IQD_TO_USD; // Convert IQD to USD for chart comparison
-  }
-  return amount; // USD stays as is
-};
-
-// Get appropriate currency symbol for display
-const getCurrencySymbol = (currency) => {
-  return currency?.toUpperCase() === 'IQD' ? 'IQD' : 'USD';
-};
-
 const formatNumber = (num) => {
   if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
   if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
@@ -144,19 +131,12 @@ const AdvancedLineChart = ({ data, title, height = 300, gradientFill = true, mul
         callbacks: {
           label: function(context) {
             const value = context.parsed.y;
-            const label = context.dataset.label || '';
-            
-            // For revenue and profit, show dual currency
-            if (label.includes('Revenue') || label.includes('Profit')) {
-              const usdValue = formatCurrency(value, 'USD', t);
-              const iqdValue = formatCurrency(value / EXCHANGE_RATES.IQD_TO_USD, 'IQD', t);
-              return `${label}: ${usdValue} (≈${iqdValue})`;
-            } else if (label.includes('USD')) {
-              return `${label}: ${formatCurrency(value, 'USD', t)}`;
-            } else if (label.includes('IQD')) {
-              return `${label}: ${formatCurrency(value / EXCHANGE_RATES.IQD_TO_USD, 'IQD', t)}`;
+            if (context.dataset.label?.includes('USD')) {
+              return `${context.dataset.label}: $${value.toLocaleString()}`;
+            } else if (context.dataset.label?.includes('IQD')) {
+              return `${context.dataset.label}: ${value.toLocaleString()} د.ع`;
             }
-            return `${label}: ${value.toLocaleString()}`;
+            return `${context.dataset.label}: ${value.toLocaleString()}`;
           }
         }
       }
@@ -251,19 +231,12 @@ const AdvancedBarChart = ({ data, title, height = 300, horizontal = false }) => 
         callbacks: {
           label: function(context) {
             const value = context.parsed[horizontal ? 'x' : 'y'];
-            const label = context.dataset.label || '';
-            
-            // For revenue and profit, show dual currency
-            if (label.includes('Revenue') || label.includes('Profit')) {
-              const usdValue = formatCurrency(value, 'USD', t);
-              const iqdValue = formatCurrency(value / EXCHANGE_RATES.IQD_TO_USD, 'IQD', t);
-              return `${label}: ${usdValue} (≈${iqdValue})`;
-            } else if (label.includes('USD')) {
-              return `${label}: ${formatCurrency(value, 'USD', t)}`;
-            } else if (label.includes('IQD')) {
-              return `${label}: ${formatCurrency(value / EXCHANGE_RATES.IQD_TO_USD, 'IQD', t)}`;
+            if (context.dataset.label?.includes('USD')) {
+              return `${context.dataset.label}: $${value.toLocaleString()}`;
+            } else if (context.dataset.label?.includes('IQD')) {
+              return `${context.dataset.label}: ${value.toLocaleString()} د.ع`;
             }
-            return `${label}: ${value.toLocaleString()}`;
+            return `${context.dataset.label}: ${value.toLocaleString()}`;
           }
         }
       }
@@ -970,8 +943,8 @@ export default function MonthlyReportsSection({ admin, t, showConfirm }) {
       labels: days,
       datasets: [
         {
-          label: 'Revenue (Normalized to USD)',
-          data: detailedReport.dailyTrends.map(d => d.totalRevenue), // Already normalized in data processing
+          label: 'Revenue (USD)',
+          data: detailedReport.dailyTrends.map(d => d.totalRevenue),
           borderColor: 'rgb(59, 130, 246)',
           backgroundColor: 'rgba(59, 130, 246, 0.1)',
           fill: true,
@@ -1047,15 +1020,15 @@ export default function MonthlyReportsSection({ admin, t, showConfirm }) {
       labels: products.map(p => p.name.length > 15 ? p.name.substring(0, 15) + '...' : p.name),
       datasets: [
         {
-          label: 'Revenue (Normalized)',
-          data: products.map(p => normalizeCurrencyForChart(p.revenue, p.currency)),
+          label: 'Revenue',
+          data: products.map(p => p.revenue),
           backgroundColor: 'rgba(59, 130, 246, 0.8)',
           borderColor: 'rgb(59, 130, 246)',
           borderWidth: 2
         },
         {
-          label: 'Profit (Normalized)',
-          data: products.map(p => normalizeCurrencyForChart(p.profit, p.currency)),
+          label: 'Profit',
+          data: products.map(p => p.profit),
           backgroundColor: 'rgba(34, 197, 94, 0.8)',
           borderColor: 'rgb(34, 197, 94)',
           borderWidth: 2
@@ -1140,7 +1113,7 @@ export default function MonthlyReportsSection({ admin, t, showConfirm }) {
   return (
     <div className="w-full min-h-screen p-6 space-y-8 bg-gradient-to-br from-gray-50 to-blue-50 dark:from-gray-900 dark:to-gray-800" key={animationKey}>
       {/* Enhanced Header Section */}
-      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-900 rounded-2xl shadow-xl p-8 border border-blue-200/20 dark:border-white/20">
+      <div className="bg-gradient-to-r from-white to-blue-50 dark:from-gray-800 dark:to-gray-900 rounded-2xl shadow-xl p-8 border border-white/20">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-6">
             <div className="p-4 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl shadow-lg">
@@ -1232,11 +1205,7 @@ export default function MonthlyReportsSection({ admin, t, showConfirm }) {
                 <MetricCard
                   title="Total Revenue"
                   value={formatCurrency(
-                    detailedReport.rawData.monthSales.reduce((sum, s) => {
-                      const amount = s.total || 0;
-                      const currency = s.currency || 'USD';
-                      return sum + normalizeCurrencyForChart(amount, currency);
-                    }, 0),
+                    detailedReport.rawData.monthSales.reduce((sum, s) => sum + (s.total || 0), 0),
                     'USD', t
                   )}
                   icon="dollar-sign"
@@ -1312,443 +1281,8 @@ export default function MonthlyReportsSection({ admin, t, showConfirm }) {
             </div>
           )}
 
-          {/* Analytics Mode */}
-          {viewMode === 'analytics' && (
-            <div className="space-y-8">
-              <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg">
-                <h3 className="text-2xl font-bold text-gray-800 dark:text-gray-200 mb-6 flex items-center gap-3">
-                  <Icon name="bar-chart" size={24} className="text-blue-600" />
-                  Advanced Business Analytics
-                </h3>
-                
-                {/* Market Basket Analysis */}
-                <div className="mb-8">
-                  <h4 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-4">
-                    🛒 Market Basket Analysis
-                  </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-3">
-                      <h5 className="font-medium text-gray-600 dark:text-gray-400">
-                        Frequent Item Combinations
-                      </h5>
-                      {detailedReport.basketAnalysis.frequentCombinations.slice(0, 5).map((combo, index) => (
-                        <div key={index} className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
-                          <span className="text-sm font-medium">{combo.combination}</span>
-                          <div className="text-right">
-                            <span className="text-sm font-semibold text-blue-600">{combo.count}x</span>
-                            <span className="text-xs text-gray-500 ml-2">{combo.support.toFixed(1)}%</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    
-                    <div className="space-y-3">
-                      <h5 className="font-medium text-gray-600 dark:text-gray-400">
-                        📊 Insights
-                      </h5>
-                      <div className="space-y-2">
-                        <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                          <p className="text-sm text-blue-800 dark:text-blue-200">
-                            <strong>Average basket size:</strong> {detailedReport.basketAnalysis.avgBasketSize.toFixed(1)} items
-                          </p>
-                        </div>
-                        <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
-                          <p className="text-sm text-green-800 dark:text-green-200">
-                            <strong>Unique combinations:</strong> {detailedReport.basketAnalysis.totalCombinations} found
-                          </p>
-                        </div>
-                        <div className="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
-                          <p className="text-sm text-purple-800 dark:text-purple-200">
-                            <strong>Cross-selling opportunity:</strong> High potential for bundled offers
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Daily Performance Metrics */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <div className="bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-blue-900/20 dark:to-indigo-900/20 p-6 rounded-xl">
-                    <h4 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">
-                      📈 Daily Volatility Analysis
-                    </h4>
-                    <div className="space-y-3">
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-600 dark:text-gray-400">Highest Revenue Day</span>
-                        <span className="font-semibold text-green-600">
-                          Day {detailedReport.dailyTrends.reduce((max, day, index) => 
-                            day.totalRevenue > detailedReport.dailyTrends[max].totalRevenue ? index : max, 0) + 1}
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-600 dark:text-gray-400">Most Volatile Day</span>
-                        <span className="font-semibold text-red-600">
-                          Day {detailedReport.dailyTrends.reduce((max, day, index) => 
-                            day.volatility > detailedReport.dailyTrends[max].volatility ? index : max, 0) + 1}
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-600 dark:text-gray-400">Avg Daily Revenue</span>
-                        <span className="font-semibold text-blue-600">
-                          {(() => {
-                            const avgRevenue = detailedReport.dailyTrends.reduce((sum, day) => sum + day.totalRevenue, 0) / detailedReport.dailyTrends.length || 0;
-                            const usd = formatCurrency(avgRevenue, 'USD', t);
-                            const iqd = formatCurrency(avgRevenue / EXCHANGE_RATES.IQD_TO_USD, 'IQD', t);
-                            return `${usd} (≈${iqd})`;
-                          })()}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="bg-gradient-to-br from-green-50 to-emerald-100 dark:from-green-900/20 dark:to-emerald-900/20 p-6 rounded-xl">
-                    <h4 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">
-                      🎯 Performance Recommendations
-                    </h4>
-                    <div className="space-y-3 text-sm">
-                      <div className="p-2 bg-white/50 dark:bg-gray-800/50 rounded-lg">
-                        <p className="text-gray-700 dark:text-gray-300">
-                          📍 Focus on cross-selling top combinations to increase basket size
-                        </p>
-                      </div>
-                      <div className="p-2 bg-white/50 dark:bg-gray-800/50 rounded-lg">
-                        <p className="text-gray-700 dark:text-gray-300">
-                          💡 Consider inventory adjustments for slow-moving items
-                        </p>
-                      </div>
-                      <div className="p-2 bg-white/50 dark:bg-gray-800/50 rounded-lg">
-                        <p className="text-gray-700 dark:text-gray-300">
-                          🚀 Implement loyalty programs for frequent customers
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Customers Mode */}
-          {viewMode === 'customers' && (
-            <div className="space-y-8">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* Customer Segments Overview */}
-                <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg">
-                  <h3 className="text-xl font-bold text-gray-800 dark:text-gray-200 mb-6 flex items-center gap-3">
-                    <Icon name="users" size={24} className="text-blue-600" />
-                    Customer Segments
-                  </h3>
-                  <div className="space-y-4">
-                    {Object.entries(detailedReport.customerSegmentation.segments).map(([key, customers]) => (
-                      <div key={key} className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
-                        <div className="flex items-center gap-3">
-                          <div className={`w-4 h-4 rounded-full ${
-                            key === 'vip' ? 'bg-gradient-to-r from-yellow-400 to-yellow-600' :
-                            key === 'highValue' ? 'bg-gradient-to-r from-green-400 to-green-600' :
-                            key === 'frequent' ? 'bg-gradient-to-r from-blue-400 to-blue-600' :
-                            key === 'recent' ? 'bg-gradient-to-r from-purple-400 to-purple-600' :
-                            'bg-gradient-to-r from-red-400 to-red-600'
-                          }`}></div>
-                          <span className="font-medium capitalize">
-                            {key.replace(/([A-Z])/g, ' $1').trim()}
-                          </span>
-                          <span className="text-xs text-gray-500 px-2 py-1 bg-gray-200 dark:bg-gray-600 rounded-full">
-                            {key === 'vip' ? '💎' : key === 'highValue' ? '💰' : key === 'frequent' ? '🔄' : key === 'recent' ? '🆕' : '⚠️'}
-                          </span>
-                        </div>
-                        <span className="text-2xl font-bold text-gray-800 dark:text-gray-200">{customers.length}</span>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Customer Insights Summary */}
-                  <div className="mt-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-lg">
-                    <h4 className="font-semibold text-gray-800 dark:text-gray-200 mb-2">📊 Customer Insights</h4>
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div>
-                        <span className="text-gray-600 dark:text-gray-400">Avg Frequency:</span>
-                        <span className="font-semibold ml-2">{detailedReport.customerSegmentation.avgFrequency.toFixed(1)}</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-600 dark:text-gray-400">Avg Value:</span>
-                        <span className="font-semibold ml-2">
-                          {(() => {
-                            const avgValue = detailedReport.customerSegmentation.avgMonetary;
-                            const usd = formatCurrency(avgValue, 'USD', t);
-                            const iqd = formatCurrency(avgValue / EXCHANGE_RATES.IQD_TO_USD, 'IQD', t);
-                            return `${usd} (≈${iqd})`;
-                          })()}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Top Customers */}
-                <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg">
-                  <h3 className="text-xl font-bold text-gray-800 dark:text-gray-200 mb-6 flex items-center gap-3">
-                    <Icon name="star" size={24} className="text-yellow-500" />
-                    Top Customers This Month
-                  </h3>
-                  <div className="space-y-3 max-h-96 overflow-y-auto">
-                    {detailedReport.customerSegmentation.customers.slice(0, 12).map((customer, index) => (
-                      <div key={index} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
-                        <div className="flex items-center gap-3">
-                          <div className="relative">
-                            <div className="w-12 h-12 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold text-lg">
-                              {customer.name.charAt(0).toUpperCase()}
-                            </div>
-                            {index < 3 && (
-                              <div className="absolute -top-1 -right-1 w-6 h-6 bg-yellow-500 rounded-full flex items-center justify-center text-xs font-bold text-white">
-                                {index + 1}
-                              </div>
-                            )}
-                          </div>
-                          <div>
-                            <p className="font-medium text-gray-800 dark:text-gray-200">{customer.name}</p>
-                            <p className="text-sm text-gray-600 dark:text-gray-400">
-                              {customer.frequency} transactions • Avg: {formatCurrency(customer.avgOrderValue, customer.preferredCurrency, t)}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-semibold text-gray-800 dark:text-gray-200">
-                            {formatCurrency(customer.monetary, customer.preferredCurrency, t)}
-                          </p>
-                          <div className="flex gap-1 mt-1 justify-end">
-                            {customer.segments.map((segment, i) => (
-                              <span key={i} className={`px-2 py-1 text-xs rounded-full font-medium ${
-                                segment === 'VIP' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
-                                segment === 'High-Value' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
-                                segment === 'Frequent' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
-                                segment === 'Recent' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200' :
-                                'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-                              }`}>
-                                {segment}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Products Mode */}
-          {viewMode === 'products' && (
-            <div className="space-y-8">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* BCG Matrix Categories */}
-                <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg">
-                  <h3 className="text-xl font-bold text-gray-800 dark:text-gray-200 mb-6 flex items-center gap-3">
-                    <Icon name="package" size={24} className="text-green-600" />
-                    Product Portfolio Analysis (BCG Matrix)
-                  </h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    {Object.entries(detailedReport.productMatrix.categories).map(([category, products]) => (
-                      <div key={category} className={`p-6 rounded-xl transition-all hover:scale-105 cursor-pointer ${
-                        category === 'stars' ? 'bg-gradient-to-br from-yellow-50 to-yellow-100 border-2 border-yellow-300 dark:from-yellow-900/30 dark:to-yellow-800/30 dark:border-yellow-700' :
-                        category === 'cashCows' ? 'bg-gradient-to-br from-green-50 to-green-100 border-2 border-green-300 dark:from-green-900/30 dark:to-green-800/30 dark:border-green-700' :
-                        category === 'questionMarks' ? 'bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-300 dark:from-blue-900/30 dark:to-blue-800/30 dark:border-blue-700' :
-                        'bg-gradient-to-br from-red-50 to-red-100 border-2 border-red-300 dark:from-red-900/30 dark:to-red-800/30 dark:border-red-700'
-                      }`}>
-                        <h4 className={`font-bold text-lg mb-3 ${
-                          category === 'stars' ? 'text-yellow-800 dark:text-yellow-200' :
-                          category === 'cashCows' ? 'text-green-800 dark:text-green-200' :
-                          category === 'questionMarks' ? 'text-blue-800 dark:text-blue-200' :
-                          'text-red-800 dark:text-red-200'
-                        }`}>
-                          {category === 'stars' ? '⭐ Stars' :
-                           category === 'cashCows' ? '🐄 Cash Cows' :
-                           category === 'questionMarks' ? '❓ Question Marks' :
-                           '🐕 Dogs'}
-                        </h4>
-                        <p className="text-3xl font-bold mb-2 text-gray-800 dark:text-gray-200">{products.length}</p>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">Products</p>
-                        {products.length > 0 && (
-                          <p className="text-xs mt-2 text-gray-500 dark:text-gray-400 bg-white/50 dark:bg-gray-800/50 p-2 rounded">
-                            <strong>Top:</strong> {products[0]?.name.substring(0, 25)}...
-                          </p>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Top Products Detail */}
-                <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg">
-                  <h3 className="text-xl font-bold text-gray-800 dark:text-gray-200 mb-6 flex items-center gap-3">
-                    <Icon name="trending-up" size={24} className="text-blue-600" />
-                    Top Performing Products
-                  </h3>
-                  <div className="space-y-4 max-h-96 overflow-y-auto">
-                    {detailedReport.productMatrix.products.slice(0, 10).map((product, index) => (
-                      <div key={index} className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2">
-                            <div className="w-8 h-8 rounded-full bg-gradient-to-r from-green-400 to-blue-500 flex items-center justify-center text-white font-bold text-sm">
-                              {index + 1}
-                            </div>
-                            <span className="font-medium text-gray-800 dark:text-gray-200">
-                              {product.name}
-                            </span>
-                            <span className={`px-2 py-1 text-xs rounded-full font-medium ${
-                              product.category === 'Stars' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
-                              product.category === 'Cash Cows' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
-                              product.category === 'Question Marks' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
-                              'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-                            }`}>
-                              {product.category}
-                            </span>
-                          </div>
-                          <div className="flex gap-6 text-sm text-gray-600 dark:text-gray-400">
-                            <span><strong>{product.sales}</strong> sold</span>
-                            <span><strong>{product.marketShare.toFixed(1)}%</strong> market share</span>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-bold text-lg text-gray-800 dark:text-gray-200">
-                            {formatCurrency(normalizeCurrencyForChart(product.revenue, product.currency), 'USD', t)}
-                          </p>
-                          <p className="text-sm text-green-600 font-medium">
-                            +{formatCurrency(normalizeCurrencyForChart(product.profit, product.currency), 'USD', t)} profit
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Financial Mode */}
-          {viewMode === 'financial' && (
-            <div className="space-y-8">
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Financial Health Score Card */}
-                <div className="lg:col-span-1">
-                  <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl p-8 text-white shadow-xl transform hover:scale-105 transition-all">
-                    <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
-                      <Icon name="heart" size={24} />
-                      Financial Health
-                    </h3>
-                    <div className="text-center">
-                      <div className="text-6xl font-bold mb-3">
-                        {detailedReport.financialHealth.score.toFixed(0)}
-                      </div>
-                      <div className="text-xl opacity-90 mb-6">/ 100</div>
-                      <div className={`inline-block px-6 py-3 rounded-full font-bold text-xl ${
-                        detailedReport.financialHealth.grade.startsWith('A') 
-                          ? 'bg-green-500 text-white shadow-lg'
-                          : detailedReport.financialHealth.grade.startsWith('B')
-                          ? 'bg-blue-500 text-white shadow-lg'
-                          : detailedReport.financialHealth.grade.startsWith('C')
-                          ? 'bg-yellow-500 text-black shadow-lg'
-                          : 'bg-red-500 text-white shadow-lg'
-                      }`}>
-                        Grade {detailedReport.financialHealth.grade}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Key Financial Metrics */}
-                <div className="lg:col-span-2">
-                  <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg">
-                    <h3 className="text-xl font-bold text-gray-800 dark:text-gray-200 mb-6 flex items-center gap-3">
-                      <Icon name="dollar-sign" size={24} className="text-green-600" />
-                      Key Financial Metrics
-                    </h3>
-                    <div className="grid grid-cols-2 gap-6">
-                      <div className="space-y-4">
-                        <ComparisonMetric
-                          current={detailedReport.financialHealth.metrics.revenue}
-                          previous={0}
-                          label="Total Revenue"
-                          formatter={(val) => {
-                            const usd = formatCurrency(val, 'USD', t);
-                            const iqd = formatCurrency(val / EXCHANGE_RATES.IQD_TO_USD, 'IQD', t);
-                            return `${usd} (≈${iqd})`;
-                          }}
-                        />
-                        <ComparisonMetric
-                          current={detailedReport.financialHealth.metrics.profit}
-                          previous={0}
-                          label="Net Profit"
-                          formatter={(val) => {
-                            const usd = formatCurrency(val, 'USD', t);
-                            const iqd = formatCurrency(val / EXCHANGE_RATES.IQD_TO_USD, 'IQD', t);
-                            return `${usd} (≈${iqd})`;
-                          }}
-                        />
-                      </div>
-                      <div className="space-y-4">
-                        <ComparisonMetric
-                          current={detailedReport.financialHealth.metrics.profitMargin}
-                          previous={0}
-                          label="Profit Margin"
-                          formatter={(val) => `${val.toFixed(1)}%`}
-                        />
-                        <ComparisonMetric
-                          current={detailedReport.financialHealth.metrics.avgTransactionSize}
-                          previous={0}
-                          label="Avg Transaction"
-                          formatter={(val) => {
-                            const usd = formatCurrency(val, 'USD', t);
-                            const iqd = formatCurrency(val / EXCHANGE_RATES.IQD_TO_USD, 'IQD', t);
-                            return `${usd} (≈${iqd})`;
-                          }}
-                        />
-                      </div>
-                    </div>
-                    
-                    {/* Financial Health Breakdown */}
-                    <div className="mt-6 p-4 bg-gradient-to-r from-gray-50 to-blue-50 dark:from-gray-700 dark:to-blue-900/30 rounded-lg">
-                      <h4 className="font-semibold text-gray-800 dark:text-gray-200 mb-3">💡 Financial Health Breakdown</h4>
-                      <div className="grid grid-cols-2 gap-4 text-sm">
-                        <div className="space-y-2">
-                          <AdvancedProgressBar
-                            value={Math.min(detailedReport.financialHealth.metrics.profitMargin * 3, 100)}
-                            max={100}
-                            color="bg-green-500"
-                            label="Profitability"
-                          />
-                          <AdvancedProgressBar
-                            value={Math.max(100 - detailedReport.financialHealth.metrics.debtToRevenue * 5, 0)}
-                            max={100}
-                            color="bg-blue-500"
-                            label="Liquidity"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <AdvancedProgressBar
-                            value={75}
-                            max={100}
-                            color="bg-purple-500"
-                            label="Growth Potential"
-                          />
-                          <AdvancedProgressBar
-                            value={Math.min(detailedReport.financialHealth.metrics.avgTransactionSize / 8, 100)}
-                            max={100}
-                            color="bg-orange-500"
-                            label="Efficiency"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* Other view modes would be implemented similarly... */}
-          {!['overview', 'analytics', 'customers', 'products', 'financial'].includes(viewMode) && (
+          {viewMode !== 'overview' && (
             <div className="bg-white dark:bg-gray-800 rounded-xl p-8 shadow-lg text-center">
               <Icon name="construction" size={48} className="mx-auto text-gray-400 mb-4" />
               <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-2">

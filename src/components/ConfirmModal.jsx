@@ -15,7 +15,7 @@ export default function ConfirmModal({ open, message, onConfirm, onCancel, t }) 
 
   return (
     <ModalBase open={open} onClose={handleCancel}>
-      <div className="flex flex-col gap-6 items-center p-6 bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 max-w-md mx-auto">
+      <div className="flex flex-col gap-6 items-center p-6 bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 max-w-2xl mx-auto">
         <div className="text-lg font-semibold text-gray-800 dark:text-gray-100 text-center leading-relaxed">
           {message}
         </div>

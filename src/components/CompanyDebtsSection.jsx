@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useData } from '../contexts/DataContext';
 import { formatCurrency, EXCHANGE_RATES } from '../utils/exchangeRates';
+import { Icon } from '../utils/icons.jsx';
 
 const CompanyDebtsSection = ({ 
   t, 
@@ -26,20 +27,37 @@ const CompanyDebtsSection = ({
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col md:flex-row gap-4 items-center justify-between mb-6">
-        <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100">{t.companyDebts || 'Company Debts'}</h2>
-        <button
-          onClick={() => openAddCompanyDebtModal()}
-          className="px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition font-semibold"
-        >
-          ➕ {t.addCompanyDebt || 'Add Company Debt'}
-        </button>
+    <div className="w-full h-full p-8 space-y-8">
+      {/* Header Section */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8">
+        <div className="flex items-center gap-4 mb-4">
+          <div className="p-3 bg-orange-100 dark:bg-orange-900 rounded-xl">
+            <Icon name="companyDebts" size={32} className="text-orange-600 dark:text-orange-400" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
+              {t.companyDebts || 'Company Debts'}
+            </h1>
+            <p className="text-gray-600 dark:text-gray-300 text-lg">
+              {t.companyDebtsDescription || 'Track money you owe to companies and suppliers'}
+            </p>
+          </div>
+        </div>
+        
+        <div className="flex justify-end">
+          <button
+            onClick={() => openAddCompanyDebtModal()}
+            className="flex items-center gap-2 px-6 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 transition font-semibold shadow-lg"
+          >
+            <Icon name="add" size={20} />
+            {t.addCompanyDebt || 'Add Company Debt'}
+          </button>
+        </div>
       </div>
 
       {/* Search Bar */}
-      <div className="bg-white/70 dark:bg-gray-800/90 rounded-xl p-4 shadow border border-white/30">
-        <div className="relative">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8">
+        <div className="relative mb-6">
           <input
             type="text"
             placeholder={t.searchCompanyDebts || 'Search company debts...'}
@@ -48,12 +66,9 @@ const CompanyDebtsSection = ({
             className="w-full px-4 py-2 pl-10 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 text-gray-800 dark:text-gray-100"
           />
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
+            <Icon name="search" size={20} className="text-gray-400" />
           </div>
         </div>
-      </div>
 
       {(() => {
         // Filter debts by search term
@@ -100,7 +115,7 @@ const CompanyDebtsSection = ({
 
         return (
           <>
-            <div className="bg-white/60 dark:bg-gray-800/80 rounded-2xl p-4 mb-6 shadow border border-white/20">
+            <div className="bg-gray-50 dark:bg-gray-700 rounded-xl p-4 mb-6">
               <div className="flex flex-wrap gap-4">
                 {totalCompanyDebtUSD > 0 ? (
                   <span className="text-lg font-bold text-red-600 dark:text-red-400">
@@ -132,9 +147,9 @@ const CompanyDebtsSection = ({
                 const totalUnpaidForCompany = unpaidDebts.reduce((sum, d) => sum + getDebtTotalValue(d), 0);
                 
                 return (
-                  <div key={companyName} className="bg-white/70 dark:bg-gray-800/90 rounded-2xl shadow-lg border border-white/30 overflow-hidden">
+                  <div key={companyName} className="bg-gray-50 dark:bg-gray-700 rounded-xl shadow-lg overflow-hidden mb-6">
                     {/* Company Header */}
-                    <div className="bg-white/60 dark:bg-gray-800/80 rounded-2xl shadow p-6 border border-white/20">
+                    <div className="bg-white dark:bg-gray-800 rounded-t-xl shadow p-6">
                       <div className="flex justify-between items-center">
                         <div>
                           <h3 className="text-xl font-bold text-gray-800 dark:text-gray-100">
@@ -176,7 +191,7 @@ const CompanyDebtsSection = ({
                                 </span>
                                 {debt.paid_at && (
                                   <span className="text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 px-2 py-1 rounded-full">
-                                    ✅ {t.paid || 'Paid'}
+                                    <Icon name="checkCircle" size={16} className="mr-2 text-green-600" /> {t.paid || 'Paid'}
                                   </span>
                                 )}
                               </div>
@@ -206,7 +221,7 @@ const CompanyDebtsSection = ({
                                   }}
                                   className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium"
                                 >
-                                  📦 {t.viewDetails || 'View Details'}
+                                  <Icon name="eye" size={16} className="mr-2" /> {t.viewDetails || 'View Details'}
                                 </button>
                               )}
                               {!debt.paid_at && (
@@ -217,7 +232,7 @@ const CompanyDebtsSection = ({
                                   }}
                                   className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-medium"
                                 >
-                                  ✅ {t.markAsPaid || 'Mark as Paid'}
+                                  <Icon name="checkCircle" size={16} className="mr-2" /> {t.markAsPaid || 'Mark as Paid'}
                                 </button>
                               )}
                             </div>
@@ -232,6 +247,7 @@ const CompanyDebtsSection = ({
           </>
         );
       })()}
+      </div>
     </div>
   );
 };

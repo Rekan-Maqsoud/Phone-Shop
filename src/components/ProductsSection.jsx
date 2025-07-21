@@ -3,6 +3,7 @@ import ProductTable from './ProductTable';
 import QuickAddProduct from './QuickAddProduct';
 import ExchangeRateIndicator from './ExchangeRateIndicator';
 import { useData } from '../contexts/DataContext';
+import { Icon } from '../utils/icons.jsx';
 
 export default function ProductsSection({ t, admin, handleEditProduct, handleArchiveToggle, loading }) {
   const { products } = useData();
@@ -33,15 +34,17 @@ export default function ProductsSection({ t, admin, handleEditProduct, handleArc
   }, [products]);
   
   return (
-    <div className="space-y-6">
+    <div className="w-full h-full p-8 space-y-8">
       {/* Quick Add Form */}
-      <QuickAddProduct t={t} onAdd={admin.handleAddProduct} loading={loading} />
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8">
+        <QuickAddProduct t={t} onAdd={admin.handleAddProduct} loading={loading} />
+      </div>
       
       {/* Search and Filter Controls */}
-      <div className="bg-white/70 dark:bg-gray-800/90 rounded-xl p-4 shadow border border-white/30 mb-6">
-        <div className="flex flex-col md:flex-row gap-4 items-center">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8">
+        <div className="flex flex-row gap-4 items-center">
           {/* Exchange Rate Indicator */}
-          <div className="hidden md:block">
+          <div className="block">
             <ExchangeRateIndicator t={t} showModal={true} size="sm" />
           </div>
           
@@ -100,23 +103,25 @@ export default function ProductsSection({ t, admin, handleEditProduct, handleArc
         </div>
       </div>
       
-      {/* Products Header */}
-      <div className="flex justify-between items-center">
-        <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">
-          {t.products} {filteredProducts.length > 0 && `(${filteredProducts.length})`}
-        </h3>
-      </div>
-      
       {/* Products Table */}
-      <ProductTable
-        title=""
-        products={filteredProducts}
-        t={t}
-        lowStockThreshold={admin.lowStockThreshold}
-        onEdit={handleEditProduct}
-        onArchive={p => handleArchiveToggle(p, true)}
-        isArchived={false}
-      />
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8">
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">
+            {t.products} {filteredProducts.length > 0 && `(${filteredProducts.length})`}
+          </h3>
+        </div>
+        
+        {/* Products Table */}
+        <ProductTable
+          title=""
+          products={filteredProducts}
+          t={t}
+          lowStockThreshold={admin.lowStockThreshold}
+          onEdit={handleEditProduct}
+          onArchive={p => handleArchiveToggle(p, true)}
+          isArchived={false}
+        />
+      </div>
     </div>
   );
 }

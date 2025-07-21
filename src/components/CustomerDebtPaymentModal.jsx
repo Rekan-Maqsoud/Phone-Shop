@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { EXCHANGE_RATES, formatCurrency, roundIQDToNearestBill } from '../utils/exchangeRates';
+import { Icon } from '../utils/icons.jsx';
 
 const CustomerDebtPaymentModal = ({ 
   showPaymentModal, 
@@ -175,7 +176,7 @@ const CustomerDebtPaymentModal = ({
         }
       }
       if (result && result.changes > 0) {
-        admin.setToast?.(`💰 Debt of ${(sale.currency === 'USD' ? '$' : 'د.ع')}${sale.total.toFixed(2)} marked as paid for ${originalCustomer}`);
+        admin.setToast?.(`Debt of ${(sale.currency === 'USD' ? '$' : 'د.ع')}${sale.total.toFixed(2)} marked as paid for ${originalCustomer}`, 'success');
         
         // Refresh balances to show updated amounts
         if (admin.loadBalances) {
@@ -208,7 +209,8 @@ const CustomerDebtPaymentModal = ({
         <div className="p-6 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-700 rounded-t-2xl">
           <div className="flex justify-between items-start mb-4">
             <h3 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-              💰 {t.customerDebtPayment || 'Customer Debt Payment'}
+              <Icon name="dollar-sign" size={20} className="mr-2" />
+              {t.customerDebtPayment || 'Customer Debt Payment'}
             </h3>
             <button
               onClick={handleClose}
@@ -244,7 +246,8 @@ const CustomerDebtPaymentModal = ({
           <div>
             <div className="flex justify-between items-center mb-4">
               <h4 className="text-lg font-semibold text-gray-800 dark:text-gray-200">
-                💳 {t.paymentOptions || 'Payment Options'}
+                <Icon name="creditCard" size={20} className="mr-2" />
+                {t.paymentOptions || 'Payment Options'}
               </h4>
               <button
                 type="button"
@@ -382,7 +385,8 @@ const CustomerDebtPaymentModal = ({
                         
                         {paymentSummary.status === 'overpaid' && paymentSummary.change && (
                           <div className="text-orange-600 dark:text-orange-400 font-medium">
-                            💰 {t.change || 'Change'}: 
+                            <Icon name="dollar-sign" size={12} className="mr-1" />
+                            {t.change || 'Change'}: 
                             {paymentSummary.change.changeInUSD > 0 
                               ? formatCurrency(paymentSummary.change.changeInUSD, 'USD')
                               : formatCurrency(paymentSummary.change.changeInIQD, 'IQD')
@@ -453,7 +457,8 @@ const CustomerDebtPaymentModal = ({
             onClick={processPayment}
             className="flex-1 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-semibold shadow-lg"
           >
-            💰 {t.markAsPaid || 'Mark as Paid'}
+            <Icon name="check" size={16} className="mr-2" />
+            {t.markAsPaid || 'Mark as Paid'}
           </button>
         </div>
       </div>

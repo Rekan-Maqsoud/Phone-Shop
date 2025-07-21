@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { useData } from '../contexts/DataContext';
-import { getAccessoryEmoji } from '../utils/accessoryUtils';
+import { getAccessoryIcon } from '../utils/accessoryUtils';
 import QuickAddAccessory from './QuickAddAccessory';
+import { Icon } from '../utils/icons.jsx';
 
 const AccessoriesSection = ({ 
   t, 
@@ -44,16 +45,14 @@ const AccessoriesSection = ({
   }, [accessories]);
   
   return (
-    <div className="space-y-6">
+    <div className="w-full h-full p-8 space-y-8">
       {/* Quick Add Form */}
-      <QuickAddAccessory t={t} onAdd={admin.handleAddAccessory} loading={loading} />
-      
-      <div className="flex flex-col md:flex-row gap-4 items-center justify-between mb-6">
-        <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100">{t.accessories}</h2>
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8">
+        <QuickAddAccessory t={t} onAdd={admin.handleAddAccessory} loading={loading} />
       </div>
       
       {/* Search and Filter Controls */}
-      <div className="bg-white/70 dark:bg-gray-800/90 rounded-xl p-4 shadow border border-white/30 mb-6">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8">
         <div className="flex flex-col md:flex-row gap-4 items-center">
           {/* Search Bar */}
           <div className="flex-1 min-w-0">
@@ -75,14 +74,14 @@ const AccessoriesSection = ({
                   onClick={() => setSearchTerm('')}
                   className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600"
                 >
-                  ✕
+                  <Icon name="x" size={16} />
                 </button>
               )}
             </div>
           </div>
           
           {/* Brand Filter */}
-          <div className="w-full md:w-48">
+          <div className="w-48">
             <select
               value={brandFilter}
               onChange={(e) => setBrandFilter(e.target.value)}
@@ -96,7 +95,7 @@ const AccessoriesSection = ({
           </div>
           
           {/* Type Filter */}
-          <div className="w-full md:w-48">
+          <div className="w-48">
             <select
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value)}
@@ -147,7 +146,7 @@ const AccessoriesSection = ({
           )}
         </div>
       ) : (
-        <div className="bg-white/60 dark:bg-gray-800/80 rounded-2xl shadow-2xl overflow-hidden border border-white/20">
+        <div className="bg-gray-50 dark:bg-gray-700 rounded-xl shadow-lg overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gradient-to-r from-green-600 to-emerald-600 text-white">
@@ -167,7 +166,20 @@ const AccessoriesSection = ({
                   <tr key={accessory.id} className={`border-b dark:border-gray-700 ${idx % 2 === 0 ? 'bg-gray-50 dark:bg-gray-900/50' : 'bg-white dark:bg-gray-800/50'} hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors`}>
                     <td className="px-6 py-4 font-medium text-gray-900 dark:text-gray-100">
                       <div className="flex items-center gap-2">
-                        <span className="text-lg">{getAccessoryEmoji(accessory.type)}</span>
+                        <svg className="w-5 h-5 text-blue-600" fill="currentColor" viewBox="0 0 24 24">
+                          {getAccessoryIcon(accessory.type) === 'headphones' && (
+                            <path d="M12,1C7,1 3,5 3,10V17A3,3 0 0,0 6,20H8V12H5V10A7,7 0 0,1 12,3A7,7 0 0,1 19,10V12H16V20H18A3,3 0 0,0 21,17V10C21,5 17,1 12,1Z"/>
+                          )}
+                          {getAccessoryIcon(accessory.type) === 'phone' && (
+                            <path d="M17,19H7V5H17M17,1H7C5.89,1 5,1.89 5,3V21A2,2 0 0,0 7,23H17A2,2 0 0,0 19,21V3C19,1.89 18.1,1 17,1Z"/>
+                          )}
+                          {getAccessoryIcon(accessory.type) === 'cable' && (
+                            <path d="M8,3V4H16V3H18V4A2,2 0 0,1 16,6H15V7H16A1,1 0 0,1 17,8V16A1,1 0 0,1 16,17H8A1,1 0 0,1 7,16V8A1,1 0 0,1 8,7H9V6H8A2,2 0 0,1 6,4V3H8M10,5V9H14V5H10Z"/>
+                          )}
+                          {(!['headphones', 'phone', 'cable'].includes(getAccessoryIcon(accessory.type))) && (
+                            <path d="M16,12A2,2 0 0,1 18,10A2,2 0 0,1 20,12A2,2 0 0,1 18,14A2,2 0 0,1 16,12M10,12A2,2 0 0,1 12,10A2,2 0 0,1 14,12A2,2 0 0,1 12,14A2,2 0 0,1 10,12M4,12A2,2 0 0,1 6,10A2,2 0 0,1 8,12A2,2 0 0,1 6,14A2,2 0 0,1 4,12Z"/>
+                          )}
+                        </svg>
                         {accessory.name}
                       </div>
                     </td>

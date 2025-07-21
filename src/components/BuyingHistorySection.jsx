@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import BuyingHistoryTable from './BuyingHistoryTable';
 import { useData } from '../contexts/DataContext';
+import { Icon } from '../utils/icons.jsx';
 
 export default function BuyingHistorySection({ t, admin, openAddPurchaseModal }) {
   const { refreshBuyingHistory } = useData();
@@ -26,13 +27,18 @@ export default function BuyingHistorySection({ t, admin, openAddPurchaseModal })
   }, []);
 
   return (
-    <BuyingHistoryTable
-      buyingHistory={admin.buyingHistory}
-      t={t}
-      onAddPurchase={handleAddPurchase}
-      refreshBuyingHistory={refreshBuyingHistory}
-      getBrandFromBuyingHistory={getBrandFromBuyingHistory}
-      showBrandFilter={true}
-    />
+    <div className="w-full h-full p-8 space-y-8">
+      {/* Buying History Content */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8">
+        <BuyingHistoryTable
+          buyingHistory={admin.buyingHistory}
+          t={t}
+          onAddPurchase={handleAddPurchase}
+          refreshBuyingHistory={refreshBuyingHistory}
+          getBrandFromBuyingHistory={getBrandFromBuyingHistory}
+          showBrandFilter={true}
+        />
+      </div>
+    </div>
   );
 }

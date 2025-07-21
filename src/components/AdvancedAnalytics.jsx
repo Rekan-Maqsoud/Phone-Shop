@@ -11,13 +11,12 @@ import {
   Tooltip,
   Legend,
   ArcElement,
-  RadialLinearScale,
+  Filler,
 } from 'chart.js';
-import { Bar, Line, Doughnut, Radar, Pie } from 'react-chartjs-2';
-
-// Import shared utilities instead of duplicating
-import { formatCurrency, CHART_COLORS, getCommonChartOptions } from '../utils/chartUtils';
+import { Bar, Line, Doughnut } from 'react-chartjs-2';
+import { formatCurrency } from '../utils/chartUtils';
 import { EXCHANGE_RATES } from '../utils/exchangeRates';
+import { Icon } from '../utils/icons';
 
 ChartJS.register(
   CategoryScale,
@@ -29,56 +28,36 @@ ChartJS.register(
   Tooltip,
   Legend,
   ArcElement,
-  RadialLinearScale
+  Filler
 );
 
 export default function AdvancedAnalytics({ admin, t }) {
-  const { products, accessories, sales, debts, buyingHistory, refreshAllData } = useData();
-  const [timeRange, setTimeRange] = useState('7days');
-  const [chartType, setChartType] = useState('revenue');
+  const { products, accessories, sales, debts, buyingHistory } = useData();
+  const [timeRange, setTimeRange] = useState('30days');
+  const [viewMode, setViewMode] = useState('overview');
   const [balances, setBalances] = useState({ usd_balance: 0, iqd_balance: 0 });
-  const [personalLoans, setPersonalLoans] = useState([]);
 
-  const fetchData = async () => {
+  const fetchBalances = async () => {
     try {
       if (window.api?.getBalances) {
         const balanceData = await window.api.getBalances();
         setBalances(balanceData || { usd_balance: 0, iqd_balance: 0 });
       }
-      
-      if (window.api?.getPersonalLoans) {
-        const loansData = await window.api.getPersonalLoans();
-        setPersonalLoans(loansData || []);
-      }
     } catch (error) {
-      console.error('Error fetching analytics data:', error);
+      console.error('Error fetching balances:', error);
     }
   };
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    fetchBalances();
+  }, [sales, debts]);
 
-  // Refresh data when sales, buyingHistory, or debts change
-  useEffect(() => {
-    fetchData();
-  }, [sales, buyingHistory, debts]);
-
-  // Set up periodic refresh every 30 seconds
-  useEffect(() => {
-    const interval = setInterval(fetchData, 30000);
-    return () => clearInterval(interval);
-  }, []);
-
-  // Advanced metrics calculation
-  const analytics = useMemo(() => {
+  // Calculate business metrics
+  const businessMetrics = useMemo(() => {
     const now = new Date();
     let startDate;
     
     switch (timeRange) {
-      case '24h':
-        startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-        break;
       case '7days':
         startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
         break;
@@ -88,375 +67,192 @@ export default function AdvancedAnalytics({ admin, t }) {
       case '90days':
         startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
         break;
-      case '1year':
-        startDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
-        break;
       default:
-        startDate = new Date(0);
+        startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     }
 
-    // Filter data by time range
-    const allFilteredSales = sales.filter(sale => new Date(sale.created_at) >= startDate);
-    
-    // Exclude unpaid debt sales from revenue calculations
-    const filteredSales = allFilteredSales.filter(sale => {
-      // If this is a debt sale, check if the debt is paid
+    // Filter sales by time range (only include paid sales for revenue calculations)
+    const filteredSales = sales.filter(sale => {
+      const saleDate = new Date(sale.created_at);
+      const isInRange = saleDate >= startDate;
+      
+      // If it's a debt sale, check if it's paid
       if (sale.is_debt) {
         const debt = debts.find(d => d.sale_id === sale.id);
-        // Only include if debt exists and is paid, or if no debt record exists (consider as paid)
-        return debt ? Boolean(debt.paid_at) : false;
+        return isInRange && debt && debt.paid_at;
       }
-      // Include all non-debt sales
-      return true;
-    });
-    
-    const filteredPurchases = buyingHistory.filter(purchase => new Date(purchase.paid_at || purchase.created_at) >= startDate);
-    const filteredLoans = personalLoans.filter(loan => new Date(loan.created_at) >= startDate);
-
-    // Revenue analysis - properly convert USD sales to IQD for accurate IQD totals
-    const revenueUSD = filteredSales.reduce((sum, sale) => {
-      // For revenue calculations, use sale.total based on sale currency, not payment amounts
-      // This ensures overpayments don't inflate revenue figures
-      if (sale.currency === 'USD') {
-        return sum + (sale.total || 0);
-      }
-      return sum;
-    }, 0);
-    
-    const revenueIQD = filteredSales.reduce((sum, sale) => {
-      // For revenue calculations, use sale.total based on sale currency, not payment amounts
-      // This ensures overpayments don't inflate revenue figures
-      if (sale.currency === 'IQD') {
-        return sum + (sale.total || 0);
-      } else if (sale.currency === 'USD') {
-        // Convert USD sales to IQD equivalent for accurate IQD revenue totals
-        const exchangeRate = sale.exchange_rates?.usd_to_iqd || 1440;
-        return sum + ((sale.total || 0) * exchangeRate);
-      }
-      return sum;
-    }, 0);
-
-    // Profit analysis
-    let profitUSD = 0;
-    let profitIQD = 0;
-    filteredSales.forEach(sale => {
-      if (!sale.items) return;
       
-      const saleCurrency = sale.currency || 'USD';
-      const saleExchangeRates = sale.exchange_rates || {
-        usd_to_iqd: 1440,
-        iqd_to_usd: 0.000694
-      };
-
-      // Calculate total buying price in sale currency
-      const totalBuyingPrice = sale.items.reduce((buyingSum, item) => {
-        const buyingPrice = item.buying_price || 0;
-        const quantity = item.quantity || 1;
-        const productCurrency = item.product_currency || 'IQD';
-        
-        // Convert buying price to sale currency if needed
-        let buyingPriceInSaleCurrency = buyingPrice;
-        if (productCurrency !== saleCurrency) {
-          if (saleCurrency === 'USD' && productCurrency === 'IQD') {
-            buyingPriceInSaleCurrency = buyingPrice * saleExchangeRates.iqd_to_usd;
-          } else if (saleCurrency === 'IQD' && productCurrency === 'USD') {
-            buyingPriceInSaleCurrency = buyingPrice * saleExchangeRates.usd_to_iqd;
-          }
-        }
-        
-        return buyingSum + (buyingPriceInSaleCurrency * quantity);
-      }, 0);
-
-      // Calculate profit using final discounted total
-      const profit = (sale.total || 0) - totalBuyingPrice;
-      
-      if (saleCurrency === 'USD') {
-        profitUSD += profit;
-      } else {
-        profitIQD += profit;
-      }
+      return isInRange;
     });
 
-    // Spending analysis - use total_price instead of amount
-    const spendingUSD = filteredPurchases.filter(p => p.currency === 'USD').reduce((sum, p) => sum + (p.total_price || p.amount || 0), 0);
-    const spendingIQD = filteredPurchases.filter(p => p.currency === 'IQD').reduce((sum, p) => sum + (p.total_price || p.amount || 0), 0);
+    const filteredPurchases = buyingHistory.filter(purchase => 
+      new Date(purchase.created_at) >= startDate
+    );
 
-    // Outstanding debt analysis - use debt sales approach
-    const outstandingDebtUSD = sales.filter(sale => {
-      if (!sale.is_debt || sale.currency !== 'USD') return false;
-      const debt = debts.find(d => d.sale_id === sale.id);
-      return debt ? !debt.paid_at : true; // Unpaid if no debt record or unpaid debt record
-    }).reduce((sum, sale) => sum + (sale.total || 0), 0);
-    
-    const outstandingDebtIQD = sales.filter(sale => {
-      if (!sale.is_debt || sale.currency !== 'IQD') return false;
-      const debt = debts.find(d => d.sale_id === sale.id);
-      return debt ? !debt.paid_at : true; // Unpaid if no debt record or unpaid debt record
-    }).reduce((sum, sale) => sum + (sale.total || 0), 0);
+    // Revenue calculations
+    const revenueUSD = filteredSales
+      .filter(sale => sale.currency === 'USD')
+      .reduce((sum, sale) => sum + (sale.total || 0), 0);
 
-    // Personal loans analysis
-    const activeLoanUSD = filteredLoans.filter(l => !l.paid_at && l.currency === 'USD').reduce((sum, l) => sum + (l.amount || 0), 0);
-    const activeLoanIQD = filteredLoans.filter(l => !l.paid_at && l.currency === 'IQD').reduce((sum, l) => sum + (l.amount || 0), 0);
+    const revenueIQD = filteredSales
+      .filter(sale => sale.currency === 'IQD')
+      .reduce((sum, sale) => sum + (sale.total || 0), 0);
 
-    // Product performance analysis
+    // Cost calculations
+    const costUSD = filteredPurchases
+      .filter(purchase => purchase.currency === 'USD')
+      .reduce((sum, purchase) => sum + (purchase.total_price || purchase.amount || 0), 0);
+
+    const costIQD = filteredPurchases
+      .filter(purchase => purchase.currency === 'IQD')
+      .reduce((sum, purchase) => sum + (purchase.total_price || purchase.amount || 0), 0);
+
+    // Profit calculations
+    const profitUSD = revenueUSD - costUSD;
+    const profitIQD = revenueIQD - costIQD;
+
+    // Outstanding debts
+    const outstandingUSD = sales
+      .filter(sale => sale.is_debt && sale.currency === 'USD')
+      .filter(sale => {
+        const debt = debts.find(d => d.sale_id === sale.id);
+        return !debt || !debt.paid_at;
+      })
+      .reduce((sum, sale) => sum + (sale.total || 0), 0);
+
+    const outstandingIQD = sales
+      .filter(sale => sale.is_debt && sale.currency === 'IQD')
+      .filter(sale => {
+        const debt = debts.find(d => d.sale_id === sale.id);
+        return !debt || !debt.paid_at;
+      })
+      .reduce((sum, sale) => sum + (sale.total || 0), 0);
+
+    // Product performance
     const productPerformance = {};
     filteredSales.forEach(sale => {
       if (sale.items) {
         sale.items.forEach(item => {
-          const name = item.name || 'Unknown';
+          const name = item.name || 'Unknown Product';
           if (!productPerformance[name]) {
             productPerformance[name] = {
               quantity: 0,
-              revenueUSD: 0,
-              revenueIQD: 0,
-              profitUSD: 0,
-              profitIQD: 0
+              revenue: 0,
+              sales: 0
             };
           }
           productPerformance[name].quantity += item.quantity || 1;
-          
-          const buyingPrice = item.buying_price || 0;
-          const sellingPrice = item.selling_price || item.buying_price || 0;
-          const quantity = item.quantity || 1;
-          const productCurrency = item.product_currency || 'IQD';
-          const saleCurrency = sale.currency || 'USD';
-          
-          // CRITICAL FIX: selling_price is stored in product's original currency
-          // Need to convert both prices to sale currency for proper profit calculation
-          let sellingPriceInSaleCurrency = sellingPrice;
-          let buyingPriceInSaleCurrency = buyingPrice;
-          
-          // Get exchange rates from sale or use current rates
-          const saleExchangeRates = sale.exchange_rates || {
-            usd_to_iqd: 1440,
-            iqd_to_usd: 0.000694
-          };
-          
-          // Convert selling price to sale currency if needed
-          if (productCurrency !== saleCurrency) {
-            if (saleCurrency === 'USD' && productCurrency === 'IQD') {
-              sellingPriceInSaleCurrency = sellingPrice * saleExchangeRates.iqd_to_usd;
-            } else if (saleCurrency === 'IQD' && productCurrency === 'USD') {
-              sellingPriceInSaleCurrency = sellingPrice * saleExchangeRates.usd_to_iqd;
-            }
-          }
-          
-          // Convert buying price to sale currency if needed  
-          if (productCurrency !== saleCurrency) {
-            if (saleCurrency === 'USD' && productCurrency === 'IQD') {
-              buyingPriceInSaleCurrency = buyingPrice * saleExchangeRates.iqd_to_usd;
-            } else if (saleCurrency === 'IQD' && productCurrency === 'USD') {
-              buyingPriceInSaleCurrency = buyingPrice * saleExchangeRates.usd_to_iqd;
-            }
-          }
-          
-          const revenue = sellingPriceInSaleCurrency * quantity;
-          const profit = (sellingPriceInSaleCurrency - buyingPriceInSaleCurrency) * quantity;
-          
-          if (saleCurrency === 'USD') {
-            productPerformance[name].revenueUSD += revenue;
-            productPerformance[name].profitUSD += profit;
-            // Also add to IQD totals (converted) for accurate IQD revenue tracking
-            const exchangeRate = saleExchangeRates.usd_to_iqd;
-            productPerformance[name].revenueIQD += (revenue * exchangeRate);
-            productPerformance[name].profitIQD += (profit * exchangeRate);
-          } else {
-            productPerformance[name].revenueIQD += revenue;
-            productPerformance[name].profitIQD += profit;
-          }
+          productPerformance[name].revenue += (item.selling_price || 0) * (item.quantity || 1);
+          productPerformance[name].sales += 1;
         });
       }
     });
 
     // Top performing products
     const topProducts = Object.entries(productPerformance)
-      .sort(([,a], [,b]) => (b.revenueUSD + b.revenueIQD) - (a.revenueUSD + a.revenueIQD))
+      .sort(([,a], [,b]) => b.revenue - a.revenue)
       .slice(0, 10);
 
-    // Daily breakdown for chart
-    const days = Math.min(timeRange === '24h' ? 24 : (timeRange === '7days' ? 7 : 30), 30);
+    // Daily breakdown for charts
+    const days = timeRange === '7days' ? 7 : timeRange === '90days' ? 90 : 30;
     const dailyData = [];
     
     for (let i = days - 1; i >= 0; i--) {
       const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
-      const dayStr = date.toISOString().split('T')[0];
+      const dateStr = date.toISOString().split('T')[0];
       
       const daySales = filteredSales.filter(sale => 
-        sale.created_at.split('T')[0] === dayStr
+        sale.created_at.startsWith(dateStr)
       );
       
-      const dayRevenueUSD = daySales.reduce((sum, sale) => {
-        // For revenue calculations, use sale.total based on sale currency, not payment amounts
-        if (sale.currency === 'USD') {
-          return sum + (sale.total || 0);
-        }
-        return sum;
-      }, 0);
+      const dayRevenueUSD = daySales
+        .filter(sale => sale.currency === 'USD')
+        .reduce((sum, sale) => sum + (sale.total || 0), 0);
       
-      const dayRevenueIQD = daySales.reduce((sum, sale) => {
-        // For revenue calculations, use sale.total based on sale currency, not payment amounts
-        if (sale.currency === 'IQD') {
-          return sum + (sale.total || 0);
-        } else if (sale.currency === 'USD') {
-          // Convert USD sales to IQD equivalent for accurate IQD revenue totals
-          const exchangeRate = sale.exchange_rates?.usd_to_iqd || 1440;
-          return sum + ((sale.total || 0) * exchangeRate);
-        }
-        return sum;
-      }, 0);
-      
-      let dayProfitUSD = 0;
-      let dayProfitIQD = 0;
-      daySales.forEach(sale => {
-        if (sale.items) {
-          sale.items.forEach(item => {
-            const buyingPrice = item.buying_price || 0;
-            const sellingPrice = item.selling_price || item.buying_price || 0;
-            const quantity = item.quantity || 1;
-            const productCurrency = item.product_currency || 'IQD';
-            const saleCurrency = sale.currency || 'USD';
-            
-            // CRITICAL FIX: selling_price is stored in product's original currency
-            // Need to convert both prices to sale currency for proper profit calculation
-            let sellingPriceInSaleCurrency = sellingPrice;
-            let buyingPriceInSaleCurrency = buyingPrice;
-            
-            // Get exchange rates from sale or use current rates
-            const saleExchangeRates = sale.exchange_rates || {
-              usd_to_iqd: 1440,
-              iqd_to_usd: 0.000694
-            };
-            
-            // Convert selling price to sale currency if needed
-            if (productCurrency !== saleCurrency) {
-              if (saleCurrency === 'USD' && productCurrency === 'IQD') {
-                sellingPriceInSaleCurrency = sellingPrice * saleExchangeRates.iqd_to_usd;
-              } else if (saleCurrency === 'IQD' && productCurrency === 'USD') {
-                sellingPriceInSaleCurrency = sellingPrice * saleExchangeRates.usd_to_iqd;
-              }
-            }
-            
-            // Convert buying price to sale currency if needed  
-            if (productCurrency !== saleCurrency) {
-              if (saleCurrency === 'USD' && productCurrency === 'IQD') {
-                buyingPriceInSaleCurrency = buyingPrice * saleExchangeRates.iqd_to_usd;
-              } else if (saleCurrency === 'IQD' && productCurrency === 'USD') {
-                buyingPriceInSaleCurrency = buyingPrice * saleExchangeRates.usd_to_iqd;
-              }
-            }
-            
-            // Calculate profit correctly
-            const profit = (sellingPriceInSaleCurrency - buyingPriceInSaleCurrency) * quantity;
-            
-            if (saleCurrency === 'USD') {
-              dayProfitUSD += profit;
-            } else {
-              dayProfitIQD += profit;
-            }
-          });
-        }
-      });
+      const dayRevenueIQD = daySales
+        .filter(sale => sale.currency === 'IQD')
+        .reduce((sum, sale) => sum + (sale.total || 0), 0);
 
       dailyData.push({
         date: date.toLocaleDateString(),
+        dateStr,
         revenueUSD: dayRevenueUSD,
         revenueIQD: dayRevenueIQD,
-        profitUSD: dayProfitUSD,
-        profitIQD: dayProfitIQD,
         transactions: daySales.length
       });
     }
+
+    // Stock analysis
+    const lowStockItems = products.filter(p => p.stock <= 5 && !p.archived);
+    const highValueStock = products.filter(p => p.stock > 0 && !p.archived)
+      .sort((a, b) => (b.selling_price * b.stock) - (a.selling_price * a.stock))
+      .slice(0, 10);
 
     return {
       revenueUSD,
       revenueIQD,
       profitUSD,
       profitIQD,
-      spendingUSD,
-      spendingIQD,
-      outstandingDebtUSD,
-      outstandingDebtIQD,
-      activeLoanUSD,
-      activeLoanIQD,
-      netProfitUSD: profitUSD - spendingUSD,
-      netProfitIQD: profitIQD - spendingIQD,
+      costUSD,
+      costIQD,
+      outstandingUSD,
+      outstandingIQD,
       totalTransactions: filteredSales.length,
-      averageOrderValue: filteredSales.length > 0 ? (revenueUSD + revenueIQD) / filteredSales.length : 0,
+      averageOrderValue: filteredSales.length > 0 ? 
+        (revenueUSD + (revenueIQD / EXCHANGE_RATES.usd_to_iqd)) / filteredSales.length : 0,
       topProducts,
       dailyData,
-      productPerformance
+      lowStockItems,
+      highValueStock,
+      profitMarginUSD: revenueUSD > 0 ? (profitUSD / revenueUSD) * 100 : 0,
+      profitMarginIQD: revenueIQD > 0 ? (profitIQD / revenueIQD) * 100 : 0
     };
-  }, [sales, buyingHistory, debts, personalLoans, timeRange]);
+  }, [sales, buyingHistory, debts, products, timeRange]);
 
   // Chart configurations
-  const getChartData = () => {
-    switch (chartType) {
-      case 'revenue':
-        return {
-          labels: analytics.dailyData.map(d => d.date),
-          datasets: [
-            {
-              label: 'USD Revenue',
-              data: analytics.dailyData.map(d => d.revenueUSD),
-              borderColor: 'rgb(34, 197, 94)',
-              backgroundColor: 'rgba(34, 197, 94, 0.1)',
-              tension: 0.1,
-            },
-            {
-              label: 'IQD Revenue',
-              data: analytics.dailyData.map(d => d.revenueIQD),
-              borderColor: 'rgb(168, 85, 247)',
-              backgroundColor: 'rgba(168, 85, 247, 0.1)',
-              tension: 0.1,
-            }
-          ]
-        };
-      
-      case 'profit':
-        return {
-          labels: analytics.dailyData.map(d => d.date),
-          datasets: [
-            {
-              label: 'USD Profit',
-              data: analytics.dailyData.map(d => d.profitUSD),
-              borderColor: 'rgb(59, 130, 246)',
-              backgroundColor: 'rgba(59, 130, 246, 0.1)',
-              tension: 0.1,
-            },
-            {
-              label: 'IQD Profit',
-              data: analytics.dailyData.map(d => d.profitIQD),
-              borderColor: 'rgb(245, 101, 101)',
-              backgroundColor: 'rgba(245, 101, 101, 0.1)',
-              tension: 0.1,
-            }
-          ]
-        };
-      
-      case 'transactions':
-        return {
-          labels: analytics.dailyData.map(d => d.date),
-          datasets: [
-            {
-              label: 'Daily Transactions',
-              data: analytics.dailyData.map(d => d.transactions),
-              backgroundColor: 'rgba(147, 51, 234, 0.8)',
-              borderColor: 'rgba(147, 51, 234, 1)',
-              borderWidth: 1,
-            }
-          ]
-        };
-      
-      default:
-        return { labels: [], datasets: [] };
-    }
-  };
-
-  const pieChartData = {
-    labels: ['USD Revenue', 'IQD Revenue', 'USD Spending', 'IQD Spending'],
+  const revenueChartData = {
+    labels: businessMetrics.dailyData.map(d => d.date),
     datasets: [
       {
-        data: [analytics.revenueUSD, analytics.revenueIQD, analytics.spendingUSD, analytics.spendingIQD],
+        label: 'USD Revenue',
+        data: businessMetrics.dailyData.map(d => d.revenueUSD),
+        borderColor: 'rgb(34, 197, 94)',
+        backgroundColor: 'rgba(34, 197, 94, 0.1)',
+        tension: 0.1,
+      },
+      {
+        label: 'IQD Revenue',
+        data: businessMetrics.dailyData.map(d => d.revenueIQD),
+        borderColor: 'rgb(168, 85, 247)',
+        backgroundColor: 'rgba(168, 85, 247, 0.1)',
+        tension: 0.1,
+      }
+    ]
+  };
+
+  const transactionChartData = {
+    labels: businessMetrics.dailyData.map(d => d.date),
+    datasets: [
+      {
+        label: 'Daily Transactions',
+        data: businessMetrics.dailyData.map(d => d.transactions),
+        backgroundColor: 'rgba(59, 130, 246, 0.8)',
+        borderColor: 'rgba(59, 130, 246, 1)',
+        borderWidth: 1,
+      }
+    ]
+  };
+
+  const financialBreakdownData = {
+    labels: ['USD Revenue', 'IQD Revenue', 'USD Costs', 'IQD Costs'],
+    datasets: [
+      {
+        data: [
+          businessMetrics.revenueUSD, 
+          businessMetrics.revenueIQD / 1000, // Scale down for better visualization
+          businessMetrics.costUSD,
+          businessMetrics.costIQD / 1000
+        ],
         backgroundColor: [
           'rgba(34, 197, 94, 0.8)',
           'rgba(168, 85, 247, 0.8)',
@@ -474,12 +270,14 @@ export default function AdvancedAnalytics({ admin, t }) {
     ],
   };
 
-  const topProductsChart = {
-    labels: analytics.topProducts.slice(0, 5).map(([name]) => name.length > 15 ? name.substring(0, 15) + '...' : name),
+  const topProductsChartData = {
+    labels: businessMetrics.topProducts.slice(0, 5).map(([name]) => 
+      name.length > 15 ? name.substring(0, 15) + '...' : name
+    ),
     datasets: [
       {
-        label: 'Revenue (Combined)',
-        data: analytics.topProducts.slice(0, 5).map(([, data]) => data.revenueUSD + data.revenueIQD),
+        label: 'Revenue',
+        data: businessMetrics.topProducts.slice(0, 5).map(([, data]) => data.revenue),
         backgroundColor: [
           'rgba(34, 197, 94, 0.8)',
           'rgba(59, 130, 246, 0.8)',
@@ -493,213 +291,337 @@ export default function AdvancedAnalytics({ admin, t }) {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="w-full h-full p-8 space-y-6">
       {/* Header */}
-      <div className="bg-gradient-to-r from-purple-600 via-blue-600 to-indigo-600 rounded-3xl p-8 text-white shadow-2xl">
+      <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 rounded-3xl p-8 text-white shadow-2xl">
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
           <div>
-            <h1 className="text-3xl font-bold mb-2">
-              📊 {t?.advancedAnalytics || 'Advanced Analytics'}
+            <h1 className="text-3xl font-bold mb-2 flex items-center gap-3">
+              <Icon name="barChart3" size={32} />
+              {t?.businessAnalytics || 'Business Analytics'}
             </h1>
-            <p className="text-blue-100 text-lg">
-              {t?.comprehensiveBusinessInsights || 'Comprehensive business insights and performance metrics'}
+            <p className="text-purple-100 text-lg">
+              {t?.practicalInsights || 'Practical insights for daily business management'}
             </p>
           </div>
           
-          {/* Controls */}
-          <div className="flex flex-col gap-3">
+          {/* Time Range Control */}
+          <div className="flex gap-3">
             <select
               value={timeRange}
               onChange={(e) => setTimeRange(e.target.value)}
               className="px-4 py-2 rounded-lg bg-white/20 text-white border border-white/30 backdrop-blur focus:outline-none focus:ring-2 focus:ring-white/50"
             >
-              <option value="24h" className="text-gray-900">Last 24 Hours</option>
               <option value="7days" className="text-gray-900">Last 7 Days</option>
               <option value="30days" className="text-gray-900">Last 30 Days</option>
               <option value="90days" className="text-gray-900">Last 90 Days</option>
-              <option value="1year" className="text-gray-900">Last Year</option>
-              <option value="all" className="text-gray-900">All Time</option>
             </select>
             
             <select
-              value={chartType}
-              onChange={(e) => setChartType(e.target.value)}
+              value={viewMode}
+              onChange={(e) => setViewMode(e.target.value)}
               className="px-4 py-2 rounded-lg bg-white/20 text-white border border-white/30 backdrop-blur focus:outline-none focus:ring-2 focus:ring-white/50"
             >
-              <option value="revenue" className="text-gray-900">Revenue Trend</option>
-              <option value="profit" className="text-gray-900">Profit Trend</option>
-              <option value="transactions" className="text-gray-900">Transaction Volume</option>
+              <option value="overview" className="text-gray-900">Overview</option>
+              <option value="products" className="text-gray-900">Products</option>
+              <option value="inventory" className="text-gray-900">Inventory</option>
             </select>
           </div>
         </div>
       </div>
 
-      {/* Key Metrics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-gradient-to-br from-green-400 to-emerald-500 rounded-2xl p-6 text-white shadow-lg">
+      {/* Key Performance Indicators */}
+      <div className="grid grid-cols-4 gap-6">
+        {/* Total Revenue */}
+        <div className="bg-gradient-to-br from-green-400 to-emerald-500 rounded-2xl p-6 text-white shadow-lg transform hover:scale-105 transition-transform">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-3xl">💰</span>
-            <span className="text-green-100 text-sm">{t?.totalRevenue || 'Total Revenue'}</span>
+            <Icon name="dollarSign" size={24} />
+            <span className="text-green-100 text-sm font-medium">{t?.totalRevenue || 'Total Revenue'}</span>
           </div>
-          <div className="text-2xl font-bold">{formatCurrency(analytics.revenueUSD, 'USD')}</div>
-          <div className="text-xl font-bold">{formatCurrency(analytics.revenueIQD, 'IQD')}</div>
-          <div className="text-green-100 text-sm">{timeRange.replace(/(\d+)/, '$1 ')}</div>
+          <div className="text-2xl font-bold mb-1">{formatCurrency(businessMetrics.revenueUSD, 'USD')}</div>
+          <div className="text-xl font-bold mb-2">{formatCurrency(businessMetrics.revenueIQD, 'IQD')}</div>
+          <div className="text-green-100 text-sm">
+            {timeRange === '7days' ? 'Last 7 days' : timeRange === '90days' ? 'Last 90 days' : 'Last 30 days'}
+          </div>
         </div>
 
-        <div className="bg-gradient-to-br from-blue-400 to-indigo-500 rounded-2xl p-6 text-white shadow-lg">
+        {/* Net Profit */}
+        <div className="bg-gradient-to-br from-blue-400 to-indigo-500 rounded-2xl p-6 text-white shadow-lg transform hover:scale-105 transition-transform">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-3xl">📈</span>
-            <span className="text-blue-100 text-sm">{t?.netProfit || 'Net Profit'}</span>
+            <Icon name="trendingUp" size={24} />
+            <span className="text-blue-100 text-sm font-medium">{t?.netProfit || 'Net Profit'}</span>
           </div>
-          <div className="text-2xl font-bold">{formatCurrency(analytics.netProfitUSD, 'USD')}</div>
-          <div className="text-xl font-bold">{formatCurrency(analytics.netProfitIQD, 'IQD')}</div>
-          <div className="text-blue-100 text-sm">{t?.afterExpenses || 'After Expenses'}</div>
+          <div className="text-2xl font-bold mb-1">{formatCurrency(businessMetrics.profitUSD, 'USD')}</div>
+          <div className="text-xl font-bold mb-2">{formatCurrency(businessMetrics.profitIQD, 'IQD')}</div>
+          <div className="text-blue-100 text-sm">
+            Margin: {businessMetrics.profitMarginUSD.toFixed(1)}% / {businessMetrics.profitMarginIQD.toFixed(1)}%
+          </div>
         </div>
 
-        <div className="bg-gradient-to-br from-purple-400 to-pink-500 rounded-2xl p-6 text-white shadow-lg">
+        {/* Transactions */}
+        <div className="bg-gradient-to-br from-purple-400 to-pink-500 rounded-2xl p-6 text-white shadow-lg transform hover:scale-105 transition-transform">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-3xl">🛒</span>
-            <span className="text-purple-100 text-sm">{t?.transactions || 'Transactions'}</span>
+            <Icon name="shoppingCart" size={24} />
+            <span className="text-purple-100 text-sm font-medium">{t?.transactions || 'Transactions'}</span>
           </div>
-          <div className="text-3xl font-bold">{analytics.totalTransactions.toLocaleString()}</div>
-          <div className="text-purple-100 text-sm">{t?.averageValue || 'Avg Value'}: {formatCurrency(analytics.averageOrderValue)}</div>
+          <div className="text-3xl font-bold mb-2">{businessMetrics.totalTransactions.toLocaleString()}</div>
+          <div className="text-purple-100 text-sm">
+            Avg: {formatCurrency(businessMetrics.averageOrderValue, 'USD')}
+          </div>
         </div>
 
-        <div className="bg-gradient-to-br from-yellow-400 to-orange-500 rounded-2xl p-6 text-white shadow-lg">
+        {/* Outstanding Debts */}
+        <div className="bg-gradient-to-br from-red-400 to-pink-500 rounded-2xl p-6 text-white shadow-lg transform hover:scale-105 transition-transform">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-3xl">💳</span>
-            <span className="text-yellow-100 text-sm">{t?.outstandingDebts || 'Outstanding Debts'}</span>
+            <Icon name="alertTriangle" size={24} />
+            <span className="text-red-100 text-sm font-medium">{t?.outstandingDebts || 'Outstanding Debts'}</span>
           </div>
-          <div className="text-2xl font-bold">{formatCurrency(analytics.outstandingDebtUSD, 'USD')}</div>
-          <div className="text-xl font-bold">{formatCurrency(analytics.outstandingDebtIQD, 'IQD')}</div>
-          <div className="text-yellow-100 text-sm">{t?.customerDebts || 'Customer Debts'}</div>
+          <div className="text-2xl font-bold mb-1">{formatCurrency(businessMetrics.outstandingUSD, 'USD')}</div>
+          <div className="text-xl font-bold mb-2">{formatCurrency(businessMetrics.outstandingIQD, 'IQD')}</div>
+          <div className="text-red-100 text-sm">{t?.needsCollection || 'Needs Collection'}</div>
         </div>
       </div>
 
       {/* Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Main Trend Chart */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg border border-gray-200 dark:border-gray-700">
-          <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">
-            📊 {chartType === 'revenue' ? (t?.revenueTrend || 'Revenue Trend') : 
-                chartType === 'profit' ? (t?.profitTrend || 'Profit Trend') : 
-                (t?.transactionTrend || 'Transaction Trend')}
-          </h3>
-          <div className="h-80">
-            {chartType === 'transactions' ? (
-              <Bar data={getChartData()} options={{ responsive: true, maintainAspectRatio: false }} />
-            ) : (
-              <Line data={getChartData()} options={{ responsive: true, maintainAspectRatio: false }} />
-            )}
+      {viewMode === 'overview' && (
+        <div className="grid grid-cols-2 gap-6">
+          {/* Revenue Trend */}
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg border border-gray-200 dark:border-gray-700">
+            <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
+              <Icon name="barChart3" size={20} />
+              {t?.revenueTrend || 'Revenue Trend'}
+            </h3>
+            <div className="h-80">
+              <Line data={revenueChartData} options={{ 
+                responsive: true, 
+                maintainAspectRatio: false,
+                scales: {
+                  y: {
+                    beginAtZero: true
+                  }
+                }
+              }} />
+            </div>
+          </div>
+
+          {/* Transaction Volume */}
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg border border-gray-200 dark:border-gray-700">
+            <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
+              <Icon name="package" size={20} />
+              {t?.transactionVolume || 'Transaction Volume'}
+            </h3>
+            <div className="h-80">
+              <Bar data={transactionChartData} options={{ 
+                responsive: true, 
+                maintainAspectRatio: false,
+                scales: {
+                  y: {
+                    beginAtZero: true
+                  }
+                }
+              }} />
+            </div>
           </div>
         </div>
+      )}
 
-        {/* Financial Overview Pie Chart */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg border border-gray-200 dark:border-gray-700">
-          <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">
-            🥧 {t?.financialBreakdown || 'Financial Breakdown'}
-          </h3>
-          <div className="h-80">
-            <Pie data={pieChartData} options={{ responsive: true, maintainAspectRatio: false }} />
+      {/* Products View */}
+      {viewMode === 'products' && (
+        <div className="grid grid-cols-2 gap-6">
+          {/* Top Products */}
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg border border-gray-200 dark:border-gray-700">
+            <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
+              <Icon name="award" size={20} />
+              {t?.topProducts || 'Top Selling Products'}
+            </h3>
+            <div className="h-80">
+              <Bar data={topProductsChartData} options={{ 
+                responsive: true, 
+                maintainAspectRatio: false,
+                indexAxis: 'y',
+              }} />
+            </div>
+          </div>
+
+          {/* Product Performance Table */}
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg border border-gray-200 dark:border-gray-700">
+            <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
+              <Icon name="fileText" size={20} />
+              {t?.productPerformance || 'Product Performance'}
+            </h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-200 dark:border-gray-700">
+                    <th className="text-left p-2">{t?.product || 'Product'}</th>
+                    <th className="text-center p-2">{t?.sold || 'Sold'}</th>
+                    <th className="text-right p-2">{t?.revenue || 'Revenue'}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {businessMetrics.topProducts.slice(0, 8).map(([name, data], idx) => (
+                    <tr key={idx} className="border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
+                      <td className="p-2 font-medium">{name.length > 20 ? name.substring(0, 20) + '...' : name}</td>
+                      <td className="p-2 text-center">{data.quantity}</td>
+                      <td className="p-2 text-right">{formatCurrency(data.revenue)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
-      {/* Additional Analytics */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Top Products */}
+      {/* Inventory View */}
+      {viewMode === 'inventory' && (
+        <div className="grid grid-cols-2 gap-6">
+          {/* Low Stock Alert */}
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg border border-gray-200 dark:border-gray-700">
+            <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
+              <Icon name="alertTriangle" size={20} />
+              {t?.lowStockAlert || 'Low Stock Alert'} 
+              <span className="ml-2 bg-red-500 text-white text-xs px-2 py-1 rounded-full">
+                {businessMetrics.lowStockItems.length}
+              </span>
+            </h3>
+            <div className="space-y-3 max-h-80 overflow-y-auto">
+              {businessMetrics.lowStockItems.length === 0 ? (
+                <p className="text-gray-500 text-center py-8">{t?.noLowStock || 'All products are well stocked!'}</p>
+              ) : (
+                businessMetrics.lowStockItems.map((product, idx) => (
+                  <div key={idx} className="flex justify-between items-center p-3 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
+                    <div>
+                      <span className="font-medium text-gray-900 dark:text-gray-100">{product.name}</span>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">{product.brand || 'No brand'}</p>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-red-600 font-bold">{product.stock} left</div>
+                      <div className="text-sm text-gray-500">{formatCurrency(product.selling_price, product.currency)}</div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* High Value Inventory */}
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg border border-gray-200 dark:border-gray-700">
+            <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
+              <Icon name="star" size={20} />
+              {t?.highValueStock || 'High Value Stock'}
+            </h3>
+            <div className="space-y-3 max-h-80 overflow-y-auto">
+              {businessMetrics.highValueStock.map((product, idx) => (
+                <div key={idx} className="flex justify-between items-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                  <div>
+                    <span className="font-medium text-gray-900 dark:text-gray-100">{product.name}</span>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">{product.brand || 'No brand'}</p>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-blue-600 font-bold">
+                      {formatCurrency(product.selling_price * product.stock, product.currency)}
+                    </div>
+                    <div className="text-sm text-gray-500">{product.stock} units</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Financial Overview */}
+      <div className="grid grid-cols-3 gap-6">
+        {/* Financial Breakdown Chart */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg border border-gray-200 dark:border-gray-700">
-          <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">
-            🏆 {t?.topProducts || 'Top Products'}
+          <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
+            <Icon name="dollarSign" size={20} />
+            {t?.financialBreakdown || 'Financial Breakdown'}
           </h3>
-          <div className="h-80">
-            <Bar data={topProductsChart} options={{ 
+          <div className="h-64">
+            <Doughnut data={financialBreakdownData} options={{ 
               responsive: true, 
-              maintainAspectRatio: false,
-              indexAxis: 'y',
+              maintainAspectRatio: false 
             }} />
           </div>
         </div>
 
-        {/* Business Health Metrics */}
+        {/* Current Financial Position */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg border border-gray-200 dark:border-gray-700">
-          <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">
-            🏥 {t?.businessHealth || 'Business Health'}
+          <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
+            <Icon name="building2" size={20} />
+            {t?.currentPosition || 'Current Position'}
           </h3>
           <div className="space-y-4">
-            <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-              <span className="text-gray-700 dark:text-gray-300">{t?.currentBalance || 'Current Balance'}:</span>
+            <div className="flex justify-between items-center p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+              <span className="text-gray-700 dark:text-gray-300">{t?.cashOnHand || 'Cash on Hand'}:</span>
               <div className="text-right">
                 <div className="font-bold text-green-600">{formatCurrency(balances.usd_balance || 0, 'USD')}</div>
-                <div className="font-bold text-purple-600">{formatCurrency(balances.iqd_balance || 0, 'IQD')}</div>
+                <div className="font-bold text-green-600">{formatCurrency(balances.iqd_balance || 0, 'IQD')}</div>
               </div>
             </div>
             
-            <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-              <span className="text-gray-700 dark:text-gray-300">{t?.activeLoans || 'Active Loans'}:</span>
+            <div className="flex justify-between items-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+              <span className="text-gray-700 dark:text-gray-300">{t?.totalProfit || 'Total Profit'}:</span>
               <div className="text-right">
-                <div className="font-bold text-red-600">{formatCurrency(analytics.activeLoanUSD, 'USD')}</div>
-                <div className="font-bold text-red-600">{formatCurrency(analytics.activeLoanIQD, 'IQD')}</div>
+                <div className="font-bold text-blue-600">{formatCurrency(businessMetrics.profitUSD, 'USD')}</div>
+                <div className="font-bold text-blue-600">{formatCurrency(businessMetrics.profitIQD, 'IQD')}</div>
               </div>
             </div>
             
-            <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-              <span className="text-gray-700 dark:text-gray-300">{t?.profitMargin || 'Profit Margin'}:</span>
+            <div className="flex justify-between items-center p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
+              <span className="text-gray-700 dark:text-gray-300">{t?.moneyOwed || 'Money Owed'}:</span>
               <div className="text-right">
-                <div className="font-bold text-blue-600">
-                  {analytics.revenueUSD > 0 ? ((analytics.profitUSD / analytics.revenueUSD) * 100).toFixed(1) : 0}% USD
-                </div>
-                <div className="font-bold text-indigo-600">
-                  {analytics.revenueIQD > 0 ? ((analytics.profitIQD / analytics.revenueIQD) * 100).toFixed(1) : 0}% IQD
-                </div>
-              </div>
-            </div>
-            
-            <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-              <span className="text-gray-700 dark:text-gray-300">{t?.cashFlow || 'Cash Flow'}:</span>
-              <div className="text-right">
-                <div className={`font-bold ${analytics.netProfitUSD >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {formatCurrency(analytics.netProfitUSD, 'USD')}
-                </div>
-                <div className={`font-bold ${analytics.netProfitIQD >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {formatCurrency(analytics.netProfitIQD, 'IQD')}
-                </div>
+                <div className="font-bold text-red-600">{formatCurrency(businessMetrics.outstandingUSD, 'USD')}</div>
+                <div className="font-bold text-red-600">{formatCurrency(businessMetrics.outstandingIQD, 'IQD')}</div>
               </div>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Detailed Product Performance */}
-      <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg border border-gray-200 dark:border-gray-700">
-        <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">
-          📋 {t?.detailedProductPerformance || 'Detailed Product Performance'}
-        </h3>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-200 dark:border-gray-700">
-                <th className="text-left p-3">{t?.product || 'Product'}</th>
-                <th className="text-center p-3">{t?.quantity || 'Qty'}</th>
-                <th className="text-right p-3">{t?.revenueUSD || 'Revenue USD'}</th>
-                <th className="text-right p-3">{t?.revenueIQD || 'Revenue IQD'}</th>
-                <th className="text-right p-3">{t?.profitUSD || 'Profit USD'}</th>
-                <th className="text-right p-3">{t?.profitIQD || 'Profit IQD'}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {analytics.topProducts.slice(0, 10).map(([name, data], idx) => (
-                <tr key={idx} className="border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
-                  <td className="p-3 font-medium">{name}</td>
-                  <td className="p-3 text-center">{data.quantity}</td>
-                  <td className="p-3 text-right">{formatCurrency(data.revenueUSD, 'USD')}</td>
-                  <td className="p-3 text-right">{formatCurrency(data.revenueIQD, 'IQD')}</td>
-                  <td className="p-3 text-right text-green-600">{formatCurrency(data.profitUSD, 'USD')}</td>
-                  <td className="p-3 text-right text-green-600">{formatCurrency(data.profitIQD, 'IQD')}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        {/* Quick Actions */}
+        <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg border border-gray-200 dark:border-gray-700">
+          <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
+            <Icon name="zap" size={20} />
+            {t?.quickActions || 'Quick Actions'}
+          </h3>
+          <div className="space-y-3">
+            <button 
+              onClick={() => admin.setActiveSection('customerDebts')}
+              className="w-full p-3 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-300 rounded-lg border border-yellow-200 dark:border-yellow-800 hover:bg-yellow-100 dark:hover:bg-yellow-900/30 transition-colors text-left flex items-center gap-2"
+            >
+              <Icon name="creditCard" size={16} />
+              <div>
+                <div className="font-medium">{t?.collectDebts || 'Collect Outstanding Debts'}</div>
+                <div className="text-sm opacity-75">
+                  {formatCurrency(businessMetrics.outstandingUSD, 'USD')} + {formatCurrency(businessMetrics.outstandingIQD, 'IQD')}
+                </div>
+              </div>
+            </button>
+            
+            <button 
+              onClick={() => admin.setActiveSection('active')}
+              className="w-full p-3 bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-300 rounded-lg border border-red-200 dark:border-red-800 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors text-left flex items-center gap-2"
+            >
+              <Icon name="package" size={16} />
+              <div>
+                <div className="font-medium">{t?.restockItems || 'Restock Low Items'}</div>
+                <div className="text-sm opacity-75">{businessMetrics.lowStockItems.length} items need attention</div>
+              </div>
+            </button>
+            
+            <button 
+              onClick={() => admin.setActiveSection('monthlyReports')}
+              className="w-full p-3 bg-blue-50 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300 rounded-lg border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-left flex items-center gap-2"
+            >
+              <Icon name="barChart3" size={16} />
+              <div>
+                <div className="font-medium">{t?.viewReports || 'View Detailed Reports'}</div>
+                <div className="text-sm opacity-75">{t?.comprehensiveAnalysis || 'Comprehensive analysis'}</div>
+              </div>
+            </button>
+          </div>
         </div>
       </div>
     </div>

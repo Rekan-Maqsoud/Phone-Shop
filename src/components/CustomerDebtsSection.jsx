@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useData } from '../contexts/DataContext';
 import CustomerDebtPaymentModal from './CustomerDebtPaymentModal';
 import UniversalPaymentModal from './UniversalPaymentModal';
+import { Icon } from '../utils/icons.jsx';
 
 const CustomerDebtsSection = ({ 
   t, 
@@ -50,16 +51,16 @@ const CustomerDebtsSection = ({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="w-full h-full p-8 space-y-8">
       {/* Header and Controls */}
-      <div className="bg-white/60 dark:bg-gray-800/80 rounded-2xl shadow p-6 border border-white/20">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8">
         <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between mb-6">
           <div>
             <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-2">
-              👥 {t.customerDebts || 'Customer Debts'}
+              {t.searchAndFilters || 'Search and Filters'}
             </h2>
             <p className="text-sm text-gray-600 dark:text-gray-400">
-              {t.customerDebtsDesc || 'Track money owed to you by customers'}
+              {t.searchDebtsDesc || 'Search and filter customer debts'}
             </p>
           </div>
           
@@ -73,7 +74,7 @@ const CustomerDebtsSection = ({
                 onChange={(e) => setDebtSearch(e.target.value)}
                 className="border rounded-xl px-4 py-2 pl-10 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-400 dark:focus:ring-purple-600 transition min-w-[200px]"
               />
-              <span className="absolute left-3 top-2.5 text-gray-400">🔍</span>
+              <Icon name="search" className="absolute left-3 top-2.5 text-gray-400" size={20} />
               {debtSearch && (
                 <button
                   onClick={() => setDebtSearch('')}
@@ -94,10 +95,10 @@ const CustomerDebtsSection = ({
               }}
               className="border rounded-xl px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-400"
             >
-              <option value="date-desc">📅 {t.newestFirst || 'Newest First'}</option>
-              <option value="date-asc">📅 {t.oldestFirst || 'Oldest First'}</option>
-              <option value="amount-desc">💰 {t.highestAmount || 'Highest Amount'}</option>
-              <option value="amount-asc">💰 {t.lowestAmount || 'Lowest Amount'}</option>
+              <option value="date-desc"><Icon name="calendar" size={14} className="inline mr-1" />{t.newestFirst || 'Newest First'}</option>
+              <option value="date-asc"><Icon name="calendar" size={14} className="inline mr-1" />{t.oldestFirst || 'Oldest First'}</option>
+              <option value="amount-desc"><Icon name="dollar-sign" size={14} className="inline mr-1" />{t.highestAmount || 'Highest Amount'}</option>
+              <option value="amount-asc"><Icon name="dollar-sign" size={14} className="inline mr-1" />{t.lowestAmount || 'Lowest Amount'}</option>
               <option value="customer-asc">👤 {t.customerAZ || 'Customer A-Z'}</option>
               <option value="customer-desc">👤 {t.customerZA || 'Customer Z-A'}</option>
             </select>
@@ -111,7 +112,17 @@ const CustomerDebtsSection = ({
                   : 'bg-red-600 text-white hover:bg-red-700'
               }`}
             >
-              {showPaidDebts ? '✅ ' + (t.paidDebts || 'Paid Debts') : '💸 ' + (t.outstandingDebts || 'Outstanding Debts')}
+              {showPaidDebts ? (
+                <>
+                  <Icon name="check" size={16} className="mr-2" />
+                  {t.paidDebts || 'Paid Debts'}
+                </>
+              ) : (
+                <>
+                  <Icon name="creditCard" size={16} className="mr-2" />
+                  {t.outstandingDebts || 'Outstanding Debts'}
+                </>
+              )}
             </button>
           </div>
         </div>
@@ -193,8 +204,10 @@ const CustomerDebtsSection = ({
 
         if (admin.debtSales.length === 0) {
           return (
-            <div className="text-center py-12 bg-white/60 dark:bg-gray-800/80 rounded-2xl shadow border border-white/20">
-              <div className="text-6xl mb-4">💸</div>
+            <div className="text-center py-12 bg-gray-50 dark:bg-gray-700 rounded-xl">
+              <div className="p-4 bg-gray-100 dark:bg-gray-800 rounded-full mx-auto mb-4 w-16 h-16 flex items-center justify-center">
+                <Icon name="wallet" size={32} className="text-gray-400" />
+              </div>
               <div className="text-gray-500 dark:text-gray-400 text-lg">
                 {t.noCustomerDebts || 'No customer debts found'}
               </div>
@@ -207,8 +220,10 @@ const CustomerDebtsSection = ({
 
         if (filteredGroups.length === 0) {
           return (
-            <div className="text-center py-12 bg-white/60 dark:bg-gray-800/80 rounded-2xl shadow border border-white/20">
-              <div className="text-6xl mb-4">🔍</div>
+            <div className="text-center py-12 bg-gray-50 dark:bg-gray-700 rounded-xl">
+              <div className="p-4 bg-gray-100 dark:bg-gray-800 rounded-full mx-auto mb-4 w-16 h-16 flex items-center justify-center">
+                <Icon name="search" size={32} className="text-gray-400" />
+              </div>
               <div className="text-gray-500 dark:text-gray-400 text-lg">
                 {t.noCustomerDebtsFound || 'No customer debts found for this search'}
               </div>
@@ -227,8 +242,8 @@ const CustomerDebtsSection = ({
           <>
             {/* Summary Card */}
             <div className="bg-gradient-to-r from-red-500/20 to-orange-500/20 dark:from-red-900/40 dark:to-orange-900/40 rounded-2xl p-6 shadow border border-red-200/30 dark:border-red-700/30">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="text-center md:text-left">
+              <div className="grid grid-cols-4 gap-4">
+                <div className="text-left">
                   <div className="text-lg font-bold text-red-600 dark:text-red-400">
                     ${totalAmountUSD.toFixed(2)}
                   </div>
@@ -274,7 +289,7 @@ const CustomerDebtsSection = ({
                 const isExpanded = expandedCustomers.has(normalizedCustomer);
                 
                 return (
-                  <div key={normalizedCustomer} className="bg-white/60 dark:bg-gray-800/80 rounded-2xl shadow border border-white/20 overflow-hidden">
+                  <div key={normalizedCustomer} className="bg-gray-50 dark:bg-gray-700 rounded-xl shadow overflow-hidden mb-6">
                     {/* Customer Header - Clickable to expand/collapse */}
                     <div 
                       className="p-6 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 transition"
@@ -326,7 +341,8 @@ const CustomerDebtsSection = ({
                               }}
                               className="px-3 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm flex items-center gap-1 whitespace-nowrap"
                             >
-                              💰 {t.payDebt || 'Pay Debt'}
+                              <Icon name="dollar-sign" size={16} className="mr-2" />
+                              {t.payDebt || 'Pay Debt'}
                             </button>
                           )}
                           
@@ -348,7 +364,8 @@ const CustomerDebtsSection = ({
                               <div className="flex-1">
                                 <div className="flex items-center gap-3 mb-2">
                                   <div className="text-sm text-gray-600 dark:text-gray-400">
-                                    📅 {new Date(sale.created_at).toLocaleDateString()} at {new Date(sale.created_at).toLocaleTimeString()}
+                                    <Icon name="calendar" size={12} className="mr-1" />
+                                    {new Date(sale.created_at).toLocaleDateString()} at {new Date(sale.created_at).toLocaleTimeString()}
                                   </div>
                                   <div className="text-xs font-medium px-2 py-1 rounded bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
                                     {sale.currency || 'USD'}
@@ -358,7 +375,17 @@ const CustomerDebtsSection = ({
                                       ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' 
                                       : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
                                   }`}>
-                                    {debt?.paid_at ? '✅ ' + (t.paid || 'Paid') : '💸 ' + (t.unpaid || 'Unpaid')}
+                                    {debt?.paid_at ? (
+                                      <>
+                                        <Icon name="check" size={12} className="mr-1" />
+                                        {t.paid || 'Paid'}
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Icon name="creditCard" size={12} className="mr-1" />
+                                        {t.unpaid || 'Unpaid'}
+                                      </>
+                                    )}
                                   </div>
                                 </div>
                                 
@@ -425,7 +452,8 @@ const CustomerDebtsSection = ({
                                       }}
                                       className="px-3 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm flex items-center gap-1"
                                     >
-                                      💰 {t.markPaid || 'Mark Paid'}
+                                      <Icon name="check" size={16} className="mr-2" />
+                                      {t.markPaid || 'Mark Paid'}
                                     </button>
                                   </>
                                 )}

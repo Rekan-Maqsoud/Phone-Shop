@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useLocale } from '../contexts/LocaleContext';
+import { Icon } from '../utils/icons';
 
 export default function HistorySearchFilter({
   data = [],
@@ -241,8 +242,9 @@ export default function HistorySearchFilter({
     <div className="bg-white/60 dark:bg-gray-800/80 rounded-2xl shadow p-6 border border-white/20">
       <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between mb-6">
         <div>
-          <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-2">
-            🔍 {t?.searchAndFilter || 'Search & Filter'}
+          <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-2 flex items-center gap-2">
+            <Icon name="search" size={20} />
+            {t?.searchAndFilter || 'Search & Filter'}
           </h3>
           <p className="text-sm text-gray-600 dark:text-gray-400">
             {t?.searchFilterDesc || 'Filter your data by name, date, or range'}
@@ -262,7 +264,9 @@ export default function HistorySearchFilter({
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full border rounded-xl px-4 py-2 pl-10 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-600 transition"
               />
-              <span className="absolute left-3 top-2.5 text-gray-400">🔍</span>
+              <span className="absolute left-3 top-2.5 text-gray-400">
+                <Icon name="search" size={16} />
+              </span>
             </div>
           </div>
         )}
@@ -496,9 +500,10 @@ export default function HistorySearchFilter({
           {(searchTerm || presetPeriod || singleDay || singleMonth || singleYear || startDay || startMonth || startYear || endDay || endMonth || endYear) && (
             <button
               onClick={clearFilters}
-              className="px-3 py-2 bg-gray-600 text-white rounded-xl hover:bg-gray-700 transition text-sm"
+              className="px-3 py-2 bg-gray-600 text-white rounded-xl hover:bg-gray-700 transition text-sm flex items-center gap-1"
             >
-              🗑️ {t?.clearFilters || 'Clear'}
+              <Icon name="trash2" size={14} />
+              {t?.clearFilters || 'Clear'}
             </button>
           )}
         </div>

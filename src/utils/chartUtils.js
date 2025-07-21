@@ -10,19 +10,19 @@ import { EXCHANGE_RATES } from './exchangeRates';
 export const formatCurrency = (amount, currency = 'USD') => {
   if (currency === 'IQD') {
     // IQD always shows as whole numbers (no decimals ever)
-    return `${Math.round(amount).toLocaleString()} IQD`;
+    return `${Math.round(amount).toLocaleString()} د.ع`;
   }
   
   // For USD: Show whole numbers when possible, otherwise show minimal decimals
   const numAmount = Number(amount);
   if (numAmount === Math.floor(numAmount)) {
     // It's a whole number, show without decimals
-    return `$${Math.floor(numAmount).toLocaleString()}`;
+    return `${Math.floor(numAmount).toLocaleString()} USD`;
   } else {
     // It has decimals, format with minimal decimal places
     const formatted = numAmount.toFixed(2);
     const cleanFormatted = formatted.replace(/\.?0+$/, '');
-    return `$${cleanFormatted}`;
+    return `${cleanFormatted} USD`;
   }
 };
 

@@ -23,7 +23,6 @@ import AdvancedAnalytics from '../components/AdvancedAnalytics';
 import AdminLoadingFallback from '../components/AdminLoadingFallback';
 import ExchangeRateIndicator from '../components/ExchangeRateIndicator';
 import MonthlyReportsSection from '../components/MonthlyReportsSection';
-import BackupSettingsSection from '../components/BackupSettingsSection';
 import { Icon } from '../utils/icons.jsx';
 
 export default function Admin() {
@@ -59,8 +58,9 @@ export default function Admin() {
 
   // Update language on change
   useEffect(() => {
+    if (admin.setLang) admin.setLang(lang);
     localStorage.setItem('lang', lang);
-  }, [lang]);
+  }, [lang, admin.setLang]);
   
   // Load exchange rates from database on mount
   useEffect(() => {
@@ -114,82 +114,21 @@ export default function Admin() {
   const criticalStockProducts = useMemo(() => products.filter(p => p.stock <= 2 && !p.archived), [products]);
   const lowStockProducts = useMemo(() => products.filter(p => p.stock > 2 && p.stock < admin.lowStockThreshold && !p.archived), [products, admin.lowStockThreshold]);
 
-  // Memoize nav items for performance with keyboard shortcuts and colors
+  // Memoize nav items for performance with keyboard shortcuts
   const navItems = useMemo(() => [
-    { key: 'multiCurrencyDashboard', label: t.multiCurrencyDashboard || 'Multi-Currency Dashboard', icon: 'multiCurrency', shortcut: '1', color: 'blue' },
-    { key: 'active', label: t.products, icon: 'products', shortcut: '2', color: 'green' },
-    { key: 'accessories', label: t.accessories, icon: 'accessories', shortcut: '3', color: 'orange' },
-    { key: 'archived', label: t.archivedProducts, icon: 'archived', shortcut: '4', color: 'gray' },
-    { key: 'salesHistory', label: t.salesHistory, icon: 'salesHistory', shortcut: '5', color: 'emerald' },
-    { key: 'buyingHistory', label: t.buyingHistory, icon: 'buyingHistory', shortcut: '6', color: 'purple' },
-    { key: 'customerDebts', label: t.customerDebts, icon: 'customerDebts', shortcut: '7', color: 'red' },
-    { key: 'companyDebts', label: t.companyDebts, icon: 'companyDebts', shortcut: '8', color: 'yellow' },
-    { key: 'incentives', label: t.incentives, icon: 'incentives', shortcut: '9', color: 'pink' },
-    { key: 'personalLoans', label: t.personalLoans, icon: 'personalLoans', shortcut: '0', color: 'indigo' },
-    { key: 'monthlyReports', label: t.monthlyReports, icon: 'monthlyReports', shortcut: 'R', color: 'teal' },
-    { key: 'advancedAnalytics', label: t.businessAnalytics || 'Business Analytics', icon: 'barChart3', shortcut: 'A', color: 'cyan' },
-    { key: 'backupSettings', label: t.backupSettings || 'Backup & Settings', icon: 'cloud', shortcut: 'B', color: 'slate' }
+    { key: 'multiCurrencyDashboard', label: t.multiCurrencyDashboard || 'Multi-Currency Dashboard', icon: 'multiCurrency', shortcut: '1' },
+    { key: 'active', label: t.products, icon: 'products', shortcut: '2' },
+    { key: 'accessories', label: t.accessories, icon: 'accessories', shortcut: '3' },
+    { key: 'archived', label: t.archivedProducts, icon: 'archived', shortcut: '4' },
+    { key: 'salesHistory', label: t.salesHistory, icon: 'salesHistory', shortcut: '5' },
+    { key: 'buyingHistory', label: t.buyingHistory, icon: 'buyingHistory', shortcut: '6' },
+    { key: 'customerDebts', label: t.customerDebts, icon: 'customerDebts', shortcut: '7' },
+    { key: 'companyDebts', label: t.companyDebts, icon: 'companyDebts', shortcut: '8' },
+    { key: 'incentives', label: t.incentives, icon: 'incentives', shortcut: '9' },
+    { key: 'personalLoans', label: t.personalLoans, icon: 'personalLoans', shortcut: '0' },
+    { key: 'monthlyReports', label: t.monthlyReports, icon: 'monthlyReports', shortcut: 'R' },
+    { key: 'advancedAnalytics', label: t.businessAnalytics || 'Business Analytics', icon: 'barChart3', shortcut: 'A' }
   ], [t]);
-
-  // Helper function to get color classes with proper light mode support
-  const getColorClasses = (color, isActive) => {
-    const colorMap = {
-      blue: {
-        active: 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 border-l-4 border-blue-500',
-        inactive: 'text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 dark:hover:text-blue-400'
-      },
-      green: {
-        active: 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 border-l-4 border-green-500',
-        inactive: 'text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/20 hover:text-green-600 dark:hover:text-green-400'
-      },
-      orange: {
-        active: 'bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300 border-l-4 border-orange-500',
-        inactive: 'text-gray-700 dark:text-gray-300 hover:bg-orange-50 dark:hover:bg-orange-900/20 hover:text-orange-600 dark:hover:text-orange-400'
-      },
-      gray: {
-        active: 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-l-4 border-gray-500',
-        inactive: 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 hover:text-gray-600 dark:hover:text-gray-400'
-      },
-      emerald: {
-        active: 'bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300 border-l-4 border-emerald-500',
-        inactive: 'text-gray-700 dark:text-gray-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 hover:text-emerald-600 dark:hover:text-emerald-400'
-      },
-      purple: {
-        active: 'bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 border-l-4 border-purple-500',
-        inactive: 'text-gray-700 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-600 dark:hover:text-purple-400'
-      },
-      red: {
-        active: 'bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 border-l-4 border-red-500',
-        inactive: 'text-gray-700 dark:text-gray-300 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400'
-      },
-      yellow: {
-        active: 'bg-yellow-100 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-300 border-l-4 border-yellow-500',
-        inactive: 'text-gray-700 dark:text-gray-300 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 hover:text-yellow-600 dark:hover:text-yellow-400'
-      },
-      pink: {
-        active: 'bg-pink-100 dark:bg-pink-900 text-pink-700 dark:text-pink-300 border-l-4 border-pink-500',
-        inactive: 'text-gray-700 dark:text-gray-300 hover:bg-pink-50 dark:hover:bg-pink-900/20 hover:text-pink-600 dark:hover:text-pink-400'
-      },
-      indigo: {
-        active: 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 border-l-4 border-indigo-500',
-        inactive: 'text-gray-700 dark:text-gray-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 hover:text-indigo-600 dark:hover:text-indigo-400'
-      },
-      teal: {
-        active: 'bg-teal-100 dark:bg-teal-900 text-teal-700 dark:text-teal-300 border-l-4 border-teal-500',
-        inactive: 'text-gray-700 dark:text-gray-300 hover:bg-teal-50 dark:hover:bg-teal-900/20 hover:text-teal-600 dark:hover:text-teal-400'
-      },
-      cyan: {
-        active: 'bg-cyan-100 dark:bg-cyan-900 text-cyan-700 dark:text-cyan-300 border-l-4 border-cyan-500',
-        inactive: 'text-gray-700 dark:text-gray-300 hover:bg-cyan-50 dark:hover:bg-cyan-900/20 hover:text-cyan-600 dark:hover:text-cyan-400'
-      },
-      slate: {
-        active: 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 border-l-4 border-slate-500',
-        inactive: 'text-gray-700 dark:text-gray-300 hover:bg-slate-50 dark:hover:bg-slate-900/20 hover:text-slate-600 dark:hover:text-slate-400'
-      }
-    };
-    
-    return colorMap[color]?.[isActive ? 'active' : 'inactive'] || colorMap.blue[isActive ? 'active' : 'inactive'];
-  };
 
   // Helper functions
   const closeAddPurchaseModal = useCallback(() => {
@@ -224,12 +163,18 @@ export default function Admin() {
         e.preventDefault();
         setSection(navItem.key);
         playNavigationSound();
+        admin.setActiveSection(navItem.key);
       }
     };
 
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [navItems, section]);
+  }, [navItems, section, admin]);
+
+  // Set active section when component state changes
+  useEffect(() => {
+    admin.setActiveSection(section);
+  }, [section, admin]);
 
   // Early loading state with improved fallback
   if (dataLoading && !apiReady) {
@@ -244,27 +189,27 @@ export default function Admin() {
           <Icon name="alertCircle" size={64} />
         </div>
         <h2 className="text-2xl font-bold text-red-600 dark:text-red-400 mb-4">
-          {t.adminRenderError || 'Admin Render Error'}
+          Admin Render Error
         </h2>
         <p className="text-gray-600 dark:text-gray-300 mb-6 text-lg">
-          {t.adminRenderErrorDesc || 'The admin interface encountered a rendering error. This might be due to data corruption or missing dependencies.'}
+          The admin interface encountered a rendering error. This might be due to data corruption or missing dependencies.
         </p>
         <div className="space-y-3">
           <button
             onClick={() => window.location.reload()}
             className="w-full px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-lg font-medium"
           >
-            {t.reloadApplication || 'Reload Application'}
+            Reload Application
           </button>
           <button
             onClick={() => navigate('/cashier')}
             className="w-full px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-lg font-medium"
           >
-            {t.goToCashier || 'Go to Cashier'}
+            Go to Cashier
           </button>
         </div>
         <details className="mt-6 text-left">
-          <summary className="cursor-pointer text-sm text-gray-500 dark:text-gray-400">{t.errorDetails || 'Error Details'}</summary>
+          <summary className="cursor-pointer text-sm text-gray-500 dark:text-gray-400">Error Details</summary>
           <pre className="mt-2 text-xs text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 p-2 rounded overflow-auto">
             {error.toString()}
           </pre>
@@ -276,10 +221,10 @@ export default function Admin() {
   // Main render with error boundary
   try {
     return (
-      <div className={`h-screen bg-gray-50 dark:bg-gray-900 ${notoFont} ${isRTL ? 'rtl' : 'ltr'} flex flex-col`}>
+      <div className={`min-h-screen bg-gray-50 dark:bg-gray-900 ${notoFont} ${isRTL ? 'rtl' : 'ltr'}`}>
         {/* Header */}
-        <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
-          <div className="max-w-full mx-auto px-8">
+        <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
+          <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between items-center h-16">
               <div className="flex items-center">
                 <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
@@ -287,7 +232,7 @@ export default function Admin() {
                 </h1>
               </div>
               <div className="flex items-center space-x-4">
-                <ExchangeRateIndicator t={t} showModal={true} size="md" />
+                <ExchangeRateIndicator />
                 <button
                   onClick={() => setShowSettingsModal(true)}
                   className="p-2 text-gray-400 hover:text-gray-500 dark:hover:text-gray-300"
@@ -305,9 +250,9 @@ export default function Admin() {
           </div>
         </header>
 
-        <div className="flex h-full flex-1 min-h-0">
+        <div className="flex">
           {/* Sidebar Navigation */}
-          <nav className="w-64 bg-white dark:bg-gray-800 shadow-sm border-r border-gray-200 dark:border-gray-700 flex-shrink-0">
+          <nav className="w-64 bg-white dark:bg-gray-800 shadow-sm border-r border-gray-200 dark:border-gray-700 min-h-screen">
             <div className="p-4">
               <ul className="space-y-2">
                 {navItems.map((item) => (
@@ -318,7 +263,9 @@ export default function Admin() {
                         playNavigationSound();
                       }}
                       className={`w-full text-left px-4 py-2 rounded-lg transition-colors flex items-center gap-3 ${
-                        getColorClasses(item.color, section === item.key)
+                        section === item.key
+                          ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300'
+                          : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
                       }`}
                     >
                       <Icon name={item.icon} size={18} />
@@ -332,23 +279,19 @@ export default function Admin() {
           </nav>
 
           {/* Main Content */}
-          <main className="flex-1 flex flex-col w-full min-w-0 h-full bg-transparent">
-            {/* Section content */}
-            <div className="flex-1 h-full w-full overflow-auto">
-              {section === 'multiCurrencyDashboard' && <MultiCurrencyDashboard admin={admin} t={t} />}
-              {section === 'active' && <ProductsSection admin={admin} t={t} />}
-              {section === 'accessories' && <AccessoriesSection admin={admin} t={t} />}
-              {section === 'archived' && <ArchivedItemsSection admin={admin} t={t} />}
-              {section === 'salesHistory' && <SalesHistorySection admin={admin} t={t} />}
-              {section === 'buyingHistory' && <BuyingHistorySection admin={admin} t={t} openAddPurchaseModal={openAddPurchaseModal} />}
-              {section === 'customerDebts' && <CustomerDebtsSection admin={admin} t={t} />}
-              {section === 'companyDebts' && <CompanyDebtsSection admin={admin} t={t} openEnhancedCompanyDebtModal={openEnhancedCompanyDebtModal} openAddPurchaseModal={openAddPurchaseModal} />}
-              {section === 'incentives' && <IncentivesSection admin={admin} t={t} />}
-              {section === 'personalLoans' && <PersonalLoansSection admin={admin} t={t} />}
-              {section === 'monthlyReports' && <MonthlyReportsSection admin={admin} t={t} />}
-              {section === 'advancedAnalytics' && <AdvancedAnalytics admin={admin} t={t} />}
-              {section === 'backupSettings' && <BackupSettingsSection admin={admin} t={t} setShowBackupManager={setShowBackupManager} />}
-            </div>
+          <main className="flex-1 p-6">
+            {section === 'multiCurrencyDashboard' && <MultiCurrencyDashboard admin={admin} t={t} />}
+            {section === 'active' && <ProductsSection admin={admin} t={t} />}
+            {section === 'accessories' && <AccessoriesSection admin={admin} t={t} />}
+            {section === 'archived' && <ArchivedItemsSection admin={admin} t={t} />}
+            {section === 'salesHistory' && <SalesHistorySection admin={admin} t={t} />}
+            {section === 'buyingHistory' && <BuyingHistorySection admin={admin} t={t} openAddPurchaseModal={openAddPurchaseModal} />}
+            {section === 'customerDebts' && <CustomerDebtsSection admin={admin} t={t} />}
+            {section === 'companyDebts' && <CompanyDebtsSection admin={admin} t={t} openEnhancedCompanyDebtModal={openEnhancedCompanyDebtModal} openAddPurchaseModal={openAddPurchaseModal} />}
+            {section === 'incentives' && <IncentivesSection admin={admin} t={t} />}
+            {section === 'personalLoans' && <PersonalLoansSection admin={admin} t={t} />}
+            {section === 'monthlyReports' && <MonthlyReportsSection admin={admin} t={t} />}
+            {section === 'advancedAnalytics' && <AdvancedAnalytics admin={admin} t={t} />}
           </main>
         </div>
 
@@ -383,7 +326,7 @@ export default function Admin() {
         {/* Reset Confirmation Modal */}
         {admin.resetConfirmOpen && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg max-w-2xl w-full mx-4">
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg max-w-md w-full mx-4">
               <h3 className="text-lg font-bold text-gray-800 dark:text-gray-100 mb-4">
                 {t.confirmReset || 'Are you sure you want to reset all data? This will delete everything and cannot be undone!'}
               </h3>
@@ -393,7 +336,7 @@ export default function Admin() {
                     playModalCloseSound();
                     admin.setResetConfirmOpen(false);
                   }}
-                  className="px-4 py-2 bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-400 dark:hover:bg-gray-500 rounded transition"
+                  className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
                 >
                   {t.cancel || 'Cancel'}
                 </button>

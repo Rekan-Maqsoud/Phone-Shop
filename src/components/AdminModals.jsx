@@ -178,42 +178,34 @@ export default function AdminModals({
               if (purchaseData.payment_status === 'paid') {
                 // Direct purchase - goes to buying history immediately
                 if (purchaseData.type === 'simple') {
-                  if (window.api?.addDirectPurchase) {
-                    // Handle multi-currency purchases
-                    if (purchaseData.multi_currency && purchaseData.multi_currency.enabled) {
-                      // For multi-currency, create separate entries for each currency
-                      if (purchaseData.multi_currency.usdAmount > 0) {
-                        await window.api.addDirectPurchase({
-                          item_name: purchaseData.description || 'Purchase',
-                          quantity: 1,
-                          unit_price: purchaseData.multi_currency.usdAmount,
-                          supplier: purchaseData.company_name,
-                          date: new Date().toISOString(),
-                          currency: 'USD'
-                        });
-                      }
-                      if (purchaseData.multi_currency.iqdAmount > 0) {
-                        await window.api.addDirectPurchase({
-                          item_name: purchaseData.description || 'Purchase',
-                          quantity: 1,
-                          unit_price: purchaseData.multi_currency.iqdAmount,
-                          supplier: purchaseData.company_name,
-                          date: new Date().toISOString(),
-                          currency: 'IQD'
-                        });
-                      }
-                      result = { success: true };
-                    } else {
-                      // Single currency purchase
-                      result = await window.api.addDirectPurchase({
+                  if (purchaseData.multi_currency && purchaseData.multi_currency.enabled) {
+                    // Handle multi-currency purchases as a single entry
+                    if (window.api?.addDirectPurchaseMultiCurrency) {
+                      result = await window.api.addDirectPurchaseMultiCurrency({
                         item_name: purchaseData.description || 'Purchase',
                         quantity: 1,
-                        unit_price: purchaseData.amount || 0,
                         supplier: purchaseData.company_name,
                         date: new Date().toISOString(),
-                        currency: purchaseData.currency || 'USD'
+                        usdAmount: purchaseData.multi_currency.usdAmount,
+                        iqdAmount: purchaseData.multi_currency.iqdAmount
                       });
+                      if (!result || result.error) {
+                        throw new Error(result?.error || 'Failed to add multi-currency direct purchase');
+                      }
+                    } else {
+                      console.error('[AdminModals] window.api.addDirectPurchaseMultiCurrency not available');
+                      throw new Error('Multi-currency direct purchase API not available');
                     }
+                  } else if (window.api?.addDirectPurchase) {
+                    // Single currency purchase
+                    result = await window.api.addDirectPurchase({
+                      item_name: purchaseData.description || 'Purchase',
+                      quantity: 1,
+                      unit_price: purchaseData.amount || 0,
+                      supplier: purchaseData.company_name,
+                      date: new Date().toISOString(),
+                      currency: purchaseData.currency || 'USD'
+                    });
                     if (!result || result.error) {
                       throw new Error(result?.error || 'Failed to add direct purchase');
                     }

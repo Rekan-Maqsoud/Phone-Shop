@@ -5,16 +5,16 @@ export default function AdminTestPage() {
   const location = useLocation();
   
   return (
-    <div className="min-h-screen bg-green-100 flex items-center justify-center p-8">
-      <div className="bg-white p-8 rounded-lg shadow-lg text-center max-w-md">
+    <div className="min-h-screen bg-green-100 dark:bg-green-900 flex items-center justify-center p-8">
+      <div className="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-lg text-center max-w-md">
         <div className="text-green-500 text-6xl mb-4">✅</div>
-        <h1 className="text-2xl font-bold text-green-600 mb-4">
+        <h1 className="text-2xl font-bold text-green-600 dark:text-green-400 mb-4">
           Admin Route Working!
         </h1>
-        <p className="text-gray-600 mb-4">
+        <p className="text-gray-600 dark:text-gray-300 mb-4">
           The admin page is loading correctly.
         </p>
-        <div className="text-sm text-gray-500">
+        <div className="text-sm text-gray-500 dark:text-gray-400">
           <p>Location: {location.pathname}</p>
           <p>Hash: {window.location.hash}</p>
           <p>Time: {new Date().toLocaleTimeString()}</p>

@@ -1,55 +1,55 @@
-// Utility function to get emoji for accessory type
-export const getAccessoryEmoji = (type) => {
-  if (!type) return '📱'; // Default emoji
+// Utility function to get icon class for accessory type
+export const getAccessoryIcon = (type) => {
+  if (!type) return 'phone'; // Default icon
   
   const typeStr = type.toLowerCase();
   
   if (typeStr.includes('headphone') || typeStr.includes('earphone') || typeStr.includes('earbud')) {
-    return '🎧';
+    return 'headphones';
   }
   if (typeStr.includes('case') || typeStr.includes('cover') || typeStr.includes('protector')) {
-    return '📱';
+    return 'phone';
   }
   if (typeStr.includes('charger') || typeStr.includes('cable') || typeStr.includes('adapter')) {
-    return '🔌';
+    return 'cable';
   }
   if (typeStr.includes('battery') || typeStr.includes('power bank') || typeStr.includes('powerbank')) {
-    return '🔋';
+    return 'battery';
   }
   if (typeStr.includes('speaker')) {
-    return '🔊';
+    return 'speaker';
   }
   if (typeStr.includes('holder') || typeStr.includes('stand') || typeStr.includes('mount')) {
-    return '📐';
+    return 'stand';
   }
   if (typeStr.includes('memory') || typeStr.includes('card') || typeStr.includes('storage')) {
-    return '💾';
+    return 'storage';
   }
   if (typeStr.includes('screen') || typeStr.includes('protector') || typeStr.includes('glass')) {
-    return '🛡️';
+    return 'shield';
   }
   if (typeStr.includes('light') || typeStr.includes('lamp') || typeStr.includes('flashlight')) {
-    return '💡';
+    return 'light';
   }
   if (typeStr.includes('watch') || typeStr.includes('smartwatch')) {
-    return '⌚';
+    return 'watch';
   }
   if (typeStr.includes('mic') || typeStr.includes('microphone')) {
-    return '🎤';
+    return 'microphone';
   }
   if (typeStr.includes('camera') || typeStr.includes('lens')) {
-    return '📷';
+    return 'camera';
   }
   if (typeStr.includes('keyboard')) {
-    return '⌨️';
+    return 'keyboard';
   }
   if (typeStr.includes('mouse')) {
-    return '🖱️';
+    return 'mouse';
   }
   if (typeStr.includes('stylus') || typeStr.includes('pen')) {
-    return '✏️';
+    return 'pen';
   }
   
   // Default fallback
-  return '📱';
+  return 'phone';
 };

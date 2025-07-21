@@ -44,6 +44,14 @@ contextBridge.exposeInMainWorld('api', {
   getCompanyDebtItems: (debtId) => ipcRenderer.invoke('getCompanyDebtItems', debtId),
   markCompanyDebtPaid: (id, paid_at, multiCurrency) => ipcRenderer.invoke('markCompanyDebtPaid', id, paid_at, multiCurrency),
   
+  // Incentive functionality
+  getIncentives: () => ipcRenderer.invoke('getIncentives'),
+  addIncentive: (incentive) => ipcRenderer.invoke('addIncentive', incentive),
+  removeIncentive: (id) => ipcRenderer.invoke('removeIncentive', id),
+  updateIncentive: (id, incentive) => ipcRenderer.invoke('updateIncentive', id, incentive),
+  getIncentivesByCompany: (companyName) => ipcRenderer.invoke('getIncentivesByCompany', companyName),
+  getIncentiveTotals: () => ipcRenderer.invoke('getIncentiveTotals'),
+  
   // Buying history functionality
   getBuyingHistory: () => ipcRenderer.invoke('getBuyingHistory'),
   getBuyingHistoryWithItems: () => ipcRenderer.invoke('getBuyingHistoryWithItems'),
@@ -52,6 +60,7 @@ contextBridge.exposeInMainWorld('api', {
   // Direct purchase functionality
   addDirectPurchase: (purchaseData) => ipcRenderer.invoke('addDirectPurchase', purchaseData),
   addDirectPurchaseWithItems: (purchaseData) => ipcRenderer.invoke('addDirectPurchaseWithItems', purchaseData),
+  addDirectPurchaseMultiCurrency: (purchaseData) => ipcRenderer.invoke('addDirectPurchaseMultiCurrency', purchaseData),
   
   // Monthly reports functionality
   createMonthlyReport: (month, year) => ipcRenderer.invoke('createMonthlyReport', month, year),

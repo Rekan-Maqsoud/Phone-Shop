@@ -80,13 +80,15 @@ export default function QuickAddAccessory({ t, onAdd, loading }) {
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-6">
       <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4 flex items-center gap-2">
-        <span>🎧</span>
+        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M16,12A2,2 0 0,1 18,10A2,2 0 0,1 20,12A2,2 0 0,1 18,14A2,2 0 0,1 16,12M10,12A2,2 0 0,1 12,10A2,2 0 0,1 14,12A2,2 0 0,1 12,14A2,2 0 0,1 10,12M4,12A2,2 0 0,1 6,10A2,2 0 0,1 8,12A2,2 0 0,1 6,14A2,2 0 0,1 4,12Z"/>
+        </svg>
         {t.quickAddAccessory || 'Quick Add Accessory'}
       </h3>
       
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* First Row: Name and Brand */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               {t.name || 'Name'} *
@@ -134,7 +136,7 @@ export default function QuickAddAccessory({ t, onAdd, loading }) {
         )}
 
         {/* Second Row: Type and Currency */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-3 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               {t.type || 'Type'}
@@ -158,8 +160,8 @@ export default function QuickAddAccessory({ t, onAdd, loading }) {
               onChange={e => setCurrency(e.target.value)}
               className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white text-gray-900 dark:bg-gray-700 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-green-400"
             >
-              <option value="USD">💵 USD</option>
-              <option value="IQD">💰 IQD</option>
+              <option value="USD">{t?.usd || 'USD'}</option>
+              <option value="IQD">{t?.iqd || 'د.ع IQD'}</option>
             </select>
           </div>
           
@@ -197,7 +199,7 @@ export default function QuickAddAccessory({ t, onAdd, loading }) {
         )}
 
         {/* Third Row: Price */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               {t.buyingPrice || 'Buying Price'} *
@@ -220,7 +222,9 @@ export default function QuickAddAccessory({ t, onAdd, loading }) {
               className="w-full bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" 
               disabled={loading}
             >
-              <span>🎧</span>
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M16,12A2,2 0 0,1 18,10A2,2 0 0,1 20,12A2,2 0 0,1 18,14A2,2 0 0,1 16,12M10,12A2,2 0 0,1 12,10A2,2 0 0,1 14,12A2,2 0 0,1 12,14A2,2 0 0,1 10,12M4,12A2,2 0 0,1 6,10A2,2 0 0,1 8,12A2,2 0 0,1 6,14A2,2 0 0,1 4,12Z"/>
+              </svg>
               {loading ? (t.adding || 'Adding...') : (t.addAccessory || 'Add Accessory')}
             </button>
           </div>

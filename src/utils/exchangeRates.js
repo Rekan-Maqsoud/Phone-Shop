@@ -115,17 +115,28 @@ export const convertCurrency = (amount, fromCurrency, toCurrency) => {
 };
 
 export const formatCurrency = (amount, currency) => {
-  const symbol = currency === 'USD' ? '$' : 'د.ع';
-  
   if (currency === 'IQD') {
     const rounded = Math.round(amount);
-    return `${rounded.toLocaleString()}${symbol}`;
+    return `${rounded.toLocaleString()} د.ع`;
   }
   
   // For USD: show 2 decimals, but remove .00 for whole numbers
   const formatted = Number(amount).toFixed(2);
   const cleanFormatted = formatted.endsWith('.00') ? formatted.slice(0, -3) : formatted;
-  return `${symbol}${cleanFormatted}`;
+  return `${cleanFormatted} USD`;
+};
+
+// New function that uses translations
+export const formatCurrencyWithTranslation = (amount, currency, t) => {
+  if (currency === 'IQD') {
+    const rounded = Math.round(amount);
+    return `${rounded.toLocaleString()} ${t?.iqd || 'د.ع'}`;
+  }
+  
+  // For USD: show 2 decimals, but remove .00 for whole numbers
+  const formatted = Number(amount).toFixed(2);
+  const cleanFormatted = formatted.endsWith('.00') ? formatted.slice(0, -3) : formatted;
+  return `${cleanFormatted} ${t?.usd || 'USD'}`;
 };
 
 // Round IQD amounts to nearest 250 (smallest bill denomination)

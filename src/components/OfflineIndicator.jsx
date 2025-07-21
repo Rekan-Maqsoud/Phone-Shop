@@ -35,7 +35,12 @@ export default function OfflineIndicator({ className = '' }) {
     return (
       <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 text-sm font-medium animate-pulse shadow-lg z-50 relative ${className}`}>
         <div className="w-2 h-2 bg-red-500 rounded-full animate-ping"></div>
-        <span className="font-bold">⚠️ Offline</span>
+        <span className="font-bold flex items-center gap-1">
+          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+          </svg>
+          Offline
+        </span>
       </div>
     );
   }

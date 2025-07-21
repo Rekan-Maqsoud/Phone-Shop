@@ -30,13 +30,13 @@ class RouteErrorBoundary extends React.Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
-          <div className="bg-white p-8 rounded-lg shadow-lg text-center max-w-2xl w-full">
+        <div className="min-h-screen bg-gray-100 dark:bg-gray-900 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-lg text-center max-w-2xl w-full">
             <div className="text-red-500 text-6xl mb-4">⚠️</div>
-            <h2 className="text-2xl font-bold text-gray-800 mb-4">
+            <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-4">
               {this.props.routeName} Loading Error
             </h2>
-            <p className="text-gray-600 mb-6 text-lg">
+            <p className="text-gray-600 dark:text-gray-300 mb-6 text-lg">
               Something went wrong while loading this page. Please try again.
             </p>
             <div className="space-y-3">
@@ -241,7 +241,7 @@ function App() {
           <SoundProvider>
             <DataProvider>
               <BackupProgressProvider>
-                <div className="min-h-screen bg-gray-100">
+                <div className="h-full w-full bg-gray-100">
                   <HashRouter>
                     <Routes>
                       <Route 
