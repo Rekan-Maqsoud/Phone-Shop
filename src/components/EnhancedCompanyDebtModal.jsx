@@ -3,7 +3,7 @@ import ModalBase from './ModalBase';
 import { EXCHANGE_RATES, formatCurrency } from '../utils/exchangeRates';
 import { Icon } from '../utils/icons.jsx';
 
-export default function EnhancedCompanyDebtModal({ show, onClose, debt, onMarkPaid, t }) {
+export default function EnhancedCompanyDebtModal({ show, onClose, debt, onMarkPaid, t, onToast = null }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showItems, setShowItems] = useState(true);
@@ -94,7 +94,11 @@ export default function EnhancedCompanyDebtModal({ show, onClose, debt, onMarkPa
 
   const handleMarkPaid = async () => {
     if (!paymentAmount || paymentAmount <= 0) {
-      alert(t?.pleaseEnterValidAmount || 'Please enter a valid payment amount');
+      if (typeof onToast === 'function') {
+        onToast(t?.pleaseEnterValidAmount || 'Please enter a valid payment amount', 'error');
+      } else {
+        alert(t?.pleaseEnterValidAmount || 'Please enter a valid payment amount');
+      }
       return;
     }
     

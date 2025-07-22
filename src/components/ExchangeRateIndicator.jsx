@@ -6,7 +6,8 @@ export default function ExchangeRateIndicator({
   t = {}, 
   showModal = false, 
   className = "",
-  size = "sm" // sm, md, lg
+  size = "sm", // sm, md, lg
+  onToast = null // Function to show toast messages instead of alerts
 }) {
   const [showExchangeRateModal, setShowExchangeRateModal] = useState(false);
   const [newExchangeRate, setNewExchangeRate] = useState(EXCHANGE_RATES.USD_TO_IQD.toString());
@@ -36,16 +37,28 @@ export default function ExchangeRateIndicator({
   const handleExchangeRateUpdate = async () => {
     const rate = parseFloat(newExchangeRate);
     if (!rate || rate <= 0) {
-      alert(t.invalidExchangeRate || 'Please enter a valid exchange rate');
+      if (typeof onToast === 'function') {
+        onToast(t.invalidExchangeRate || 'Please enter a valid exchange rate', 'error');
+      } else {
+        alert(t.invalidExchangeRate || 'Please enter a valid exchange rate');
+      }
       return;
     }
 
     const success = await updateExchangeRate(rate);
     if (success) {
       setShowExchangeRateModal(false);
-      alert(t.exchangeRateUpdated || `Exchange rate updated successfully to 1$ = ${rate}${t?.iqd || 'IQD'}`);
+      if (typeof onToast === 'function') {
+        onToast(t.exchangeRateUpdated || `Exchange rate updated successfully to 1$ = ${rate}${t?.iqd || 'IQD'}`, 'success');
+      } else {
+        alert(t.exchangeRateUpdated || `Exchange rate updated successfully to 1$ = ${rate}${t?.iqd || 'IQD'}`);
+      }
     } else {
-      alert(t.exchangeRateUpdateFailed || 'Failed to update exchange rate');
+      if (typeof onToast === 'function') {
+        onToast(t.exchangeRateUpdateFailed || 'Failed to update exchange rate', 'error');
+      } else {
+        alert(t.exchangeRateUpdateFailed || 'Failed to update exchange rate');
+      }
     }
   };
 

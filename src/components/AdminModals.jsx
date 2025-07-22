@@ -153,6 +153,7 @@ export default function AdminModals({
         show={showBackupManager}
         onClose={() => setShowBackupManager(false)}
         t={t}
+        showConfirm={admin.showConfirm}
       />
 
       {/* Toast */}

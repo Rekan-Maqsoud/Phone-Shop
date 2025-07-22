@@ -353,7 +353,7 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
                 <div className="text-2xl mb-2 flex justify-center">
                   <Icon name="dollarSign" size={32} />
                 </div>
-                <div className="font-semibold">{t?.simplePurchase || 'Simple Purchase'}</div>
+                <div className="font-semibold text-gray-800 dark:text-gray-100">{t?.simplePurchase || 'Simple Purchase'}</div>
                 <div className="text-sm text-gray-600 dark:text-gray-400">
                   {t?.justAmount || 'Just specify the amount'}
                 </div>
@@ -372,7 +372,7 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
                 <div className="text-2xl mb-2 flex justify-center">
                   <Icon name="package" size={32} />
                 </div>
-                <div className="font-semibold">{t?.purchaseWithItems || 'Purchase with Items'}</div>
+                <div className="font-semibold text-gray-800 dark:text-gray-100">{t?.purchaseWithItems || 'Purchase with Items'}</div>
                 <div className="text-sm text-gray-600 dark:text-gray-400">
                   {t?.addItemsToInventory || 'Add items to inventory'}
                 </div>
@@ -401,7 +401,7 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
                   <div className="text-2xl mb-2 flex justify-center">
                     <Icon name="edit" size={32} />
                   </div>
-                  <div className="font-semibold">{t?.buyOnCredit || 'Buy on Credit'}</div>
+                  <div className="font-semibold text-gray-800 dark:text-gray-100">{t?.buyOnCredit || 'Buy on Credit'}</div>
                   <div className="text-sm text-gray-600 dark:text-gray-400">
                     {t?.payLaterCreatesDebt || 'Pay later - creates company debt'}
                   </div>
@@ -420,7 +420,7 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
                   <div className="text-2xl mb-2 flex justify-center">
                     <Icon name="creditCard" size={32} />
                   </div>
-                  <div className="font-semibold">{t?.payNow || 'Pay Now'}</div>
+                  <div className="font-semibold text-gray-800 dark:text-gray-100">{t?.payNow || 'Pay Now'}</div>
                   <div className="text-sm text-gray-600 dark:text-gray-400">
                     {t?.immediatePaymentHistory || 'Immediate payment - goes to buying history'}
                   </div>
@@ -441,7 +441,7 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
                 <div className="text-2xl mb-2 flex justify-center">
                   <Icon name="edit" size={32} />
                 </div>
-                <div className="font-semibold">{t?.buyOnCredit || 'Buy on Credit'}</div>
+                <div className="font-semibold text-gray-800 dark:text-gray-100">{t?.buyOnCredit || 'Buy on Credit'}</div>
                 <div className="text-sm text-gray-600 dark:text-gray-400">
                   {t?.companyDebtMode || 'Company debt mode - payment will be tracked as unpaid debt'}
                 </div>
@@ -469,7 +469,7 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
                 <div className="text-2xl mb-2 flex justify-center">
                   <Icon name="dollarSign" size={32} />
                 </div>
-                <div className="font-semibold">USD ($)</div>
+                <div className="font-semibold text-gray-800 dark:text-gray-100">USD ($)</div>
                 <div className="text-sm text-gray-600 dark:text-gray-400">
                   {t?.usDollars || 'US Dollars'}
                 </div>
@@ -488,7 +488,7 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
                 <div className="text-2xl mb-2 flex justify-center">
                   <Icon name="coins" size={32} />
                 </div>
-                <div className="font-semibold">IQD (د.ع)</div>
+                <div className="font-semibold text-gray-800 dark:text-gray-100">IQD (د.ع)</div>
                 <div className="text-sm text-gray-600 dark:text-gray-400">
                   {t?.iraqiDinars || 'Iraqi Dinars'}
                 </div>
@@ -572,7 +572,7 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
                   <div className="text-sm text-gray-600 dark:text-gray-300">
                     <div className="flex flex-col gap-1">
                       <div>{t?.totalAmount || 'Total Amount'}:</div>
-                      <div className="font-semibold">
+                      <div className="font-semibold text-gray-800 dark:text-gray-100">
                         {multiCurrency.usdAmount > 0 && <div>USD: ${multiCurrency.usdAmount.toFixed(2)}</div>}
                         {multiCurrency.iqdAmount > 0 && <div>IQD: د.ع{multiCurrency.iqdAmount.toFixed(2)}</div>}
                       </div>
@@ -623,7 +623,7 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
                   : 'border-green-300 bg-green-50 dark:bg-green-900/20 dark:border-green-700'
               }`}>
                 <div className="flex justify-between items-center mb-3">
-                  <h4 className="font-medium flex items-center gap-2">
+                  <h4 className="font-medium text-gray-800 dark:text-gray-100 flex items-center gap-2">
                     <Icon name={item.item_type === 'product' ? 'smartphone' : 'headphones'} size={16} />
                     {item.item_type === 'product' ? (t?.product || 'Product') : (t?.accessory || 'Accessory')}
                   </h4>

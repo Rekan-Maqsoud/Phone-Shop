@@ -37,7 +37,7 @@ export default function ProductsSection({ t, admin, handleEditProduct, handleArc
     <div className="w-full h-full p-8 space-y-8">
       {/* Quick Add Form */}
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8">
-        <QuickAddProduct t={t} onAdd={admin.handleAddProduct} loading={loading} />
+        <QuickAddProduct t={t} onAdd={admin.handleAddProduct} loading={loading} onToast={admin.setToast} showConfirm={admin.showConfirm} />
       </div>
       
       {/* Search and Filter Controls */}
@@ -45,7 +45,7 @@ export default function ProductsSection({ t, admin, handleEditProduct, handleArc
         <div className="flex flex-row gap-4 items-center">
           {/* Exchange Rate Indicator */}
           <div className="block">
-            <ExchangeRateIndicator t={t} showModal={true} size="sm" />
+            <ExchangeRateIndicator t={t} showModal={true} size="sm" onToast={admin.setToast} />
           </div>
           
           {/* Search Bar */}

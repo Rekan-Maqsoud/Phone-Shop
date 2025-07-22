@@ -3,7 +3,7 @@ import cloudAuthService from '../services/CloudAuthService';
 import ModalBase from './ModalBase';
 import { Icon } from '../utils/icons.jsx';
 
-export default function BackupManager({ show, onClose, t }) {
+export default function BackupManager({ show, onClose, t, showConfirm = null }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState(null);
   const [backups, setBackups] = useState([]);
@@ -184,19 +184,39 @@ export default function BackupManager({ show, onClose, t }) {
     try {
       const result = await window.api?.downloadCloudBackup(backup.$id);
       if (result?.success) {
-        const confirmed = confirm(`Backup downloaded. Do you want to restore it now? This will replace all current data!`);
-        if (confirmed) {
+        const message = `Backup downloaded. Do you want to restore it now? This will replace all current data!`;
+        
+        const performRestore = async () => {
           const restoreResult = await window.api?.restoreFromFile(result.downloadPath);
           if (restoreResult?.success) {
             showMessage('Database restored successfully!', 'success');
             if (restoreResult.requiresRestart) {
-              const restart = confirm('The application needs to restart to apply changes. Restart now?');
-              if (restart) {
+              const restartMessage = 'The application needs to restart to apply changes. Restart now?';
+              
+              const handleRestart = () => {
                 window.api?.restartApp();
+              };
+              
+              if (typeof showConfirm === 'function') {
+                showConfirm(restartMessage, handleRestart);
+              } else {
+                const restart = confirm(restartMessage);
+                if (restart) {
+                  handleRestart();
+                }
               }
             }
           } else {
             showMessage(restoreResult?.message || 'Failed to restore backup', 'error');
+          }
+        };
+        
+        if (typeof showConfirm === 'function') {
+          showConfirm(message, performRestore);
+        } else {
+          const confirmed = confirm(message);
+          if (confirmed) {
+            await performRestore();
           }
         }
       } else {
@@ -226,22 +246,32 @@ export default function BackupManager({ show, onClose, t }) {
   };
 
   const deleteBackup = async (backup) => {
-    const confirmed = confirm(`Are you sure you want to delete "${backup.fileName}"?`);
-    if (!confirmed) return;
-
-    setLoading(true);
-    try {
-      const result = await window.api?.deleteCloudBackup(backup.$id);
-      if (result?.success) {
-        showMessage('Backup deleted successfully', 'success');
-        loadBackups();
-      } else {
-        showMessage(result?.message || 'Failed to delete backup', 'error');
+    const message = `Are you sure you want to delete "${backup.fileName}"?`;
+    
+    const performDelete = async () => {
+      setLoading(true);
+      try {
+        const result = await window.api?.deleteCloudBackup(backup.$id);
+        if (result?.success) {
+          showMessage('Backup deleted successfully', 'success');
+          loadBackups();
+        } else {
+          showMessage(result?.message || 'Failed to delete backup', 'error');
+        }
+      } catch (error) {
+        showMessage('Failed to delete backup', 'error');
+      } finally {
+        setLoading(false);
       }
-    } catch (error) {
-      showMessage('Failed to delete backup', 'error');
-    } finally {
-      setLoading(false);
+    };
+    
+    if (typeof showConfirm === 'function') {
+      showConfirm(message, performDelete);
+    } else {
+      const confirmed = confirm(message);
+      if (confirmed) {
+        await performDelete();
+      }
     }
   };
 
@@ -266,9 +296,19 @@ export default function BackupManager({ show, onClose, t }) {
       if (result?.success) {
         showMessage('Database restored successfully from local file!', 'success');
         if (result.requiresRestart) {
-          const restart = confirm('The application needs to restart to apply changes. Restart now?');
-          if (restart) {
+          const message = 'The application needs to restart to apply changes. Restart now?';
+          
+          const handleRestart = () => {
             window.api?.restartApp();
+          };
+          
+          if (typeof showConfirm === 'function') {
+            showConfirm(message, handleRestart);
+          } else {
+            const restart = confirm(message);
+            if (restart) {
+              handleRestart();
+            }
           }
         }
       } else {

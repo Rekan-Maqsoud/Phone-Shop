@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { phoneBrands } from './phoneBrands';
 import SearchableSelect from './SearchableSelect';
 
-export default function QuickAddProduct({ t, onAdd, loading }) {
+export default function QuickAddProduct({ t, onAdd, loading, onToast = null, showConfirm = null }) {
   const [brand, setBrand] = useState('');
   const [customBrand, setCustomBrand] = useState('');
   const [model, setModel] = useState('');
@@ -26,10 +26,23 @@ export default function QuickAddProduct({ t, onAdd, loading }) {
     e.preventDefault();
     // Ask for confirmation if RAM or Storage is empty
     if (!ram || !storage) {
-      const proceed = window.confirm(t.missingRamStorageConfirm || 'RAM or Storage is empty. Are you sure you want to add this product?');
-      if (!proceed) return;
+      const message = t.missingRamStorageConfirm || 'RAM or Storage is empty. Are you sure you want to add this product?';
+      
+      if (typeof showConfirm === 'function') {
+        showConfirm(message, () => {
+          submitProduct();
+        });
+        return;
+      } else {
+        const proceed = window.confirm(message);
+        if (!proceed) return;
+      }
     }
     
+    submitProduct();
+  };
+  
+  const submitProduct = () => {
     const finalBrand = isOtherBrand ? customBrand : brand;
     const finalModel = isOtherModel || isOtherBrand ? customModel : model;
     

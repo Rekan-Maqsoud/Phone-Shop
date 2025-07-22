@@ -134,10 +134,22 @@ const IncentivesSection = ({ t, admin, triggerCloudBackup }) => {
   };
 
   const handleRemove = async (incentive) => {
-    if (!window.confirm(t.confirmDelete || `Are you sure you want to remove this incentive for ${incentive.company_name}?`)) {
-      return;
+    const message = t.confirmDelete || `Are you sure you want to remove this incentive for ${incentive.company_name}?`;
+    
+    // Use admin.showConfirm if available, otherwise fall back to window.confirm
+    if (typeof admin?.showConfirm === 'function') {
+      admin.showConfirm(message, async () => {
+        await performRemove(incentive);
+      });
+    } else {
+      if (!window.confirm(message)) {
+        return;
+      }
+      await performRemove(incentive);
     }
-
+  };
+  
+  const performRemove = async (incentive) => {
     setLoading(true);
     
     try {

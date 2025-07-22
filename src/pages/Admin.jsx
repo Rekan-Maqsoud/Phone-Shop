@@ -281,7 +281,7 @@ export default function Admin() {
                 </h1>
               </div>
               <div className="flex items-center space-x-4">
-                <ExchangeRateIndicator t={t} showModal={true} size="md" />
+                <ExchangeRateIndicator t={t} showModal={true} size="md" onToast={admin.setToast} />
                 <button
                   onClick={() => setShowSettingsModal(true)}
                   className="p-2 text-gray-400 hover:text-gray-500 dark:hover:text-gray-300"

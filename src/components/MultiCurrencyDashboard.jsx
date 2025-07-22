@@ -58,7 +58,9 @@ function MultiCurrencyDashboard({ admin, t }) {
       }
       
       if (window.api?.getTransactions) {
-        const transactionData = await window.api.getTransactions(20);
+        // Fetch more transactions to ensure we capture today's spending transactions
+        // Even if there are many old transactions, we want to include today's purchases
+        const transactionData = await window.api.getTransactions(200);
         setTransactions(transactionData || []);
       }
       
@@ -266,6 +268,22 @@ function MultiCurrencyDashboard({ admin, t }) {
     // Total spending includes purchases, debt payments, and other outgoing transactions
     const totalTodaysSpendingUSD = todaysSpendingUSD + todaysCompanyDebtPaymentsUSD + todaysTransactionSpendingUSD;
     const totalTodaysSpendingIQD = todaysSpendingIQD + todaysCompanyDebtPaymentsIQD + todaysTransactionSpendingIQD;
+
+    // Debug logging to check spending calculations
+    if (totalTodaysSpendingUSD > 0 || totalTodaysSpendingIQD > 0) {
+      console.log('📊 Today\'s Spending Debug:', {
+        todaysSpendingUSD,
+        todaysCompanyDebtPaymentsUSD,
+        todaysTransactionSpendingUSD,
+        totalTodaysSpendingUSD,
+        todaysSpendingIQD,
+        todaysCompanyDebtPaymentsIQD,
+        todaysTransactionSpendingIQD,
+        totalTodaysSpendingIQD,
+        todaysUSDSales,
+        todaysIQDSales
+      });
+    }
 
     // Net performance: USD = native USD sales - USD spending
     const netPerformanceUSD = todaysUSDSales - totalTodaysSpendingUSD;
