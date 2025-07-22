@@ -589,6 +589,14 @@ function MultiCurrencyDashboard({ admin, t }) {
                 <span>{t?.expectedBalance || 'Expected Balance'}:</span>
                 <span>{formatCurrencyWithTranslation(balances.usd_balance, 'USD', t)}</span>
               </div>
+              <div className={`flex justify-between items-center text-lg font-semibold ${metrics.netPerformanceUSD >= 0 ? 'text-green-200' : 'text-red-200'}`}>
+                <span>{t?.dailyDifference || 'Daily Difference'}:</span>
+                <span className="flex items-center gap-2">
+                  {metrics.netPerformanceUSD >= 0 ? '📈' : '📉'}
+                  {formatCurrencyWithTranslation(Math.abs(metrics.netPerformanceUSD), 'USD', t)}
+                  {metrics.netPerformanceUSD >= 0 ? ' ↑' : ' ↓'}
+                </span>
+              </div>
               <div className="text-sm text-white/70 mt-2">
                 {t?.physicalMoneyCheck || 'Count your physical USD and compare with this amount'}
               </div>
@@ -619,6 +627,14 @@ function MultiCurrencyDashboard({ admin, t }) {
               <div className="flex justify-between items-center text-xl font-bold">
                 <span>{t?.expectedBalance || 'Expected Balance'}:</span>
                 <span>{formatCurrencyWithTranslation(balances.iqd_balance, 'IQD', t)}</span>
+              </div>
+              <div className={`flex justify-between items-center text-lg font-semibold ${metrics.netPerformanceIQD >= 0 ? 'text-green-200' : 'text-red-200'}`}>
+                <span>{t?.dailyDifference || 'Daily Difference'}:</span>
+                <span className="flex items-center gap-2">
+                  {metrics.netPerformanceIQD >= 0 ? '📈' : '📉'}
+                  {formatCurrencyWithTranslation(Math.abs(metrics.netPerformanceIQD), 'IQD', t)}
+                  {metrics.netPerformanceIQD >= 0 ? ' ↑' : ' ↓'}
+                </span>
               </div>
               <div className="text-sm text-white/70 mt-2">
                 {t?.physicalMoneyCheck || 'Count your physical IQD and compare with this amount'}
@@ -1141,6 +1157,8 @@ const TopSellingProductsChart = React.memo(({ sales, t }) => {
 
 // Monthly Profit Chart Component - Fixed USD calculation
 const MonthlyProfitChart = React.memo(({ sales, t }) => {
+  const { debts } = useData(); // Get debts data for filtering paid debt sales
+
   const chartData = useMemo(() => {
     const last6Months = Array.from({ length: 6 }, (_, i) => {
       const date = new Date();
@@ -1153,27 +1171,52 @@ const MonthlyProfitChart = React.memo(({ sales, t }) => {
 
     const monthlyProfits = last6Months.map(({ month }) => {
       return (sales || [])
-        .filter(sale => sale.created_at?.substring(0, 7) === month)
-        .reduce((totalProfit, sale) => {
-          if (sale.items && sale.items.length > 0) {
-            const saleProfit = sale.items.reduce((itemProfit, item) => {
-              const qty = item.quantity || 1;
-              const buyingPrice = Number(item.buying_price) || 0;
-              const sellingPrice = Number(item.selling_price) || buyingPrice;
-              
-              // Calculate profit in native currency first
-              let profitAmount = (sellingPrice - buyingPrice) * qty;
-              
-              // Convert to USD only if sale is in IQD for consistent comparison
-              if (sale.currency === 'IQD') {
-                profitAmount = profitAmount * EXCHANGE_RATES.IQD_TO_USD;
-              }
-              
-              return itemProfit + profitAmount;
-            }, 0);
-            return totalProfit + saleProfit;
+        .filter(sale => {
+          // Filter by month
+          if (sale.created_at?.substring(0, 7) !== month) return false;
+          
+          // For debt sales, only include if the debt is paid
+          if (sale.is_debt) {
+            const debt = (debts || []).find(d => d.sale_id === sale.id);
+            return debt && (debt.paid_at || debt.paid);
           }
-          return totalProfit;
+          
+          return true;
+        })
+        .reduce((totalProfit, sale) => {
+          if (!sale.items || sale.items.length === 0) return totalProfit;
+          
+          // Calculate profit based on actual amounts received vs costs
+          const saleTotal = sale.total || 0; // This accounts for discounts and actual payment
+          let totalCostInSaleCurrency = 0;
+          
+          // Calculate total cost in the sale's currency
+          sale.items.forEach(item => {
+            const qty = item.quantity || 1;
+            const buyingPrice = Number(item.buying_price) || 0;
+            const itemCurrency = item.product_currency || 'IQD';
+            
+            if (itemCurrency === sale.currency) {
+              totalCostInSaleCurrency += buyingPrice * qty;
+            } else {
+              // Convert cost to sale currency
+              if (sale.currency === 'USD' && itemCurrency === 'IQD') {
+                totalCostInSaleCurrency += (buyingPrice * qty) * EXCHANGE_RATES.IQD_TO_USD;
+              } else if (sale.currency === 'IQD' && itemCurrency === 'USD') {
+                totalCostInSaleCurrency += (buyingPrice * qty) * EXCHANGE_RATES.USD_TO_IQD;
+              }
+            }
+          });
+          
+          // Calculate profit in sale currency
+          let profitInSaleCurrency = saleTotal - totalCostInSaleCurrency;
+          
+          // Convert to USD for chart consistency
+          if (sale.currency === 'IQD') {
+            profitInSaleCurrency = profitInSaleCurrency * EXCHANGE_RATES.IQD_TO_USD;
+          }
+          
+          return totalProfit + profitInSaleCurrency;
         }, 0);
     });
 

@@ -89,16 +89,64 @@ export default function AdvancedAnalytics({ admin, t }) {
       new Date(purchase.created_at) >= startDate
     );
 
-    // Revenue calculations
-    const revenueUSD = filteredSales
-      .filter(sale => sale.currency === 'USD')
-      .reduce((sum, sale) => sum + (sale.total || 0), 0);
+    // Revenue and profit calculations based on actual sales
+    let revenueUSD = 0;
+    let revenueIQD = 0;
+    let profitUSD = 0;
+    let profitIQD = 0;
 
-    const revenueIQD = filteredSales
-      .filter(sale => sale.currency === 'IQD')
-      .reduce((sum, sale) => sum + (sale.total || 0), 0);
+    filteredSales.forEach(sale => {
+      // Calculate revenue based on payment received
+      if (sale.multi_currency_payment) {
+        revenueUSD += sale.multi_currency_payment.usd_amount || 0;
+        revenueIQD += sale.multi_currency_payment.iqd_amount || 0;
+      } else {
+        const saleTotal = sale.total || 0;
+        if (sale.currency === 'USD') {
+          revenueUSD += saleTotal;
+        } else {
+          revenueIQD += saleTotal;
+        }
+      }
 
-    // Cost calculations
+      // Calculate profit from actual items sold
+      if (sale.items && Array.isArray(sale.items)) {
+        let totalBuyingCostUSD = 0;
+        let totalBuyingCostIQD = 0;
+
+        sale.items.forEach(item => {
+          const qty = item.quantity || 1;
+          const buyingPrice = item.buying_price || 0;
+          const itemCurrency = item.product_currency || 
+                             item.product_currency_from_table || 
+                             item.accessory_currency_from_table || 
+                             'IQD';
+
+          if (itemCurrency === 'USD') {
+            totalBuyingCostUSD += buyingPrice * qty;
+          } else {
+            totalBuyingCostIQD += buyingPrice * qty;
+          }
+        });
+
+        // Calculate actual profit based on payment received minus buying costs
+        if (sale.multi_currency_payment) {
+          profitUSD += (sale.multi_currency_payment.usd_amount || 0) - totalBuyingCostUSD;
+          profitIQD += (sale.multi_currency_payment.iqd_amount || 0) - totalBuyingCostIQD;
+        } else {
+          const saleTotal = sale.total || 0;
+          if (sale.currency === 'USD') {
+            const totalBuyingInUSD = totalBuyingCostUSD + (totalBuyingCostIQD * (sale.exchange_rate_iqd_to_usd || 0.000694));
+            profitUSD += saleTotal - totalBuyingInUSD;
+          } else {
+            const totalBuyingInIQD = totalBuyingCostIQD + (totalBuyingCostUSD * (sale.exchange_rate_usd_to_iqd || 1440));
+            profitIQD += saleTotal - totalBuyingInIQD;
+          }
+        }
+      }
+    });
+
+    // Cost calculations for operational costs (buying history)
     const costUSD = filteredPurchases
       .filter(purchase => purchase.currency === 'USD')
       .reduce((sum, purchase) => sum + (purchase.total_price || purchase.amount || 0), 0);
@@ -106,10 +154,6 @@ export default function AdvancedAnalytics({ admin, t }) {
     const costIQD = filteredPurchases
       .filter(purchase => purchase.currency === 'IQD')
       .reduce((sum, purchase) => sum + (purchase.total_price || purchase.amount || 0), 0);
-
-    // Profit calculations
-    const profitUSD = revenueUSD - costUSD;
-    const profitIQD = revenueIQD - costIQD;
 
     // Outstanding debts
     const outstandingUSD = sales
@@ -128,7 +172,7 @@ export default function AdvancedAnalytics({ admin, t }) {
       })
       .reduce((sum, sale) => sum + (sale.total || 0), 0);
 
-    // Product performance
+    // Product performance with actual profit calculations
     const productPerformance = {};
     filteredSales.forEach(sale => {
       if (sale.items) {
@@ -138,19 +182,26 @@ export default function AdvancedAnalytics({ admin, t }) {
             productPerformance[name] = {
               quantity: 0,
               revenue: 0,
+              profit: 0,
               sales: 0
             };
           }
-          productPerformance[name].quantity += item.quantity || 1;
-          productPerformance[name].revenue += (item.selling_price || 0) * (item.quantity || 1);
+          
+          const qty = item.quantity || 1;
+          const sellingPrice = item.selling_price || 0;
+          const buyingPrice = item.buying_price || 0;
+          
+          productPerformance[name].quantity += qty;
+          productPerformance[name].revenue += sellingPrice * qty;
+          productPerformance[name].profit += (sellingPrice - buyingPrice) * qty;
           productPerformance[name].sales += 1;
         });
       }
     });
 
-    // Top performing products
+    // Top performing products based on profit
     const topProducts = Object.entries(productPerformance)
-      .sort(([,a], [,b]) => b.revenue - a.revenue)
+      .sort(([,a], [,b]) => b.profit - a.profit)
       .slice(0, 10);
 
     // Daily breakdown for charts

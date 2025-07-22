@@ -205,34 +205,63 @@ function getCompanyDebts(db) {
   }
 }
 
-function addCompanyDebt(db, { company_name, amount, description, has_items = 0, currency = 'USD', discount = null }) {
+function addCompanyDebt(db, { company_name, amount, description, has_items = 0, currency = 'IQD', discount = null, multi_currency = null }) {
   const now = new Date().toISOString();
   
-  // Apply discount if provided
   let finalAmount = amount;
+  let finalCurrency = currency;
+  let usdAmount = null;
+  let iqdAmount = null;
+  
+  // Handle multi-currency debts
+  if (multi_currency && multi_currency.enabled) {
+    usdAmount = parseFloat(multi_currency.usdAmount) || 0;
+    iqdAmount = parseFloat(multi_currency.iqdAmount) || 0;
+    finalCurrency = 'MULTI';
+    finalAmount = usdAmount; // Store USD as primary reference
+  }
+  
+  // Apply discount if provided
   if (discount && discount.discount_value) {
     if (discount.discount_type === 'percentage') {
-      finalAmount = amount * (1 - discount.discount_value / 100);
+      const discountPercent = discount.discount_value / 100;
+      if (multi_currency && multi_currency.enabled) {
+        usdAmount = usdAmount * (1 - discountPercent);
+        iqdAmount = iqdAmount * (1 - discountPercent);
+        finalAmount = usdAmount;
+      } else {
+        finalAmount = amount * (1 - discountPercent);
+      }
     } else {
       // Fixed amount discount
-      finalAmount = Math.max(0, amount - discount.discount_value);
+      if (multi_currency && multi_currency.enabled) {
+        // Apply to USD first, then IQD if needed
+        const discountRemaining = Math.max(0, discount.discount_value - usdAmount);
+        usdAmount = Math.max(0, usdAmount - discount.discount_value);
+        if (discountRemaining > 0) {
+          iqdAmount = Math.max(0, iqdAmount - discountRemaining);
+        }
+        finalAmount = usdAmount;
+      } else {
+        finalAmount = Math.max(0, amount - discount.discount_value);
+      }
     }
   }
   
-  // Simplified: Always store debts in USD value equivalent and ignore original currency
-  // Convert to USD if the amount was originally in IQD
-  let usdAmount = finalAmount;
-  if (currency === 'IQD') {
-    // Convert IQD to USD equivalent for storage
-    const EXCHANGE_RATES = { USD_TO_IQD: 1440 }; // Use default rate
-    usdAmount = finalAmount / EXCHANGE_RATES.USD_TO_IQD;
+  // Store in the original currency without conversion
+  // This preserves the true currency of the debt
+  try {
+    return db.prepare(`INSERT INTO company_debts 
+      (company_name, amount, description, created_at, has_items, currency, multi_currency_usd, multi_currency_iqd) 
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(company_name, finalAmount, description, now, has_items, finalCurrency, usdAmount, iqdAmount);
+  } catch (columnError) {
+    // Fallback to basic schema without multi-currency columns
+    return db.prepare(`INSERT INTO company_debts 
+      (company_name, amount, description, created_at, has_items, currency) 
+      VALUES (?, ?, ?, ?, ?, ?)`)
+      .run(company_name, finalAmount, description, now, has_items, finalCurrency);
   }
-  
-  // Always store as single USD amount for simplicity
-  return db.prepare(`INSERT INTO company_debts 
-    (company_name, amount, description, created_at, has_items, currency) 
-    VALUES (?, ?, ?, ?, ?, ?)`)
-    .run(company_name, usdAmount, description, now, has_items, 'USD');
 }
 
 function payCompanyDebt(db, id) {
@@ -438,38 +467,99 @@ function deleteCompanyDebt(db, id) {
   return transaction();
 }
 
-function addCompanyDebtWithItems(db, { company_name, description, items, currency = 'USD', discount = null }) {
+function addCompanyDebtWithItems(db, { company_name, description, items, currency = 'IQD', multi_currency = null, discount = null }) {
   const now = new Date().toISOString();
   
-  // Calculate total amount from items in USD equivalent
+  // For multi-currency or mixed items, calculate totals by currency
   let totalUSDAmount = 0;
+  let totalIQDAmount = 0;
+  
+  // Calculate totals preserving original currencies
   items.forEach(item => {
-    let itemUSDPrice = item.unit_price;
-    if (item.currency === 'IQD') {
-      // Convert IQD to USD equivalent for storage
-      const EXCHANGE_RATES = { USD_TO_IQD: 1440 }; // Use default rate
-      itemUSDPrice = item.unit_price / EXCHANGE_RATES.USD_TO_IQD;
+    const quantity = parseInt(item.quantity) || 0;
+    const unitPrice = parseFloat(item.unit_price) || 0;
+    const itemTotal = quantity * unitPrice;
+    
+    if (item.currency === 'USD') {
+      totalUSDAmount += itemTotal;
+    } else {
+      totalIQDAmount += itemTotal;
     }
-    totalUSDAmount += item.quantity * itemUSDPrice;
   });
   
+  // Determine storage method based on currency mix
+  let finalAmount, finalCurrency;
+  let isMultiCurrency = false;
+  
+  if (multi_currency && multi_currency.enabled) {
+    // Multi-currency mode - store as multi-currency debt
+    totalUSDAmount = parseFloat(multi_currency.usdAmount) || 0;
+    totalIQDAmount = parseFloat(multi_currency.iqdAmount) || 0;
+    isMultiCurrency = true;
+    finalCurrency = 'MULTI';
+    finalAmount = totalUSDAmount; // Store USD amount as primary for reference
+  } else if (totalUSDAmount > 0 && totalIQDAmount > 0) {
+    // Mixed currency items - store as multi-currency
+    isMultiCurrency = true;
+    finalCurrency = 'MULTI';
+    finalAmount = totalUSDAmount; // Store USD amount as primary for reference
+  } else if (currency === 'USD' || totalUSDAmount > 0) {
+    // Single currency USD
+    finalCurrency = 'USD';
+    finalAmount = totalUSDAmount;
+  } else {
+    // Single currency IQD
+    finalCurrency = 'IQD';
+    finalAmount = totalIQDAmount;
+  }
+  
   // Apply discount if provided
-  let finalAmount = totalUSDAmount;
   if (discount && discount.discount_value) {
     if (discount.discount_type === 'percentage') {
-      finalAmount = totalUSDAmount * (1 - discount.discount_value / 100);
+      const discountPercent = discount.discount_value / 100;
+      if (isMultiCurrency) {
+        totalUSDAmount = totalUSDAmount * (1 - discountPercent);
+        totalIQDAmount = totalIQDAmount * (1 - discountPercent);
+        finalAmount = totalUSDAmount;
+      } else {
+        finalAmount = finalAmount * (1 - discountPercent);
+      }
     } else {
-      // Fixed amount discount
-      finalAmount = Math.max(0, totalUSDAmount - discount.discount_value);
+      // Fixed amount discount - apply to the appropriate currency
+      if (finalCurrency === 'USD') {
+        finalAmount = Math.max(0, finalAmount - discount.discount_value);
+      } else if (finalCurrency === 'IQD') {
+        finalAmount = Math.max(0, finalAmount - discount.discount_value);
+      } else {
+        // For multi-currency, apply to USD first, then IQD if needed
+        const discountRemaining = Math.max(0, discount.discount_value - totalUSDAmount);
+        totalUSDAmount = Math.max(0, totalUSDAmount - discount.discount_value);
+        if (discountRemaining > 0) {
+          totalIQDAmount = Math.max(0, totalIQDAmount - discountRemaining);
+        }
+        finalAmount = totalUSDAmount;
+      }
     }
   }
   
   const transaction = db.transaction(() => {
-    // Create the main debt record - always in USD for simplicity
-    const debtResult = db.prepare(`INSERT INTO company_debts 
-      (company_name, amount, description, created_at, has_items, currency) 
-      VALUES (?, ?, ?, ?, ?, ?)`)
-      .run(company_name, finalAmount, description, now, 1, 'USD');
+    // Create the main debt record preserving original currency
+    // Try with multi-currency columns first, fall back if they don't exist
+    let debtResult;
+    try {
+      debtResult = db.prepare(`INSERT INTO company_debts 
+        (company_name, amount, description, created_at, has_items, currency, multi_currency_usd, multi_currency_iqd) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+        .run(company_name, finalAmount, description, now, 1, finalCurrency, 
+             isMultiCurrency ? totalUSDAmount : null, 
+             isMultiCurrency ? totalIQDAmount : null);
+    } catch (columnError) {
+      // Fallback to basic schema without multi-currency columns
+      debtResult = db.prepare(`INSERT INTO company_debts 
+        (company_name, amount, description, created_at, has_items, currency) 
+        VALUES (?, ?, ?, ?, ?, ?)`)
+        .run(company_name, finalAmount, description, now, 1, finalCurrency);
+    }
     
     const debtId = debtResult.lastInsertRowid;
     

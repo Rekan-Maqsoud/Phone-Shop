@@ -382,16 +382,16 @@ const SalesHistoryTableEnhanced = React.memo(function SalesHistoryTableEnhanced(
                           </div>
                         </td>
                         <td className="px-4 py-2 text-sm font-semibold text-gray-800 dark:text-gray-200">
-                          {/* Show profit only in the currency of the products sold */}
+                          {/* Show profit in the sale currency to match sale details modal */}
                           <div className="flex flex-col gap-0.5">
-                            {breakdown.usd.profit > 0 && (
-                              <span className={breakdown.usd.profit >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
-                                {formatCurrency(breakdown.usd.profit, 'USD')}
+                            {breakdown.usd.actualProfit !== undefined && breakdown.usd.actualProfit !== 0 && (
+                              <span className={breakdown.usd.actualProfit >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
+                                {formatCurrency(breakdown.usd.actualProfit, 'USD')}
                               </span>
                             )}
-                            {breakdown.iqd.profit > 0 && (
-                              <span className={breakdown.iqd.profit >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
-                                {formatCurrency(breakdown.iqd.profit, 'IQD')}
+                            {breakdown.iqd.actualProfit !== undefined && breakdown.iqd.actualProfit !== 0 && (
+                              <span className={breakdown.iqd.actualProfit >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
+                                {formatCurrency(breakdown.iqd.actualProfit, 'IQD')}
                               </span>
                             )}
                           </div>

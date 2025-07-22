@@ -750,7 +750,7 @@ export default function MonthlyReportsSection({ admin, t, showConfirm }) {
     };
   };
 
-  // Product performance matrix with BCG analysis
+  // Product performance matrix with BCG analysis - corrected profit calculation
   const calculateProductPerformanceMatrix = (monthSales) => {
     const productData = {};
     
@@ -770,9 +770,13 @@ export default function MonthlyReportsSection({ admin, t, showConfirm }) {
             };
           }
           
-          productData[key].sales += item.quantity || 1;
-          productData[key].revenue += (item.price || 0) * (item.quantity || 1);
-          productData[key].profit += (item.profit || 0) * (item.quantity || 1);
+          const qty = item.quantity || 1;
+          const sellingPrice = item.selling_price || 0;
+          const buyingPrice = item.buying_price || 0;
+          
+          productData[key].sales += qty;
+          productData[key].revenue += sellingPrice * qty;
+          productData[key].profit += (sellingPrice - buyingPrice) * qty;
         });
       }
     });
@@ -816,17 +820,81 @@ export default function MonthlyReportsSection({ admin, t, showConfirm }) {
     };
   };
 
-  // Financial health score calculation
+  // Financial health score calculation with corrected profit logic
   const calculateFinancialHealthScore = (monthSales, monthBuying, monthDebts) => {
-    const revenue = monthSales.reduce((sum, s) => sum + (s.total || 0), 0);
-    const costs = monthBuying.reduce((sum, b) => sum + (b.total_price || 0), 0);
-    const profit = revenue - costs;
-    const debtAmount = monthDebts.reduce((sum, d) => sum + (d.amount || 0), 0);
+    let totalRevenue = 0;
+    let totalProfit = 0;
+    
+    // Calculate actual revenue and profit from sales
+    monthSales.forEach(sale => {
+      // Revenue calculation based on actual payment
+      if (sale.multi_currency_payment) {
+        totalRevenue += (sale.multi_currency_payment.usd_amount || 0) + 
+                       ((sale.multi_currency_payment.iqd_amount || 0) * 0.000694);
+      } else {
+        const saleTotal = sale.total || 0;
+        if (sale.currency === 'USD') {
+          totalRevenue += saleTotal;
+        } else {
+          totalRevenue += saleTotal * 0.000694; // Convert IQD to USD equivalent
+        }
+      }
+      
+      // Profit calculation from items
+      if (sale.items && Array.isArray(sale.items)) {
+        let saleBuyingCost = 0;
+        
+        sale.items.forEach(item => {
+          const qty = item.quantity || 1;
+          const buyingPrice = item.buying_price || 0;
+          const itemCurrency = item.product_currency || 
+                             item.product_currency_from_table || 
+                             item.accessory_currency_from_table || 
+                             'IQD';
+          
+          // Convert buying cost to USD for comparison
+          if (itemCurrency === 'USD') {
+            saleBuyingCost += buyingPrice * qty;
+          } else {
+            saleBuyingCost += (buyingPrice * qty) * 0.000694;
+          }
+        });
+        
+        // Calculate profit in USD equivalent
+        let saleRevenue = 0;
+        if (sale.multi_currency_payment) {
+          saleRevenue = (sale.multi_currency_payment.usd_amount || 0) + 
+                       ((sale.multi_currency_payment.iqd_amount || 0) * 0.000694);
+        } else {
+          const saleTotal = sale.total || 0;
+          saleRevenue = sale.currency === 'USD' ? saleTotal : saleTotal * 0.000694;
+        }
+        
+        totalProfit += saleRevenue - saleBuyingCost;
+      }
+    });
+    
+    // Operational costs from buying history (converted to USD)
+    const operationalCosts = monthBuying.reduce((sum, b) => {
+      const cost = b.total_price || 0;
+      const currency = b.currency || 'IQD';
+      return sum + (currency === 'USD' ? cost : cost * 0.000694);
+    }, 0);
+    
+    // Outstanding debt amount (converted to USD)
+    const debtAmount = monthDebts.reduce((sum, d) => {
+      const debt = d.amount || 0;
+      const currency = d.currency || 'IQD';
+      return sum + (currency === 'USD' ? debt : debt * 0.000694);
+    }, 0);
+    
+    // Adjust profit by subtracting operational costs not related to sales
+    const netProfit = totalProfit - operationalCosts;
     
     let score = 50; // Base score
     
     // Profitability score (0-30 points)
-    const profitMargin = revenue > 0 ? (profit / revenue) * 100 : 0;
+    const profitMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
     if (profitMargin > 30) score += 30;
     else if (profitMargin > 20) score += 25;
     else if (profitMargin > 10) score += 20;
@@ -835,7 +903,7 @@ export default function MonthlyReportsSection({ admin, t, showConfirm }) {
     else score -= 10;
     
     // Liquidity score (0-25 points)
-    const debtToRevenue = revenue > 0 ? (debtAmount / revenue) * 100 : 0;
+    const debtToRevenue = totalRevenue > 0 ? (debtAmount / totalRevenue) * 100 : 0;
     if (debtToRevenue < 5) score += 25;
     else if (debtToRevenue < 10) score += 20;
     else if (debtToRevenue < 20) score += 15;
@@ -846,7 +914,7 @@ export default function MonthlyReportsSection({ admin, t, showConfirm }) {
     score += 15; // Assume moderate growth
     
     // Efficiency score (0-25 points)
-    const avgTransactionSize = monthSales.length > 0 ? revenue / monthSales.length : 0;
+    const avgTransactionSize = monthSales.length > 0 ? totalRevenue / monthSales.length : 0;
     if (avgTransactionSize > 500) score += 25;
     else if (avgTransactionSize > 300) score += 20;
     else if (avgTransactionSize > 200) score += 15;
@@ -874,9 +942,9 @@ export default function MonthlyReportsSection({ admin, t, showConfirm }) {
         profitMargin,
         debtToRevenue,
         avgTransactionSize,
-        revenue,
-        profit,
-        costs,
+        revenue: totalRevenue,
+        profit: netProfit,
+        costs: operationalCosts,
         debtAmount
       }
     };
@@ -926,13 +994,15 @@ export default function MonthlyReportsSection({ admin, t, showConfirm }) {
     };
   };
 
-  // Helper function to calculate sale profit
+  // Helper function to calculate sale profit - corrected to use buying/selling price difference
   const calculateSaleProfit = (sale) => {
     if (!sale.items) return 0;
     return sale.items.reduce((total, item) => {
-      const profit = item.profit || 0;
       const quantity = item.quantity || 1;
-      return total + (profit * quantity);
+      const sellingPrice = item.selling_price || 0;
+      const buyingPrice = item.buying_price || 0;
+      const profit = (sellingPrice - buyingPrice) * quantity;
+      return total + profit;
     }, 0);
   };
 

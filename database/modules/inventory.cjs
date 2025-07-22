@@ -579,7 +579,8 @@ function getBuyingHistoryWithItems(db) {
   // Get regular buying history with items
   const buyingHistory = getBuyingHistory(db);
   
-  // Get debt payment transactions
+  // Get debt payment transactions that are NOT already recorded in buying_history
+  // We only include transactions that don't have a corresponding buying_history entry
   const debtTransactions = db.prepare(`
     SELECT 
       t.id,
@@ -634,6 +635,13 @@ function getBuyingHistoryWithItems(db) {
     FROM transactions t
     WHERE t.type IN ('company_debt_payment', 'personal_loan_payment')
       AND (t.amount_usd > 0 OR t.amount_iqd > 0)
+      -- Only include transactions that don't have a matching buying_history entry
+      AND NOT EXISTS (
+        SELECT 1 FROM buying_history bh 
+        WHERE bh.type = 'debt_payment' 
+        AND bh.reference_id = t.reference_id 
+        AND DATE(bh.date) = DATE(t.created_at)
+      )
     ORDER BY t.created_at DESC
   `).all();
   

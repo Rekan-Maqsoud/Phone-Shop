@@ -280,18 +280,53 @@ const BuyingHistoryTable = React.memo(function BuyingHistoryTable({
             )}
 
             {/* Main Table */}
-            <div className="bg-white/60 dark:bg-gray-800/80 rounded-2xl shadow-2xl overflow-hidden border border-white/20">
+            <div className="bg-white/70 dark:bg-gray-800/90 rounded-3xl shadow-2xl overflow-hidden border-2 border-white/30 dark:border-gray-600/30 backdrop-blur-sm">
               <div className="overflow-x-auto">
                 <table className="w-full" dir="auto">
-                  <thead className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white">
+                  <thead className="bg-gradient-to-r from-blue-700 via-cyan-600 to-blue-700 text-white relative">
                     <tr>
-                      <th className={`px-6 py-4 font-bold ${getTextAlign(isRTL, 'right')}`}>{t?.date || 'Date'}</th>
-                      <th className={`px-6 py-4 font-bold ${getTextAlign(isRTL, 'right')}`}>{t?.companyName || 'Company'}</th>
-                      <th className={`px-6 py-4 font-bold ${getTextAlign(isRTL, 'right')}`}>{t?.currency || 'Currency'}</th>
-                      <th className={`px-6 py-4 font-bold ${getTextAlign(isRTL, 'right')}`}>{t?.amount || 'Amount'}</th>
-                      <th className={`px-6 py-4 font-bold ${getTextAlign(isRTL, 'right')}`}>{t?.description || 'Description'}</th>
-                      <th className={`px-6 py-4 font-bold ${getTextAlign(isRTL, 'right')}`}>{t?.items || 'Items'}</th>
-                      <th className={`px-6 py-4 font-bold ${getTextAlign(isRTL, 'right')}`}>{t?.actions || 'Actions'}</th>
+                      <th className={`px-6 py-6 font-bold text-lg ${getTextAlign(isRTL, 'right')} border-r border-white/20 relative`}>
+                        <div className="flex items-center gap-2 justify-center">
+                          <Icon name="calendar" size={16} />
+                          {t?.date || 'Date'}
+                        </div>
+                      </th>
+                      <th className={`px-6 py-6 font-bold text-lg ${getTextAlign(isRTL, 'right')} border-r border-white/20`}>
+                        <div className="flex items-center gap-2 justify-center">
+                          <Icon name="building2" size={16} />
+                          {t?.companyName || 'Company'}
+                        </div>
+                      </th>
+                      <th className={`px-6 py-6 font-bold text-lg ${getTextAlign(isRTL, 'right')} border-r border-white/20`}>
+                        <div className="flex items-center gap-2 justify-center">
+                          <Icon name="banknote" size={16} />
+                          {t?.currency || 'Currency'}
+                        </div>
+                      </th>
+                      <th className={`px-6 py-6 font-bold text-lg ${getTextAlign(isRTL, 'right')} border-r border-white/20`}>
+                        <div className="flex items-center gap-2 justify-center">
+                          <Icon name="dollarSign" size={16} />
+                          {t?.amount || 'Amount'}
+                        </div>
+                      </th>
+                      <th className={`px-6 py-6 font-bold text-lg ${getTextAlign(isRTL, 'right')} border-r border-white/20`}>
+                        <div className="flex items-center gap-2 justify-center">
+                          <Icon name="fileText" size={16} />
+                          {t?.description || 'Description'}
+                        </div>
+                      </th>
+                      <th className={`px-6 py-6 font-bold text-lg ${getTextAlign(isRTL, 'right')} border-r border-white/20`}>
+                        <div className="flex items-center gap-2 justify-center">
+                          <Icon name="package" size={16} />
+                          {t?.items || 'Items'}
+                        </div>
+                      </th>
+                      <th className={`px-6 py-6 font-bold text-lg ${getTextAlign(isRTL, 'right')}`}>
+                        <div className="flex items-center gap-2 justify-center">
+                          <Icon name="settings" size={16} />
+                          {t?.actions || 'Actions'}
+                        </div>
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -304,81 +339,115 @@ const BuyingHistoryTable = React.memo(function BuyingHistoryTable({
                     ) : (
                       paginatedHistory.map((entry, idx) => (
                 <React.Fragment key={entry.id || idx}>
-                  <tr className={`border-b dark:border-gray-700 ${idx % 2 === 0 ? 'bg-gray-50 dark:bg-gray-900/50' : 'bg-white dark:bg-gray-800/50'} hover:bg-blue-50 dark:hover:bg-cyan-900/20 transition-colors`}>
-                    <td className="px-6 py-4">
-                      <div className="text-sm text-gray-600 dark:text-gray-400">
-                        {entry.date ? new Date(entry.date).toLocaleDateString() : '-'}
-                      </div>
-                      <div className="text-xs text-gray-500 dark:text-gray-500">
-                        {entry.date ? new Date(entry.date).toLocaleTimeString() : ''}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 font-medium text-gray-900 dark:text-gray-100">
-                      {(entry.supplier || entry.company_name || '-').toString().charAt(0).toUpperCase() + (entry.supplier || entry.company_name || '-').toString().slice(1).toLowerCase()}
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                        {entry.currency === 'MULTI' ? 'Multi' : (entry.currency || 'USD')}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-blue-600 dark:text-blue-400 font-bold">
-                      {entry.currency === 'MULTI' ? (
-                        // For multi-currency entries, display both amounts
-                        <div className="text-sm flex flex-col gap-1">
-                          {entry.multi_currency_usd > 0 && (
-                            <span>${(() => {
-                              const formatted = entry.multi_currency_usd.toFixed(2);
-                              return formatted.endsWith('.00') ? formatted.slice(0, -3) : formatted;
-                            })()}</span>
-                          )}
-                          {entry.multi_currency_iqd > 0 && (
-                            <span>د.ع{Math.round(entry.multi_currency_iqd).toLocaleString()}</span>
-                          )}
-                          {(!entry.multi_currency_usd || entry.multi_currency_usd === 0) && 
-                           (!entry.multi_currency_iqd || entry.multi_currency_iqd === 0) && (
-                            <span className="text-gray-500">Multi-currency</span>
-                          )}
+                  <tr className={`border-b-2 border-gray-200/50 dark:border-gray-600/50 ${idx % 2 === 0 ? 'bg-gradient-to-r from-white to-gray-50 dark:from-gray-800/80 dark:to-gray-900/60' : 'bg-gradient-to-r from-gray-50 to-white dark:from-gray-900/60 dark:to-gray-800/80'} hover:bg-gradient-to-r hover:from-blue-50 hover:to-cyan-50 dark:hover:from-cyan-900/30 dark:hover:to-blue-900/30 transition-all duration-200 transform hover:scale-[1.001] hover:shadow-md`}>
+                    <td className="px-6 py-5 border-r border-gray-200/30 dark:border-gray-600/30">
+                      <div className="flex flex-col space-y-1">
+                        <div className="text-sm font-medium text-gray-800 dark:text-gray-200">
+                          {entry.date ? new Date(entry.date).toLocaleDateString() : '-'}
                         </div>
-                      ) : (
-                        entry.currency === 'USD' 
-                          ? (() => {
-                              const amount = entry.total_price || entry.amount || 0;
-                              const formatted = amount.toFixed(2);
-                              return `$${formatted.endsWith('.00') ? formatted.slice(0, -3) : formatted}`;
-                            })()
-                          : `د.ع${Math.round(entry.total_price || entry.amount || 0).toLocaleString()}`
-                      )}
+                        <div className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100/50 dark:bg-gray-700/50 px-2 py-1 rounded-full w-fit">
+                          {entry.date ? new Date(entry.date).toLocaleTimeString() : ''}
+                        </div>
+                      </div>
                     </td>
-                    <td className="px-6 py-4 text-gray-700 dark:text-gray-300">
-                      {entry.item_name || entry.description || '-'}
+                    <td className="px-6 py-5 border-r border-gray-200/30 dark:border-gray-600/30">
+                      <div className="font-semibold text-gray-900 dark:text-gray-100 bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent dark:from-blue-400 dark:to-cyan-400">
+                        {(entry.supplier || entry.company_name || '-').toString().charAt(0).toUpperCase() + (entry.supplier || entry.company_name || '-').toString().slice(1).toLowerCase()}
+                      </div>
                     </td>
-                    <td className="px-6 py-4">
-                      {!!entry.has_items ? (
-                        <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
-                          <Icon name="package" size={16} className="mr-2" /> {t?.withItems || 'With Items'}
+                    <td className="px-6 py-5 border-r border-gray-200/30 dark:border-gray-600/30">
+                      <div className="flex justify-center">
+                        <span className={`px-3 py-2 rounded-xl text-xs font-bold shadow-lg ${
+                          entry.currency === 'MULTI' 
+                            ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-purple-200 dark:shadow-purple-800'
+                            : entry.currency === 'USD'
+                            ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-green-200 dark:shadow-green-800'
+                            : 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-blue-200 dark:shadow-blue-800'
+                        }`}>
+                          {entry.currency === 'MULTI' ? 'Multi' : (entry.currency || 'USD')}
                         </span>
-                      ) : (
-                        <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200">
-                          <Icon name="money" size={16} className="mr-2" /> {t?.cashOnly || 'Cash Only'}
-                        </span>
-                      )}
+                      </div>
                     </td>
-                    <td className="px-6 py-4">
-                      <div className="flex gap-2">
+                    <td className="px-6 py-5 border-r border-gray-200/30 dark:border-gray-600/30">
+                      <div className="text-right">
+                        {entry.currency === 'MULTI' ? (
+                          <div className="flex flex-col gap-2">
+                            {entry.multi_currency_usd > 0 && (
+                              <div className="bg-green-50 dark:bg-green-900/20 px-3 py-2 rounded-lg border-l-4 border-green-500">
+                                <span className="text-green-700 dark:text-green-400 font-bold text-lg">
+                                  ${(() => {
+                                    const formatted = entry.multi_currency_usd.toFixed(2);
+                                    return formatted.endsWith('.00') ? formatted.slice(0, -3) : formatted;
+                                  })()}
+                                </span>
+                              </div>
+                            )}
+                            {entry.multi_currency_iqd > 0 && (
+                              <div className="bg-blue-50 dark:bg-blue-900/20 px-3 py-2 rounded-lg border-l-4 border-blue-500">
+                                <span className="text-blue-700 dark:text-blue-400 font-bold text-lg">
+                                  د.ع{Math.round(entry.multi_currency_iqd).toLocaleString()}
+                                </span>
+                              </div>
+                            )}
+                            {(!entry.multi_currency_usd || entry.multi_currency_usd === 0) && 
+                             (!entry.multi_currency_iqd || entry.multi_currency_iqd === 0) && (
+                              <span className="text-gray-500 italic">Multi-currency</span>
+                            )}
+                          </div>
+                        ) : (
+                          <div className={`px-4 py-3 rounded-xl font-bold text-xl ${
+                            entry.currency === 'USD' 
+                              ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-2 border-green-200 dark:border-green-600/50'
+                              : 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 border-2 border-blue-200 dark:border-blue-600/50'
+                          }`}>
+                            {entry.currency === 'USD' 
+                              ? (() => {
+                                  const amount = entry.total_price || entry.amount || 0;
+                                  const formatted = amount.toFixed(2);
+                                  return `$${formatted.endsWith('.00') ? formatted.slice(0, -3) : formatted}`;
+                                })()
+                              : `د.ع${Math.round(entry.total_price || entry.amount || 0).toLocaleString()}`
+                            }
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-5 border-r border-gray-200/30 dark:border-gray-600/30">
+                      <div className="text-gray-700 dark:text-gray-300 font-medium bg-gray-50/80 dark:bg-gray-700/50 px-3 py-2 rounded-lg">
+                        {entry.item_name || entry.description || '-'}
+                      </div>
+                    </td>
+                    <td className="px-6 py-5 border-r border-gray-200/30 dark:border-gray-600/30">
+                      <div className="flex justify-center">
+                        {!!entry.has_items ? (
+                          <span className="px-4 py-2 rounded-xl text-sm font-bold bg-gradient-to-r from-emerald-500 to-green-500 text-white shadow-lg shadow-green-200 dark:shadow-green-800 flex items-center gap-2">
+                            <Icon name="package" size={18} /> {t?.withItems || 'With Items'}
+                          </span>
+                        ) : (
+                          <span className="px-4 py-2 rounded-xl text-sm font-bold bg-gradient-to-r from-gray-500 to-slate-500 text-white shadow-lg shadow-gray-200 dark:shadow-gray-800 flex items-center gap-2">
+                            <Icon name="money" size={18} /> {t?.cashOnly || 'Cash Only'}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-5">
+                      <div className="flex gap-3 justify-center">
                         {!!entry.has_items && (
                           <button
                             onClick={() => toggleExpanded(entry.id)}
-                            className="px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm"
+                            className="px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl hover:from-blue-700 hover:to-cyan-700 transition-all duration-200 transform hover:scale-105 shadow-lg shadow-blue-200 dark:shadow-blue-800 font-medium text-sm flex items-center gap-2"
                           >
-                            {expandedEntries.has(entry.id) ? '🔼' : '🔽'} {t?.viewItems || 'View Items'}
+                            <span className="text-lg">{expandedEntries.has(entry.id) ? '🔼' : '🔽'}</span>
+                            {t?.viewItems || 'View Items'}
                           </button>
                         )}
                         <button
                           onClick={() => handleReturnEntry(entry.id, entry.amount)}
-                          className="px-3 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-sm"
+                          className="px-4 py-2 bg-gradient-to-r from-red-600 to-rose-600 text-white rounded-xl hover:from-red-700 hover:to-rose-700 transition-all duration-200 transform hover:scale-105 shadow-lg shadow-red-200 dark:shadow-red-800 font-medium text-sm flex items-center gap-2"
                           title={t?.returnEntry || 'Return this purchase'}
                         >
-                          ↩️ {t?.returnEntry || 'Return'}
+                          <span className="text-lg">↩️</span>
+                          {t?.returnEntry || 'Return'}
                         </button>
                       </div>
                     </td>

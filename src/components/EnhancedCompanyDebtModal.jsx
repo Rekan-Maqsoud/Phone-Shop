@@ -7,7 +7,7 @@ export default function EnhancedCompanyDebtModal({ show, onClose, debt, onMarkPa
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showItems, setShowItems] = useState(true);
-  const [paymentCurrency, setPaymentCurrency] = useState('USD'); // Which currency user will pay with
+  const [paymentCurrency, setPaymentCurrency] = useState('IQD'); // Which currency user will pay with
   const [paymentAmount, setPaymentAmount] = useState(0); // How much user is paying
 
   // Calculate payment summary with change skipping logic
@@ -73,8 +73,16 @@ export default function EnhancedCompanyDebtModal({ show, onClose, debt, onMarkPa
     
     // Set default payment amount when debt changes
     if (show && debt) {
-      setPaymentCurrency('USD');
-      setPaymentAmount(debt.amount || 0); // Default to exact debt amount in USD
+      setPaymentCurrency('IQD');
+      // Set payment amount based on debt currency and default payment currency
+      if (debt.currency === 'IQD') {
+        setPaymentAmount(debt.amount || 0); // Debt is in IQD, use direct amount
+      } else if (debt.currency === 'USD') {
+        setPaymentAmount((debt.amount || 0) * EXCHANGE_RATES.USD_TO_IQD); // Convert USD debt to IQD for payment
+      } else {
+        // Legacy or unknown currency, assume USD and convert to IQD
+        setPaymentAmount((debt.amount || 0) * EXCHANGE_RATES.USD_TO_IQD);
+      }
     }
   }, [show, debt]);
 

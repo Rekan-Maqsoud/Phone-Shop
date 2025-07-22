@@ -467,17 +467,32 @@ const UniversalPaymentModal = ({
                 <div className="space-y-2">
                   <div className="flex justify-between">
                     <span>{t?.debtAmount || 'Debt Amount'}:</span>
-                    <span className="font-medium">{formatCurrency(paymentSummary.debtAmount, 'USD')}</span>
+                    <div className="text-right">
+                      <span className="font-medium">{formatCurrency(paymentSummary.debtAmount, 'USD')}</span>
+                      <div className="text-xs opacity-75">
+                        (≈ {formatCurrency(paymentSummary.debtAmount * EXCHANGE_RATES.USD_TO_IQD, 'IQD')})
+                      </div>
+                    </div>
                   </div>
                   <div className="flex justify-between">
                     <span>{t?.totalPaid || 'Total Paid'}:</span>
-                    <span className="font-medium">{formatCurrency(paymentSummary.totalPaid, 'USD')}</span>
+                    <div className="text-right">
+                      <span className="font-medium">{formatCurrency(paymentSummary.totalPaid, 'USD')}</span>
+                      <div className="text-xs opacity-75">
+                        (≈ {formatCurrency(paymentSummary.totalPaid * EXCHANGE_RATES.USD_TO_IQD, 'IQD')})
+                      </div>
+                    </div>
                   </div>
                   <div className={`flex justify-between ${paymentSummary.isPerfect ? 'text-green-600' : paymentSummary.isOverpaid ? 'text-orange-600' : 'text-red-600'}`}>
-                    <span>{t?.difference || 'Difference'}:</span>
-                    <span className="font-medium">
-                      {paymentSummary.difference >= 0 ? '+' : ''}{formatCurrency(Math.abs(paymentSummary.difference), 'USD')}
-                    </span>
+                    <span>{paymentSummary.isUnderpaid ? (t?.remaining || 'Remaining') : (t?.difference || 'Difference')}:</span>
+                    <div className="text-right">
+                      <span className="font-medium">
+                        {paymentSummary.difference >= 0 ? '+' : ''}{formatCurrency(Math.abs(paymentSummary.difference), 'USD')}
+                      </span>
+                      <div className="text-xs opacity-75">
+                        (≈ {formatCurrency(Math.abs(paymentSummary.difference) * EXCHANGE_RATES.USD_TO_IQD, 'IQD')})
+                      </div>
+                    </div>
                   </div>
                   {paymentSummary.change && (
                     <div className="text-orange-600 dark:text-orange-400">

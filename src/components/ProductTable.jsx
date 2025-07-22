@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { formatCurrency } from '../utils/exchangeRates';
 
 const ProductTable = React.memo(function ProductTable({
   title,
@@ -64,10 +65,12 @@ const ProductTable = React.memo(function ProductTable({
                   {p.currency || 'USD'}
                 </span>
               </td>
-              <td className="px-4 py-2">{(p.currency === 'USD' ? '$' : 'د.ع')}{Number(p.buying_price || 0).toFixed(2)}</td>
+              <td className="px-4 py-2 font-semibold text-green-600 dark:text-green-400">
+                {formatCurrency(p.price, p.currency)}
+              </td>
               <td className={`px-4 py-2 ${!isArchived && p.stock < lowStockThreshold ? 'text-red-600 font-bold' : ''}`}>{p.stock}</td>
               <td className="px-4 py-2 font-semibold text-green-600 dark:text-green-400">
-                {(p.currency === 'USD' ? '$' : 'د.ع')}{((Number(p.buying_price || 0)) * (Number(p.stock || 0))).toFixed(2)}
+                {formatCurrency((Number(p.buying_price || 0)) * (Number(p.stock || 0)), p.currency)}
               </td>
               <td className="px-4 py-2 flex gap-2">
                 {!isArchived ? (

@@ -3,6 +3,7 @@ import { useData } from '../contexts/DataContext';
 import { getAccessoryIcon } from '../utils/accessoryUtils';
 import QuickAddAccessory from './QuickAddAccessory';
 import { Icon } from '../utils/icons.jsx';
+import { formatCurrency } from '../utils/exchangeRates';
 
 const AccessoriesSection = ({ 
   t, 
@@ -190,7 +191,7 @@ const AccessoriesSection = ({
                         {accessory.currency || 'USD'}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-blue-600 dark:text-blue-400 font-semibold">{(accessory.currency === 'USD' ? '$' : 'د.ع')}{Number(accessory.buying_price || 0).toFixed(2)}</td>
+                    <td className="px-6 py-4 text-blue-600 dark:text-blue-400 font-semibold">{formatCurrency(Number(accessory.buying_price || 0), accessory.currency)}</td>
                     <td className="px-6 py-4">
                       <span className={`px-2 py-1 rounded-full text-sm font-medium ${
                         accessory.stock <= 2 ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
@@ -201,7 +202,7 @@ const AccessoriesSection = ({
                       </span>
                     </td>
                     <td className="px-6 py-4 font-semibold text-green-600 dark:text-green-400">
-                      {(accessory.currency === 'USD' ? '$' : 'د.ع')}{((Number(accessory.buying_price || 0)) * (Number(accessory.stock || 0))).toFixed(2)}
+                      {formatCurrency((Number(accessory.buying_price || 0)) * (Number(accessory.stock || 0)), accessory.currency)}
                     </td>
                     <td className="px-6 py-4 text-center">
                       <div className="flex gap-2 justify-center">

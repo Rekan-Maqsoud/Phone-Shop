@@ -158,7 +158,7 @@ const CustomerDebtPaymentModal = ({
           customer_name: originalCustomer,
           amount: debtAmount,
           description: `Debt for sale #${sale.id}`,
-          currency: sale.currency || 'USD',
+          currency: sale.currency || 'IQD',
           sale_id: sale.id
         });
    
