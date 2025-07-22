@@ -58,8 +58,8 @@ function addDirectPurchase(db, { item_name, quantity, unit_price, supplier, date
     
     addTransactionStmt.run(
       'direct_purchase',
-      usdAmount,
-      iqdAmount,
+      -usdAmount, // Negative to indicate spending
+      -iqdAmount, // Negative to indicate spending
       `Direct purchase: ${item_name} from ${supplier}`,
       result.lastInsertRowid,
       'buying_history',
@@ -204,8 +204,8 @@ function addDirectPurchaseWithItems(db, { supplier, date, items, currency = 'IQD
     
     addTransactionStmt.run(
       'direct_purchase',
-      usdAmount,
-      iqdAmount,
+      -usdAmount, // Negative to indicate spending
+      -iqdAmount, // Negative to indicate spending
       `Direct purchase with ${items.length} items from ${supplier}`,
       buyingHistoryId,
       'buying_history',
@@ -220,6 +220,162 @@ function addDirectPurchaseWithItems(db, { supplier, date, items, currency = 'IQD
     }
     
     return { success: true, buyingHistoryId, totalAmount };
+  });
+  
+  return transaction();
+}
+
+function addDirectPurchaseMultiCurrencyWithItems(db, { supplier, date, items, usdAmount, iqdAmount }) {
+  const purchaseDate = date || new Date().toISOString();
+  const total_usd = usdAmount || 0;
+  const total_iqd = iqdAmount || 0;
+  
+  if (total_usd <= 0 && total_iqd <= 0) {
+    throw new Error('At least one currency amount must be greater than 0');
+  }
+  
+  const transaction = db.transaction(() => {
+    // Calculate combined total in IQD for display purposes (using standard exchange rate)
+    const EXCHANGE_RATE_USD_TO_IQD = 1440; // Standard rate for display
+    const totalInIQD = (total_usd * EXCHANGE_RATE_USD_TO_IQD) + total_iqd;
+    
+    // Create a description that shows both currencies
+    const currencyDesc = [];
+    if (total_usd > 0) currencyDesc.push(`$${total_usd.toFixed(2)}`);
+    if (total_iqd > 0) currencyDesc.push(`د.ع${total_iqd.toFixed(2)}`);
+    
+    const totalQuantity = items.reduce((sum, item) => sum + parseInt(item.quantity), 0);
+    const itemNames = items.map(item => item.item_name || `${item.brand} ${item.model}`).join(', ');
+    const multiCurrencyItemName = `${itemNames} (${currencyDesc.join(' + ')})`;
+    
+    // Create a single buying history entry for the multi-currency purchase
+    const result = db.prepare(`
+      INSERT INTO buying_history 
+      (item_name, quantity, unit_price, total_price, supplier, date, currency, has_items) 
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      multiCurrencyItemName,
+      totalQuantity,
+      totalInIQD / totalQuantity, // Average unit price in IQD for display
+      totalInIQD,
+      supplier,
+      purchaseDate,
+      'MULTI', // Special currency indicator
+      1 // has_items = true
+    );
+    
+    const buyingHistoryId = result.lastInsertRowid;
+    
+    // Insert all items into buying_history_items table
+    const insertItemStmt = db.prepare(`
+      INSERT INTO buying_history_items 
+      (buying_history_id, item_name, item_type, brand, model, ram, storage, type, quantity, unit_price, total_price, currency) 
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    
+    items.forEach(item => {
+      const itemTotalPrice = item.quantity * item.unit_price;
+      
+      insertItemStmt.run(
+        buyingHistoryId,
+        item.item_name || `${item.brand} ${item.model}`,
+        item.item_type || 'product',
+        item.brand || null,
+        item.model || null,
+        item.ram || null,
+        item.storage || null,
+        item.type || null,
+        item.quantity,
+        item.unit_price,
+        itemTotalPrice,
+        item.currency || 'IQD'
+      );
+      
+      // Add stock to products or accessories
+      if (item.item_type === 'product') {
+        // Check if product exists, if not create it
+        const existingProduct = db.prepare(`
+          SELECT id FROM products 
+          WHERE brand = ? AND model = ? AND COALESCE(ram, '') = ? AND COALESCE(storage, '') = ?
+        `).get(item.brand || '', item.model || '', item.ram || '', item.storage || '');
+        
+        if (existingProduct) {
+          // Update existing product stock and unarchive if archived
+          db.prepare(`UPDATE products SET stock = stock + ?, archived = 0 WHERE id = ?`)
+            .run(item.quantity, existingProduct.id);
+        } else {
+          // Create new product
+          db.prepare(`INSERT INTO products 
+            (name, brand, model, ram, storage, buying_price, stock, currency, category, archived) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+            .run(
+              item.item_name || [item.brand, item.model].filter(Boolean).join(' '),
+              item.brand || '',
+              item.model || '',
+              item.ram || null,
+              item.storage || null,
+              item.unit_price,
+              item.quantity,
+              item.currency || 'IQD',
+              'phones',
+              0
+            );
+        }
+      } else if (item.item_type === 'accessory') {
+        // Check if accessory exists, if not create it
+        const existingAccessory = db.prepare(`
+          SELECT id FROM accessories 
+          WHERE brand = ? AND model = ? AND COALESCE(type, '') = ?
+        `).get(item.brand || '', item.model || '', item.type || '');
+        
+        if (existingAccessory) {
+          // Update existing accessory stock and unarchive if archived
+          db.prepare(`UPDATE accessories SET stock = stock + ?, archived = 0 WHERE id = ?`)
+            .run(item.quantity, existingAccessory.id);
+        } else {
+          // Create new accessory
+          db.prepare(`INSERT INTO accessories 
+            (name, brand, model, type, buying_price, stock, currency, archived) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+            .run(
+              item.item_name || [item.brand, item.model].filter(Boolean).join(' '),
+              item.brand || '',
+              item.model || '',
+              item.type || null,
+              item.unit_price,
+              item.quantity,
+              item.currency || 'IQD',
+              0
+            );
+        }
+      }
+    });
+    
+    // Record transaction for tracking spending with both amounts - use negative values to indicate spending
+    const addTransactionStmt = db.prepare(`
+      INSERT INTO transactions (type, amount_usd, amount_iqd, description, reference_id, reference_type, created_at) 
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+    
+    addTransactionStmt.run(
+      'direct_purchase',
+      -total_usd, // Negative to indicate spending
+      -total_iqd, // Negative to indicate spending
+      `Multi-currency purchase with ${items.length} items from ${supplier} (${currencyDesc.join(' + ')})`,
+      buyingHistoryId,
+      'buying_history',
+      purchaseDate
+    );
+    
+    // Deduct from both balances
+    if (total_usd > 0) {
+      settings.updateBalance(db, 'USD', -total_usd);
+    }
+    if (total_iqd > 0) {
+      settings.updateBalance(db, 'IQD', -total_iqd);
+    }
+    
+    return { success: true, buyingHistoryId, totalAmount: { usd: total_usd, iqd: total_iqd } };
   });
   
   return transaction();
@@ -268,8 +424,8 @@ function addDirectPurchaseMultiCurrency(db, { item_name, quantity, supplier, dat
     
     addTransactionStmt.run(
       'direct_purchase',
-      total_usd,
-      total_iqd,
+      -total_usd, // Negative to indicate spending
+      -total_iqd, // Negative to indicate spending
       `Multi-currency purchase: ${item_name} from ${supplier} (${currencyDesc.join(' + ')})`,
       result.lastInsertRowid,
       'buying_history',
@@ -509,5 +665,6 @@ module.exports = {
   getBuyingHistoryWithItems,
   addDirectPurchase,
   addDirectPurchaseWithItems,
-  addDirectPurchaseMultiCurrency
+  addDirectPurchaseMultiCurrency,
+  addDirectPurchaseMultiCurrencyWithItems
 };

@@ -58,9 +58,9 @@ const IncentivesSection = ({ t, admin, triggerCloudBackup }) => {
     }, { USD: 0, IQD: 0 });
   }, [filteredIncentives]);
 
-  const handleOpenAddModal = () => {
+  const handleOpenAddModal = (companyName = '') => {
     setFormData({
-      company_name: '',
+      company_name: companyName,
       amount: '',
       description: '',
       currency: 'IQD'
@@ -173,9 +173,6 @@ const IncentivesSection = ({ t, admin, triggerCloudBackup }) => {
             <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
               {t.incentives || 'Incentives'}
             </h1>
-            <p className="text-gray-600 dark:text-gray-300 text-lg">
-              {t.incentivesDescription || 'Track and manage company incentives and bonuses'}
-            </p>
           </div>
         </div>
         
@@ -248,13 +245,24 @@ const IncentivesSection = ({ t, admin, triggerCloudBackup }) => {
                 {/* Company Header */}
                 <div className="bg-white dark:bg-gray-800 rounded-t-xl shadow p-6">
                   <div className="flex justify-between items-center">
-                    <div>
-                      <h3 className="text-xl font-bold text-gray-800 dark:text-gray-100">
-                        {companyName}
-                      </h3>
-                      <p className="text-gray-600 dark:text-gray-400">
-                        {companyIncentives.length} {companyIncentives.length === 1 ? (t.incentive || 'incentive') : (t.incentives || 'incentives')}
-                      </p>
+                    <div className="flex items-center gap-4">
+                      <div>
+                        <h3 className="text-xl font-bold text-gray-800 dark:text-gray-100">
+                          {companyName}
+                        </h3>
+                        <p className="text-gray-600 dark:text-gray-400">
+                          {companyIncentives.length} {companyIncentives.length === 1 ? (t.incentive || 'incentive') : (t.incentives || 'incentives')}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => handleOpenAddModal(companyName)}
+                        className="flex items-center gap-1 px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-medium shadow-md"
+                        title={t.addAnotherIncentive || `Add another incentive for ${companyName}`}
+                        disabled={loading}
+                      >
+                        <Icon name="add" size={16} />
+                        <span className="hidden sm:inline">{t.addMore || 'Add More'}</span>
+                      </button>
                     </div>
                     <div className="text-right">
                       <div className="text-2xl font-bold text-gray-800 dark:text-gray-100">

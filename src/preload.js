@@ -61,6 +61,7 @@ contextBridge.exposeInMainWorld('api', {
   addDirectPurchase: (purchaseData) => ipcRenderer.invoke('addDirectPurchase', purchaseData),
   addDirectPurchaseWithItems: (purchaseData) => ipcRenderer.invoke('addDirectPurchaseWithItems', purchaseData),
   addDirectPurchaseMultiCurrency: (purchaseData) => ipcRenderer.invoke('addDirectPurchaseMultiCurrency', purchaseData),
+  addDirectPurchaseMultiCurrencyWithItems: (purchaseData) => ipcRenderer.invoke('addDirectPurchaseMultiCurrencyWithItems', purchaseData),
   
   // Monthly reports functionality
   createMonthlyReport: (month, year) => ipcRenderer.invoke('createMonthlyReport', month, year),

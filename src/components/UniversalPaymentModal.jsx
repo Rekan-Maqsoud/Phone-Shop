@@ -206,15 +206,11 @@ const UniversalPaymentModal = ({
           }
         }
       } else if (paymentType === 'company') {
-        // Fix: Use the correct currency and amount for company debt payments
-        const paymentAmount = paymentData.payment_currency_used === 'USD' ? 
-          paymentData.payment_usd_amount : paymentData.payment_iqd_amount;
-        const paymentCurr = paymentData.payment_currency_used === 'MULTI' ? 
-          (paymentData.payment_usd_amount > 0 ? 'USD' : 'IQD') : paymentData.payment_currency_used;
-          
+        // Use multi-currency payment data like customer debts
         result = await window.api?.markCompanyDebtPaid?.(debtData.id, {
-          payment_currency: paymentCurr,
-          payment_amount: paymentAmount
+          payment_currency_used: paymentData.payment_currency_used,
+          payment_usd_amount: paymentData.payment_usd_amount || 0,
+          payment_iqd_amount: paymentData.payment_iqd_amount || 0
         });
       } else if (paymentType === 'personal') {
         result = await window.api?.markPersonalLoanPaid?.(debtData.id, paymentData);
@@ -525,7 +521,7 @@ const UniversalPaymentModal = ({
           </button>
           <button
             onClick={processPayment}
-            disabled={!paymentSummary || (paymentSummary.isUnderpaid && !multiCurrency.enabled)}
+            disabled={!paymentSummary}
             className="flex-1 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition font-semibold shadow-lg"
           >
             {t?.processPayment || 'Process Payment'}

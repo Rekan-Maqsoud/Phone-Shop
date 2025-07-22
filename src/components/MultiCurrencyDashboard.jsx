@@ -171,29 +171,107 @@ function MultiCurrencyDashboard({ admin, t }) {
       return sum;
     }, 0);
 
-    // Outstanding personal loans by currency
+    // Outstanding personal loans by currency - use new multi-currency fields
     const unpaidLoans = (personalLoans || []).filter(loan => !loan.paid_at);
-    const unpaidUSDLoans = unpaidLoans.filter(l => l.currency === 'USD').reduce((sum, l) => sum + (l.amount || 0), 0);
-    const unpaidIQDLoans = unpaidLoans.filter(l => l.currency === 'IQD').reduce((sum, l) => sum + (l.amount || 0), 0);
+    const unpaidUSDLoans = unpaidLoans.reduce((sum, loan) => {
+      // Use new multi-currency fields first, fallback to old schema
+      const remainingUSD = (loan.usd_amount || 0) - (loan.payment_usd_amount || 0);
+      if (loan.usd_amount !== undefined) {
+        return sum + Math.max(0, remainingUSD); // Only count positive remaining amounts
+      } else if (loan.currency === 'USD') {
+        return sum + (loan.amount || 0); // Fallback for old schema
+      }
+      return sum;
+    }, 0);
+    const unpaidIQDLoans = unpaidLoans.reduce((sum, loan) => {
+      // Use new multi-currency fields first, fallback to old schema  
+      const remainingIQD = (loan.iqd_amount || 0) - (loan.payment_iqd_amount || 0);
+      if (loan.iqd_amount !== undefined) {
+        return sum + Math.max(0, remainingIQD); // Only count positive remaining amounts
+      } else if (loan.currency === 'IQD') {
+        return sum + (loan.amount || 0); // Fallback for old schema
+      }
+      return sum;
+    }, 0);
 
-    // Net performance (sales - spending) by currency
+    // Net performance (sales - spending) by currency - Include all outgoing payments
     const todaysSpendingUSD = (buyingHistory || []).filter(entry => {
       if (!entry.paid_at) return false;
       const paidDate = new Date(entry.paid_at);
-      return paidDate.toDateString() === today && entry.currency === 'USD';
-    }).reduce((sum, entry) => sum + (entry.amount || 0), 0);
+      return paidDate.toDateString() === today;
+    }).reduce((sum, entry) => {
+      if (entry.currency === 'MULTI') {
+        return sum + (entry.multi_currency_usd || 0);
+      } else if (entry.currency === 'USD') {
+        return sum + (entry.total_price || entry.amount || 0);
+      }
+      return sum;
+    }, 0);
+
+    // Add company debt payments made today in USD
+    const todaysCompanyDebtPaymentsUSD = (companyDebts || []).filter(debt => {
+      if (!debt.paid_at) return false;
+      const paidDate = new Date(debt.paid_at);
+      return paidDate.toDateString() === today;
+    }).reduce((sum, debt) => {
+      if (debt.currency === 'MULTI') {
+        return sum + (debt.usd_amount || 0);
+      } else if (debt.currency === 'USD' || !debt.currency) {
+        return sum + (debt.amount || 0);
+      }
+      return sum;
+    }, 0);
+
+    // Add today's transactions that are outgoing (negative amounts)
+    const todaysTransactionSpendingUSD = (transactions || []).filter(transaction => {
+      if (!transaction.created_at) return false;
+      const transactionDate = new Date(transaction.created_at);
+      return transactionDate.toDateString() === today && transaction.amount_usd < 0;
+    }).reduce((sum, transaction) => sum + Math.abs(transaction.amount_usd), 0);
 
     const todaysSpendingIQD = (buyingHistory || []).filter(entry => {
       if (!entry.paid_at) return false;
       const paidDate = new Date(entry.paid_at);
-      return paidDate.toDateString() === today && entry.currency === 'IQD';
-    }).reduce((sum, entry) => sum + (entry.amount || 0), 0);
+      return paidDate.toDateString() === today;
+    }).reduce((sum, entry) => {
+      if (entry.currency === 'MULTI') {
+        return sum + (entry.multi_currency_iqd || 0);
+      } else if (entry.currency === 'IQD' || !entry.currency) {
+        return sum + (entry.total_price || entry.amount || 0);
+      }
+      return sum;
+    }, 0);
+
+    // Add company debt payments made today in IQD
+    const todaysCompanyDebtPaymentsIQD = (companyDebts || []).filter(debt => {
+      if (!debt.paid_at) return false;
+      const paidDate = new Date(debt.paid_at);
+      return paidDate.toDateString() === today;
+    }).reduce((sum, debt) => {
+      if (debt.currency === 'MULTI') {
+        return sum + (debt.iqd_amount || 0);
+      } else if (debt.currency === 'IQD') {
+        return sum + (debt.amount || 0);
+      }
+      return sum;
+    }, 0);
+
+    // Add today's transactions that are outgoing (negative amounts)
+    const todaysTransactionSpendingIQD = (transactions || []).filter(transaction => {
+      if (!transaction.created_at) return false;
+      const transactionDate = new Date(transaction.created_at);
+      return transactionDate.toDateString() === today && transaction.amount_iqd < 0;
+    }).reduce((sum, transaction) => sum + Math.abs(transaction.amount_iqd), 0);
+
+    // Total spending includes purchases, debt payments, and other outgoing transactions
+    const totalTodaysSpendingUSD = todaysSpendingUSD + todaysCompanyDebtPaymentsUSD + todaysTransactionSpendingUSD;
+    const totalTodaysSpendingIQD = todaysSpendingIQD + todaysCompanyDebtPaymentsIQD + todaysTransactionSpendingIQD;
 
     // Net performance: USD = native USD sales - USD spending
-    const netPerformanceUSD = todaysUSDSales - todaysSpendingUSD;
+    const netPerformanceUSD = todaysUSDSales - totalTodaysSpendingUSD;
     
     // Net performance: IQD = native IQD sales - IQD spending (no conversion mixing)
-    const netPerformanceIQD = todaysIQDSales - todaysSpendingIQD;
+    const netPerformanceIQD = todaysIQDSales - totalTodaysSpendingIQD;
 
     // Calculate inventory values
     const inventoryValueUSD = (products || [])
@@ -226,6 +304,8 @@ function MultiCurrencyDashboard({ admin, t }) {
       unpaidIQDLoans,
       netPerformanceUSD,
       netPerformanceIQD,
+      totalTodaysSpendingUSD,
+      totalTodaysSpendingIQD,
       totalTransactions: todaysSales.length,
       totalDebtCount: unpaidDebtSalesUSD.length + unpaidDebtSalesIQD.length + unpaidCompanyDebts.length,
       totalLoanCount: unpaidLoans.length,
@@ -249,11 +329,8 @@ function MultiCurrencyDashboard({ admin, t }) {
               <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/>
               </svg>
-              {t?.multiCurrencyDashboard || 'Multi-Currency Dashboard'}
+              {t?.dashboard || 'Dashboard'}
             </h1>
-            <p className="text-blue-100 text-lg">
-              {t?.realTimeBusinessMetrics || 'Real-time business metrics across USD and IQD'}
-            </p>
           </div>
         </div>
       </div>
@@ -466,6 +543,73 @@ function MultiCurrencyDashboard({ admin, t }) {
         </div>
       </div>
 
+      {/* Daily Balance Check - Physical Money Verification */}
+      <div className="bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 rounded-3xl p-8 text-white shadow-2xl">
+        <div className="grid grid-cols-2 gap-8">
+          <div>
+            <h3 className="text-2xl font-bold mb-4 flex items-center gap-3">
+              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12,3L2,12H5V20H19V12H22L12,3M12,8.75A2.25,2.25 0 0,1 14.25,11A2.25,2.25 0 0,1 12,13.25A2.25,2.25 0 0,1 9.75,11A2.25,2.25 0 0,1 12,8.75Z"/>
+              </svg>
+              {t?.dailyBalanceCheck || 'Daily Balance Check'} - USD
+            </h3>
+            <div className="space-y-3 text-white/90">
+              <div className="flex justify-between items-center">
+                <span>{t?.openingBalance || 'Opening Balance'}:</span>
+                <span className="font-bold">{formatCurrencyWithTranslation(balances.usd_balance - metrics.netPerformanceUSD, 'USD', t)}</span>
+              </div>
+              <div className="flex justify-between items-center text-green-300">
+                <span>+ {t?.todaysSales || "Today's Sales"}:</span>
+                <span className="font-bold">{formatCurrencyWithTranslation(metrics.todaysUSDSales, 'USD', t)}</span>
+              </div>
+              <div className="flex justify-between items-center text-red-300">
+                <span>- {t?.todaysSpending || "Today's Spending"}:</span>
+                <span className="font-bold">{formatCurrencyWithTranslation(metrics.totalTodaysSpendingUSD, 'USD', t)}</span>
+              </div>
+              <hr className="border-white/30" />
+              <div className="flex justify-between items-center text-xl font-bold">
+                <span>{t?.expectedBalance || 'Expected Balance'}:</span>
+                <span>{formatCurrencyWithTranslation(balances.usd_balance, 'USD', t)}</span>
+              </div>
+              <div className="text-sm text-white/70 mt-2">
+                {t?.physicalMoneyCheck || 'Count your physical USD and compare with this amount'}
+              </div>
+            </div>
+          </div>
+          
+          <div>
+            <h3 className="text-2xl font-bold mb-4 flex items-center gap-3">
+              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12,3L2,12H5V20H19V12H22L12,3M12,8.75A2.25,2.25 0 0,1 14.25,11A2.25,2.25 0 0,1 12,13.25A2.25,2.25 0 0,1 9.75,11A2.25,2.25 0 0,1 12,8.75Z"/>
+              </svg>
+              {t?.dailyBalanceCheck || 'Daily Balance Check'} - IQD
+            </h3>
+            <div className="space-y-3 text-white/90">
+              <div className="flex justify-between items-center">
+                <span>{t?.openingBalance || 'Opening Balance'}:</span>
+                <span className="font-bold">{formatCurrencyWithTranslation(balances.iqd_balance - metrics.netPerformanceIQD, 'IQD', t)}</span>
+              </div>
+              <div className="flex justify-between items-center text-green-300">
+                <span>+ {t?.todaysSales || "Today's Sales"}:</span>
+                <span className="font-bold">{formatCurrencyWithTranslation(metrics.todaysIQDSales, 'IQD', t)}</span>
+              </div>
+              <div className="flex justify-between items-center text-red-300">
+                <span>- {t?.todaysSpending || "Today's Spending"}:</span>
+                <span className="font-bold">{formatCurrencyWithTranslation(metrics.totalTodaysSpendingIQD, 'IQD', t)}</span>
+              </div>
+              <hr className="border-white/30" />
+              <div className="flex justify-between items-center text-xl font-bold">
+                <span>{t?.expectedBalance || 'Expected Balance'}:</span>
+                <span>{formatCurrencyWithTranslation(balances.iqd_balance, 'IQD', t)}</span>
+              </div>
+              <div className="text-sm text-white/70 mt-2">
+                {t?.physicalMoneyCheck || 'Count your physical IQD and compare with this amount'}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Inventory Overview */}
       <div className="grid grid-cols-4 gap-6">
         {/* Total Inventory Value USD */}
@@ -532,8 +676,9 @@ function MultiCurrencyDashboard({ admin, t }) {
             </p>
           </div>
           <div className="text-right">
-            <div className="text-3xl font-bold">
-              {formatCurrencyWithTranslation(metrics.inventoryValueUSD, 'USD', t)} + {formatCurrencyWithTranslation(metrics.inventoryValueIQD, 'IQD', t)}
+            <div className="text-2xl font-bold space-y-1">
+              <div>{formatCurrencyWithTranslation(metrics.inventoryValueUSD, 'USD', t)}</div>
+              <div>{formatCurrencyWithTranslation(metrics.inventoryValueIQD, 'IQD', t)}</div>
             </div>
             <div className="text-white/80 text-sm">
               {metrics.totalStockCount} {t?.totalItems || 'total items in stock'}
@@ -615,7 +760,14 @@ function MultiCurrencyDashboard({ admin, t }) {
                   </div>
                   <div>
                     <div className="text-sm font-medium text-gray-800 dark:text-gray-200">
-                      {transaction.description || transaction.type}
+                      {transaction.description || (
+                        transaction.type === 'sale' ? (t?.sale || 'Sale') :
+                        transaction.type === 'debt_sale' ? (t?.debtSale || 'Debt Sale') :
+                        transaction.type === 'purchase' ? (t?.purchase || 'Purchase') :
+                        transaction.type === 'loan' ? (t?.loan || 'Loan') :
+                        transaction.type === 'debt_payment' ? (t?.debtPayment || 'Debt Payment') :
+                        transaction.type
+                      )}
                     </div>
                     <div className="text-xs text-gray-500 dark:text-gray-400">
                       {new Date(transaction.created_at).toLocaleString()}
@@ -819,12 +971,12 @@ const BalanceChart = React.memo(({
     const labels = [
       usdBalance > 0 ? `${t?.usdBalance || 'USD Balance'} (${formatCurrency(usdBalance, 'USD')})` : null,
       iqdBalance > 0 ? `${t?.iqdBalance || 'IQD Balance'} (${formatCurrency(iqdBalance, 'IQD')})` : null,
-      usdCustomerDebts > 0 ? `USD Customer Debts (${formatCurrency(usdCustomerDebts, 'USD')})` : null,
-      iqdCustomerDebts > 0 ? `IQD Customer Debts (${formatCurrency(iqdCustomerDebts, 'IQD')})` : null,
-      usdCompanyDebts > 0 ? `USD Company Debts (${formatCurrency(usdCompanyDebts, 'USD')})` : null,
-      iqdCompanyDebts > 0 ? `IQD Company Debts (${formatCurrency(iqdCompanyDebts, 'IQD')})` : null,
-      usdPersonalLoans > 0 ? `USD Personal Loans (${formatCurrency(usdPersonalLoans, 'USD')})` : null,
-      iqdPersonalLoans > 0 ? `IQD Personal Loans (${formatCurrency(iqdPersonalLoans, 'IQD')})` : null,
+      usdCustomerDebts > 0 ? `${t?.customerUSD || 'USD Customer Debts'} (${formatCurrency(usdCustomerDebts, 'USD')})` : null,
+      iqdCustomerDebts > 0 ? `${t?.customerIQD || 'IQD Customer Debts'} (${formatCurrency(iqdCustomerDebts, 'IQD')})` : null,
+      usdCompanyDebts > 0 ? `${t?.companyUSD || 'USD Company Debts'} (${formatCurrency(usdCompanyDebts, 'USD')})` : null,
+      iqdCompanyDebts > 0 ? `${t?.companyIQD || 'IQD Company Debts'} (${formatCurrency(iqdCompanyDebts, 'IQD')})` : null,
+      usdPersonalLoans > 0 ? `${t?.loansUSD || 'USD Personal Loans'} (${formatCurrency(usdPersonalLoans, 'USD')})` : null,
+      iqdPersonalLoans > 0 ? `${t?.loansIQD || 'IQD Personal Loans'} (${formatCurrency(iqdPersonalLoans, 'IQD')})` : null,
     ].filter(Boolean); // Remove null values
 
     const colors = [
@@ -977,7 +1129,7 @@ const MonthlyProfitChart = React.memo(({ sales, t }) => {
       date.setMonth(date.getMonth() - i);
       return {
         month: date.toISOString().substring(0, 7), // YYYY-MM format
-        label: date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+        label: `${date.getMonth() + 1}/${date.getFullYear().toString().slice(-2)}` // Use numbers like "1/25" instead of "Jan 2025"
       };
     }).reverse();
 

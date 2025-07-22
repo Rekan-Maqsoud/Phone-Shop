@@ -30,10 +30,8 @@ export default function BackupSettingsSection({ admin, t, setShowBackupManager }
         }
 
         // Get last backup info
-        const lastBackupInfo = await window.api?.getLastBackupInfo();
-        if (lastBackupInfo?.success) {
-          setLastBackup(lastBackupInfo.lastBackup);
-        }
+        // Note: getLastBackupInfo is not available, so we'll skip this for now
+        // TODO: Add getLastBackupInfo to the API if needed
       } catch (error) {
         console.error('Error checking backup status:', error);
       }
@@ -50,11 +48,11 @@ export default function BackupSettingsSection({ admin, t, setShowBackupManager }
       await triggerCloudBackupAsync();
       admin.setToast('Backup started successfully', 'success');
       
-      // Refresh last backup info
-      const lastBackupInfo = await window.api?.getLastBackupInfo();
-      if (lastBackupInfo?.success) {
-        setLastBackup(lastBackupInfo.lastBackup);
-      }
+      // Refresh last backup info - API function not available yet
+      // const lastBackupInfo = await window.api?.getLastBackupInfo();
+      // if (lastBackupInfo?.success) {
+      //   setLastBackup(lastBackupInfo.lastBackup);
+      // }
     } catch (error) {
       console.error('Backup error:', error);
       admin.setToast('Backup failed: ' + error.message, 'error');
@@ -83,7 +81,7 @@ export default function BackupSettingsSection({ admin, t, setShowBackupManager }
   };
 
   const formatDate = (dateString) => {
-    if (!dateString) return 'Never';
+    if (!dateString) return t.never;
     return new Date(dateString).toLocaleString();
   };
 
@@ -97,10 +95,10 @@ export default function BackupSettingsSection({ admin, t, setShowBackupManager }
           </div>
           <div>
             <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
-              {t.backupSettings || 'Backup & Settings'}
+              {t.backupSettings}
             </h1>
             <p className="text-gray-600 dark:text-gray-300 text-lg">
-              {t.backupDescription || 'Manage your data backup and synchronization settings'}
+              {t.backupDescription}
             </p>
           </div>
         </div>
@@ -111,7 +109,7 @@ export default function BackupSettingsSection({ admin, t, setShowBackupManager }
         <div className="flex items-center gap-3 mb-6">
           <Icon name="user" size={24} className="text-gray-700 dark:text-gray-300" />
           <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">
-            {t.cloudAccount || 'Cloud Account'}
+            {t.cloudAccount}
           </h2>
         </div>
         
@@ -124,7 +122,7 @@ export default function BackupSettingsSection({ admin, t, setShowBackupManager }
                 </div>
                 <div>
                   <div className="font-semibold text-green-600 dark:text-green-400 text-lg">
-                    {t.connected || 'Connected'}
+                    {t.connected}
                   </div>
                   {user && (
                     <div className="text-gray-600 dark:text-gray-300">
@@ -134,7 +132,7 @@ export default function BackupSettingsSection({ admin, t, setShowBackupManager }
                 </div>
               </div>
               <div className="text-sm text-gray-500 dark:text-gray-400">
-                {t.cloudStatus || 'Ready for backup'}
+                {t.readyForBackup}
               </div>
             </div>
           ) : (
@@ -145,10 +143,10 @@ export default function BackupSettingsSection({ admin, t, setShowBackupManager }
                 </div>
                 <div>
                   <div className="font-semibold text-orange-600 dark:text-orange-400 text-lg">
-                    {t.notConnected || 'Not Connected'}
+                    {t.notConnected}
                   </div>
                   <div className="text-gray-600 dark:text-gray-300">
-                    {t.connectToCloud || 'Connect to enable cloud backup'}
+                    {t.connectToCloud}
                   </div>
                 </div>
               </div>
@@ -156,7 +154,7 @@ export default function BackupSettingsSection({ admin, t, setShowBackupManager }
                 onClick={() => setShowBackupManager(true)}
                 className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
               >
-                {t.signIn || 'Sign In'}
+                {t.signIn}
               </button>
             </div>
           )}
@@ -172,12 +170,12 @@ export default function BackupSettingsSection({ admin, t, setShowBackupManager }
               <Icon name="upload" size={24} className="text-blue-600 dark:text-blue-400" />
             </div>
             <h3 className="text-xl font-bold text-gray-800 dark:text-gray-100">
-              {t.manualBackup || 'Manual Backup'}
+              {t.manualBackup}
             </h3>
           </div>
           
           <p className="text-gray-600 dark:text-gray-300 mb-6 leading-relaxed">
-            {t.manualBackupDesc || 'Create an immediate backup of your data to the cloud. This includes all sales, inventory, debts, and settings.'}
+            {t.manualBackupDesc}
           </p>
           
           <button
@@ -192,12 +190,12 @@ export default function BackupSettingsSection({ admin, t, setShowBackupManager }
             {loading ? (
               <div className="flex items-center justify-center gap-3">
                 <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                {t.backingUp || 'Backing up...'}
+                {t.backingUp}
               </div>
             ) : (
               <div className="flex items-center justify-center gap-3">
                 <Icon name="upload" size={20} />
-                {t.createBackup || 'Create Backup'}
+                {t.createBackup}
               </div>
             )}
           </button>
@@ -210,12 +208,12 @@ export default function BackupSettingsSection({ admin, t, setShowBackupManager }
               <Icon name="clock" size={24} className="text-green-600 dark:text-green-400" />
             </div>
             <h3 className="text-xl font-bold text-gray-800 dark:text-gray-100">
-              {t.autoBackup || 'Auto Backup'}
+              {t.autoBackup}
             </h3>
           </div>
           
           <p className="text-gray-600 dark:text-gray-300 mb-6 leading-relaxed">
-            {t.autoBackupDesc || 'Automatically backup data after major operations like sales, payments, and inventory changes.'}
+            {t.autoBackupDesc}
           </p>
           
           <div className="flex items-center justify-between">
@@ -236,7 +234,7 @@ export default function BackupSettingsSection({ admin, t, setShowBackupManager }
               </button>
               
               <span className="text-lg font-medium text-gray-700 dark:text-gray-200">
-                {autoBackupEnabled ? (t.enabled || 'Enabled') : (t.disabled || 'Disabled')}
+                {autoBackupEnabled ? t.enabled : t.disabled}
               </span>
             </div>
             
@@ -245,7 +243,7 @@ export default function BackupSettingsSection({ admin, t, setShowBackupManager }
                 ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300'
                 : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
             }`}>
-              {autoBackupEnabled ? (t.active || 'Active') : (t.inactive || 'Inactive')}
+              {autoBackupEnabled ? t.active : t.inactive}
             </div>
           </div>
         </div>
@@ -258,7 +256,7 @@ export default function BackupSettingsSection({ admin, t, setShowBackupManager }
             <Icon name="info" size={24} className="text-gray-600 dark:text-gray-400" />
           </div>
           <h3 className="text-xl font-bold text-gray-800 dark:text-gray-100">
-            {t.backupStatus || 'Backup Status'}
+            {t.backupStatus}
           </h3>
         </div>
         
@@ -267,7 +265,7 @@ export default function BackupSettingsSection({ admin, t, setShowBackupManager }
             <div className="flex items-center gap-3 mb-2">
               <Icon name="calendar" size={20} className="text-blue-600 dark:text-blue-400" />
               <span className="font-medium text-gray-700 dark:text-gray-300">
-                {t.lastBackup || 'Last Backup'}
+                {t.lastBackup}
               </span>
             </div>
             <div className="text-lg font-semibold text-gray-900 dark:text-gray-100">
@@ -279,7 +277,7 @@ export default function BackupSettingsSection({ admin, t, setShowBackupManager }
             <div className="flex items-center gap-3 mb-2">
               <Icon name="settings" size={20} className="text-green-600 dark:text-green-400" />
               <span className="font-medium text-gray-700 dark:text-gray-300">
-                {t.autoBackup || 'Auto Backup'}
+                {t.autoBackup}
               </span>
             </div>
             <div className={`text-lg font-semibold ${
@@ -287,7 +285,7 @@ export default function BackupSettingsSection({ admin, t, setShowBackupManager }
                 ? 'text-green-600 dark:text-green-400' 
                 : 'text-orange-600 dark:text-orange-400'
             }`}>
-              {autoBackupEnabled ? (t.enabled || 'Enabled') : (t.disabled || 'Disabled')}
+              {autoBackupEnabled ? t.enabled : t.disabled}
             </div>
           </div>
           
@@ -295,7 +293,7 @@ export default function BackupSettingsSection({ admin, t, setShowBackupManager }
             <div className="flex items-center gap-3 mb-2">
               <Icon name="cloud" size={20} className="text-purple-600 dark:text-purple-400" />
               <span className="font-medium text-gray-700 dark:text-gray-300">
-                {t.cloudStatus || 'Cloud Status'}
+                {t.cloudStatus}
               </span>
             </div>
             <div className={`text-lg font-semibold ${
@@ -303,7 +301,7 @@ export default function BackupSettingsSection({ admin, t, setShowBackupManager }
                 ? 'text-green-600 dark:text-green-400' 
                 : 'text-orange-600 dark:text-orange-400'
             }`}>
-              {isAuthenticated ? (t.connected || 'Connected') : (t.disconnected || 'Disconnected')}
+              {isAuthenticated ? t.connected : t.disconnected}
             </div>
           </div>
         </div>
@@ -313,17 +311,17 @@ export default function BackupSettingsSection({ admin, t, setShowBackupManager }
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8">
         <div className="text-center">
           <h3 className="text-xl font-bold text-gray-800 dark:text-gray-100 mb-4">
-            {t.needMoreOptions || 'Need More Options?'}
+            {t.needMoreOptions}
           </h3>
           <p className="text-gray-600 dark:text-gray-300 mb-6">
-            {t.advancedSettingsDesc || 'Access advanced backup settings including restore options, backup history, and detailed configuration.'}
+            {t.advancedSettingsDesc}
           </p>
           <button
             onClick={() => setShowBackupManager(true)}
             className="px-8 py-4 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors flex items-center gap-3 mx-auto text-lg shadow-md hover:shadow-lg"
           >
             <Icon name="settings" size={24} />
-            {t.advancedBackupSettings || 'Advanced Backup Settings'}
+            {t.advancedBackupSettings}
           </button>
         </div>
       </div>

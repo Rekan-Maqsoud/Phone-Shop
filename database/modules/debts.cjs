@@ -240,16 +240,19 @@ function payCompanyDebt(db, id) {
   return db.prepare('UPDATE company_debts SET paid_at = ? WHERE id = ?').run(now, id);
 }
 
-// Enhanced function for marking company debt as paid with simplified currency logic and change skipping
+// Enhanced function for marking company debt as paid with multi-currency support like customer debts
 function markCompanyDebtPaid(db, id, paymentData) {
   const { 
     paid_at, 
-    payment_currency = 'USD', // Which currency the user is paying with
-    payment_amount = 0 // The actual amount being paid
+    payment_currency_used, 
+    payment_usd_amount = 0, 
+    payment_iqd_amount = 0,
+    // Legacy single-currency support
+    payment_currency = 'USD',
+    payment_amount = 0
   } = paymentData || {};
   
   const now = paid_at || new Date().toISOString();
-  const EXCHANGE_RATES = { USD_TO_IQD: 1440, IQD_TO_USD: 1/1440 }; // Use default rates
   
   const transaction = db.transaction(() => {
     try {
@@ -260,55 +263,26 @@ function markCompanyDebtPaid(db, id, paymentData) {
         return { success: false, message: 'Company debt not found' };
       }
       
-      // Debt is always stored in USD, so we know the debt amount in USD
-      const debtAmountUSD = debtInfo.amount || 0;
+      // Handle both new multi-currency format and legacy single-currency format
+      let finalUSDAmount = payment_usd_amount;
+      let finalIQDAmount = payment_iqd_amount;
       
-      let finalUSDAmount = 0;
-      let finalIQDAmount = 0;
-      let changeUSD = 0;
-      let changeIQD = 0;
-      
-      if (payment_currency === 'USD') {
-        // User is paying with USD
-        const overpaymentUSD = payment_amount - debtAmountUSD;
-        
-        if (overpaymentUSD > 0) {
-          // Calculate change in USD
-          changeUSD = overpaymentUSD;
-          
-          // Skip change if less than $1 USD
-          if (changeUSD < 1) {
-            changeUSD = 0; // No change given
-            finalUSDAmount = payment_amount; // User keeps the small overpayment as profit
-          } else {
-            finalUSDAmount = debtAmountUSD; // Only deduct the actual debt amount
-          }
-        } else {
-          // Exact payment or underpayment
+      // If using legacy format, convert to multi-currency format
+      if ((payment_usd_amount === 0 && payment_iqd_amount === 0) && payment_amount > 0) {
+        if (payment_currency === 'USD') {
           finalUSDAmount = payment_amount;
-        }
-        finalIQDAmount = 0; // No IQD involved when paying with USD
-      } else {
-        // User is paying with IQD
-        const debtAmountIQD = debtAmountUSD * EXCHANGE_RATES.USD_TO_IQD;
-        const overpaymentIQD = payment_amount - debtAmountIQD;
-        
-        if (overpaymentIQD > 0) {
-          // Calculate change in IQD
-          changeIQD = overpaymentIQD;
-          
-          // Skip change if less than 1000 IQD
-          if (changeIQD < 1000) {
-            changeIQD = 0; // No change given
-            finalIQDAmount = payment_amount; // User keeps the small overpayment as profit
-          } else {
-            finalIQDAmount = debtAmountIQD; // Only deduct the actual debt amount
-          }
+          finalIQDAmount = 0;
         } else {
-          // Exact payment or underpayment
+          finalUSDAmount = 0;
           finalIQDAmount = payment_amount;
         }
-        finalUSDAmount = 0; // No USD involved when paying with IQD
+      }
+      
+      // If no payment amounts specified, use the debt's original amount
+      if (finalUSDAmount === 0 && finalIQDAmount === 0 && debtInfo) {
+        // Company debts are always stored in USD
+        finalUSDAmount = debtInfo.amount;
+        finalIQDAmount = 0;
       }
       
       // Update the debt record
@@ -325,7 +299,7 @@ function markCompanyDebtPaid(db, id, paymentData) {
         now, 
         finalUSDAmount || 0, 
         finalIQDAmount || 0,
-        payment_currency || 'USD',
+        payment_currency_used || (finalUSDAmount > 0 && finalIQDAmount > 0 ? 'MULTI' : (finalUSDAmount > 0 ? 'USD' : 'IQD')),
         id
       );
       
@@ -345,57 +319,94 @@ function markCompanyDebtPaid(db, id, paymentData) {
         now
       );
       
-      // Add entries to buying history for spending tracking - create one consolidated entry
-      const totalPaidAmount = finalUSDAmount + (finalIQDAmount / EXCHANGE_RATES.USD_TO_IQD);
-      const primaryCurrency = finalUSDAmount > 0 ? 'USD' : 'IQD';
-      const primaryAmount = finalUSDAmount > 0 ? finalUSDAmount : finalIQDAmount;
+      // Add entries to buying history for spending tracking - handle both currencies if paid
+      const EXCHANGE_RATES = { USD_TO_IQD: 1440, IQD_TO_USD: 1/1440 }; // Use default rates
       
-      // Create a single buying history entry in the primary currency
-      try {
-        const addBuyingHistory = db.prepare(`
-          INSERT INTO buying_history (item_name, quantity, unit_price, total_price, date, currency, type, reference_id) 
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `);
+      if (finalUSDAmount > 0 && finalIQDAmount > 0) {
+        // Multi-currency payment, create one consolidated entry
+        const totalUSDEquivalent = finalUSDAmount + (finalIQDAmount / EXCHANGE_RATES.USD_TO_IQD);
         
-        let description = `Company debt payment: ${debtInfo.company_name}`;
-        if (finalUSDAmount > 0 && finalIQDAmount > 0) {
-          description += ` (Multi-currency: $${finalUSDAmount.toFixed(2)} + د.ع${finalIQDAmount.toFixed(0)})`;
+        try {
+          const addBuyingHistory = db.prepare(`
+            INSERT INTO buying_history (item_name, quantity, unit_price, total_price, date, currency, type, reference_id) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          `);
+          
+          const description = `Company debt payment: ${debtInfo.company_name} (Multi-currency: $${finalUSDAmount.toFixed(2)} + د.ع${finalIQDAmount.toFixed(0)})`;
+          
+          addBuyingHistory.run(
+            description,
+            1,
+            totalUSDEquivalent,
+            totalUSDEquivalent,
+            now,
+            'MULTI',
+            'debt_payment',
+            id
+          );
+        } catch (columnError) {
+          // Fallback without type and reference_id columns
+          const addBuyingHistoryBasic = db.prepare(`
+            INSERT INTO buying_history (item_name, quantity, unit_price, total_price, date, currency) 
+            VALUES (?, ?, ?, ?, ?, ?)
+          `);
+          
+          const description = `Company debt payment: ${debtInfo.company_name} (Multi-currency: $${finalUSDAmount.toFixed(2)} + د.ع${finalIQDAmount.toFixed(0)})`;
+          
+          addBuyingHistoryBasic.run(
+            description,
+            1,
+            totalUSDEquivalent,
+            totalUSDEquivalent,
+            now,
+            'MULTI'
+          );
         }
+      } else {
+        // Single currency payment
+        const primaryCurrency = finalUSDAmount > 0 ? 'USD' : 'IQD';
+        const primaryAmount = finalUSDAmount > 0 ? finalUSDAmount : finalIQDAmount;
         
-        addBuyingHistory.run(
-          description,
-          1,
-          primaryAmount,
-          primaryAmount,
-          now,
-          primaryCurrency,
-          'debt_payment',
-          id
-        );
-      } catch (columnError) {
-        // Fallback without type and reference_id columns
-        const addBuyingHistoryBasic = db.prepare(`
-          INSERT INTO buying_history (item_name, quantity, unit_price, total_price, date, currency) 
-          VALUES (?, ?, ?, ?, ?, ?)
-        `);
-        
-        let description = `Company debt payment: ${debtInfo.company_name}`;
-        if (finalUSDAmount > 0 && finalIQDAmount > 0) {
-          description += ` (Multi-currency: $${finalUSDAmount.toFixed(2)} + د.ع${finalIQDAmount.toFixed(0)})`;
+        try {
+          const addBuyingHistory = db.prepare(`
+            INSERT INTO buying_history (item_name, quantity, unit_price, total_price, date, currency, type, reference_id) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          `);
+          
+          const description = `Company debt payment: ${debtInfo.company_name}`;
+          
+          addBuyingHistory.run(
+            description,
+            1,
+            primaryAmount,
+            primaryAmount,
+            now,
+            primaryCurrency,
+            'debt_payment',
+            id
+          );
+        } catch (columnError) {
+          // Fallback without type and reference_id columns
+          const addBuyingHistoryBasic = db.prepare(`
+            INSERT INTO buying_history (item_name, quantity, unit_price, total_price, date, currency) 
+            VALUES (?, ?, ?, ?, ?, ?)
+          `);
+          
+          const description = `Company debt payment: ${debtInfo.company_name}`;
+          
+          addBuyingHistoryBasic.run(
+            description,
+            1,
+            primaryAmount,
+            primaryAmount,
+            now,
+            primaryCurrency
+          );
         }
-        
-        addBuyingHistoryBasic.run(
-          description,
-          1,
-          primaryAmount,
-          primaryAmount,
-          now,
-          primaryCurrency
-        );
       }
       
-      // Deduct from the user's balance based on the actual payment amounts deducted
-      // Deduct USD amount if any USD was paid
+      // Deduct from the user's balance based on the actual payment amounts
+      // This is the key fix - deduct the currencies that were actually paid
       if (finalUSDAmount > 0) {
         settings.updateBalance(db, 'USD', -finalUSDAmount);
       }
@@ -405,7 +416,7 @@ function markCompanyDebtPaid(db, id, paymentData) {
         settings.updateBalance(db, 'IQD', -finalIQDAmount);
       }
       
-      return { success: true, changes: result.changes, changeGiven: { changeUSD, changeIQD } };
+      return { success: true, changes: result.changes };
     } catch (error) {
       console.error('Error marking company debt as paid:', error);
       return { success: false, message: error.message || 'Failed to mark debt as paid' };

@@ -1,7 +1,9 @@
 import React, { useState, useCallback, useEffect } from 'react';
+import { useLocale } from '../contexts/LocaleContext';
 import HistorySearchFilter from './HistorySearchFilter';
 import ConfirmModal from './ConfirmModal';
 import { Icon } from '../utils/icons.jsx';
+import { getTextAlign } from '../utils/rtlUtils';
 
 // Enhanced table for buying history with item details support - Memoized for performance
 const BuyingHistoryTable = React.memo(function BuyingHistoryTable({ 
@@ -16,6 +18,7 @@ const BuyingHistoryTable = React.memo(function BuyingHistoryTable({
   const [filteredHistory, setFilteredHistory] = useState([]);
   const [totals, setTotals] = useState(null);
   const [showReturnModal, setShowReturnModal] = useState(false);
+  const { isRTL } = useLocale();
   const [returnModalData, setReturnModalData] = useState(null);
   const [confirmModal, setConfirmModal] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -99,7 +102,7 @@ const BuyingHistoryTable = React.memo(function BuyingHistoryTable({
     setConfirmModal({
       isOpen: true,
       title: t?.returnEntry || 'Return Purchase',
-      message: t?.confirmReturnEntry || `Are you sure you want to return this purchase? You will get back ${(entryId.currency === 'USD' ? '$' : 'د.ع')}${amount.toFixed(2)}`,
+      message: t?.confirmReturnEntry || `Are you sure you want to return this purchase?\n\nRefund amount: ${(entryId.currency === 'USD' ? '$' : 'د.ع')}${amount.toFixed(2)}`,
       onConfirm: async () => {
         try {
           const result = await window.api.returnBuyingHistoryEntry(entryId);
@@ -282,13 +285,13 @@ const BuyingHistoryTable = React.memo(function BuyingHistoryTable({
                 <table className="w-full" dir="auto">
                   <thead className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white">
                     <tr>
-                      <th className="px-6 py-4 text-right font-bold">{t?.date || 'Date'}</th>
-                      <th className="px-6 py-4 text-right font-bold">{t?.companyName || 'Company'}</th>
-                      <th className="px-6 py-4 text-right font-bold">{t?.currency || 'Currency'}</th>
-                      <th className="px-6 py-4 text-right font-bold">{t?.amount || 'Amount'}</th>
-                      <th className="px-6 py-4 text-right font-bold">{t?.description || 'Description'}</th>
-                      <th className="px-6 py-4 text-right font-bold">{t?.items || 'Items'}</th>
-                      <th className="px-6 py-4 text-right font-bold">{t?.actions || 'Actions'}</th>
+                      <th className={`px-6 py-4 font-bold ${getTextAlign(isRTL, 'right')}`}>{t?.date || 'Date'}</th>
+                      <th className={`px-6 py-4 font-bold ${getTextAlign(isRTL, 'right')}`}>{t?.companyName || 'Company'}</th>
+                      <th className={`px-6 py-4 font-bold ${getTextAlign(isRTL, 'right')}`}>{t?.currency || 'Currency'}</th>
+                      <th className={`px-6 py-4 font-bold ${getTextAlign(isRTL, 'right')}`}>{t?.amount || 'Amount'}</th>
+                      <th className={`px-6 py-4 font-bold ${getTextAlign(isRTL, 'right')}`}>{t?.description || 'Description'}</th>
+                      <th className={`px-6 py-4 font-bold ${getTextAlign(isRTL, 'right')}`}>{t?.items || 'Items'}</th>
+                      <th className={`px-6 py-4 font-bold ${getTextAlign(isRTL, 'right')}`}>{t?.actions || 'Actions'}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -321,20 +324,29 @@ const BuyingHistoryTable = React.memo(function BuyingHistoryTable({
                     <td className="px-6 py-4 text-blue-600 dark:text-blue-400 font-bold">
                       {entry.currency === 'MULTI' ? (
                         // For multi-currency entries, display both amounts
-                        <div className="text-sm">
+                        <div className="text-sm flex flex-col gap-1">
                           {entry.multi_currency_usd > 0 && (
-                            <div>${entry.multi_currency_usd.toFixed(2)}</div>
+                            <span>${(() => {
+                              const formatted = entry.multi_currency_usd.toFixed(2);
+                              return formatted.endsWith('.00') ? formatted.slice(0, -3) : formatted;
+                            })()}</span>
                           )}
                           {entry.multi_currency_iqd > 0 && (
-                            <div>د.ع{entry.multi_currency_iqd.toFixed(2)}</div>
+                            <span>د.ع{Math.round(entry.multi_currency_iqd).toLocaleString()}</span>
                           )}
                           {(!entry.multi_currency_usd || entry.multi_currency_usd === 0) && 
                            (!entry.multi_currency_iqd || entry.multi_currency_iqd === 0) && (
-                            <div className="text-gray-500">Multi-currency</div>
+                            <span className="text-gray-500">Multi-currency</span>
                           )}
                         </div>
                       ) : (
-                        `${(entry.currency === 'USD' ? '$' : 'د.ع')}${(entry.total_price || entry.amount || 0).toFixed(2)}`
+                        entry.currency === 'USD' 
+                          ? (() => {
+                              const amount = entry.total_price || entry.amount || 0;
+                              const formatted = amount.toFixed(2);
+                              return `$${formatted.endsWith('.00') ? formatted.slice(0, -3) : formatted}`;
+                            })()
+                          : `د.ع${Math.round(entry.total_price || entry.amount || 0).toLocaleString()}`
                       )}
                     </td>
                     <td className="px-6 py-4 text-gray-700 dark:text-gray-300">

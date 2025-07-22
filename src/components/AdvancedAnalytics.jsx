@@ -298,10 +298,10 @@ export default function AdvancedAnalytics({ admin, t }) {
           <div>
             <h1 className="text-3xl font-bold mb-2 flex items-center gap-3">
               <Icon name="barChart3" size={32} />
-              {t?.businessAnalytics || 'Business Analytics'}
+              {t?.businessAnalytics}
             </h1>
             <p className="text-purple-100 text-lg">
-              {t?.practicalInsights || 'Practical insights for daily business management'}
+              {t?.practicalInsights}
             </p>
           </div>
           
@@ -312,9 +312,9 @@ export default function AdvancedAnalytics({ admin, t }) {
               onChange={(e) => setTimeRange(e.target.value)}
               className="px-4 py-2 rounded-lg bg-white/20 text-white border border-white/30 backdrop-blur focus:outline-none focus:ring-2 focus:ring-white/50"
             >
-              <option value="7days" className="text-gray-900">Last 7 Days</option>
-              <option value="30days" className="text-gray-900">Last 30 Days</option>
-              <option value="90days" className="text-gray-900">Last 90 Days</option>
+              <option value="7days" className="text-gray-900">{t?.last7Days}</option>
+              <option value="30days" className="text-gray-900">{t?.last30Days}</option>
+              <option value="90days" className="text-gray-900">{t?.last90Days}</option>
             </select>
             
             <select
@@ -322,9 +322,9 @@ export default function AdvancedAnalytics({ admin, t }) {
               onChange={(e) => setViewMode(e.target.value)}
               className="px-4 py-2 rounded-lg bg-white/20 text-white border border-white/30 backdrop-blur focus:outline-none focus:ring-2 focus:ring-white/50"
             >
-              <option value="overview" className="text-gray-900">Overview</option>
-              <option value="products" className="text-gray-900">Products</option>
-              <option value="inventory" className="text-gray-900">Inventory</option>
+              <option value="overview" className="text-gray-900">{t?.overview}</option>
+              <option value="products" className="text-gray-900">{t?.productsView}</option>
+              <option value="inventory" className="text-gray-900">{t?.inventoryView}</option>
             </select>
           </div>
         </div>
@@ -336,12 +336,12 @@ export default function AdvancedAnalytics({ admin, t }) {
         <div className="bg-gradient-to-br from-green-400 to-emerald-500 rounded-2xl p-6 text-white shadow-lg transform hover:scale-105 transition-transform">
           <div className="flex items-center justify-between mb-3">
             <Icon name="dollarSign" size={24} />
-            <span className="text-green-100 text-sm font-medium">{t?.totalRevenue || 'Total Revenue'}</span>
+            <span className="text-green-100 text-sm font-medium">{t?.totalRevenue}</span>
           </div>
           <div className="text-2xl font-bold mb-1">{formatCurrency(businessMetrics.revenueUSD, 'USD')}</div>
           <div className="text-xl font-bold mb-2">{formatCurrency(businessMetrics.revenueIQD, 'IQD')}</div>
           <div className="text-green-100 text-sm">
-            {timeRange === '7days' ? 'Last 7 days' : timeRange === '90days' ? 'Last 90 days' : 'Last 30 days'}
+            {timeRange === '7days' ? t?.last7Days : timeRange === '90days' ? t?.last90Days : t?.last30Days}
           </div>
         </div>
 
@@ -349,12 +349,12 @@ export default function AdvancedAnalytics({ admin, t }) {
         <div className="bg-gradient-to-br from-blue-400 to-indigo-500 rounded-2xl p-6 text-white shadow-lg transform hover:scale-105 transition-transform">
           <div className="flex items-center justify-between mb-3">
             <Icon name="trendingUp" size={24} />
-            <span className="text-blue-100 text-sm font-medium">{t?.netProfit || 'Net Profit'}</span>
+            <span className="text-blue-100 text-sm font-medium">{t?.netProfit}</span>
           </div>
           <div className="text-2xl font-bold mb-1">{formatCurrency(businessMetrics.profitUSD, 'USD')}</div>
           <div className="text-xl font-bold mb-2">{formatCurrency(businessMetrics.profitIQD, 'IQD')}</div>
           <div className="text-blue-100 text-sm">
-            Margin: {businessMetrics.profitMarginUSD.toFixed(1)}% / {businessMetrics.profitMarginIQD.toFixed(1)}%
+            {t?.margin}: {businessMetrics.profitMarginUSD.toFixed(1)}% / {businessMetrics.profitMarginIQD.toFixed(1)}%
           </div>
         </div>
 
@@ -362,11 +362,11 @@ export default function AdvancedAnalytics({ admin, t }) {
         <div className="bg-gradient-to-br from-purple-400 to-pink-500 rounded-2xl p-6 text-white shadow-lg transform hover:scale-105 transition-transform">
           <div className="flex items-center justify-between mb-3">
             <Icon name="shoppingCart" size={24} />
-            <span className="text-purple-100 text-sm font-medium">{t?.transactions || 'Transactions'}</span>
+            <span className="text-purple-100 text-sm font-medium">{t?.transactions}</span>
           </div>
           <div className="text-3xl font-bold mb-2">{businessMetrics.totalTransactions.toLocaleString()}</div>
           <div className="text-purple-100 text-sm">
-            Avg: {formatCurrency(businessMetrics.averageOrderValue, 'USD')}
+            {t?.avg}: {formatCurrency(businessMetrics.averageOrderValue, 'USD')}
           </div>
         </div>
 
@@ -374,11 +374,11 @@ export default function AdvancedAnalytics({ admin, t }) {
         <div className="bg-gradient-to-br from-red-400 to-pink-500 rounded-2xl p-6 text-white shadow-lg transform hover:scale-105 transition-transform">
           <div className="flex items-center justify-between mb-3">
             <Icon name="alertTriangle" size={24} />
-            <span className="text-red-100 text-sm font-medium">{t?.outstandingDebts || 'Outstanding Debts'}</span>
+            <span className="text-red-100 text-sm font-medium">{t?.outstandingDebts}</span>
           </div>
           <div className="text-2xl font-bold mb-1">{formatCurrency(businessMetrics.outstandingUSD, 'USD')}</div>
           <div className="text-xl font-bold mb-2">{formatCurrency(businessMetrics.outstandingIQD, 'IQD')}</div>
-          <div className="text-red-100 text-sm">{t?.needsCollection || 'Needs Collection'}</div>
+          <div className="text-red-100 text-sm">{t?.needsCollection}</div>
         </div>
       </div>
 
@@ -389,7 +389,7 @@ export default function AdvancedAnalytics({ admin, t }) {
           <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg border border-gray-200 dark:border-gray-700">
             <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
               <Icon name="barChart3" size={20} />
-              {t?.revenueTrend || 'Revenue Trend'}
+              {t?.revenueTrend}
             </h3>
             <div className="h-80">
               <Line data={revenueChartData} options={{ 
@@ -408,7 +408,7 @@ export default function AdvancedAnalytics({ admin, t }) {
           <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg border border-gray-200 dark:border-gray-700">
             <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
               <Icon name="package" size={20} />
-              {t?.transactionVolume || 'Transaction Volume'}
+              {t?.transactionVolume}
             </h3>
             <div className="h-80">
               <Bar data={transactionChartData} options={{ 
@@ -432,7 +432,7 @@ export default function AdvancedAnalytics({ admin, t }) {
           <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg border border-gray-200 dark:border-gray-700">
             <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
               <Icon name="award" size={20} />
-              {t?.topProducts || 'Top Selling Products'}
+              {t?.topSellingProducts}
             </h3>
             <div className="h-80">
               <Bar data={topProductsChartData} options={{ 
@@ -447,15 +447,15 @@ export default function AdvancedAnalytics({ admin, t }) {
           <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg border border-gray-200 dark:border-gray-700">
             <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
               <Icon name="fileText" size={20} />
-              {t?.productPerformance || 'Product Performance'}
+              {t?.productPerformance}
             </h3>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-200 dark:border-gray-700">
-                    <th className="text-left p-2">{t?.product || 'Product'}</th>
-                    <th className="text-center p-2">{t?.sold || 'Sold'}</th>
-                    <th className="text-right p-2">{t?.revenue || 'Revenue'}</th>
+                    <th className="text-left p-2">{t?.product}</th>
+                    <th className="text-center p-2">{t?.sold}</th>
+                    <th className="text-right p-2">{t?.revenue}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -480,23 +480,23 @@ export default function AdvancedAnalytics({ admin, t }) {
           <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg border border-gray-200 dark:border-gray-700">
             <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
               <Icon name="alertTriangle" size={20} />
-              {t?.lowStockAlert || 'Low Stock Alert'} 
+              {t?.lowStockAlert} 
               <span className="ml-2 bg-red-500 text-white text-xs px-2 py-1 rounded-full">
                 {businessMetrics.lowStockItems.length}
               </span>
             </h3>
             <div className="space-y-3 max-h-80 overflow-y-auto">
               {businessMetrics.lowStockItems.length === 0 ? (
-                <p className="text-gray-500 text-center py-8">{t?.noLowStock || 'All products are well stocked!'}</p>
+                <p className="text-gray-500 text-center py-8">{t?.noLowStock}</p>
               ) : (
                 businessMetrics.lowStockItems.map((product, idx) => (
                   <div key={idx} className="flex justify-between items-center p-3 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
                     <div>
                       <span className="font-medium text-gray-900 dark:text-gray-100">{product.name}</span>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">{product.brand || 'No brand'}</p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">{product.brand || t?.noBrand}</p>
                     </div>
                     <div className="text-right">
-                      <div className="text-red-600 font-bold">{product.stock} left</div>
+                      <div className="text-red-600 font-bold">{product.stock} {t?.left}</div>
                       <div className="text-sm text-gray-500">{formatCurrency(product.selling_price, product.currency)}</div>
                     </div>
                   </div>
@@ -509,20 +509,20 @@ export default function AdvancedAnalytics({ admin, t }) {
           <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg border border-gray-200 dark:border-gray-700">
             <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
               <Icon name="star" size={20} />
-              {t?.highValueStock || 'High Value Stock'}
+              {t?.highValueStock}
             </h3>
             <div className="space-y-3 max-h-80 overflow-y-auto">
               {businessMetrics.highValueStock.map((product, idx) => (
                 <div key={idx} className="flex justify-between items-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
                   <div>
                     <span className="font-medium text-gray-900 dark:text-gray-100">{product.name}</span>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">{product.brand || 'No brand'}</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">{product.brand || t?.noBrand}</p>
                   </div>
                   <div className="text-right">
                     <div className="text-blue-600 font-bold">
                       {formatCurrency(product.selling_price * product.stock, product.currency)}
                     </div>
-                    <div className="text-sm text-gray-500">{product.stock} units</div>
+                    <div className="text-sm text-gray-500">{product.stock} {t?.units}</div>
                   </div>
                 </div>
               ))}
@@ -537,7 +537,7 @@ export default function AdvancedAnalytics({ admin, t }) {
         <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg border border-gray-200 dark:border-gray-700">
           <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
             <Icon name="dollarSign" size={20} />
-            {t?.financialBreakdown || 'Financial Breakdown'}
+            {t?.financialBreakdown}
           </h3>
           <div className="h-64">
             <Doughnut data={financialBreakdownData} options={{ 
@@ -551,11 +551,11 @@ export default function AdvancedAnalytics({ admin, t }) {
         <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg border border-gray-200 dark:border-gray-700">
           <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
             <Icon name="building2" size={20} />
-            {t?.currentPosition || 'Current Position'}
+            {t?.currentPosition}
           </h3>
           <div className="space-y-4">
             <div className="flex justify-between items-center p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-              <span className="text-gray-700 dark:text-gray-300">{t?.cashOnHand || 'Cash on Hand'}:</span>
+              <span className="text-gray-700 dark:text-gray-300">{t?.cashOnHand}:</span>
               <div className="text-right">
                 <div className="font-bold text-green-600">{formatCurrency(balances.usd_balance || 0, 'USD')}</div>
                 <div className="font-bold text-green-600">{formatCurrency(balances.iqd_balance || 0, 'IQD')}</div>
@@ -563,7 +563,7 @@ export default function AdvancedAnalytics({ admin, t }) {
             </div>
             
             <div className="flex justify-between items-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-              <span className="text-gray-700 dark:text-gray-300">{t?.totalProfit || 'Total Profit'}:</span>
+              <span className="text-gray-700 dark:text-gray-300">{t?.totalProfit}:</span>
               <div className="text-right">
                 <div className="font-bold text-blue-600">{formatCurrency(businessMetrics.profitUSD, 'USD')}</div>
                 <div className="font-bold text-blue-600">{formatCurrency(businessMetrics.profitIQD, 'IQD')}</div>
@@ -571,7 +571,7 @@ export default function AdvancedAnalytics({ admin, t }) {
             </div>
             
             <div className="flex justify-between items-center p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
-              <span className="text-gray-700 dark:text-gray-300">{t?.moneyOwed || 'Money Owed'}:</span>
+              <span className="text-gray-700 dark:text-gray-300">{t?.moneyOwed}:</span>
               <div className="text-right">
                 <div className="font-bold text-red-600">{formatCurrency(businessMetrics.outstandingUSD, 'USD')}</div>
                 <div className="font-bold text-red-600">{formatCurrency(businessMetrics.outstandingIQD, 'IQD')}</div>
@@ -584,7 +584,7 @@ export default function AdvancedAnalytics({ admin, t }) {
         <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg border border-gray-200 dark:border-gray-700">
           <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
             <Icon name="zap" size={20} />
-            {t?.quickActions || 'Quick Actions'}
+            {t?.quickActions}
           </h3>
           <div className="space-y-3">
             <button 
@@ -593,9 +593,10 @@ export default function AdvancedAnalytics({ admin, t }) {
             >
               <Icon name="creditCard" size={16} />
               <div>
-                <div className="font-medium">{t?.collectDebts || 'Collect Outstanding Debts'}</div>
-                <div className="text-sm opacity-75">
-                  {formatCurrency(businessMetrics.outstandingUSD, 'USD')} + {formatCurrency(businessMetrics.outstandingIQD, 'IQD')}
+                <div className="font-medium">{t?.collectDebts}</div>
+                <div className="text-sm opacity-75 flex flex-col gap-1">
+                  <div>{formatCurrency(businessMetrics.outstandingUSD, 'USD')}</div>
+                  <div>{formatCurrency(businessMetrics.outstandingIQD, 'IQD')}</div>
                 </div>
               </div>
             </button>
@@ -606,7 +607,7 @@ export default function AdvancedAnalytics({ admin, t }) {
             >
               <Icon name="package" size={16} />
               <div>
-                <div className="font-medium">{t?.restockItems || 'Restock Low Items'}</div>
+                <div className="font-medium">{t?.restockItems}</div>
                 <div className="text-sm opacity-75">{businessMetrics.lowStockItems.length} items need attention</div>
               </div>
             </button>
@@ -617,8 +618,8 @@ export default function AdvancedAnalytics({ admin, t }) {
             >
               <Icon name="barChart3" size={16} />
               <div>
-                <div className="font-medium">{t?.viewReports || 'View Detailed Reports'}</div>
-                <div className="text-sm opacity-75">{t?.comprehensiveAnalysis || 'Comprehensive analysis'}</div>
+                <div className="font-medium">{t?.viewReports}</div>
+                <div className="text-sm opacity-75">{t?.comprehensiveAnalysis}</div>
               </div>
             </button>
           </div>

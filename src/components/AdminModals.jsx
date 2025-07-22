@@ -174,6 +174,7 @@ export default function AdminModals({
             setLoading(true);
             try {
               let result = null;
+              let detectedMixedCurrency = false;
               
               if (purchaseData.payment_status === 'paid') {
                 // Direct purchase - goes to buying history immediately
@@ -214,19 +215,73 @@ export default function AdminModals({
                     throw new Error('Direct purchase API not available');
                   }
                 } else if (purchaseData.type === 'withItems') {
-                  if (window.api?.addDirectPurchaseWithItems) {
-                    result = await window.api.addDirectPurchaseWithItems({
-                      supplier: purchaseData.company_name,
-                      date: new Date().toISOString(),
-                      items: purchaseData.items || [],
-                      currency: purchaseData.currency || 'USD'
-                    });
-                    if (!result || result.error) {
-                      throw new Error(result?.error || 'Failed to add direct purchase with items');
+                  // Detect if items have mixed currencies automatically
+                  const currencies = [...new Set(purchaseData.items.map(item => item.currency || 'IQD'))];
+                  const hasMixedCurrencies = currencies.length > 1;
+                  const hasUSD = currencies.includes('USD');
+                  const hasIQD = currencies.includes('IQD');
+                  
+                  // Log mixed currency detection for debugging
+                  if (hasMixedCurrencies) {
+                    console.log('[AdminModals] Mixed currencies detected in items:', currencies);
+                    detectedMixedCurrency = true;
+                  }
+                  
+                  // Calculate totals by currency for mixed-currency scenarios
+                  const usdTotal = purchaseData.items
+                    .filter(item => (item.currency || 'IQD') === 'USD')
+                    .reduce((sum, item) => sum + (parseInt(item.quantity) * parseFloat(item.unit_price)), 0);
+                  
+                  const iqdTotal = purchaseData.items
+                    .filter(item => (item.currency || 'IQD') === 'IQD')
+                    .reduce((sum, item) => sum + (parseInt(item.quantity) * parseFloat(item.unit_price)), 0);
+                  
+                  // Check if we should use multi-currency handling
+                  const shouldUseMultiCurrency = (purchaseData.multi_currency && purchaseData.multi_currency.enabled) || hasMixedCurrencies;
+                  
+                  if (shouldUseMultiCurrency) {
+                    // For multi-currency purchases with items, use the dedicated function
+                    if (window.api?.addDirectPurchaseMultiCurrencyWithItems) {
+                      // Use explicit amounts if provided, otherwise use calculated totals from items
+                      const finalUsdAmount = (purchaseData.multi_currency && purchaseData.multi_currency.enabled) 
+                        ? purchaseData.multi_currency.usdAmount || 0
+                        : usdTotal;
+                      
+                      const finalIqdAmount = (purchaseData.multi_currency && purchaseData.multi_currency.enabled)
+                        ? purchaseData.multi_currency.iqdAmount || 0
+                        : iqdTotal;
+                      
+                      result = await window.api.addDirectPurchaseMultiCurrencyWithItems({
+                        supplier: purchaseData.company_name,
+                        date: new Date().toISOString(),
+                        items: purchaseData.items || [],
+                        usdAmount: finalUsdAmount,
+                        iqdAmount: finalIqdAmount
+                      });
+                      
+                      if (!result || result.error) {
+                        throw new Error(result?.error || 'Failed to add multi-currency purchase with items');
+                      }
+                    } else {
+                      console.error('[AdminModals] window.api.addDirectPurchaseMultiCurrencyWithItems not available');
+                      throw new Error('Multi-currency purchase with items API not available');
                     }
                   } else {
-                    console.error('[AdminModals] window.api.addDirectPurchaseWithItems not available');
-                    throw new Error('Direct purchase with items API not available');
+                    // Regular single-currency purchase with items
+                    if (window.api?.addDirectPurchaseWithItems) {
+                      result = await window.api.addDirectPurchaseWithItems({
+                        supplier: purchaseData.company_name,
+                        date: new Date().toISOString(),
+                        items: purchaseData.items || [],
+                        currency: purchaseData.currency || 'USD'
+                      });
+                      if (!result || result.error) {
+                        throw new Error(result?.error || 'Failed to add direct purchase with items');
+                      }
+                    } else {
+                      console.error('[AdminModals] window.api.addDirectPurchaseWithItems not available');
+                      throw new Error('Direct purchase with items API not available');
+                    }
                   }
                 }
               } else {
@@ -250,13 +305,36 @@ export default function AdminModals({
                     throw new Error('Company debt API not available');
                   }
                 } else if (purchaseData.type === 'withItems') {
+                  // Detect mixed currencies for company debt as well
+                  const currencies = [...new Set(purchaseData.items.map(item => item.currency || 'IQD'))];
+                  const hasMixedCurrencies = currencies.length > 1;
+                  
+                  // Calculate totals by currency for mixed-currency debt scenarios
+                  const usdTotal = purchaseData.items
+                    .filter(item => (item.currency || 'IQD') === 'USD')
+                    .reduce((sum, item) => sum + (parseInt(item.quantity) * parseFloat(item.unit_price)), 0);
+                  
+                  const iqdTotal = purchaseData.items
+                    .filter(item => (item.currency || 'IQD') === 'IQD')
+                    .reduce((sum, item) => sum + (parseInt(item.quantity) * parseFloat(item.unit_price)), 0);
+                  
+                  // Prepare multi-currency data if needed
+                  let multiCurrencyData = purchaseData.multi_currency;
+                  if (hasMixedCurrencies && (!multiCurrencyData || !multiCurrencyData.enabled)) {
+                    multiCurrencyData = {
+                      enabled: true,
+                      usdAmount: usdTotal,
+                      iqdAmount: iqdTotal
+                    };
+                  }
+                  
                   if (window.api?.addCompanyDebtWithItems) {
                     result = await window.api.addCompanyDebtWithItems({
                       company_name: purchaseData.company_name,
                       description: purchaseData.description,
                       items: purchaseData.items,
                       currency: purchaseData.currency,
-                      multi_currency: purchaseData.multi_currency,
+                      multi_currency: multiCurrencyData,
                       discount: purchaseData.discount
                     });
                     if (!result || (!result.lastInsertRowid && !result.success)) {
@@ -277,7 +355,13 @@ export default function AdminModals({
               await refreshAccessories();
               
               setShowAddPurchase(); // This calls the close function
-              setToast(t.purchaseAddedSuccessfully || 'Purchase added successfully!');
+              
+              // Show success message with mixed currency detection info
+              const successMessage = detectedMixedCurrency 
+                ? (t.purchaseAddedWithMixedCurrency || 'Purchase added successfully! Mixed currencies detected and handled automatically.')
+                : (t.purchaseAddedSuccessfully || 'Purchase added successfully!');
+              
+              setToast(successMessage);
               
             } catch (error) {
               console.error('[AdminModals] Error adding purchase:', error);

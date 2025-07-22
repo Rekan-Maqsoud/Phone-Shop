@@ -3,6 +3,8 @@ import { useData } from '../contexts/DataContext';
 import CustomerDebtPaymentModal from './CustomerDebtPaymentModal';
 import UniversalPaymentModal from './UniversalPaymentModal';
 import { Icon } from '../utils/icons.jsx';
+import { useLocale } from '../contexts/LocaleContext';
+import { getSeparator, getTextAlign, formatCompoundText } from '../utils/rtlUtils';
 
 const CustomerDebtsSection = ({ 
   t, 
@@ -16,6 +18,7 @@ const CustomerDebtsSection = ({
   triggerCloudBackup 
 }) => {
   const { refreshDebts, refreshDebtSales, refreshSales } = useData();
+  const { isRTL } = useLocale();
   const [sortBy, setSortBy] = useState('date'); // 'date', 'amount', 'customer'
   const [sortOrder, setSortOrder] = useState('desc'); // 'asc', 'desc'
   const [expandedCustomers, setExpandedCustomers] = useState(new Set());
@@ -95,12 +98,12 @@ const CustomerDebtsSection = ({
               }}
               className="border rounded-xl px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-400"
             >
-              <option value="date-desc"><Icon name="calendar" size={14} className="inline mr-1" />{t.newestFirst || 'Newest First'}</option>
-              <option value="date-asc"><Icon name="calendar" size={14} className="inline mr-1" />{t.oldestFirst || 'Oldest First'}</option>
-              <option value="amount-desc"><Icon name="dollar-sign" size={14} className="inline mr-1" />{t.highestAmount || 'Highest Amount'}</option>
-              <option value="amount-asc"><Icon name="dollar-sign" size={14} className="inline mr-1" />{t.lowestAmount || 'Lowest Amount'}</option>
-              <option value="customer-asc">👤 {t.customerAZ || 'Customer A-Z'}</option>
-              <option value="customer-desc">👤 {t.customerZA || 'Customer Z-A'}</option>
+              <option value="date-desc">{t.newestFirst || 'Newest First'}</option>
+              <option value="date-asc">{t.oldestFirst || 'Oldest First'}</option>
+              <option value="amount-desc">{t.highestAmount || 'Highest Amount'}</option>
+              <option value="amount-asc">{t.lowestAmount || 'Lowest Amount'}</option>
+              <option value="customer-asc">{t.customerAZ || 'Customer A-Z'}</option>
+              <option value="customer-desc">{t.customerZA || 'Customer Z-A'}</option>
             </select>
 
             {/* Paid/Unpaid Toggle */}
@@ -305,18 +308,19 @@ const CustomerDebtsSection = ({
                             <div className="text-sm text-gray-600 dark:text-gray-400">
                               {data.totalTransactions} {data.totalTransactions === 1 ? (t.singleTransaction || 'transaction') : (t.transactions || 'transactions')}
                               {data.latestDate !== data.oldestDate && (
-                                <span> • {new Date(data.oldestDate).toLocaleDateString()} - {new Date(data.latestDate).toLocaleDateString()}</span>
+                                <span>{getSeparator(isRTL)}{new Date(data.oldestDate).toLocaleDateString()} - {new Date(data.latestDate).toLocaleDateString()}</span>
                               )}
                             </div>
                           </div>
                         </div>
                         
                         <div className="flex items-center gap-4">
-                          <div className="text-right">
+                          <div className={getTextAlign(isRTL, 'right')}>
                             <div className={`text-lg font-bold ${showPaidDebts ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                              {data.totalAmountUSD > 0 && `$${data.totalAmountUSD.toFixed(2)}`}
-                              {data.totalAmountUSD > 0 && data.totalAmountIQD > 0 && ' • '}
-                              {data.totalAmountIQD > 0 && `د.ع${data.totalAmountIQD.toFixed(2)}`}
+                              {formatCompoundText(isRTL, [
+                                data.totalAmountUSD > 0 ? `$${data.totalAmountUSD.toFixed(2)}` : '',
+                                data.totalAmountIQD > 0 ? `د.ع${data.totalAmountIQD.toFixed(2)}` : ''
+                              ].filter(Boolean))}
                             </div>
                             <div className="text-sm text-gray-600 dark:text-gray-400">
                               {showPaidDebts ? (t.paidAmount || 'Paid Amount') : (t.outstandingAmount || 'Outstanding')}
@@ -389,8 +393,9 @@ const CustomerDebtsSection = ({
                                   </div>
                                 </div>
                                 
-                                <div className="font-semibold text-gray-800 dark:text-gray-100 mb-1">
-                                  {(sale.currency === 'USD' ? '$' : 'د.ع')}{sale.total.toFixed(2)} • {sale.items?.length || 0} {t.itemsCount || 'items'}
+                                <div className="font-semibold text-gray-800 dark:text-gray-100 mb-1 flex flex-col">
+                                  <div>{(sale.currency === 'USD' ? '$' : 'د.ع')}{sale.total.toFixed(2)}</div>
+                                  <div className="text-sm opacity-75">{sale.items?.length || 0} {t.itemsCount || 'items'}</div>
                                 </div>
                                 
                                 {debt?.paid_at && (

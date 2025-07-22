@@ -56,8 +56,18 @@ export const filterPaidSales = (sales, debts, dateString) => {
  */
 export const calculateRevenueByCurrency = (sales, currency) => {
   return (sales || []).reduce((sum, sale) => {
-    if (sale.currency === currency) {
-      return sum + (sale.total || 0);
+    // Handle multi-currency sales first
+    if (sale.is_multi_currency) {
+      if (currency === 'USD') {
+        return sum + (sale.paid_amount_usd || 0);
+      } else if (currency === 'IQD') {
+        return sum + (sale.paid_amount_iqd || 0);
+      }
+    } else {
+      // Single currency sales - use the total if currency matches
+      if (sale.currency === currency) {
+        return sum + (sale.total || 0);
+      }
     }
     return sum;
   }, 0);

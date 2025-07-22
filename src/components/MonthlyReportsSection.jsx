@@ -148,13 +148,13 @@ const AdvancedLineChart = ({ data, title, height = 300, gradientFill = true, mul
             
             // For revenue and profit, show dual currency
             if (label.includes('Revenue') || label.includes('Profit')) {
-              const usdValue = formatCurrency(value, 'USD', t);
-              const iqdValue = formatCurrency(value / EXCHANGE_RATES.IQD_TO_USD, 'IQD', t);
+              const usdValue = formatCurrency(value, 'USD');
+              const iqdValue = formatCurrency(value / EXCHANGE_RATES.IQD_TO_USD, 'IQD');
               return `${label}: ${usdValue} (≈${iqdValue})`;
             } else if (label.includes('USD')) {
-              return `${label}: ${formatCurrency(value, 'USD', t)}`;
+              return `${label}: ${formatCurrency(value, 'USD')}`;
             } else if (label.includes('IQD')) {
-              return `${label}: ${formatCurrency(value / EXCHANGE_RATES.IQD_TO_USD, 'IQD', t)}`;
+              return `${label}: ${formatCurrency(value / EXCHANGE_RATES.IQD_TO_USD, 'IQD')}`;
             }
             return `${label}: ${value.toLocaleString()}`;
           }
@@ -1010,7 +1010,13 @@ export default function MonthlyReportsSection({ admin, t, showConfirm }) {
     const segments = detailedReport.customerSegmentation.segments;
     
     return {
-      labels: ['VIP Customers', 'High-Value', 'Frequent', 'Recent', 'At-Risk'],
+      labels: [
+        t.vipCustomers || 'VIP Customers', 
+        t.highValueCustomers || 'High-Value', 
+        t.frequentCustomers || 'Frequent', 
+        t.recentCustomers || 'Recent', 
+        t.atRiskCustomers || 'At-Risk'
+      ],
       datasets: [{
         data: [
           segments.vip.length,
@@ -1116,7 +1122,7 @@ export default function MonthlyReportsSection({ admin, t, showConfirm }) {
         <div className="bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-800 dark:to-gray-900 rounded-2xl shadow-xl p-8 border border-blue-200 dark:border-gray-700">
           <h2 className="text-3xl font-bold text-gray-800 dark:text-gray-100 mb-4">
             <Icon name="bar-chart" className="inline mr-3" size={32} />
-            Advanced Monthly Analytics
+            {t.advancedMonthlyAnalytics || 'Advanced Monthly Analytics'}
           </h2>
           <div className="flex items-center justify-center py-16">
             <div className="relative">
@@ -1148,17 +1154,17 @@ export default function MonthlyReportsSection({ admin, t, showConfirm }) {
             </div>
             <div>
               <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                Advanced Monthly Analytics
+                {t.advancedMonthlyAnalytics || 'Advanced Monthly Analytics'}
               </h1>
               <p className="text-gray-600 dark:text-gray-300 text-lg mt-2">
-                Comprehensive business intelligence and performance insights
+                {t.comprehensiveBusinessIntelligence || 'Comprehensive business intelligence and performance insights'}
               </p>
               {detailedReport?.financialHealth && (
                 <div className="flex items-center gap-3 mt-3">
                   <div className="flex items-center gap-2">
                     <div className="w-3 h-3 rounded-full bg-green-500 animate-pulse"></div>
                     <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Health Score: {detailedReport.financialHealth.score.toFixed(0)}/100
+                      {t.healthScore || 'Health Score'}: {detailedReport.financialHealth.score.toFixed(0)}/100
                     </span>
                   </div>
                   <div className={`px-3 py-1 rounded-full text-sm font-bold ${
@@ -1170,7 +1176,7 @@ export default function MonthlyReportsSection({ admin, t, showConfirm }) {
                       ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
                       : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
                   }`}>
-                    Grade {detailedReport.financialHealth.grade}
+                    {t.grade || 'Grade'} {detailedReport.financialHealth.grade}
                   </div>
                 </div>
               )}
@@ -1230,7 +1236,7 @@ export default function MonthlyReportsSection({ admin, t, showConfirm }) {
               {/* Key Performance Indicators */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <MetricCard
-                  title="Total Revenue"
+                  title={t.totalRevenue || "Total Revenue"}
                   value={formatCurrency(
                     detailedReport.rawData.monthSales.reduce((sum, s) => {
                       const amount = s.total || 0;
@@ -1246,7 +1252,7 @@ export default function MonthlyReportsSection({ admin, t, showConfirm }) {
                 />
                 
                 <MetricCard
-                  title="Transactions"
+                  title={t.transactions || "Transactions"}
                   value={formatNumber(detailedReport.rawData.monthSales.length)}
                   icon="shopping-cart"
                   gradient="bg-gradient-to-br from-blue-500 to-indigo-600"
@@ -1255,7 +1261,7 @@ export default function MonthlyReportsSection({ admin, t, showConfirm }) {
                 />
                 
                 <MetricCard
-                  title="Profit Margin"
+                  title={t.profitMargin || "Profit Margin"}
                   value={`${detailedReport.financialHealth.metrics.profitMargin.toFixed(1)}%`}
                   icon="trending-up"
                   gradient="bg-gradient-to-br from-purple-500 to-pink-600"
@@ -1264,7 +1270,7 @@ export default function MonthlyReportsSection({ admin, t, showConfirm }) {
                 />
                 
                 <MetricCard
-                  title="Health Score"
+                  title={t.healthScore || "Health Score"}
                   value={`${detailedReport.financialHealth.score.toFixed(0)}/100`}
                   icon="heart"
                   gradient="bg-gradient-to-br from-orange-500 to-red-600"
@@ -1277,14 +1283,14 @@ export default function MonthlyReportsSection({ admin, t, showConfirm }) {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <AdvancedLineChart
                   data={generateDailyTrendChart()}
-                  title="Daily Revenue & Transaction Trends"
+                  title={t.dailyRevenueTrends || "Daily Revenue & Transaction Trends"}
                   height={350}
                   multiAxis={true}
                 />
                 
                 <AdvancedDoughnutChart
                   data={generateCustomerSegmentChart()}
-                  title="Customer Segmentation"
+                  title={t.customerSegments || "Customer Segmentation"}
                   height={350}
                 />
               </div>
@@ -1293,13 +1299,13 @@ export default function MonthlyReportsSection({ admin, t, showConfirm }) {
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <AdvancedBarChart
                   data={generateProductPerformanceChart()}
-                  title="Top Products Performance"
+                  title={t.topPerformingProducts || "Top Products Performance"}
                   height={300}
                 />
                 
                 <AdvancedRadarChart
                   data={generateFinancialHealthRadar()}
-                  title="Financial Health Assessment"
+                  title={t.financialHealthAssessment || "Financial Health Assessment"}
                   height={300}
                 />
                 
@@ -1318,18 +1324,18 @@ export default function MonthlyReportsSection({ admin, t, showConfirm }) {
               <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg">
                 <h3 className="text-2xl font-bold text-gray-800 dark:text-gray-200 mb-6 flex items-center gap-3">
                   <Icon name="bar-chart" size={24} className="text-blue-600" />
-                  Advanced Business Analytics
+                  {t.advancedBusinessAnalytics || 'Advanced Business Analytics'}
                 </h3>
                 
                 {/* Market Basket Analysis */}
                 <div className="mb-8">
                   <h4 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-4">
-                    🛒 Market Basket Analysis
+                    🛒 {t.marketBasketAnalysis || 'Market Basket Analysis'}
                   </h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-3">
                       <h5 className="font-medium text-gray-600 dark:text-gray-400">
-                        Frequent Item Combinations
+                        {t.frequentItemCombinations || 'Frequent Item Combinations'}
                       </h5>
                       {detailedReport.basketAnalysis.frequentCombinations.slice(0, 5).map((combo, index) => (
                         <div key={index} className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
@@ -1344,22 +1350,22 @@ export default function MonthlyReportsSection({ admin, t, showConfirm }) {
                     
                     <div className="space-y-3">
                       <h5 className="font-medium text-gray-600 dark:text-gray-400">
-                        📊 Insights
+                        📊 {t.insights || 'Insights'}
                       </h5>
                       <div className="space-y-2">
                         <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
                           <p className="text-sm text-blue-800 dark:text-blue-200">
-                            <strong>Average basket size:</strong> {detailedReport.basketAnalysis.avgBasketSize.toFixed(1)} items
+                            <strong>{t.averageBasketSize || 'Average basket size'}:</strong> {detailedReport.basketAnalysis.avgBasketSize.toFixed(1)} {t.itemsUnits || 'items'}
                           </p>
                         </div>
                         <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
                           <p className="text-sm text-green-800 dark:text-green-200">
-                            <strong>Unique combinations:</strong> {detailedReport.basketAnalysis.totalCombinations} found
+                            <strong>{t.uniqueCombinations || 'Unique combinations'}:</strong> {detailedReport.basketAnalysis.totalCombinations} {t.found || 'found'}
                           </p>
                         </div>
                         <div className="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
                           <p className="text-sm text-purple-800 dark:text-purple-200">
-                            <strong>Cross-selling opportunity:</strong> High potential for bundled offers
+                            <strong>{t.crossSellingOpportunity || 'Cross-selling opportunity: High potential for bundled offers'}</strong>
                           </p>
                         </div>
                       </div>
@@ -1371,25 +1377,25 @@ export default function MonthlyReportsSection({ admin, t, showConfirm }) {
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   <div className="bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-blue-900/20 dark:to-indigo-900/20 p-6 rounded-xl">
                     <h4 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">
-                      📈 Daily Volatility Analysis
+                      📈 {t.dailyVolatilityAnalysis || 'Daily Volatility Analysis'}
                     </h4>
                     <div className="space-y-3">
                       <div className="flex justify-between items-center">
-                        <span className="text-gray-600 dark:text-gray-400">Highest Revenue Day</span>
+                        <span className="text-gray-600 dark:text-gray-400">{t.highestRevenueDay || 'Highest Revenue Day'}</span>
                         <span className="font-semibold text-green-600">
                           Day {detailedReport.dailyTrends.reduce((max, day, index) => 
                             day.totalRevenue > detailedReport.dailyTrends[max].totalRevenue ? index : max, 0) + 1}
                         </span>
                       </div>
                       <div className="flex justify-between items-center">
-                        <span className="text-gray-600 dark:text-gray-400">Most Volatile Day</span>
+                        <span className="text-gray-600 dark:text-gray-400">{t.mostVolatileDay || 'Most Volatile Day'}</span>
                         <span className="font-semibold text-red-600">
                           Day {detailedReport.dailyTrends.reduce((max, day, index) => 
                             day.volatility > detailedReport.dailyTrends[max].volatility ? index : max, 0) + 1}
                         </span>
                       </div>
                       <div className="flex justify-between items-center">
-                        <span className="text-gray-600 dark:text-gray-400">Avg Daily Revenue</span>
+                        <span className="text-gray-600 dark:text-gray-400">{t.avgDailyRevenue || 'Avg Daily Revenue'}</span>
                         <span className="font-semibold text-blue-600">
                           {(() => {
                             const avgRevenue = detailedReport.dailyTrends.reduce((sum, day) => sum + day.totalRevenue, 0) / detailedReport.dailyTrends.length || 0;
@@ -1404,22 +1410,22 @@ export default function MonthlyReportsSection({ admin, t, showConfirm }) {
 
                   <div className="bg-gradient-to-br from-green-50 to-emerald-100 dark:from-green-900/20 dark:to-emerald-900/20 p-6 rounded-xl">
                     <h4 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">
-                      🎯 Performance Recommendations
+                      🎯 {t.performanceRecommendations || 'Performance Recommendations'}
                     </h4>
                     <div className="space-y-3 text-sm">
                       <div className="p-2 bg-white/50 dark:bg-gray-800/50 rounded-lg">
                         <p className="text-gray-700 dark:text-gray-300">
-                          📍 Focus on cross-selling top combinations to increase basket size
+                          📍 {t.focusOnCrossSelling || 'Focus on cross-selling top combinations to increase basket size'}
                         </p>
                       </div>
                       <div className="p-2 bg-white/50 dark:bg-gray-800/50 rounded-lg">
                         <p className="text-gray-700 dark:text-gray-300">
-                          💡 Consider inventory adjustments for slow-moving items
+                          💡 {t.considerInventoryAdjustments || 'Consider inventory adjustments for slow-moving items'}
                         </p>
                       </div>
                       <div className="p-2 bg-white/50 dark:bg-gray-800/50 rounded-lg">
                         <p className="text-gray-700 dark:text-gray-300">
-                          🚀 Implement loyalty programs for frequent customers
+                          🚀 {t.implementLoyaltyPrograms || 'Implement loyalty programs for frequent customers'}
                         </p>
                       </div>
                     </div>
@@ -1437,7 +1443,7 @@ export default function MonthlyReportsSection({ admin, t, showConfirm }) {
                 <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg">
                   <h3 className="text-xl font-bold text-gray-800 dark:text-gray-200 mb-6 flex items-center gap-3">
                     <Icon name="users" size={24} className="text-blue-600" />
-                    Customer Segments
+                    {t.customerSegments || 'Customer Segments'}
                   </h3>
                   <div className="space-y-4">
                     {Object.entries(detailedReport.customerSegmentation.segments).map(([key, customers]) => (
@@ -1464,7 +1470,7 @@ export default function MonthlyReportsSection({ admin, t, showConfirm }) {
 
                   {/* Customer Insights Summary */}
                   <div className="mt-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-lg">
-                    <h4 className="font-semibold text-gray-800 dark:text-gray-200 mb-2">📊 Customer Insights</h4>
+                    <h4 className="font-semibold text-gray-800 dark:text-gray-200 mb-2">📊 {t.customerInsights || 'Customer Insights'}</h4>
                     <div className="grid grid-cols-2 gap-4 text-sm">
                       <div>
                         <span className="text-gray-600 dark:text-gray-400">Avg Frequency:</span>
@@ -1489,7 +1495,7 @@ export default function MonthlyReportsSection({ admin, t, showConfirm }) {
                 <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg">
                   <h3 className="text-xl font-bold text-gray-800 dark:text-gray-200 mb-6 flex items-center gap-3">
                     <Icon name="star" size={24} className="text-yellow-500" />
-                    Top Customers This Month
+                    {t.topCustomersThisMonth || 'Top Customers This Month'}
                   </h3>
                   <div className="space-y-3 max-h-96 overflow-y-auto">
                     {detailedReport.customerSegmentation.customers.slice(0, 12).map((customer, index) => (
@@ -1546,7 +1552,7 @@ export default function MonthlyReportsSection({ admin, t, showConfirm }) {
                 <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg">
                   <h3 className="text-xl font-bold text-gray-800 dark:text-gray-200 mb-6 flex items-center gap-3">
                     <Icon name="package" size={24} className="text-green-600" />
-                    Product Portfolio Analysis (BCG Matrix)
+                    {t.productPortfolioAnalysis || 'Product Portfolio Analysis (BCG Matrix)'}
                   </h3>
                   <div className="grid grid-cols-2 gap-4">
                     {Object.entries(detailedReport.productMatrix.categories).map(([category, products]) => (
@@ -1562,13 +1568,13 @@ export default function MonthlyReportsSection({ admin, t, showConfirm }) {
                           category === 'questionMarks' ? 'text-blue-800 dark:text-blue-200' :
                           'text-red-800 dark:text-red-200'
                         }`}>
-                          {category === 'stars' ? '⭐ Stars' :
-                           category === 'cashCows' ? '🐄 Cash Cows' :
-                           category === 'questionMarks' ? '❓ Question Marks' :
-                           '🐕 Dogs'}
+                          {category === 'stars' ? `⭐ ${t.stars || 'Stars'}` :
+                           category === 'cashCows' ? `🐄 ${t.cashCows || 'Cash Cows'}` :
+                           category === 'questionMarks' ? `❓ ${t.questionMarks || 'Question Marks'}` :
+                           `🐕 ${t.dogs || 'Dogs'}`}
                         </h4>
                         <p className="text-3xl font-bold mb-2 text-gray-800 dark:text-gray-200">{products.length}</p>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">Products</p>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">{t.products || 'Products'}</p>
                         {products.length > 0 && (
                           <p className="text-xs mt-2 text-gray-500 dark:text-gray-400 bg-white/50 dark:bg-gray-800/50 p-2 rounded">
                             <strong>Top:</strong> {products[0]?.name.substring(0, 25)}...
@@ -1583,7 +1589,7 @@ export default function MonthlyReportsSection({ admin, t, showConfirm }) {
                 <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg">
                   <h3 className="text-xl font-bold text-gray-800 dark:text-gray-200 mb-6 flex items-center gap-3">
                     <Icon name="trending-up" size={24} className="text-blue-600" />
-                    Top Performing Products
+                    {t.topPerformingProducts || 'Top Performing Products'}
                   </h3>
                   <div className="space-y-4 max-h-96 overflow-y-auto">
                     {detailedReport.productMatrix.products.slice(0, 10).map((product, index) => (
@@ -1606,8 +1612,8 @@ export default function MonthlyReportsSection({ admin, t, showConfirm }) {
                             </span>
                           </div>
                           <div className="flex gap-6 text-sm text-gray-600 dark:text-gray-400">
-                            <span><strong>{product.sales}</strong> sold</span>
-                            <span><strong>{product.marketShare.toFixed(1)}%</strong> market share</span>
+                            <span><strong>{product.sales}</strong> {t.sold || 'sold'}</span>
+                            <span><strong>{product.marketShare.toFixed(1)}%</strong> {t.marketShare || 'market share'}</span>
                           </div>
                         </div>
                         <div className="text-right">
@@ -1635,7 +1641,7 @@ export default function MonthlyReportsSection({ admin, t, showConfirm }) {
                   <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl p-8 text-white shadow-xl transform hover:scale-105 transition-all">
                     <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
                       <Icon name="heart" size={24} />
-                      Financial Health
+                      {t.financialHealth || 'Financial Health'}
                     </h3>
                     <div className="text-center">
                       <div className="text-6xl font-bold mb-3">
@@ -1651,7 +1657,7 @@ export default function MonthlyReportsSection({ admin, t, showConfirm }) {
                           ? 'bg-yellow-500 text-black shadow-lg'
                           : 'bg-red-500 text-white shadow-lg'
                       }`}>
-                        Grade {detailedReport.financialHealth.grade}
+                        {t.grade || 'Grade'} {detailedReport.financialHealth.grade}
                       </div>
                     </div>
                   </div>
@@ -1662,14 +1668,14 @@ export default function MonthlyReportsSection({ admin, t, showConfirm }) {
                   <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg">
                     <h3 className="text-xl font-bold text-gray-800 dark:text-gray-200 mb-6 flex items-center gap-3">
                       <Icon name="dollar-sign" size={24} className="text-green-600" />
-                      Key Financial Metrics
+                      {t.keyFinancialMetrics || 'Key Financial Metrics'}
                     </h3>
                     <div className="grid grid-cols-2 gap-6">
                       <div className="space-y-4">
                         <ComparisonMetric
                           current={detailedReport.financialHealth.metrics.revenue}
                           previous={0}
-                          label="Total Revenue"
+                          label={t.totalRevenue || "Total Revenue"}
                           formatter={(val) => {
                             const usd = formatCurrency(val, 'USD', t);
                             const iqd = formatCurrency(val / EXCHANGE_RATES.IQD_TO_USD, 'IQD', t);
@@ -1679,7 +1685,7 @@ export default function MonthlyReportsSection({ admin, t, showConfirm }) {
                         <ComparisonMetric
                           current={detailedReport.financialHealth.metrics.profit}
                           previous={0}
-                          label="Net Profit"
+                          label={t.netProfit || "Net Profit"}
                           formatter={(val) => {
                             const usd = formatCurrency(val, 'USD', t);
                             const iqd = formatCurrency(val / EXCHANGE_RATES.IQD_TO_USD, 'IQD', t);
@@ -1691,13 +1697,13 @@ export default function MonthlyReportsSection({ admin, t, showConfirm }) {
                         <ComparisonMetric
                           current={detailedReport.financialHealth.metrics.profitMargin}
                           previous={0}
-                          label="Profit Margin"
+                          label={t.profitMargin || "Profit Margin"}
                           formatter={(val) => `${val.toFixed(1)}%`}
                         />
                         <ComparisonMetric
                           current={detailedReport.financialHealth.metrics.avgTransactionSize}
                           previous={0}
-                          label="Avg Transaction"
+                          label={t.avgTransaction || "Avg Transaction"}
                           formatter={(val) => {
                             const usd = formatCurrency(val, 'USD', t);
                             const iqd = formatCurrency(val / EXCHANGE_RATES.IQD_TO_USD, 'IQD', t);
@@ -1709,20 +1715,20 @@ export default function MonthlyReportsSection({ admin, t, showConfirm }) {
                     
                     {/* Financial Health Breakdown */}
                     <div className="mt-6 p-4 bg-gradient-to-r from-gray-50 to-blue-50 dark:from-gray-700 dark:to-blue-900/30 rounded-lg">
-                      <h4 className="font-semibold text-gray-800 dark:text-gray-200 mb-3">💡 Financial Health Breakdown</h4>
+                      <h4 className="font-semibold text-gray-800 dark:text-gray-200 mb-3">💡 {t.financialHealthBreakdown || 'Financial Health Breakdown'}</h4>
                       <div className="grid grid-cols-2 gap-4 text-sm">
                         <div className="space-y-2">
                           <AdvancedProgressBar
                             value={Math.min(detailedReport.financialHealth.metrics.profitMargin * 3, 100)}
                             max={100}
                             color="bg-green-500"
-                            label="Profitability"
+                            label={t.profitability || "Profitability"}
                           />
                           <AdvancedProgressBar
                             value={Math.max(100 - detailedReport.financialHealth.metrics.debtToRevenue * 5, 0)}
                             max={100}
                             color="bg-blue-500"
-                            label="Liquidity"
+                            label={t.liquidity || "Liquidity"}
                           />
                         </div>
                         <div className="space-y-2">
@@ -1730,13 +1736,13 @@ export default function MonthlyReportsSection({ admin, t, showConfirm }) {
                             value={75}
                             max={100}
                             color="bg-purple-500"
-                            label="Growth Potential"
+                            label={t.growthPotential || "Growth Potential"}
                           />
                           <AdvancedProgressBar
                             value={Math.min(detailedReport.financialHealth.metrics.avgTransactionSize / 8, 100)}
                             max={100}
                             color="bg-orange-500"
-                            label="Efficiency"
+                            label={t.efficiency || "Efficiency"}
                           />
                         </div>
                       </div>

@@ -8,28 +8,8 @@ export default function useAdmin(showConfirm = null) {
   const { t } = useLocale();
   const navigate = useNavigate();
   
-  // Enhanced error handling for DataContext
-  let dataContext;
-  try {
-    dataContext = useData();
-  } catch (error) {
-    console.error('❌ useAdmin: Error accessing DataContext:', error);
-    // Return fallback object to prevent crashes
-    return {
-      products: [],
-      accessories: [],
-      sales: [],
-      debts: [],
-      loading: false,
-      setToast: () => {},
-      // Add other essential properties with safe defaults
-      showProductModal: false,
-      setShowProductModal: () => {},
-      editProduct: null,
-      setEditProduct: () => {},
-      // ... other safe defaults
-    };
-  }
+  // Get data from DataContext with error handling
+  const dataContext = useData();
   
   // Get data from DataContext with fallbacks
   const {
@@ -49,12 +29,24 @@ export default function useAdmin(showConfirm = null) {
     refreshCompanyDebts = () => {},
     refreshBuyingHistory = () => {},
     refreshMonthlyReports = () => {}
-  } = dataContext;
+  } = dataContext || {};
   
   // UI state
   const [showProductModal, setShowProductModal] = useState(false);
   const [editProduct, setEditProduct] = useState(null);
   const [viewSale, setViewSale] = useState(null);
+  // Company debt modal states
+  const [selectedCompanyDebt, setSelectedCompanyDebt] = useState(null);
+  const [showEnhancedCompanyDebtModal, setShowEnhancedCompanyDebtModal] = useState(false);
+  const [activeSection, setActiveSection] = useState('dashboard');
+  
+  // Customer debt section states
+  const [showPaidDebts, setShowPaidDebts] = useState(false);
+  const [debtSearch, setDebtSearch] = useState('');
+  
+  // Add Purchase Modal state
+  const [showAddPurchaseModal, setShowAddPurchaseModal] = useState(false);
+  const [isCompanyDebtMode, setIsCompanyDebtMode] = useState(false);
   // Balance state
   const [balanceUSD, setBalanceUSD] = useState(0);
   const [balanceIQD, setBalanceIQD] = useState(0);
@@ -120,6 +112,17 @@ export default function useAdmin(showConfirm = null) {
       setToast('Error marking debt as paid', 'error');
     }
   };
+
+  // Purchase modal functions
+  const openAddPurchaseModal = useCallback((forCompanyDebt = false) => {
+    setIsCompanyDebtMode(forCompanyDebt);
+    setShowAddPurchaseModal(true);
+  }, []);
+
+  const closeAddPurchaseModal = useCallback(() => {
+    setShowAddPurchaseModal(false);
+    setIsCompanyDebtMode(false); // Reset company debt mode when closing
+  }, []);
 
   // Product CRUD
   const handleAddProduct = async (product) => {
@@ -645,6 +648,22 @@ export default function useAdmin(showConfirm = null) {
     handleMarkDebtPaid,
     handleAddCompanyDebtWithItems,
     handleMarkCompanyDebtPaid,
+    selectedCompanyDebt,
+    setSelectedCompanyDebt,
+    showEnhancedCompanyDebtModal,
+    setShowEnhancedCompanyDebtModal,
+    activeSection,
+    setActiveSection,
+    showPaidDebts,
+    setShowPaidDebts,
+    debtSearch,
+    setDebtSearch,
+    showAddPurchaseModal,
+    setShowAddPurchaseModal,
+    isCompanyDebtMode,
+    setIsCompanyDebtMode,
+    openAddPurchaseModal,
+    closeAddPurchaseModal,
     setToast, toast,
     loading: dataLoading,
     balanceUSD, balanceIQD, loadBalances,
@@ -655,7 +674,11 @@ export default function useAdmin(showConfirm = null) {
     goToAdmin,
   }), [
     products, accessories, sales, showProductModal, editProduct, viewSale, debts, debtSales, companyDebts, buyingHistory, monthlyReports,
-    toast, dataLoading, balanceUSD, balanceIQD, notificationsEnabled, lowStockThreshold, adminModal, adminPassword, adminError, resetConfirmOpen
-  ]); // Removed function dependencies and apiReady that change on every render
+    selectedCompanyDebt, showEnhancedCompanyDebtModal, activeSection, showPaidDebts, debtSearch, showAddPurchaseModal, isCompanyDebtMode,
+    toast, dataLoading, balanceUSD, balanceIQD, notificationsEnabled, lowStockThreshold, adminModal, adminPassword, adminError, resetConfirmOpen,
+    // Add function dependencies to ensure stability
+    setProducts, setAccessories, setSales, setDebts, setDebtSales, setCompanyDebts, setBuyingHistory, setMonthlyReports,
+    refreshProducts, refreshAccessories, refreshSales, refreshDebts, refreshCompanyDebts, refreshBuyingHistory, refreshMonthlyReports
+  ]); // Comprehensive dependency array for stability
   return adminObject;
 }

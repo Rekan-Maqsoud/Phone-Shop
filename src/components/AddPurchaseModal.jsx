@@ -570,10 +570,13 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
                     />
                   </div>
                   <div className="text-sm text-gray-600 dark:text-gray-300">
-                    {t?.totalAmount || 'Total Amount'}: {currency === 'USD' 
-                      ? `$${(multiCurrency.usdAmount + (multiCurrency.iqdAmount / EXCHANGE_RATES.USD_TO_IQD)).toFixed(2)}`
-                      : `د.ع${(multiCurrency.iqdAmount + (multiCurrency.usdAmount * EXCHANGE_RATES.USD_TO_IQD)).toFixed(2)}`
-                    }
+                    <div className="flex flex-col gap-1">
+                      <div>{t?.totalAmount || 'Total Amount'}:</div>
+                      <div className="font-semibold">
+                        {multiCurrency.usdAmount > 0 && <div>USD: ${multiCurrency.usdAmount.toFixed(2)}</div>}
+                        {multiCurrency.iqdAmount > 0 && <div>IQD: د.ع{multiCurrency.iqdAmount.toFixed(2)}</div>}
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
@@ -944,10 +947,11 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
                       />
                     </div>
                     <div className="text-sm text-gray-600 dark:text-gray-300">
-                      {t.totalPaid}: {currency === 'USD' 
-                        ? `$${(multiCurrency.usdAmount + (multiCurrency.iqdAmount / EXCHANGE_RATES.USD_TO_IQD)).toFixed(2)}`
-                        : `د.ع${(multiCurrency.iqdAmount + (multiCurrency.usdAmount * EXCHANGE_RATES.USD_TO_IQD)).toFixed(2)}`
-                      }
+                      <div>{t.totalPaid}:</div>
+                      <div className="flex flex-col gap-1">
+                        <div>${(multiCurrency.usdAmount + (multiCurrency.iqdAmount / EXCHANGE_RATES.USD_TO_IQD)).toFixed(2)}</div>
+                        <div>د.ع{(multiCurrency.iqdAmount + (multiCurrency.usdAmount * EXCHANGE_RATES.USD_TO_IQD)).toFixed(2)}</div>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -1005,7 +1009,7 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
             className="px-6 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 font-semibold transition flex items-center gap-2"
           >
             <Icon name="plus" size={16} />
-            {t?.addPurchase || 'Add Purchase'}
+            {isCompanyDebtMode ? (t?.addCompanyDebt || 'Add Company Debt') : (t?.addPurchase || 'Add Purchase')}
           </button>
         </div>
         </form>

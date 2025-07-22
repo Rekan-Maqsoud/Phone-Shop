@@ -163,8 +163,12 @@ export default function SaleDetailsModal({ sale, t, onClose, onReturnItem }) {
     const usdProfit = totalProfitInIQD * usdRatio * saleExchangeRates.iqd_to_usd;
     const iqdProfit = totalProfitInIQD * iqdRatio;
     
-    // Format total profit as mixed currency string
-    totalProfit = `${formatCurrency(usdProfit, 'USD')} + ${formatCurrency(iqdProfit, 'IQD')}`;
+    // Format total profit as mixed currency object
+    totalProfit = {
+      usd: formatCurrency(usdProfit, 'USD'),
+      iqd: formatCurrency(iqdProfit, 'IQD'),
+      isMultiCurrency: true
+    };
     
     // Calculate actual profit contribution for products and accessories separately
     let productProfitInIQD = 0;
@@ -213,8 +217,16 @@ export default function SaleDetailsModal({ sale, t, onClose, onReturnItem }) {
     const accessoryUsdProfit = accessoryProfitInIQD * usdRatio * saleExchangeRates.iqd_to_usd;
     const accessoryIqdProfit = accessoryProfitInIQD * iqdRatio;
     
-    totalProductProfit = `${formatCurrency(productUsdProfit, 'USD')} + ${formatCurrency(productIqdProfit, 'IQD')}`;
-    totalAccessoryProfit = `${formatCurrency(accessoryUsdProfit, 'USD')} + ${formatCurrency(accessoryIqdProfit, 'IQD')}`;
+    totalProductProfit = {
+      usd: formatCurrency(productUsdProfit, 'USD'),
+      iqd: formatCurrency(productIqdProfit, 'IQD'),
+      isMultiCurrency: true
+    };
+    totalAccessoryProfit = {
+      usd: formatCurrency(accessoryUsdProfit, 'USD'),
+      iqd: formatCurrency(accessoryIqdProfit, 'IQD'),
+      isMultiCurrency: true
+    };
   } else {
     // Single currency profit calculation - use actual payment amount (sale.total already accounts for change)
     totalProfit = (sale.total || 0) - totalBuyingPrice;
@@ -304,7 +316,12 @@ export default function SaleDetailsModal({ sale, t, onClose, onReturnItem }) {
     const hasBothCurrencies = totalBuyingUSD > 0 && totalBuyingIQD > 0;
     
     if (hasBothCurrencies) {
-      return `${formatCurrency(totalBuyingUSD, 'USD')} + ${formatCurrency(totalBuyingIQD, 'IQD')}`;
+      return (
+        <div className="flex flex-col gap-0.5">
+          <span>{formatCurrency(totalBuyingUSD, 'USD')}</span>
+          <span>{formatCurrency(totalBuyingIQD, 'IQD')}</span>
+        </div>
+      );
     } else if (totalBuyingUSD > 0) {
       return formatCurrency(totalBuyingUSD, 'USD');
     } else {
@@ -440,7 +457,12 @@ export default function SaleDetailsModal({ sale, t, onClose, onReturnItem }) {
     if (sale.multi_currency_payment) {
       const usdAmount = sale.multi_currency_payment.usd_amount || 0;
       const iqdAmount = sale.multi_currency_payment.iqd_amount || 0;
-      return `${formatCurrency(usdAmount, 'USD')} + ${formatCurrency(iqdAmount, 'IQD')}`;
+      return (
+        <div className="flex flex-col">
+          <div>{formatCurrency(usdAmount, 'USD')}</div>
+          <div>{formatCurrency(iqdAmount, 'IQD')}</div>
+        </div>
+      );
     } else {
       return fmt(discountedTotal);
     }
@@ -542,7 +564,16 @@ export default function SaleDetailsModal({ sale, t, onClose, onReturnItem }) {
               </div>
               {/* Products Table Footer */}
               <div className="text-right text-emerald-700 dark:text-emerald-300 font-semibold mt-2">
-                {t.productProfit || 'Product Profit'}: {typeof totalProductProfit === 'string' ? totalProductProfit : formatCurrency(totalProductProfit, saleCurrency)}
+                {t.productProfit || 'Product Profit'}: {
+                  totalProductProfit?.isMultiCurrency ? (
+                    <div className="flex flex-col">
+                      <div>{totalProductProfit.usd}</div>
+                      <div>{totalProductProfit.iqd}</div>
+                    </div>
+                  ) : (
+                    typeof totalProductProfit === 'string' ? totalProductProfit : formatCurrency(totalProductProfit, saleCurrency)
+                  )
+                }
               </div>
             </div>
           )}
@@ -619,7 +650,16 @@ export default function SaleDetailsModal({ sale, t, onClose, onReturnItem }) {
               </div>
               {/* Accessories Table Footer */}
               <div className="text-right text-emerald-700 dark:text-emerald-300 font-semibold mt-2">
-                {t.accessoryProfit || 'Accessory Profit'}: {typeof totalAccessoryProfit === 'string' ? totalAccessoryProfit : formatCurrency(totalAccessoryProfit, saleCurrency)}
+                {t.accessoryProfit || 'Accessory Profit'}: {
+                  totalAccessoryProfit?.isMultiCurrency ? (
+                    <div className="flex flex-col">
+                      <div>{totalAccessoryProfit.usd}</div>
+                      <div>{totalAccessoryProfit.iqd}</div>
+                    </div>
+                  ) : (
+                    typeof totalAccessoryProfit === 'string' ? totalAccessoryProfit : formatCurrency(totalAccessoryProfit, saleCurrency)
+                  )
+                }
               </div>
             </div>
           )}
@@ -640,7 +680,18 @@ export default function SaleDetailsModal({ sale, t, onClose, onReturnItem }) {
               ) : (
                 <div className="text-lg font-bold text-blue-700 dark:text-blue-300">{t.total || 'Total'}: {formatTotal()}</div>
               )}
-              <div className="text-md font-semibold text-emerald-700 dark:text-emerald-300">{t.profit || 'Profit'}: {typeof totalProfit === 'string' ? totalProfit : formatCurrency(totalProfit, saleCurrency)}</div>
+              <div className="text-md font-semibold text-emerald-700 dark:text-emerald-300">
+                {t.profit || 'Profit'}: {
+                  totalProfit?.isMultiCurrency ? (
+                    <div className="flex flex-col">
+                      <div>{totalProfit.usd}</div>
+                      <div>{totalProfit.iqd}</div>
+                    </div>
+                  ) : (
+                    typeof totalProfit === 'string' ? totalProfit : formatCurrency(totalProfit, saleCurrency)
+                  )
+                }
+              </div>
             </div>
             <button 
               onClick={onClose} 

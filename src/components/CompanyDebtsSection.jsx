@@ -2,19 +2,18 @@ import React, { useState } from 'react';
 import { useData } from '../contexts/DataContext';
 import { formatCurrency, EXCHANGE_RATES } from '../utils/exchangeRates';
 import { Icon } from '../utils/icons.jsx';
+import { useLocale } from '../contexts/LocaleContext';
+import { getSeparator, getTextAlign, formatCompoundText, getFlexDirection } from '../utils/rtlUtils';
 
 const CompanyDebtsSection = ({ 
   t, 
   admin, 
-  openAddCompanyDebtModal, 
-  setSelectedCompanyDebt, 
-  setShowEnhancedCompanyDebtModal, 
-  showConfirm, 
-  setConfirm, 
-  triggerCloudBackup 
+  openEnhancedCompanyDebtModal, 
+  openAddPurchaseModal
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const { companyDebts, refreshCompanyDebts, refreshBuyingHistory } = useData();
+  const { isRTL } = useLocale();
 
   // Helper function to format debt amount (simplified - all debts are in USD)
   const formatDebtAmount = (debt) => {
@@ -38,15 +37,24 @@ const CompanyDebtsSection = ({
             <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
               {t.companyDebts || 'Company Debts'}
             </h1>
-            <p className="text-gray-600 dark:text-gray-300 text-lg">
-              {t.companyDebtsDescription || 'Track money you owe to companies and suppliers'}
-            </p>
           </div>
         </div>
         
         <div className="flex justify-end">
           <button
-            onClick={() => openAddCompanyDebtModal()}
+            onClick={() => {
+              try {
+                if (openAddPurchaseModal) {
+                  openAddPurchaseModal(true); // Pass true for company debt mode
+                } else {
+                  console.error('Add Purchase Modal function not available');
+                  admin.setToast?.('Error: Cannot open add purchase modal', 'error', 5000);
+                }
+              } catch (error) {
+                console.error('Error opening Add Purchase Modal:', error);
+                admin.setToast?.('Error opening purchase modal', 'error', 5000);
+              }
+            }}
             className="flex items-center gap-2 px-6 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 transition font-semibold shadow-lg"
           >
             <Icon name="add" size={20} />
@@ -155,12 +163,13 @@ const CompanyDebtsSection = ({
                           <h3 className="text-xl font-bold text-gray-800 dark:text-gray-100">
                             {companyName}
                           </h3>
-                          <p className="text-gray-600 dark:text-gray-400">
-                            {unpaidDebts.length} {unpaidDebts.length === 1 ? (t.unpaidDebt || 'unpaid debt') : (t.unpaidDebts || 'unpaid debts')} • 
-                            {sortedCompanyDebts.length - unpaidDebts.length} {sortedCompanyDebts.length - unpaidDebts.length === 1 ? (t.paidDebt || 'paid debt') : (t.paidDebts || 'paid debts')}
-                          </p>
+                          <div className={`text-gray-600 dark:text-gray-400 flex items-center gap-2 ${getFlexDirection(isRTL)}`}>
+                            <span>{unpaidDebts.length} {unpaidDebts.length === 1 ? (t.unpaidDebt || 'unpaid debt') : (t.unpaidDebts || 'unpaid debts')}</span>
+                            <span className="text-gray-400">{getSeparator(isRTL)}</span>
+                            <span>{sortedCompanyDebts.length - unpaidDebts.length} {sortedCompanyDebts.length - unpaidDebts.length === 1 ? (t.paidDebt || 'paid debt') : (t.paidDebts || 'paid debts')}</span>
+                          </div>
                         </div>
-                        <div className="text-right">
+                        <div className={getTextAlign(isRTL, 'right')}>
                           <div className="text-2xl font-bold text-gray-800 dark:text-gray-100">
                             {formatCurrency(totalUnpaidForCompany, 'USD')}
                           </div>
@@ -216,8 +225,8 @@ const CompanyDebtsSection = ({
                               {debt.has_items && (
                                 <button
                                   onClick={() => {
-                                    setSelectedCompanyDebt(debt);
-                                    setShowEnhancedCompanyDebtModal(true);
+                                    admin.setSelectedCompanyDebt(debt);
+                                    admin.setShowEnhancedCompanyDebtModal(true);
                                   }}
                                   className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium"
                                 >
@@ -227,8 +236,8 @@ const CompanyDebtsSection = ({
                               {!debt.paid_at && (
                                 <button
                                   onClick={() => {
-                                    setSelectedCompanyDebt(debt);
-                                    setShowEnhancedCompanyDebtModal(true);
+                                    admin.setSelectedCompanyDebt(debt);
+                                    admin.setShowEnhancedCompanyDebtModal(true);
                                   }}
                                   className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-medium"
                                 >

@@ -54,10 +54,11 @@ export default function CashierContent({
   currency,
   setCurrency,
   setDiscount,
+  multiCurrency,
+  setMultiCurrency,
   refreshProducts,
   refreshAccessories
 }) {
-  const [multiCurrency, setMultiCurrency] = useState({ enabled: false, usdAmount: 0, iqdAmount: 0 });
   const [discount, setLocalDiscount] = useState({ type: 'none', value: 0 });
   const [showExchangeRateModal, setShowExchangeRateModal] = useState(false);
   const [newExchangeRate, setNewExchangeRate] = useState(EXCHANGE_RATES.USD_TO_IQD.toString());
@@ -519,7 +520,7 @@ export default function CashierContent({
               onClick={() => window.location.hash = '#/admin'}
               className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
             >
-              Admin
+              {t.admin || 'Admin'}
             </button>
           </div>
           <div className="text-sm text-slate-600 dark:text-slate-300 mt-1">
@@ -623,10 +624,10 @@ export default function CashierContent({
                                 );
                                 setItems(updatedItems);
                               }}
-                              className="w-24 px-2 py-1 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-600 text-center font-bold text-lg"
+                              className="w-24 px-2 py-1 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-600 text-center font-bold text-lg text-slate-800 dark:text-white"
                             />
                             <span className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                              {item.currency || product?.currency || 'USD'}
+                              {currency}
                             </span>
                           </div>
                         </div>
@@ -646,24 +647,32 @@ export default function CashierContent({
                                 );
                                 setItems(updatedItems);
                               }}
-                              className="w-16 px-2 py-1 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-600 text-center"
+                              className="w-16 px-2 py-1 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-600 text-center text-slate-800 dark:text-white"
                             />
                             <span className="text-slate-600 dark:text-slate-400">%</span>
                           </div>
                           {item.discount_percent > 0 && (
                             <span className="text-green-600 dark:text-green-400 font-medium">
-                              Save: {formatCurrency(
-                                (item.selling_price * item.quantity * (item.discount_percent / 100)) * 
-                                (currency === 'IQD' && (item.currency === 'USD' || !item.currency) ? EXCHANGE_RATES.USD_TO_IQD :
-                                 currency === 'USD' && item.currency === 'IQD' ? EXCHANGE_RATES.IQD_TO_USD : 1),
-                                currency
-                              )}
+                              {t.save || 'Save'}: {(() => {
+                                const discountAmount = (item.selling_price * item.quantity * (item.discount_percent / 100));
+                                const itemCurrency = item.currency || product?.currency || 'USD';
+                                
+                                // Convert discount amount to chosen currency
+                                let convertedDiscount = discountAmount;
+                                if (currency === 'IQD' && itemCurrency === 'USD') {
+                                  convertedDiscount = discountAmount * EXCHANGE_RATES.USD_TO_IQD;
+                                } else if (currency === 'USD' && itemCurrency === 'IQD') {
+                                  convertedDiscount = discountAmount * EXCHANGE_RATES.IQD_TO_USD;
+                                }
+                                
+                                return formatCurrency(convertedDiscount, currency);
+                              })()}
                             </span>
                           )}
                         </div>
                         {product?.category === 'accessories' && product?.type && (
                           <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                            Type: {product.type}
+                            {t.type || 'Type'}: {product.type}
                           </div>
                         )}
                       </div>
@@ -674,25 +683,35 @@ export default function CashierContent({
                             const discountAmount = basePrice * ((item.discount_percent || 0) / 100);
                             const finalPrice = basePrice - discountAmount;
                             
-                            const convertedPrice = currency === 'IQD' && (item.currency === 'USD' || !item.currency)
-                              ? finalPrice * EXCHANGE_RATES.USD_TO_IQD
-                              : currency === 'USD' && item.currency === 'IQD'
-                              ? finalPrice * EXCHANGE_RATES.IQD_TO_USD
-                              : finalPrice;
+                            // Convert price to chosen currency
+                            let convertedPrice = finalPrice;
+                            const itemCurrency = item.currency || product?.currency || 'USD';
+                            
+                            if (currency === 'IQD' && itemCurrency === 'USD') {
+                              convertedPrice = finalPrice * EXCHANGE_RATES.USD_TO_IQD;
+                            } else if (currency === 'USD' && itemCurrency === 'IQD') {
+                              convertedPrice = finalPrice * EXCHANGE_RATES.IQD_TO_USD;
+                            }
                               
                             return formatCurrency(convertedPrice, currency);
                           })()}
                         </div>
                         {item.discount_percent > 0 && (
                           <div className="text-sm text-slate-500 dark:text-slate-400 line-through">
-                            {formatCurrency(
-                              currency === 'IQD' && (item.currency === 'USD' || !item.currency)
-                                ? item.selling_price * item.quantity * EXCHANGE_RATES.USD_TO_IQD
-                                : currency === 'USD' && item.currency === 'IQD'
-                                ? item.selling_price * item.quantity * EXCHANGE_RATES.IQD_TO_USD
-                                : item.selling_price * item.quantity,
-                              currency
-                            )}
+                            {(() => {
+                              const originalPrice = item.selling_price * item.quantity;
+                              const itemCurrency = item.currency || product?.currency || 'USD';
+                              
+                              // Convert original price to chosen currency
+                              let convertedOriginalPrice = originalPrice;
+                              if (currency === 'IQD' && itemCurrency === 'USD') {
+                                convertedOriginalPrice = originalPrice * EXCHANGE_RATES.USD_TO_IQD;
+                              } else if (currency === 'USD' && itemCurrency === 'IQD') {
+                                convertedOriginalPrice = originalPrice * EXCHANGE_RATES.IQD_TO_USD;
+                              }
+                              
+                              return formatCurrency(convertedOriginalPrice, currency);
+                            })()}
                           </div>
                         )}
                         <button
@@ -729,7 +748,7 @@ export default function CashierContent({
                   <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/>
                   </svg>
-                  USD
+                  {t.usd || 'USD'}
                 </span>
               </button>
               <button
@@ -744,7 +763,7 @@ export default function CashierContent({
                   <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
                   </svg>
-                  IQD
+                  {t.iqd || 'IQD'}
                 </span>
               </button>
             </div>
@@ -1135,7 +1154,7 @@ export default function CashierContent({
                 onClick={() => setShowFilters(!showFilters)}
                 className="px-3 py-1 bg-gray-500 hover:bg-gray-600 text-white text-sm rounded-lg transition-colors"
               >
-                <Icon name="filter" className="inline mr-1" size={16} />Filter
+                <Icon name="filter" className="inline mr-1" size={16} />{t.filter || 'Filter'}
               </button>
             </div>
             

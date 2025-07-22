@@ -43,13 +43,9 @@ export default function Admin() {
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const { theme, setTheme, setAppTheme } = useTheme();
   const [loading, setLoading] = useState(false);
-  const [debtSearch, setDebtSearch] = useState('');
-  const [showPaidDebts, setShowPaidDebts] = useState(false);
   const [showBackupManager, setShowBackupManager] = useState(false);
   const [showAddPurchase, setShowAddPurchase] = useState(false);
-  const [isCompanyDebtMode, setIsCompanyDebtMode] = useState(false);
-  const [showEnhancedCompanyDebtModal, setShowEnhancedCompanyDebtModal] = useState(false);
-  const [selectedCompanyDebt, setSelectedCompanyDebt] = useState(null);
+  // isCompanyDebtMode is now handled in useAdmin
 
   // ALL HOOKS MOVED TO TOP LEVEL - FIXES HOOKS RULE VIOLATION
   // Ensure theme is set before first paint
@@ -116,7 +112,7 @@ export default function Admin() {
 
   // Memoize nav items for performance with keyboard shortcuts and colors
   const navItems = useMemo(() => [
-    { key: 'multiCurrencyDashboard', label: t.multiCurrencyDashboard || 'Multi-Currency Dashboard', icon: 'multiCurrency', shortcut: '1', color: 'blue' },
+    { key: 'multiCurrencyDashboard', label: t.dashboard || 'Dashboard', icon: 'multiCurrency', shortcut: '1', color: 'blue' },
     { key: 'active', label: t.products, icon: 'products', shortcut: '2', color: 'green' },
     { key: 'accessories', label: t.accessories, icon: 'accessories', shortcut: '3', color: 'orange' },
     { key: 'archived', label: t.archivedProducts, icon: 'archived', shortcut: '4', color: 'gray' },
@@ -192,22 +188,20 @@ export default function Admin() {
   };
 
   // Helper functions
+  const openAddPurchaseModal = useCallback((isCompanyDebt = false) => {
+    admin.openAddPurchaseModal(isCompanyDebt);
+  }, [admin]);
+  
   const closeAddPurchaseModal = useCallback(() => {
+    admin.closeAddPurchaseModal();
     setShowAddPurchase(false);
-    setIsCompanyDebtMode(false);
-  }, []);
-
-  const openAddPurchaseModal = useCallback((forCompanyDebt = false) => {
-    setIsCompanyDebtMode(forCompanyDebt);
-    setShowAddPurchase(true);
-    playModalOpenSound();
-  }, []);
+  }, [admin]);
 
   const openEnhancedCompanyDebtModal = useCallback((debtItem = null) => {
-    setSelectedCompanyDebt(debtItem);
-    setShowEnhancedCompanyDebtModal(true);
+    admin.setSelectedCompanyDebt(debtItem);
+    admin.setShowEnhancedCompanyDebtModal(true);
     playModalOpenSound();
-  }, []);
+  }, [admin]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -341,7 +335,17 @@ export default function Admin() {
               {section === 'archived' && <ArchivedItemsSection admin={admin} t={t} />}
               {section === 'salesHistory' && <SalesHistorySection admin={admin} t={t} />}
               {section === 'buyingHistory' && <BuyingHistorySection admin={admin} t={t} openAddPurchaseModal={openAddPurchaseModal} />}
-              {section === 'customerDebts' && <CustomerDebtsSection admin={admin} t={t} />}
+              {section === 'customerDebts' && <CustomerDebtsSection 
+                admin={admin} 
+                t={t} 
+                debtSearch={admin.debtSearch}
+                setDebtSearch={admin.setDebtSearch}
+                showPaidDebts={admin.showPaidDebts}
+                setShowPaidDebts={admin.setShowPaidDebts}
+                showConfirm={showConfirm}
+                setConfirm={setConfirm}
+                triggerCloudBackup={triggerCloudBackupAsync} 
+              />}
               {section === 'companyDebts' && <CompanyDebtsSection admin={admin} t={t} openEnhancedCompanyDebtModal={openEnhancedCompanyDebtModal} openAddPurchaseModal={openAddPurchaseModal} />}
               {section === 'incentives' && <IncentivesSection admin={admin} t={t} />}
               {section === 'personalLoans' && <PersonalLoansSection admin={admin} t={t} />}
@@ -368,14 +372,14 @@ export default function Admin() {
           setLoading={setLoading}
           showBackupManager={showBackupManager}
           setShowBackupManager={setShowBackupManager}
-          showAddPurchase={showAddPurchase}
+          showAddPurchase={admin.showAddPurchaseModal}
           setShowAddPurchase={closeAddPurchaseModal}
-          isCompanyDebtMode={isCompanyDebtMode}
+          isCompanyDebtMode={admin.isCompanyDebtMode}
           setToast={admin.setToast}
-          showEnhancedCompanyDebtModal={showEnhancedCompanyDebtModal}
-          setShowEnhancedCompanyDebtModal={setShowEnhancedCompanyDebtModal}
-          selectedCompanyDebt={selectedCompanyDebt}
-          setSelectedCompanyDebt={setSelectedCompanyDebt}
+          showEnhancedCompanyDebtModal={admin.showEnhancedCompanyDebtModal}
+          setShowEnhancedCompanyDebtModal={admin.setShowEnhancedCompanyDebtModal}
+          selectedCompanyDebt={admin.selectedCompanyDebt}
+          setSelectedCompanyDebt={admin.setSelectedCompanyDebt}
           confirm={confirm}
           triggerCloudBackup={triggerCloudBackupAsync}
         />

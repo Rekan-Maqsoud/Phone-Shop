@@ -895,6 +895,17 @@ ipcMain.handle('addDirectPurchaseMultiCurrency', async (event, purchaseData) => 
   }
 });
 
+ipcMain.handle('addDirectPurchaseMultiCurrencyWithItems', async (event, purchaseData) => {
+  try {
+    const result = db.addDirectPurchaseMultiCurrencyWithItems(purchaseData);
+    await runAutoBackupAfterSale();
+    return result;
+  } catch (error) {
+    console.error('[IPC] addDirectPurchaseMultiCurrencyWithItems error:', error);
+    throw error;
+  }
+});
+
 // Monthly reports handlers
 ipcMain.handle('createMonthlyReport', async (event, month, year) => {
   try {

@@ -282,6 +282,10 @@ module.exports = function(dbPath) {
     return inventory.addDirectPurchaseMultiCurrency(db, purchaseData);
   }
 
+  function addDirectPurchaseMultiCurrencyWithItems(purchaseData) {
+    return inventory.addDirectPurchaseMultiCurrencyWithItems(db, purchaseData);
+  }
+
   function deleteBuyingHistory(id) {
     return inventory.deleteBuyingHistory(db, id);
   }
@@ -1472,6 +1476,7 @@ module.exports = function(dbPath) {
     addDirectPurchase,
     addDirectPurchaseWithItems,
     addDirectPurchaseMultiCurrency,
+    addDirectPurchaseMultiCurrencyWithItems,
     deleteBuyingHistory,
     updateBuyingHistory,
     getBuyingHistoryInDateRange,

@@ -35,6 +35,7 @@ export default function Cashier() {
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1);
   const [currency, setCurrency] = useState('IQD'); // Default to IQD as requested
   const [discount, setDiscount] = useState(null);
+  const [multiCurrency, setMultiCurrency] = useState({ enabled: false, usdAmount: 0, iqdAmount: 0 });
   const inputRef = useRef();
   const navigate = useNavigate();
   const { isOnline } = useOnlineStatus();
@@ -344,6 +345,7 @@ export default function Cashier() {
             setSearch('');
             setIsDebt(false);
             setCustomerName("");
+            setMultiCurrency({ enabled: false, usdAmount: 0, iqdAmount: 0 }); // Reset multi-currency state
             
             // Force refresh products and accessories to update stock levels
             await Promise.all([
@@ -433,6 +435,8 @@ export default function Cashier() {
         currency={currency}
         setCurrency={setCurrency}
         setDiscount={setDiscount}
+        multiCurrency={multiCurrency}
+        setMultiCurrency={setMultiCurrency}
         refreshProducts={refreshProducts}
         refreshAccessories={refreshAccessories}
       />

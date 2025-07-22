@@ -364,33 +364,37 @@ const SalesHistoryTableEnhanced = React.memo(function SalesHistoryTableEnhanced(
                           {sale.items ? `${sale.items.length} items (${sale.items.reduce((sum, item) => sum + (item.quantity || 1), 0)} total)` : '0 items'}
                         </td>
                         <td className="px-4 py-2 text-sm text-gray-800 dark:text-gray-200">
-                          {breakdown.usd.buyingTotal > 0 && formatCurrency(breakdown.usd.buyingTotal, 'USD')}
-                          {breakdown.usd.buyingTotal > 0 && breakdown.iqd.buyingTotal > 0 && ' + '}
-                          {breakdown.iqd.buyingTotal > 0 && formatCurrency(breakdown.iqd.buyingTotal, 'IQD')}
+                          <div className="flex flex-col gap-0.5">
+                            {breakdown.usd.buyingTotal > 0 && <span>{formatCurrency(breakdown.usd.buyingTotal, 'USD')}</span>}
+                            {breakdown.iqd.buyingTotal > 0 && <span>{formatCurrency(breakdown.iqd.buyingTotal, 'IQD')}</span>}
+                          </div>
                         </td>
                         <td className="px-4 py-2 text-sm text-gray-800 dark:text-gray-200">
-                          {breakdown.usd.sellingTotal > 0 && formatCurrency(breakdown.usd.sellingTotal, 'USD')}
-                          {breakdown.usd.sellingTotal > 0 && breakdown.iqd.sellingTotal > 0 && ' + '}
-                          {breakdown.iqd.sellingTotal > 0 && formatCurrency(breakdown.iqd.sellingTotal, 'IQD')}
+                          <div className="flex flex-col gap-0.5">
+                            {breakdown.usd.sellingTotal > 0 && <span>{formatCurrency(breakdown.usd.sellingTotal, 'USD')}</span>}
+                            {breakdown.iqd.sellingTotal > 0 && <span>{formatCurrency(breakdown.iqd.sellingTotal, 'IQD')}</span>}
+                          </div>
                         </td>
                         <td className="px-4 py-2 text-sm font-semibold text-gray-800 dark:text-gray-200">
-                          {breakdown.usd.paid > 0 && formatCurrency(breakdown.usd.paid, 'USD')}
-                          {breakdown.usd.paid > 0 && breakdown.iqd.paid > 0 && ' + '}
-                          {breakdown.iqd.paid > 0 && formatCurrency(breakdown.iqd.paid, 'IQD')}
+                          <div className="flex flex-col gap-0.5">
+                            {breakdown.usd.paid > 0 && <span>{formatCurrency(breakdown.usd.paid, 'USD')}</span>}
+                            {breakdown.iqd.paid > 0 && <span>{formatCurrency(breakdown.iqd.paid, 'IQD')}</span>}
+                          </div>
                         </td>
                         <td className="px-4 py-2 text-sm font-semibold text-gray-800 dark:text-gray-200">
                           {/* Show profit only in the currency of the products sold */}
-                          {breakdown.usd.profit > 0 && (
-                            <span className={breakdown.usd.profit >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
-                              {formatCurrency(breakdown.usd.profit, 'USD')}
-                            </span>
-                          )}
-                          {breakdown.usd.profit > 0 && breakdown.iqd.profit > 0 && ' + '}
-                          {breakdown.iqd.profit > 0 && (
-                            <span className={breakdown.iqd.profit >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
-                              {formatCurrency(breakdown.iqd.profit, 'IQD')}
-                            </span>
-                          )}
+                          <div className="flex flex-col gap-0.5">
+                            {breakdown.usd.profit > 0 && (
+                              <span className={breakdown.usd.profit >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
+                                {formatCurrency(breakdown.usd.profit, 'USD')}
+                              </span>
+                            )}
+                            {breakdown.iqd.profit > 0 && (
+                              <span className={breakdown.iqd.profit >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
+                                {formatCurrency(breakdown.iqd.profit, 'IQD')}
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="px-4 py-2">
                           <div className="flex gap-2">

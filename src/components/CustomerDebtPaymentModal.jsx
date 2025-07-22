@@ -176,7 +176,7 @@ const CustomerDebtPaymentModal = ({
         }
       }
       if (result && result.changes > 0) {
-        admin.setToast?.(`Debt of ${(sale.currency === 'USD' ? '$' : 'د.ع')}${sale.total.toFixed(2)} marked as paid for ${originalCustomer}`, 'success');
+        admin.setToast?.(`Debt marked as paid: ${(sale.currency === 'USD' ? '$' : 'د.ع')}${sale.total.toFixed(2)} for ${originalCustomer}`, 'success');
         
         // Refresh balances to show updated amounts
         if (admin.loadBalances) {
