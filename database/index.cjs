@@ -1313,28 +1313,46 @@ module.exports = function(dbPath) {
           const originalUSD = Math.abs(transaction.amount_usd || 0);
           const originalIQD = Math.abs(transaction.amount_iqd || 0);
           
-          // Calculate total original and returned quantities
-          const totalOriginalQty = successfulReturns.reduce((sum, item) => sum + (item.requestedQty || item.quantity || 1), 0) + 
-                                  stockIssues.reduce((sum, item) => sum + item.requestedQty, 0);
-          const totalReturnedQty = successfulReturns.reduce((sum, item) => sum + item.returnedQty, 0);
-          
-          if (totalOriginalQty > 0) {
-            const returnRatio = totalReturnedQty / totalOriginalQty;
-            refundUSD = originalUSD * returnRatio;
-            refundIQD = originalIQD * returnRatio;
+          if (stockIssues.length > 0) {
+            // Calculate partial refund based on successfully returned items
+            const totalOriginalQty = successfulReturns.reduce((sum, item) => sum + (item.quantity || 1), 0) + 
+                                    stockIssues.reduce((sum, item) => sum + item.requestedQty, 0);
+            const totalReturnedQty = successfulReturns.reduce((sum, item) => sum + item.returnedQty, 0);
+            
+            if (totalOriginalQty > 0) {
+              const returnRatio = totalReturnedQty / totalOriginalQty;
+              refundUSD = originalUSD * returnRatio;
+              refundIQD = originalIQD * returnRatio;
+            }
+          } else {
+            // Full refund
+            refundUSD = originalUSD;
+            refundIQD = originalIQD;
           }
         }
       } else {
         // Single currency purchase
         const currency = entry.currency || 'IQD';
-        const totalReturnValue = successfulReturns.reduce((sum, item) => {
-          return sum + ((item.unit_price || 0) * item.returnedQty);
-        }, 0);
         
-        if (currency === 'USD') {
-          refundUSD = totalReturnValue;
+        if (stockIssues.length > 0) {
+          // Calculate partial refund based on successfully returned items
+          const totalReturnValue = successfulReturns.reduce((sum, item) => {
+            return sum + ((item.unit_price || 0) * item.returnedQty);
+          }, 0);
+          
+          if (currency === 'USD') {
+            refundUSD = totalReturnValue;
+          } else {
+            refundIQD = totalReturnValue;
+          }
         } else {
-          refundIQD = totalReturnValue;
+          // Full refund
+          const totalAmount = entry.total_price || entry.amount || 0;
+          if (currency === 'USD') {
+            refundUSD = totalAmount;
+          } else {
+            refundIQD = totalAmount;
+          }
         }
       }
 

@@ -99,13 +99,13 @@ const BuyingHistoryTable = React.memo(function BuyingHistoryTable({
 
   // Handle return entry with confirmation modal
   const handleReturnEntry = useCallback((entry) => {
-    const isMultiCurrency = entry.currency === 'MULTI' && (entry.multi_currency_usd > 0 || entry.multi_currency_iqd > 0);
+    const isMultiCurrency = entry.currency === 'MULTI' && ((entry.multi_currency_usd || 0) > 0 || (entry.multi_currency_iqd || 0) > 0);
     
     let amountDisplay = '';
     if (isMultiCurrency) {
       const amounts = [];
-      if (entry.multi_currency_usd > 0) amounts.push(`$${entry.multi_currency_usd.toFixed(2)}`);
-      if (entry.multi_currency_iqd > 0) amounts.push(`د.ع${entry.multi_currency_iqd.toFixed(2)}`);
+      if ((entry.multi_currency_usd || 0) > 0) amounts.push(`$${(entry.multi_currency_usd || 0).toFixed(2)}`);
+      if ((entry.multi_currency_iqd || 0) > 0) amounts.push(`د.ع${(entry.multi_currency_iqd || 0).toFixed(2)}`);
       amountDisplay = amounts.join(' + ');
     } else {
       const currency = entry.currency || 'IQD';
@@ -416,25 +416,25 @@ const BuyingHistoryTable = React.memo(function BuyingHistoryTable({
                       <div className="text-right">
                         {entry.currency === 'MULTI' ? (
                           <div className="flex flex-col gap-2">
-                            {entry.multi_currency_usd > 0 && (
+                            {(entry.multi_currency_usd || 0) > 0 && (
                               <div className="bg-green-50 dark:bg-green-900/20 px-3 py-2 rounded-lg border-l-4 border-green-500">
                                 <span className="text-green-700 dark:text-green-400 font-bold text-lg">
                                   ${(() => {
-                                    const formatted = entry.multi_currency_usd.toFixed(2);
+                                    const formatted = (entry.multi_currency_usd || 0).toFixed(2);
                                     return formatted.endsWith('.00') ? formatted.slice(0, -3) : formatted;
                                   })()}
                                 </span>
                               </div>
                             )}
-                            {entry.multi_currency_iqd > 0 && (
+                            {(entry.multi_currency_iqd || 0) > 0 && (
                               <div className="bg-blue-50 dark:bg-blue-900/20 px-3 py-2 rounded-lg border-l-4 border-blue-500">
                                 <span className="text-blue-700 dark:text-blue-400 font-bold text-lg">
-                                  د.ع{Math.round(entry.multi_currency_iqd).toLocaleString()}
+                                  د.ع{Math.round(entry.multi_currency_iqd || 0).toLocaleString()}
                                 </span>
                               </div>
                             )}
-                            {(!entry.multi_currency_usd || entry.multi_currency_usd === 0) && 
-                             (!entry.multi_currency_iqd || entry.multi_currency_iqd === 0) && (
+                            {(entry.multi_currency_usd || 0) === 0 && 
+                             (entry.multi_currency_iqd || 0) === 0 && (
                               <span className="text-gray-500 italic">{t?.multiCurrency || 'Multi-currency'}</span>
                             )}
                           </div>

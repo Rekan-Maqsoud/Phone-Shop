@@ -24,8 +24,9 @@ function getBuyingHistory(db) {
       `).get(entry.id);
       
       if (transaction) {
-        enhancedEntry.multi_currency_usd = transaction.amount_usd || 0;
-        enhancedEntry.multi_currency_iqd = transaction.amount_iqd || 0;
+        // Convert negative transaction amounts (spending) to positive display amounts
+        enhancedEntry.multi_currency_usd = Math.abs(transaction.amount_usd || 0);
+        enhancedEntry.multi_currency_iqd = Math.abs(transaction.amount_iqd || 0);
       }
     }
     

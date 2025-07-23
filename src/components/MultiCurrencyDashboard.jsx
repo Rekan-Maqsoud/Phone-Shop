@@ -231,6 +231,15 @@ function MultiCurrencyDashboard({ admin, t }) {
       return transactionDate.toDateString() === today && transaction.amount_usd < 0;
     }).reduce((sum, transaction) => sum + Math.abs(transaction.amount_usd), 0);
 
+    // Subtract today's buying history returns from spending (returns represent negative spending)
+    const todaysReturnsUSD = (transactions || []).filter(transaction => {
+      if (!transaction.created_at) return false;
+      const transactionDate = new Date(transaction.created_at);
+      return transactionDate.toDateString() === today && 
+             transaction.type === 'buying_history_return' && 
+             transaction.amount_usd > 0;
+    }).reduce((sum, transaction) => sum + transaction.amount_usd, 0);
+
     const todaysSpendingIQD = (buyingHistory || []).filter(entry => {
       if (!entry.paid_at) return false;
       const paidDate = new Date(entry.paid_at);
@@ -265,20 +274,31 @@ function MultiCurrencyDashboard({ admin, t }) {
       return transactionDate.toDateString() === today && transaction.amount_iqd < 0;
     }).reduce((sum, transaction) => sum + Math.abs(transaction.amount_iqd), 0);
 
-    // Total spending includes purchases, debt payments, and other outgoing transactions
-    const totalTodaysSpendingUSD = todaysSpendingUSD + todaysCompanyDebtPaymentsUSD + todaysTransactionSpendingUSD;
-    const totalTodaysSpendingIQD = todaysSpendingIQD + todaysCompanyDebtPaymentsIQD + todaysTransactionSpendingIQD;
+    // Subtract today's buying history returns from spending (returns represent negative spending)
+    const todaysReturnsIQD = (transactions || []).filter(transaction => {
+      if (!transaction.created_at) return false;
+      const transactionDate = new Date(transaction.created_at);
+      return transactionDate.toDateString() === today && 
+             transaction.type === 'buying_history_return' && 
+             transaction.amount_iqd > 0;
+    }).reduce((sum, transaction) => sum + transaction.amount_iqd, 0);
+
+    // Total spending includes purchases, debt payments, and other outgoing transactions, minus returns
+    const totalTodaysSpendingUSD = todaysSpendingUSD + todaysCompanyDebtPaymentsUSD + todaysTransactionSpendingUSD - todaysReturnsUSD;
+    const totalTodaysSpendingIQD = todaysSpendingIQD + todaysCompanyDebtPaymentsIQD + todaysTransactionSpendingIQD - todaysReturnsIQD;
 
     // Debug logging to check spending calculations
-    if (totalTodaysSpendingUSD > 0 || totalTodaysSpendingIQD > 0) {
+    if (totalTodaysSpendingUSD > 0 || totalTodaysSpendingIQD > 0 || todaysReturnsUSD > 0 || todaysReturnsIQD > 0) {
       console.log('📊 Today\'s Spending Debug:', {
         todaysSpendingUSD,
         todaysCompanyDebtPaymentsUSD,
         todaysTransactionSpendingUSD,
+        todaysReturnsUSD,
         totalTodaysSpendingUSD,
         todaysSpendingIQD,
         todaysCompanyDebtPaymentsIQD,
         todaysTransactionSpendingIQD,
+        todaysReturnsIQD,
         totalTodaysSpendingIQD,
         todaysUSDSales,
         todaysIQDSales
