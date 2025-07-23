@@ -98,18 +98,47 @@ const BuyingHistoryTable = React.memo(function BuyingHistoryTable({
   }, [expandedEntries]);
 
   // Handle return entry with confirmation modal
-  const handleReturnEntry = useCallback((entryId, amount) => {
+  const handleReturnEntry = useCallback((entry) => {
+    const isMultiCurrency = entry.currency === 'MULTI' && (entry.multi_currency_usd > 0 || entry.multi_currency_iqd > 0);
+    
+    let amountDisplay = '';
+    if (isMultiCurrency) {
+      const amounts = [];
+      if (entry.multi_currency_usd > 0) amounts.push(`$${entry.multi_currency_usd.toFixed(2)}`);
+      if (entry.multi_currency_iqd > 0) amounts.push(`د.ع${entry.multi_currency_iqd.toFixed(2)}`);
+      amountDisplay = amounts.join(' + ');
+    } else {
+      const currency = entry.currency || 'IQD';
+      const amount = entry.total_price || entry.amount || 0;
+      amountDisplay = `${currency === 'USD' ? '$' : 'د.ع'}${amount.toFixed(2)}`;
+    }
+    
     setConfirmModal({
       isOpen: true,
       title: t?.returnEntry || 'Return Purchase',
-      message: t?.confirmReturnEntry || `Are you sure you want to return this purchase?\n\nRefund amount: ${(entryId.currency === 'USD' ? '$' : 'د.ع')}${amount.toFixed(2)}`,
+      message: t?.confirmReturnEntry || `Are you sure you want to return this purchase?\n\nRefund amount: ${amountDisplay}`,
       onConfirm: async () => {
         try {
-          const result = await window.api.returnBuyingHistoryEntry(entryId);
+          const result = await window.api.returnBuyingHistoryEntry(entry.id);
           if (result.success) {
+            let toastMessage = t?.returnSuccess || 'Purchase returned successfully!';
+            
+            // Build refund amount display
+            const refundAmounts = [];
+            if (result.returnedAmountUSD > 0) refundAmounts.push(`$${result.returnedAmountUSD.toFixed(2)}`);
+            if (result.returnedAmountIQD > 0) refundAmounts.push(`د.ع${result.returnedAmountIQD.toFixed(2)}`);
+            
+            if (refundAmounts.length > 0) {
+              toastMessage += ` Amount refunded: ${refundAmounts.join(' + ')}`;
+            }
+            
+            if (result.hasStockIssues) {
+              toastMessage += '\n\nNote: Some items had insufficient stock. Only available quantities were returned.';
+            }
+            
             // Use ToastUnified instead of alert
             if (window.showToast) {
-              window.showToast(t?.returnSuccess || `Purchase returned successfully! Amount refunded: $${result.returnedAmount.toFixed(2)}`, 'success');
+              window.showToast(toastMessage, result.hasStockIssues ? 'warning' : 'success');
             }
             refreshBuyingHistory();
           } else {
@@ -153,8 +182,23 @@ const BuyingHistoryTable = React.memo(function BuyingHistoryTable({
       );
       
       if (result.success) {
+        let toastMessage = t?.returnSuccess || 'Item returned successfully!';
+        
+        // Build refund amount display
+        const refundAmounts = [];
+        if (result.returnedAmountUSD > 0) refundAmounts.push(`$${result.returnedAmountUSD.toFixed(2)}`);
+        if (result.returnedAmountIQD > 0) refundAmounts.push(`د.ع${result.returnedAmountIQD.toFixed(2)}`);
+        
+        if (refundAmounts.length > 0) {
+          toastMessage += ` Amount refunded: ${refundAmounts.join(' + ')}`;
+        }
+        
+        if (result.hasStockIssue) {
+          toastMessage += `\n\nNote: Only ${result.actualReturnQty} items were returned due to insufficient stock (${result.availableStock} available).`;
+        }
+        
         if (window.showToast) {
-          window.showToast(t?.returnSuccess || `Item returned successfully! Amount refunded: $${result.returnedAmount.toFixed(2)}`, 'success');
+          window.showToast(toastMessage, result.hasStockIssue ? 'warning' : 'success');
         }
         refreshBuyingHistory();
         setShowReturnModal(false);
@@ -442,7 +486,7 @@ const BuyingHistoryTable = React.memo(function BuyingHistoryTable({
                           </button>
                         )}
                         <button
-                          onClick={() => handleReturnEntry(entry.id, entry.amount)}
+                          onClick={() => handleReturnEntry(entry)}
                           className="px-4 py-2 bg-gradient-to-r from-red-600 to-rose-600 text-white rounded-xl hover:from-red-700 hover:to-rose-700 transition-all duration-200 transform hover:scale-105 shadow-lg shadow-red-200 dark:shadow-red-800 font-medium text-sm flex items-center gap-2"
                           title={t?.returnEntry || 'Return this purchase'}
                         >

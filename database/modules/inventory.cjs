@@ -239,14 +239,9 @@ function addDirectPurchaseMultiCurrencyWithItems(db, { supplier, date, items, us
     const EXCHANGE_RATE_USD_TO_IQD = 1440; // Standard rate for display
     const totalInIQD = (total_usd * EXCHANGE_RATE_USD_TO_IQD) + total_iqd;
     
-    // Create a description that shows both currencies
-    const currencyDesc = [];
-    if (total_usd > 0) currencyDesc.push(`$${total_usd.toFixed(2)}`);
-    if (total_iqd > 0) currencyDesc.push(`د.ع${total_iqd.toFixed(2)}`);
-    
     const totalQuantity = items.reduce((sum, item) => sum + parseInt(item.quantity), 0);
     const itemNames = items.map(item => item.item_name || `${item.brand} ${item.model}`).join(', ');
-    const multiCurrencyItemName = `${itemNames} (${currencyDesc.join(' + ')})`;
+    const multiCurrencyItemName = `Purchase with ${items.length} items: ${itemNames}`;
     
     // Create a single buying history entry for the multi-currency purchase
     const result = db.prepare(`
@@ -361,7 +356,7 @@ function addDirectPurchaseMultiCurrencyWithItems(db, { supplier, date, items, us
       'direct_purchase',
       -total_usd, // Negative to indicate spending
       -total_iqd, // Negative to indicate spending
-      `Multi-currency purchase with ${items.length} items from ${supplier} (${currencyDesc.join(' + ')})`,
+      `Multi-currency purchase with ${items.length} items from ${supplier}`,
       buyingHistoryId,
       'buying_history',
       purchaseDate
@@ -395,11 +390,8 @@ function addDirectPurchaseMultiCurrency(db, { item_name, quantity, supplier, dat
     const EXCHANGE_RATE_USD_TO_IQD = 1440; // Standard rate for display
     const totalInIQD = (total_usd * EXCHANGE_RATE_USD_TO_IQD) + total_iqd;
     
-    // Create a description that shows both currencies
-    const currencyDesc = [];
-    if (total_usd > 0) currencyDesc.push(`$${total_usd.toFixed(2)}`);
-    if (total_iqd > 0) currencyDesc.push(`د.ع${total_iqd.toFixed(2)}`);
-    const multiCurrencyItemName = `${item_name} (${currencyDesc.join(' + ')})`;
+    // Create a clean item name without currency amounts (currency amounts will be displayed in the Amount column)
+    const multiCurrencyItemName = `Multi-currency purchase: ${item_name}`;
     
     // Add to buying history with MULTI currency indicator  
     const result = db.prepare(`
@@ -426,7 +418,7 @@ function addDirectPurchaseMultiCurrency(db, { item_name, quantity, supplier, dat
       'direct_purchase',
       -total_usd, // Negative to indicate spending
       -total_iqd, // Negative to indicate spending
-      `Multi-currency purchase: ${item_name} from ${supplier} (${currencyDesc.join(' + ')})`,
+      `Multi-currency purchase: ${item_name} from ${supplier}`,
       result.lastInsertRowid,
       'buying_history',
       purchaseDate

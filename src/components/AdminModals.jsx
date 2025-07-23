@@ -222,9 +222,18 @@ export default function AdminModals({
                   const hasUSD = currencies.includes('USD');
                   const hasIQD = currencies.includes('IQD');
                   
+                  // Check if payment currency differs from item currencies (important for currency display fix)
+                  const paymentCurrency = purchaseData.currency || 'IQD';
+                  const hasPaymentCurrencyMismatch = currencies.some(itemCurrency => itemCurrency !== paymentCurrency);
+                  
                   // Log mixed currency detection for debugging
-                  if (hasMixedCurrencies) {
-                    console.log('[AdminModals] Mixed currencies detected in items:', currencies);
+                  if (hasMixedCurrencies || hasPaymentCurrencyMismatch) {
+                    console.log('[AdminModals] Currency mismatch/mixed currencies detected:', {
+                      itemCurrencies: currencies,
+                      paymentCurrency,
+                      hasMixedCurrencies,
+                      hasPaymentCurrencyMismatch
+                    });
                     detectedMixedCurrency = true;
                   }
                   
@@ -238,19 +247,40 @@ export default function AdminModals({
                     .reduce((sum, item) => sum + (parseInt(item.quantity) * parseFloat(item.unit_price)), 0);
                   
                   // Check if we should use multi-currency handling
-                  const shouldUseMultiCurrency = (purchaseData.multi_currency && purchaseData.multi_currency.enabled) || hasMixedCurrencies;
+                  // Use multi-currency if: mixed item currencies, payment currency mismatch, or explicit multi-currency enabled
+                  const shouldUseMultiCurrency = (purchaseData.multi_currency && purchaseData.multi_currency.enabled) || 
+                                                 hasMixedCurrencies || 
+                                                 hasPaymentCurrencyMismatch;
                   
                   if (shouldUseMultiCurrency) {
                     // For multi-currency purchases with items, use the dedicated function
                     if (window.api?.addDirectPurchaseMultiCurrencyWithItems) {
-                      // Use explicit amounts if provided, otherwise use calculated totals from items
-                      const finalUsdAmount = (purchaseData.multi_currency && purchaseData.multi_currency.enabled) 
-                        ? purchaseData.multi_currency.usdAmount || 0
-                        : usdTotal;
+                      let finalUsdAmount, finalIqdAmount;
                       
-                      const finalIqdAmount = (purchaseData.multi_currency && purchaseData.multi_currency.enabled)
-                        ? purchaseData.multi_currency.iqdAmount || 0
-                        : iqdTotal;
+                      if (purchaseData.multi_currency && purchaseData.multi_currency.enabled) {
+                        // Explicit multi-currency payment
+                        finalUsdAmount = purchaseData.multi_currency.usdAmount || 0;
+                        finalIqdAmount = purchaseData.multi_currency.iqdAmount || 0;
+                      } else if (hasPaymentCurrencyMismatch && !hasMixedCurrencies) {
+                        // Single item currency but different payment currency - convert item totals to payment currency
+                        if (paymentCurrency === 'USD' && currencies[0] === 'IQD') {
+                          // Paying USD for IQD items
+                          finalUsdAmount = iqdTotal / 1440; // Convert IQD to USD using standard rate
+                          finalIqdAmount = 0;
+                        } else if (paymentCurrency === 'IQD' && currencies[0] === 'USD') {
+                          // Paying IQD for USD items (this fixes the main issue)
+                          finalUsdAmount = 0;
+                          finalIqdAmount = usdTotal * 1440; // Convert USD to IQD using standard rate
+                        } else {
+                          // Fallback to item currency totals
+                          finalUsdAmount = usdTotal;
+                          finalIqdAmount = iqdTotal;
+                        }
+                      } else {
+                        // Mixed currencies or other cases, use item currency totals
+                        finalUsdAmount = usdTotal;
+                        finalIqdAmount = iqdTotal;
+                      }
                       
                       result = await window.api.addDirectPurchaseMultiCurrencyWithItems({
                         supplier: purchaseData.company_name,

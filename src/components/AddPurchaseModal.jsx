@@ -144,6 +144,60 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
     return baseTotal;
   };
 
+  const calculateOriginalTotal = () => {
+    let baseTotal;
+    if (purchaseType === 'simple') {
+      if (multiCurrency.enabled) {
+        // For multi-currency simple purchases, show combined total
+        // Convert IQD to USD and add USD amount for display consistency
+        const iqdInUsd = multiCurrency.iqdAmount / EXCHANGE_RATES.USD_TO_IQD;
+        baseTotal = multiCurrency.usdAmount + iqdInUsd;
+      } else {
+        baseTotal = parseFloat(simpleAmount) || 0;
+      }
+    } else {
+      // Calculate total considering individual item currencies
+      let totalUSD = 0;
+      let totalIQD = 0;
+      
+      items.forEach(item => {
+        const quantity = parseInt(item.quantity) || 0;
+        const unitPrice = parseFloat(item.unit_price) || 0;
+        const itemTotal = quantity * unitPrice;
+        
+        if (item.currency === 'USD') {
+          totalUSD += itemTotal;
+        } else {
+          totalIQD += itemTotal;
+        }
+      });
+      
+      // Display combined total converted to the selected currency
+      if (currency === 'USD') {
+        const iqdInUsd = totalIQD / EXCHANGE_RATES.USD_TO_IQD;
+        baseTotal = totalUSD + iqdInUsd;
+      } else {
+        const usdInIqd = totalUSD * EXCHANGE_RATES.USD_TO_IQD;
+        baseTotal = totalIQD + usdInIqd;
+      }
+    }
+
+    return baseTotal;
+  };
+
+  const getDiscountAmount = () => {
+    if (!discount.enabled || !discount.value) return 0;
+    
+    const originalTotal = calculateOriginalTotal();
+    const discountValue = parseFloat(discount.value) || 0;
+    
+    if (discount.type === 'percentage') {
+      return originalTotal * (discountValue / 100);
+    } else {
+      return Math.min(discountValue, originalTotal);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -889,11 +943,31 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
                   />
                   
                   {discount.value && (
-                    <div className="text-sm text-gray-600 dark:text-gray-400">
-                      {discount.type === 'percentage' 
-                        ? `${discount.value}% discount` 
-                        : `${currency === 'USD' ? '$' : 'د.ع'}${discount.value} discount`
-                      }
+                    <div className="mt-3 p-3 bg-white dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
+                      <div className="text-sm space-y-1">
+                        <div className="flex justify-between items-center text-gray-600 dark:text-gray-400">
+                          <span>{t?.originalAmount || 'Original Amount'}:</span>
+                          <span className="line-through">
+                            {currency === 'USD' ? '$' : 'د.ع'}{calculateOriginalTotal().toFixed(2)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center text-red-600 dark:text-red-400">
+                          <span>{t?.discountAmount || 'Discount'}:</span>
+                          <span>
+                            -{currency === 'USD' ? '$' : 'د.ع'}{getDiscountAmount().toFixed(2)}
+                            {discount.type === 'percentage' ? ` (${discount.value}%)` : ''}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center font-bold text-green-600 dark:text-green-400 text-base border-t pt-1">
+                          <span>{t?.finalAmount || 'Final Amount'}:</span>
+                          <span>
+                            {currency === 'USD' ? '$' : 'د.ع'}{calculateTotal().toFixed(2)}
+                          </span>
+                        </div>
+                        <div className="text-center text-xs text-gray-500 dark:text-gray-400 mt-2">
+                          {t?.youSave || 'You save'}: {currency === 'USD' ? '$' : 'د.ع'}{getDiscountAmount().toFixed(2)}
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -961,9 +1035,52 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
             {/* Total Amount */}
             {(items.length > 0 || (purchaseType === 'simple' && (simpleAmount || multiCurrency.enabled))) && (
               <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4">
+                {discount.enabled && discount.value && calculateOriginalTotal() > 0 && (
+                  <>
+                    {/* Original Total */}
+                    <div className="flex justify-between items-center text-gray-600 dark:text-gray-400 mb-2">
+                      <span className="text-base font-medium">
+                        {t?.originalTotal || 'Original Total'}:
+                      </span>
+                      <span className="text-base font-semibold line-through">
+                        {purchaseType === 'simple' && multiCurrency.enabled ? (
+                          <div className="text-right">
+                            {multiCurrency.usdAmount > 0 && (
+                              <div className="text-sm">USD: ${multiCurrency.usdAmount.toFixed(2)}</div>
+                            )}
+                            {multiCurrency.iqdAmount > 0 && (
+                              <div className="text-sm">IQD: د.ع{multiCurrency.iqdAmount.toFixed(2)}</div>
+                            )}
+                          </div>
+                        ) : (
+                          `${currency === 'USD' ? '$' : 'د.ع'}${calculateOriginalTotal().toFixed(2)}`
+                        )}
+                      </span>
+                    </div>
+                    
+                    {/* Discount */}
+                    <div className="flex justify-between items-center text-red-600 dark:text-red-400 mb-2">
+                      <span className="text-base font-medium">
+                        {t?.discount || 'Discount'}:
+                      </span>
+                      <span className="text-base font-semibold">
+                        -{currency === 'USD' ? '$' : 'د.ع'}{getDiscountAmount().toFixed(2)}
+                        {discount.type === 'percentage' ? ` (${discount.value}%)` : ''}
+                      </span>
+                    </div>
+                    
+                    {/* Separator */}
+                    <div className="border-t border-gray-300 dark:border-gray-600 my-2"></div>
+                  </>
+                )}
+                
+                {/* Final Total */}
                 <div className="flex justify-between items-center">
                   <span className="text-lg font-semibold text-gray-800 dark:text-gray-200">
-                    {t?.totalAmount || 'Total Amount'}:
+                    {discount.enabled && discount.value && calculateOriginalTotal() > 0 
+                      ? (t?.finalTotal || 'Final Total')
+                      : (t?.totalAmount || 'Total Amount')
+                    }:
                   </span>
                   <span className="text-xl font-bold text-blue-600 dark:text-blue-400">
                     {purchaseType === 'simple' && multiCurrency.enabled ? (
@@ -983,6 +1100,15 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
                     )}
                   </span>
                 </div>
+                
+                {/* Savings indicator */}
+                {discount.enabled && discount.value && getDiscountAmount() > 0 && (
+                  <div className="text-center mt-3 p-2 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-700">
+                    <span className="text-green-700 dark:text-green-400 font-medium text-sm">
+                      💰 {t?.youSave || 'You save'}: {currency === 'USD' ? '$' : 'د.ع'}{getDiscountAmount().toFixed(2)}
+                    </span>
+                  </div>
+                )}
               </div>
             )}
           </div>

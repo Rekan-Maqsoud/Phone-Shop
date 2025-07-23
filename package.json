@@ -1,7 +1,7 @@
 {
   "name": "mobile-roma",
   "private": true,
-  "version": "1.1.13",
+  "version": "1.1.14",
   "main": "src/main.cjs",
   "author": "",
   "license": "MIT",
@@ -55,6 +55,8 @@
     "icon": "public/Mobile Roma.ico",
     "appId": "com.mobilerema.phoneShop",
     "productName": "Mobile Roma",
+    "artifactName": "Mobile Roma Setup ${version}.${ext}",
+    "copyright": "Copyright © 2025 Mobile Roma",
     "directories": {
       "output": "release"
     },
@@ -76,14 +78,22 @@
       "category": "Office"
     },
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "icon": "public/Mobile Roma.ico",
+      "requestedExecutionLevel": "asInvoker",
+      "signAndEditExecutable": false
     },
     "mac": {
       "target": "dmg"
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "uninstallDisplayName": "Mobile Roma - Phone Shop Management",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "deleteAppDataOnUninstall": true,
+      "script": "installer.nsh"
     }
   }
 }
