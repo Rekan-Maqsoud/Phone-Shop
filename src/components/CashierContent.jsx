@@ -119,9 +119,8 @@ export default function CashierContent({
   };
 
   // Calculate totals based on selected currency with per-item discounts
-  // For debt sales, always use USD as the base currency
   const convertedTotal = useMemo(() => {
-    const effectiveCurrency = isDebt ? 'USD' : currency;
+    const effectiveCurrency = currency;
     
     if (effectiveCurrency === 'IQD') {
       return items.reduce((sum, item) => {
@@ -146,12 +145,12 @@ export default function CashierContent({
         return sum + discountedItemTotal;
       }, 0);
     }
-  }, [items, currency, isDebt]);
+  }, [items, currency]);
 
   // Calculate discounted total
   const discountedTotal = useMemo(() => {
     const baseTotal = convertedTotal;
-    const effectiveCurrency = isDebt ? 'USD' : currency;
+    const effectiveCurrency = currency;
     
     if (discount.type === 'none' || !discount.value || discount.value <= 0) {
       return effectiveCurrency === 'IQD' ? getRoundedTotal(baseTotal, effectiveCurrency) : baseTotal;
@@ -166,7 +165,7 @@ export default function CashierContent({
     }
     
     return effectiveCurrency === 'IQD' ? getRoundedTotal(finalTotal, effectiveCurrency) : finalTotal;
-  }, [convertedTotal, discount, currency, isDebt]);
+  }, [convertedTotal, discount, currency]);
 
   // Calculate actual discount amount for display
   const discountAmount = useMemo(() => {
@@ -732,74 +731,72 @@ export default function CashierContent({
 
       {/* Column 2: Checkout & Payment */}
       <div className="flex flex-col gap-4 h-full overflow-y-auto pb-6">
-        {/* Currency Toggle Button with Exchange Rate - disabled for debt sales */}
-        {!isDebt && (
-          <div className="flex items-center gap-3 mb-4">
-            <div className="flex bg-slate-100 dark:bg-slate-700 rounded-lg p-1">
-              <button
-                onClick={() => setCurrency('USD')}
-                className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
-                  currency === 'USD'
-                    ? 'bg-blue-500 text-white shadow-sm'
-                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-white'
-                }`}
-              >
-                <span className="flex items-center gap-2">
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/>
-                  </svg>
-                  {t.usd || 'USD'}
-                </span>
-              </button>
-              <button
-                onClick={() => setCurrency('IQD')}
-                className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
-                  currency === 'IQD'
-                    ? 'bg-blue-500 text-white shadow-sm'
-                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-white'
-                }`}
-              >
-                <span className="flex items-center gap-2">
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-                  </svg>
-                  {t.iqd || 'IQD'}
-                </span>
-              </button>
-            </div>
-            <div className="flex-1 text-right">
-              <OfflineIndicator className="text-xs" />
-              <button
-                onClick={handleExchangeRateClick}
-                disabled={isLoadingRate}
-                className={`px-3 py-2 ${
-                  isLoadingRate 
-                    ? 'bg-gray-400 cursor-not-allowed' 
-                    : 'bg-blue-500 hover:bg-blue-600'
-                } text-white text-sm rounded-lg transition-colors shadow-lg flex items-center gap-2`}
-              >
-                {isLoadingRate ? (
-                  <>
-                    <span className="animate-spin">⏳</span>
-                    {t.loadingRate || 'Loading...'}
-                  </>
-                ) : (
-                  <>
-                    1$ = {EXCHANGE_RATES.USD_TO_IQD}IQD
-                  </>
-                )}
-              </button>
-            </div>
+        {/* Currency Toggle Button with Exchange Rate - now enabled for debt sales too */}
+        <div className="flex items-center gap-3 mb-4">
+          <div className="flex bg-slate-100 dark:bg-slate-700 rounded-lg p-1">
+            <button
+              onClick={() => setCurrency('USD')}
+              className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
+                currency === 'USD'
+                  ? 'bg-blue-500 text-white shadow-sm'
+                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-white'
+              }`}
+            >
+              <span className="flex items-center gap-2">
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/>
+                </svg>
+                {t.usd || 'USD'}
+              </span>
+            </button>
+            <button
+              onClick={() => setCurrency('IQD')}
+              className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
+                currency === 'IQD'
+                  ? 'bg-blue-500 text-white shadow-sm'
+                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-white'
+              }`}
+            >
+              <span className="flex items-center gap-2">
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                </svg>
+                {t.iqd || 'IQD'}
+              </span>
+            </button>
           </div>
-        )}
+          <div className="flex-1 text-right">
+            <OfflineIndicator className="text-xs" />
+            <button
+              onClick={handleExchangeRateClick}
+              disabled={isLoadingRate}
+              className={`px-3 py-2 ${
+                isLoadingRate 
+                  ? 'bg-gray-400 cursor-not-allowed' 
+                  : 'bg-blue-500 hover:bg-blue-600'
+              } text-white text-sm rounded-lg transition-colors shadow-lg flex items-center gap-2`}
+            >
+              {isLoadingRate ? (
+                <>
+                  <span className="animate-spin">⏳</span>
+                  {t.loadingRate || 'Loading...'}
+                </>
+              ) : (
+                <>
+                  1$ = {EXCHANGE_RATES.USD_TO_IQD}IQD
+                </>
+              )}
+            </button>
+          </div>
+        </div>
 
-        {/* For debt sales, show a simple message about using default currency */}
+        {/* For debt sales, show updated message about currency selection */}
         {isDebt && (
           <div className="bg-orange-50 dark:bg-orange-900/20 rounded-xl p-4 mb-4 border border-orange-200 dark:border-orange-800">
             <div className="flex items-center gap-2 text-orange-700 dark:text-orange-300">
               <Icon name="clipboard" size={20} />
               <span className="text-sm font-medium">
-                {t.debtSaleNote || 'Debt sales save item values only. Payment currency will be chosen when the debt is paid back.'}
+                {t.debtSaleNote || `Debt sale in ${currency}. Customer can pay using any currency when settling the debt.`}
               </span>
             </div>
           </div>
@@ -840,7 +837,7 @@ export default function CashierContent({
                       }
                     }
                   }}
-                  placeholder={discount.type === 'percentage' ? '0-100%' : formatCurrency(0, isDebt ? 'USD' : currency)}
+                  placeholder={discount.type === 'percentage' ? '0-100%' : formatCurrency(0, currency)}
                   min="0"
                   max={discount.type === 'percentage' ? "100" : undefined}
                   step={discount.type === 'percentage' ? "0.1" : "0.01"}
@@ -852,7 +849,7 @@ export default function CashierContent({
               <div className="text-sm text-green-600 text-center">
                 {discount.value > 0 && discountAmount > 0 && (
                   <>
-                    {t.discount}: -{formatCurrency(discountAmount, isDebt ? 'USD' : currency)}
+                    {t.discount}: -{formatCurrency(discountAmount, currency)}
                     {discount.type === 'percentage' && ` (${discount.value}%)`}
                   </>
                 )}
@@ -1040,14 +1037,14 @@ export default function CashierContent({
             <div className="flex justify-between text-lg">
               <span className="text-slate-600 dark:text-slate-300">{t.subtotal}:</span>
               <span className="font-semibold text-slate-800 dark:text-white">
-                {formatCurrency(convertedTotal, isDebt ? 'USD' : currency)}
+                {formatCurrency(convertedTotal, currency)}
               </span>
             </div>
             {discount.type !== 'none' && discount.value > 0 && discountAmount > 0 && (
               <div className="flex justify-between text-sm text-green-600">
                 <span>{t.discount}:</span>
                 <span>
-                  -{formatCurrency(discountAmount, isDebt ? 'USD' : currency)}
+                  -{formatCurrency(discountAmount, currency)}
                   {discount.type === 'percentage' && ` (${discount.value}%)`}
                 </span>
               </div>
@@ -1055,10 +1052,10 @@ export default function CashierContent({
             <div className="flex justify-between text-xl font-bold border-t border-slate-200 dark:border-slate-700 pt-2">
               <span className="text-slate-800 dark:text-white">{t.total}:</span>
               <span className="text-slate-800 dark:text-white">
-                {formatCurrency(discountedTotal, isDebt ? 'USD' : currency)}
+                {formatCurrency(discountedTotal, currency)}
               </span>
             </div>
-            {!isDebt && currency === 'IQD' && discountedTotal !== getRoundedTotal(convertedTotal, currency) && (
+            {currency === 'IQD' && discountedTotal !== getRoundedTotal(convertedTotal, currency) && (
               <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
                 {IQD_BILL_ROUNDING_MESSAGE}
               </div>

@@ -24,9 +24,16 @@ function getExchangeRate(db, fromCurrency, toCurrency) {
     if (inverseRate) {
       return 1 / parseFloat(inverseRate);
     }
-    // Default fallback rates
-    if (fromCurrency === 'USD' && toCurrency === 'IQD') return 1440;
-    if (fromCurrency === 'IQD' && toCurrency === 'USD') return 1/1440;
+    // Default fallback rates - get current rate from database or use hardcoded fallback
+    const currentUSDToIQD = getSetting(db, 'exchange_USD_IQD');
+    const currentIQDToUSD = getSetting(db, 'exchange_IQD_USD');
+    
+    if (fromCurrency === 'USD' && toCurrency === 'IQD') {
+      return currentUSDToIQD ? parseFloat(currentUSDToIQD) : 1440;
+    }
+    if (fromCurrency === 'IQD' && toCurrency === 'USD') {
+      return currentIQDToUSD ? parseFloat(currentIQDToUSD) : (1/1440);
+    }
   }
   return rate ? parseFloat(rate) : 1;
 }

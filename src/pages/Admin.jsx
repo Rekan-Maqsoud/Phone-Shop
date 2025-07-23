@@ -330,7 +330,25 @@ export default function Admin() {
             {/* Section content */}
             <div className="flex-1 h-full w-full overflow-auto">
               {section === 'multiCurrencyDashboard' && <MultiCurrencyDashboard admin={admin} t={t} />}
-              {section === 'active' && <ProductsSection admin={admin} t={t} />}
+              {section === 'active' && <ProductsSection admin={admin} t={t} handleEditProduct={(product) => {
+                admin.setEditProduct(product);
+                admin.setShowProductModal(true);
+              }} handleArchiveToggle={async (product, archive) => {
+                // Archive product functionality
+                try {
+                  const updatedProduct = { ...product, archived: archive ? 1 : 0 };
+                  const result = await window.api.editProduct(updatedProduct);
+                  if (result.success) {
+                    admin.setToast(archive ? t.productArchived : t.productUnarchived, 'success');
+                    await admin.refreshProducts();
+                  } else {
+                    admin.setToast(archive ? t.archiveFailed : t.unarchiveFailed, 'error');
+                  }
+                } catch (error) {
+                  console.error('Error toggling archive:', error);
+                  admin.setToast(archive ? t.archiveFailed : t.unarchiveFailed, 'error');
+                }
+              }} />}
               {section === 'accessories' && <AccessoriesSection admin={admin} t={t} />}
               {section === 'archived' && <ArchivedItemsSection admin={admin} t={t} />}
               {section === 'salesHistory' && <SalesHistorySection admin={admin} t={t} />}

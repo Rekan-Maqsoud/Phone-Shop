@@ -1,5 +1,6 @@
 import React from 'react';
 import { useData } from '../contexts/DataContext';
+import { EXCHANGE_RATES } from '../utils/exchangeRates';
 import SettingsModal from './SettingsModal';
 import ProductModal from './ProductModal';
 import SaleDetailsModal from './SaleDetailsModal';
@@ -170,6 +171,7 @@ export default function AdminModals({
           show={showAddPurchase}
           onClose={() => setShowAddPurchase()}
           isCompanyDebtMode={isCompanyDebtMode}
+          admin={admin}
           onSubmit={async (purchaseData) => {
      
             setLoading(true);
@@ -265,12 +267,12 @@ export default function AdminModals({
                         // Single item currency but different payment currency - convert item totals to payment currency
                         if (paymentCurrency === 'USD' && currencies[0] === 'IQD') {
                           // Paying USD for IQD items
-                          finalUsdAmount = iqdTotal / 1440; // Convert IQD to USD using standard rate
+                          finalUsdAmount = iqdTotal / EXCHANGE_RATES.USD_TO_IQD; // Convert IQD to USD using current rate
                           finalIqdAmount = 0;
                         } else if (paymentCurrency === 'IQD' && currencies[0] === 'USD') {
                           // Paying IQD for USD items (this fixes the main issue)
                           finalUsdAmount = 0;
-                          finalIqdAmount = usdTotal * 1440; // Convert USD to IQD using standard rate
+                          finalIqdAmount = usdTotal * EXCHANGE_RATES.USD_TO_IQD; // Convert USD to IQD using current rate
                         } else {
                           // Fallback to item currency totals
                           finalUsdAmount = usdTotal;

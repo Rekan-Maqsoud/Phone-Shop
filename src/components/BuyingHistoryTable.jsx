@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useLocale } from '../contexts/LocaleContext';
+import { useData } from '../contexts/DataContext';
 import HistorySearchFilter from './HistorySearchFilter';
 import ConfirmModal from './ConfirmModal';
 import { Icon } from '../utils/icons.jsx';
@@ -21,6 +22,9 @@ const BuyingHistoryTable = React.memo(function BuyingHistoryTable({
   const { isRTL } = useLocale();
   const [returnModalData, setReturnModalData] = useState(null);
   const [confirmModal, setConfirmModal] = useState(null);
+  
+  // Import refresh functions from data context
+  const { refreshProducts, refreshAccessories } = useData() || {};
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 50; // Performance optimization: limit to 50 items per page
 
@@ -141,6 +145,9 @@ const BuyingHistoryTable = React.memo(function BuyingHistoryTable({
               window.showToast(toastMessage, result.hasStockIssues ? 'warning' : 'success');
             }
             refreshBuyingHistory();
+            // Also refresh products and accessories to show updated stock levels
+            if (refreshProducts) await refreshProducts();
+            if (refreshAccessories) await refreshAccessories();
           } else {
             if (window.showToast) {
               window.showToast(t?.returnError || `Failed to return purchase: ${result.message}`, 'error');
@@ -201,6 +208,9 @@ const BuyingHistoryTable = React.memo(function BuyingHistoryTable({
           window.showToast(toastMessage, result.hasStockIssue ? 'warning' : 'success');
         }
         refreshBuyingHistory();
+        // Also refresh products and accessories to show updated stock levels
+        if (refreshProducts) await refreshProducts();
+        if (refreshAccessories) await refreshAccessories();
         setShowReturnModal(false);
         setReturnModalData(null);
       } else {

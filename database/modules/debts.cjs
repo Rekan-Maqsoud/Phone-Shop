@@ -349,7 +349,13 @@ function markCompanyDebtPaid(db, id, paymentData) {
       );
       
       // Add entries to buying history for spending tracking - handle both currencies if paid
-      const EXCHANGE_RATES = { USD_TO_IQD: 1440, IQD_TO_USD: 1/1440 }; // Use default rates
+      const { getExchangeRate } = require('./settings.cjs');
+      const currentUSDToIQD = getExchangeRate(db, 'USD', 'IQD');
+      const currentIQDToUSD = getExchangeRate(db, 'IQD', 'USD');
+      const EXCHANGE_RATES = { 
+        USD_TO_IQD: currentUSDToIQD, 
+        IQD_TO_USD: currentIQDToUSD 
+      };
       
       if (finalUSDAmount > 0 && finalIQDAmount > 0) {
         // Multi-currency payment, create one consolidated entry

@@ -1,11 +1,11 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import ModalBase from './ModalBase';
 import { phoneBrands, accessoryModels } from './phoneBrands';
 import SearchableSelect from './SearchableSelect';
 import { EXCHANGE_RATES, loadExchangeRatesFromDB } from '../utils/exchangeRates';
 import { Icon } from '../utils/icons.jsx';
 
-export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompanyDebtMode = false }) {
+export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompanyDebtMode = false, admin }) {
   const [companyName, setCompanyName] = useState('');
   const [description, setDescription] = useState('');
   const [purchaseType, setPurchaseType] = useState('simple'); // 'simple' or 'withItems'
@@ -20,6 +20,7 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
     type: 'percentage', // 'percentage' or 'amount'
     value: ''
   });
+  const [currentExchangeRates, setCurrentExchangeRates] = useState({ ...EXCHANGE_RATES });
 
   // Reset form when modal opens/closes
   useEffect(() => {
@@ -44,12 +45,49 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
     }
   }, [show, isCompanyDebtMode]);
 
+  // Load current exchange rates when modal opens
+  useEffect(() => {
+    if (show) {
+      loadExchangeRatesFromDB().then(success => {
+        if (success) {
+          // Exchange rates were loaded successfully and are now in EXCHANGE_RATES
+          setCurrentExchangeRates({ ...EXCHANGE_RATES });
+        } else {
+          // Failed to load, but EXCHANGE_RATES should have the defaults
+          setCurrentExchangeRates({ ...EXCHANGE_RATES });
+        }
+      }).catch(error => {
+        console.error('Failed to load exchange rates:', error);
+        // Keep using EXCHANGE_RATES as fallback
+        setCurrentExchangeRates({ ...EXCHANGE_RATES });
+      });
+    }
+  }, [show]);
+
+  // Quick exchange rate change handler
+  const handleQuickExchangeRateChange = useCallback(async () => {
+    try {
+      const success = await loadExchangeRatesFromDB();
+      if (success) {
+        // Exchange rates were reloaded successfully
+        setCurrentExchangeRates({ ...EXCHANGE_RATES });
+      } else {
+        // Failed to reload, but use current EXCHANGE_RATES
+        setCurrentExchangeRates({ ...EXCHANGE_RATES });
+      }
+    } catch (error) {
+      console.error('Failed to reload exchange rates:', error);
+      // Fallback to current EXCHANGE_RATES
+      setCurrentExchangeRates({ ...EXCHANGE_RATES });
+    }
+  }, []);
+
   // Memoize options to prevent recreating arrays on every render
   const brandOptions = useMemo(() => phoneBrands.map(brand => brand.name), []);
   const ramOptions = useMemo(() => ['2GB', '3GB', '4GB', '6GB', '8GB', '12GB', '16GB', '18GB', '24GB'], []);
   const storageOptions = useMemo(() => ['32GB', '64GB', '128GB', '256GB', '512GB', '1TB', '2TB'], []);
 
-  const addItem = (type) => {
+  const addItem = useCallback((type) => {
     const newItem = {
       id: Date.now(),
       item_type: type,
@@ -63,12 +101,12 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
       brand: '',
       type: type === 'accessory' ? '' : undefined // Specific accessory type
     };
-    setItems([...items, newItem]);
-  };
+    setItems(prevItems => [...prevItems, newItem]);
+  }, []);
 
-  const updateItem = (id, field, value) => {
+  const updateItem = useCallback((id, field, value) => {
     setItems(prevItems => {
-      const newItems = prevItems.map(item => {
+      return prevItems.map(item => {
         if (item.id === id) {
           const updatedItem = { ...item, [field]: value };
           
@@ -85,21 +123,21 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
         }
         return item;
       });
-      return newItems;
     });
-  };
+  }, []);
 
-  const removeItem = (id) => {
-    setItems(items.filter(item => item.id !== id));
-  };
+  const removeItem = useCallback((id) => {
+    setItems(prevItems => prevItems.filter(item => item.id !== id));
+  }, []);
 
-  const calculateTotal = () => {
+  const calculateTotal = useCallback(() => {
     let baseTotal;
     if (purchaseType === 'simple') {
       if (multiCurrency.enabled) {
         // For multi-currency simple purchases, show combined total
         // Convert IQD to USD and add USD amount for display consistency
-        const iqdInUsd = multiCurrency.iqdAmount / EXCHANGE_RATES.USD_TO_IQD;
+        const exchangeRate = currentExchangeRates?.USD_TO_IQD || EXCHANGE_RATES.USD_TO_IQD;
+        const iqdInUsd = multiCurrency.iqdAmount / exchangeRate;
         baseTotal = multiCurrency.usdAmount + iqdInUsd;
       } else {
         baseTotal = parseFloat(simpleAmount) || 0;
@@ -122,11 +160,12 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
       });
       
       // Display combined total converted to the selected currency
+      const exchangeRate = currentExchangeRates?.USD_TO_IQD || EXCHANGE_RATES.USD_TO_IQD;
       if (currency === 'USD') {
-        const iqdInUsd = totalIQD / EXCHANGE_RATES.USD_TO_IQD;
+        const iqdInUsd = totalIQD / exchangeRate;
         baseTotal = totalUSD + iqdInUsd;
       } else {
-        const usdInIqd = totalUSD * EXCHANGE_RATES.USD_TO_IQD;
+        const usdInIqd = totalUSD * exchangeRate;
         baseTotal = totalIQD + usdInIqd;
       }
     }
@@ -142,15 +181,16 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
     }
 
     return baseTotal;
-  };
+  }, [purchaseType, multiCurrency, simpleAmount, items, currency, discount, currentExchangeRates]);
 
-  const calculateOriginalTotal = () => {
+  const calculateOriginalTotal = useCallback(() => {
     let baseTotal;
     if (purchaseType === 'simple') {
       if (multiCurrency.enabled) {
         // For multi-currency simple purchases, show combined total
         // Convert IQD to USD and add USD amount for display consistency
-        const iqdInUsd = multiCurrency.iqdAmount / EXCHANGE_RATES.USD_TO_IQD;
+        const exchangeRate = currentExchangeRates?.USD_TO_IQD || EXCHANGE_RATES.USD_TO_IQD;
+        const iqdInUsd = multiCurrency.iqdAmount / exchangeRate;
         baseTotal = multiCurrency.usdAmount + iqdInUsd;
       } else {
         baseTotal = parseFloat(simpleAmount) || 0;
@@ -173,19 +213,20 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
       });
       
       // Display combined total converted to the selected currency
+      const exchangeRate = currentExchangeRates?.USD_TO_IQD || EXCHANGE_RATES.USD_TO_IQD;
       if (currency === 'USD') {
-        const iqdInUsd = totalIQD / EXCHANGE_RATES.USD_TO_IQD;
+        const iqdInUsd = totalIQD / exchangeRate;
         baseTotal = totalUSD + iqdInUsd;
       } else {
-        const usdInIqd = totalUSD * EXCHANGE_RATES.USD_TO_IQD;
+        const usdInIqd = totalUSD * exchangeRate;
         baseTotal = totalIQD + usdInIqd;
       }
     }
 
     return baseTotal;
-  };
+  }, [purchaseType, multiCurrency, simpleAmount, items, currency, currentExchangeRates]);
 
-  const getDiscountAmount = () => {
+  const getDiscountAmount = useCallback(() => {
     if (!discount.enabled || !discount.value) return 0;
     
     const originalTotal = calculateOriginalTotal();
@@ -196,7 +237,7 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
     } else {
       return Math.min(discountValue, originalTotal);
     }
-  };
+  }, [discount, calculateOriginalTotal]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -230,7 +271,8 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
           discount: discount.enabled && discount.value ? {
             discount_type: discount.type,
             discount_value: parseFloat(discount.value)
-          } : null
+          } : null,
+          exchange_rate: currentExchangeRates?.USD_TO_IQD || EXCHANGE_RATES.USD_TO_IQD
         };
 
         await onSubmit(purchaseData);
@@ -253,7 +295,8 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
           discount: discount.enabled && discount.value ? {
             discount_type: discount.type,
             discount_value: parseFloat(discount.value)
-          } : null
+          } : null,
+          exchange_rate: currentExchangeRates?.USD_TO_IQD || EXCHANGE_RATES.USD_TO_IQD
         };
 
         await onSubmit(purchaseData);
@@ -334,7 +377,8 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
         discount: discount.enabled && discount.value ? {
           discount_type: discount.type,
           discount_value: parseFloat(discount.value)
-        } : null
+        } : null,
+        exchange_rate: currentExchangeRates?.USD_TO_IQD || EXCHANGE_RATES.USD_TO_IQD
       };
 
       await onSubmit(purchaseData);
@@ -355,9 +399,24 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
     <ModalBase show={show} onClose={onClose} maxWidth="4xl">
       <div className="max-h-[80vh] overflow-y-auto">
         <form onSubmit={handleSubmit} className="space-y-6">
-          <h2 className="text-2xl font-bold mb-4 text-gray-800 dark:text-gray-100 flex items-center gap-2">
-            <Icon name="plus" size={24} />
-            {isCompanyDebtMode ? (t?.addCompanyDebt || 'Add Company Debt') : (t?.addPurchase || 'Add Purchase')}
+          <h2 className="text-2xl font-bold mb-4 text-gray-800 dark:text-gray-100 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Icon name="plus" size={24} />
+              {isCompanyDebtMode ? (t?.addCompanyDebt || 'Add Company Debt') : (t?.addPurchase || 'Add Purchase')}
+            </div>
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-gray-600 dark:text-gray-400">
+                1 USD = {currentExchangeRates?.USD_TO_IQD?.toLocaleString() || 'Loading...'} IQD
+              </span>
+              <button
+                type="button"
+                onClick={handleQuickExchangeRateChange}
+                className="p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                title="Refresh exchange rate"
+              >
+                <Icon name="refresh" size={16} />
+              </button>
+            </div>
           </h2>
 
         {/* Company Name */}
@@ -575,6 +634,86 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
                     {currency === 'USD' ? '$' : 'د.ع'}
                   </span>
                 </div>
+              </div>
+            )}
+            
+            {/* Single Currency Payment Summary */}
+            {!multiCurrency.enabled && paymentStatus === 'paid' && simpleAmount && parseFloat(simpleAmount) > 0 && (
+              <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg">
+                <div className="text-sm text-blue-700 dark:text-blue-300">
+                  <div className="font-medium mb-2">{t.paymentSummary || 'Payment Summary'}:</div>
+                  <div className="flex justify-between">
+                    <span>{t.totalRequired || 'Total Required'}:</span>
+                    <span className="font-medium">
+                      {currency === 'USD' ? '$' : 'د.ع'}{calculateTotal().toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>{t.totalPaid || 'Total Paid'}:</span>
+                    <span className="font-medium">
+                      {currency === 'USD' ? '$' : 'د.ع'}{parseFloat(simpleAmount).toFixed(2)}
+                    </span>
+                  </div>
+                  
+                  {/* Payment Status for Single Currency */}
+                  {(() => {
+                    const requiredAmount = calculateTotal();
+                    const paidAmount = parseFloat(simpleAmount) || 0;
+                    
+                    if (paidAmount > requiredAmount) {
+                      const change = paidAmount - requiredAmount;
+                      return (
+                        <div className="border-t border-blue-200 dark:border-blue-700 pt-2 mt-2">
+                          <div className="text-sm font-semibold text-green-600 dark:text-green-400">
+                            {t.change || 'Change'}: {currency === 'USD' ? '$' : 'د.ع'}{change.toFixed(2)}
+                          </div>
+                        </div>
+                      );
+                    }
+                    
+                    if (paidAmount < requiredAmount) {
+                      const remaining = requiredAmount - paidAmount;
+                      return (
+                        <div className="border-t border-blue-200 dark:border-blue-700 pt-2 mt-2">
+                          <div className="text-sm text-red-600 dark:text-red-400">
+                            {t.remaining || 'Remaining'}: {currency === 'USD' ? '$' : 'د.ع'}{remaining.toFixed(2)}
+                          </div>
+                        </div>
+                      );
+                    }
+                    
+                    return (
+                      <div className="border-t border-blue-200 dark:border-blue-700 pt-2 mt-2">
+                        <div className="text-sm text-green-600 dark:text-green-400 font-medium">
+                          ✓ {t.exactAmount || 'Exact Amount'}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+                
+                {/* Current Balance Display for Single Currency */}
+                {admin && (
+                  <div className="border-t border-blue-200 dark:border-blue-700 pt-2 mt-2">
+                    <div className="text-xs text-blue-600 dark:text-blue-400 mb-1">
+                      {t.currentBalances || 'Current Balances'}:
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="text-center">
+                        <div className="text-sm font-bold text-green-600 dark:text-green-400">
+                          ${(admin.balanceUSD || 0).toFixed(2)}
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">{t.usdBalance || 'USD'}</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-sm font-bold text-yellow-600 dark:text-yellow-400">
+                          د.ع{(admin.balanceIQD || 0).toFixed(0)}
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">{t.iqdBalance || 'IQD'}</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -1027,6 +1166,92 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
                         <div>د.ع{(multiCurrency.iqdAmount + (multiCurrency.usdAmount * EXCHANGE_RATES.USD_TO_IQD)).toFixed(2)}</div>
                       </div>
                     </div>
+                    
+                    {/* Payment Summary - like cashier page */}
+                    <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 space-y-2 mt-3">
+                      <div className="text-sm text-gray-600 dark:text-gray-300">
+                        <div className="flex justify-between">
+                          <span>{t.totalRequired || 'Total Required'}:</span>
+                          <span className="font-medium">
+                            {currency === 'USD' ? '$' : 'د.ع'}{calculateTotal().toFixed(2)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>{t.totalPaid || 'Total Paid'}:</span>
+                          <span className="font-medium">
+                            {currency === 'USD' 
+                              ? `$${(multiCurrency.usdAmount + (multiCurrency.iqdAmount / EXCHANGE_RATES.USD_TO_IQD)).toFixed(2)}`
+                              : `د.ع${(multiCurrency.iqdAmount + (multiCurrency.usdAmount * EXCHANGE_RATES.USD_TO_IQD)).toFixed(2)}`
+                            }
+                          </span>
+                        </div>
+                      </div>
+                      
+                      {/* Payment Status - Remaining/Change/Exact */}
+                      {(() => {
+                        const totalRequiredUSD = currency === 'USD' ? calculateTotal() : calculateTotal() / EXCHANGE_RATES.USD_TO_IQD;
+                        const totalPaidUSD = multiCurrency.usdAmount + (multiCurrency.iqdAmount / EXCHANGE_RATES.USD_TO_IQD);
+                        
+                        if (totalPaidUSD > totalRequiredUSD) {
+                          const changeUSD = totalPaidUSD - totalRequiredUSD;
+                          return (
+                            <div className="border-t border-gray-200 dark:border-gray-600 pt-2">
+                              <div className="text-sm font-semibold text-green-600 dark:text-green-400">
+                                {t.change || 'Change'}: ${changeUSD.toFixed(2)}
+                                <div className="text-xs">
+                                  (≈ د.ع{(changeUSD * EXCHANGE_RATES.USD_TO_IQD).toFixed(0)})
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        }
+                        
+                        if (totalPaidUSD < totalRequiredUSD) {
+                          const remainingUSD = totalRequiredUSD - totalPaidUSD;
+                          return (
+                            <div className="border-t border-gray-200 dark:border-gray-600 pt-2">
+                              <div className="text-sm text-red-600 dark:text-red-400">
+                                {t.remaining || 'Remaining'}: ${remainingUSD.toFixed(2)}
+                                <div className="text-xs">
+                                  (≈ د.ع{(remainingUSD * EXCHANGE_RATES.USD_TO_IQD).toFixed(0)})
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        }
+                        
+                        return (
+                          <div className="border-t border-gray-200 dark:border-gray-600 pt-2">
+                            <div className="text-sm text-green-600 dark:text-green-400 font-medium">
+                              ✓ {t.exactAmount || 'Exact Amount'}
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                    
+                    {/* Current Balance Display - like debt payment modals */}
+                    {admin && (
+                      <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg mt-3">
+                        <div className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
+                          {t.currentBalances || 'Current Balances'}:
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="text-center">
+                            <div className="text-lg font-bold text-green-600 dark:text-green-400">
+                              ${(admin.balanceUSD || 0).toFixed(2)}
+                            </div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">{t.usdBalance || 'USD Balance'}</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-lg font-bold text-yellow-600 dark:text-yellow-400">
+                              د.ع{(admin.balanceIQD || 0).toFixed(0)}
+                            </div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">{t.iqdBalance || 'IQD Balance'}</div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

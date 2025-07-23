@@ -236,8 +236,9 @@ function addDirectPurchaseMultiCurrencyWithItems(db, { supplier, date, items, us
   }
   
   const transaction = db.transaction(() => {
-    // Calculate combined total in IQD for display purposes (using standard exchange rate)
-    const EXCHANGE_RATE_USD_TO_IQD = 1440; // Standard rate for display
+    // Get current exchange rate for calculations
+    const { getExchangeRate } = require('./settings.cjs');
+    const EXCHANGE_RATE_USD_TO_IQD = getExchangeRate(db, 'USD', 'IQD');
     const totalInIQD = (total_usd * EXCHANGE_RATE_USD_TO_IQD) + total_iqd;
     
     const totalQuantity = items.reduce((sum, item) => sum + parseInt(item.quantity), 0);
@@ -387,8 +388,9 @@ function addDirectPurchaseMultiCurrency(db, { item_name, quantity, supplier, dat
   }
   
   const transaction = db.transaction(() => {
-    // Calculate combined total in IQD for display purposes (using standard exchange rate)
-    const EXCHANGE_RATE_USD_TO_IQD = 1440; // Standard rate for display
+    // Get current exchange rate for calculations
+    const { getExchangeRate } = require('./settings.cjs');
+    const EXCHANGE_RATE_USD_TO_IQD = getExchangeRate(db, 'USD', 'IQD');
     const totalInIQD = (total_usd * EXCHANGE_RATE_USD_TO_IQD) + total_iqd;
     
     // Create a clean item name without currency amounts (currency amounts will be displayed in the Amount column)

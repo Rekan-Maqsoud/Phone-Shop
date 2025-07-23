@@ -36,6 +36,9 @@ const translations = {
     items: 'items',
     of: 'of',
     unknown: 'Unknown',
+    searchOrSelect: 'Search or select...',
+    noMatchesFound: 'No matches found. Press Enter to use',
+    unknownCompany: 'Unknown Company',
     
     // Cashier
     cashier: 'Cashier',
@@ -73,6 +76,14 @@ const translations = {
     warningInsufficientIQDPayment: 'Warning: Insufficient IQD payment for USD items',
     requiredIQD: 'Required IQD',
     providedIQD: 'Provided IQD',
+    invalidExchangeRate: 'Please enter a valid exchange rate',
+    exchangeRateUpdated: 'Exchange rate updated successfully',
+    exchangeRateUpdateFailed: 'Failed to update exchange rate',
+    clickToChangeRate: 'Click to change exchange rate',
+    loadingRate: 'Loading...',
+    updateExchangeRate: 'Update Exchange Rate',
+    currentRate: 'Current Rate',
+    update: 'Update',
     
     // Discount
     discount: 'Discount',
@@ -332,6 +343,12 @@ const translations = {
     successful: 'successful',
     testPrintSuccessful: 'Test print successful!',
     printTestFailed: 'Print test failed',
+    fillRequiredFields: 'Please fill all required fields',
+    incentiveUpdated: 'Incentive updated successfully',
+    incentiveAdded: 'Incentive added successfully',
+    incentiveRemoved: 'Incentive removed successfully',
+    operationFailed: 'Operation failed',
+    pleaseEnterValidAmount: 'Please enter a valid payment amount',
     
     // Company debt and purchase modal
     addCompanyDebt: 'Add Company Debt',
@@ -370,7 +387,6 @@ const translations = {
     iraqiDinars: 'Iraqi Dinars',
     
     // Accessory modal dropdowns
-
     selectType: 'Select Type',
     headphones: 'Headphones',
     earbuds: 'Earbuds',
@@ -936,9 +952,15 @@ const translations = {
     offline: 'Offline',
 
     // Categories & Product Types
+    category: 'Category',
     phones: 'Phones',
     tablets: 'Tablets',
     accessories: 'Accessories',
+    accessoryName: 'Accessory Name',
+    noProductsLoaded: 'No Products Loaded',
+    loadingProducts: 'Loading products...',
+    refreshProducts: 'Refresh Products',
+    other: 'Other',
 
     // Theme Options
     system: 'System',
@@ -1079,6 +1101,15 @@ const translations = {
     items: 'کاڵا',
     of: 'لە',
     unknown: 'نەزانراو',
+    searchOrSelect: 'گەڕان یان هەڵبژاردن...',
+    noMatchesFound: 'هیچ هاوشێوەیەک نەدۆزرایەوە. Enter داگرە بۆ بەکارهێنان',
+    unknownCompany: 'کۆمپانیای نەزانراو',
+    category: 'پۆل',
+    accessoryName: 'ناوی ئامێر',
+    noProductsLoaded: 'هیچ بەرهەمێک بارنەکراوە',
+    loadingProducts: 'بەرهەمەکان بارکراو...',
+    refreshProducts: 'نوێکردنەوەی بەرهەمەکان',
+    other: 'دیکە',
     
     // Cashier
     cashier: 'کاشێر',
@@ -1116,6 +1147,14 @@ const translations = {
     warningInsufficientIQDPayment: 'ئاگاداری: پارەی دینار بەس نییە بۆ کاڵای دۆلاری',
     requiredIQD: 'دیناری پێویست',
     providedIQD: 'دیناری دابینکراو',
+    invalidExchangeRate: 'تکایە ڕێژەی گۆڕینی دروست بنووسە',
+    exchangeRateUpdated: 'ڕێژەی گۆڕین بە سەرکەوتووی نوێکرایەوە',
+    exchangeRateUpdateFailed: 'شکستی نوێکردنەوەی ڕێژەی گۆڕین',
+    clickToChangeRate: 'کلیک بکە بۆ گۆڕینی ڕێژە',
+    loadingRate: 'بارکردن...',
+    updateExchangeRate: 'نوێکردنەوەی ڕێژەی گۆڕین',
+    currentRate: 'ڕێژەی ئێستا',
+    update: 'نوێکردنەوە',
     
     // Discount
     discount: 'داشکاندن',
@@ -1175,6 +1214,7 @@ const translations = {
     allBrands: 'هەموو جۆرەکان',
     allCategories: 'هەموو پۆلەکان',
     phones: 'تەلەفۆنەکان',
+    accessories: 'ئامێرەکان',
     noItemsFound: 'هیچ بڕگەیەک نەدۆزرایەوە',
     tryDifferentFilters: 'هەوڵی گۆڕینی گەڕان یان فلتەرەکان بدە',
     
@@ -2091,6 +2131,15 @@ const translations = {
     items: 'العناصر',
     of: 'من',
     unknown: 'غير معروف',
+    searchOrSelect: 'البحث أو الاختيار...',
+    noMatchesFound: 'لم يتم العثور على تطابق. اضغط Enter للاستخدام',
+    unknownCompany: 'شركة غير معروفة',
+    category: 'الفئة',
+    accessoryName: 'اسم الإكسسوار',
+    noProductsLoaded: 'لم يتم تحميل منتجات',
+    loadingProducts: 'جاري تحميل المنتجات...',
+    refreshProducts: 'تحديث المنتجات',
+    other: 'أخرى',
     
     // Cashier
     cashier: 'الكاشير',
@@ -2128,6 +2177,14 @@ const translations = {
     warningInsufficientIQDPayment: 'تحذير: الدفع بالدينار غير كافي للعناصر بالدولار',
     requiredIQD: 'الدينار المطلوب',
     providedIQD: 'الدينار المقدم',
+    invalidExchangeRate: 'يرجى إدخال سعر صرف صالح',
+    exchangeRateUpdated: 'تم تحديث سعر الصرف بنجاح',
+    exchangeRateUpdateFailed: 'فشل في تحديث سعر الصرف',
+    clickToChangeRate: 'انقر لتغيير سعر الصرف',
+    loadingRate: 'جاري التحميل...',
+    updateExchangeRate: 'تحديث سعر الصرف',
+    currentRate: 'السعر الحالي',
+    update: 'تحديث',
     
     // Discount
     discount: 'خصم',

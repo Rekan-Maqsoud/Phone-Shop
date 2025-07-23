@@ -314,9 +314,9 @@ export default function Cashier() {
           created_at: new Date().toISOString(),
           is_debt: isDebt ? 1 : 0,
           customer_name: customerName.trim() || null,
-          currency: isDebt ? 'USD' : currency, // Force USD for debt sales
+          currency: currency, // Use selected currency for both debt and regular sales
           discount: saleDiscount,
-          multi_currency: isDebt ? null : (multiCurrency || null) // Disable multi-currency for debt sales
+          multi_currency: isDebt ? null : (multiCurrency || null) // Multi-currency disabled during debt creation
         };
         
         if (window.api?.saveSale) {
