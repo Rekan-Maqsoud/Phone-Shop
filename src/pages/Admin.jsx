@@ -22,7 +22,7 @@ import ToastUnified from '../components/ToastUnified';
 import AdvancedAnalytics from '../components/AdvancedAnalytics';
 import AdminLoadingFallback from '../components/AdminLoadingFallback';
 import ExchangeRateIndicator from '../components/ExchangeRateIndicator';
-import MonthlyReportsSection from '../components/MonthlyReportsSection';
+import AdvancedAnalyticsAndReports from '../components/AdvancedAnalyticsAndReports';
 import BackupSettingsSection from '../components/BackupSettingsSection';
 import { Icon } from '../utils/icons.jsx';
 
@@ -349,7 +349,7 @@ export default function Admin() {
               {section === 'companyDebts' && <CompanyDebtsSection admin={admin} t={t} openEnhancedCompanyDebtModal={openEnhancedCompanyDebtModal} openAddPurchaseModal={openAddPurchaseModal} />}
               {section === 'incentives' && <IncentivesSection admin={admin} t={t} />}
               {section === 'personalLoans' && <PersonalLoansSection admin={admin} t={t} />}
-              {section === 'monthlyReports' && <MonthlyReportsSection admin={admin} t={t} />}
+              {section === 'monthlyReports' && <AdvancedAnalyticsAndReports admin={admin} t={t} />}
               {section === 'advancedAnalytics' && <AdvancedAnalytics admin={admin} t={t} />}
               {section === 'backupSettings' && <BackupSettingsSection admin={admin} t={t} setShowBackupManager={setShowBackupManager} />}
             </div>

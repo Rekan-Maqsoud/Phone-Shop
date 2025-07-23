@@ -22,7 +22,7 @@ import ToastUnified from '../components/ToastUnified';
 import AdvancedAnalytics from '../components/AdvancedAnalytics';
 import AdminLoadingFallback from '../components/AdminLoadingFallback';
 import ExchangeRateIndicator from '../components/ExchangeRateIndicator';
-import MonthlyReportsSection from '../components/MonthlyReportsSection';
+import AdvancedAnalyticsAndReports from '../components/AdvancedAnalyticsAndReports';
 import { Icon } from '../utils/icons.jsx';
 
 export default function Admin() {
@@ -209,7 +209,7 @@ export default function Admin() {
           </button>
         </div>
         <details className="mt-6 text-left">
-          <summary className="cursor-pointer text-sm text-gray-500 dark:text-gray-400">Error Details</summary>
+          <summary className="cursor-pointer text-sm text-gray-500 dark:text-gray-400">{t?.errorDetails || 'Error Details'}</summary>
           <pre className="mt-2 text-xs text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 p-2 rounded overflow-auto">
             {error.toString()}
           </pre>
@@ -290,7 +290,7 @@ export default function Admin() {
             {section === 'companyDebts' && <CompanyDebtsSection admin={admin} t={t} openEnhancedCompanyDebtModal={openEnhancedCompanyDebtModal} openAddPurchaseModal={openAddPurchaseModal} />}
             {section === 'incentives' && <IncentivesSection admin={admin} t={t} />}
             {section === 'personalLoans' && <PersonalLoansSection admin={admin} t={t} />}
-            {section === 'monthlyReports' && <MonthlyReportsSection admin={admin} t={t} />}
+            {section === 'monthlyReports' && <AdvancedAnalyticsAndReports admin={admin} t={t} />}
             {section === 'advancedAnalytics' && <AdvancedAnalytics admin={admin} t={t} />}
           </main>
         </div>

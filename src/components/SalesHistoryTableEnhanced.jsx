@@ -299,7 +299,7 @@ const SalesHistoryTableEnhanced = React.memo(function SalesHistoryTableEnhanced(
             <button
               onClick={onPrintLast}
               className="bg-green-600 text-white px-4 py-1 rounded hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-400 transition flex items-center gap-2"
-              title="Print last receipt"
+              title={t?.printLastReceipt || 'Print last receipt'}
             >
               <Icon name="printer" size={16} />
               {t.testPrint}
@@ -350,7 +350,7 @@ const SalesHistoryTableEnhanced = React.memo(function SalesHistoryTableEnhanced(
                             <button
                               onClick={() => toggleSaleExpansion(sale.id)}
                               className="text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 focus:outline-none transition-colors"
-                              title="Show currency breakdown"
+                              title={t?.showCurrencyBreakdown || 'Show currency breakdown'}
                             >
                               <Icon name={isExpanded ? "chevronDown" : "chevronRight"} size={16} />
                             </button>

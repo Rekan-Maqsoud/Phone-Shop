@@ -1404,17 +1404,17 @@ const QuickStatsDisplay = React.memo(({ sales, products, accessories, t }) => {
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-        <div className="text-sm text-gray-600 dark:text-gray-400">Total Products</div>
+        <div className="text-sm text-gray-600 dark:text-gray-400">{t?.totalProducts || 'Total Products'}</div>
         <div className="text-lg font-bold text-blue-600 dark:text-blue-400">{stats.totalProducts}</div>
       </div>
       
       <div className="flex justify-between items-center p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-        <div className="text-sm text-gray-600 dark:text-gray-400">Total Accessories</div>
+        <div className="text-sm text-gray-600 dark:text-gray-400">{t?.totalAccessories || 'Total Accessories'}</div>
         <div className="text-lg font-bold text-purple-600 dark:text-purple-400">{stats.totalAccessories}</div>
       </div>
       
       <div className="flex justify-between items-center p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-        <div className="text-sm text-gray-600 dark:text-gray-400">Total Sales</div>
+        <div className="text-sm text-gray-600 dark:text-gray-400">{t?.totalSales || 'Total Sales'}</div>
         <div className="text-lg font-bold text-green-600 dark:text-green-400">{stats.totalSales}</div>
       </div>
       

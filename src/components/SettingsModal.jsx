@@ -147,9 +147,9 @@ export default function SettingsModal({
             value={theme}
             onChange={e => setTheme(e.target.value)}
           >
-            <option value="system">{t.system || 'System'}</option>
-            <option value="light">{t.light || 'Light'}</option>
-            <option value="dark">{t.dark || 'Dark'}</option>
+            <option value="system">{t?.system || 'System'}</option>
+            <option value="light">{t?.light || 'Light'}</option>
+            <option value="dark">{t?.dark || 'Dark'}</option>
           </select>
         </div>
         
@@ -161,7 +161,7 @@ export default function SettingsModal({
             value={lang}
             onChange={e => setLang(e.target.value)}
           >
-            <option value="en">English</option>
+            <option value="en">{t?.english || 'English'}</option>
             <option value="ar">العربية</option>
             <option value="ku">کوردی</option>
           </select>

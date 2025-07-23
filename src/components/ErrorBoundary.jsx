@@ -1,6 +1,18 @@
 import React from 'react';
+import { useLocale } from '../contexts/LocaleContext';
 
-class ErrorBoundary extends React.Component {
+// Wrapper function component to access context
+function ErrorBoundaryWithTranslations({ children, fallback }) {
+  const { t } = useLocale();
+  
+  return (
+    <ErrorBoundaryClass t={t} fallback={fallback}>
+      {children}
+    </ErrorBoundaryClass>
+  );
+}
+
+class ErrorBoundaryClass extends React.Component {
   constructor(props) {
     super(props);
     this.state = { 
@@ -57,7 +69,7 @@ class ErrorBoundary extends React.Component {
   render() {
     if (this.state.hasError) {
       const { error, errorInfo, retryCount } = this.state;
-      const { fallback: CustomFallback } = this.props;
+      const { fallback: CustomFallback, t } = this.props;
 
       // If a custom fallback is provided, use it
       if (CustomFallback) {
@@ -79,10 +91,10 @@ class ErrorBoundary extends React.Component {
             <div className="text-center mb-6">
               <div className="text-red-500 text-6xl mb-4">⚠️</div>
               <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">
-                Something went wrong
+                {t?.applicationError || 'Application Error'}
               </h1>
               <p className="text-gray-600 dark:text-gray-300">
-                The application encountered an unexpected error. Don't worry, your data is safe.
+                {t?.unexpectedError || 'The application encountered an unexpected error. Don\'t worry, your data is safe.'}
               </p>
             </div>
 
@@ -92,38 +104,38 @@ class ErrorBoundary extends React.Component {
                 className="w-full bg-blue-500 hover:bg-blue-600 text-white font-medium py-3 px-4 rounded-lg transition-colors"
                 disabled={retryCount >= 3}
               >
-                {retryCount >= 3 ? 'Max retries reached' : `Try Again ${retryCount > 0 ? `(${retryCount}/3)` : ''}`}
+                {retryCount >= 3 ? (t?.maxRetriesReached || 'Max retries reached') : `${t?.tryAgain || 'Try Again'} ${retryCount > 0 ? `(${retryCount}/3)` : ''}`}
               </button>
               
               <button
                 onClick={this.handleReload}
                 className="w-full bg-green-500 hover:bg-green-600 text-white font-medium py-3 px-4 rounded-lg transition-colors"
               >
-                Reload Application
+                {t?.reloadApplication || 'Reload Application'}
               </button>
               
               <button
                 onClick={this.handleGoHome}
                 className="w-full bg-gray-500 hover:bg-gray-600 text-white font-medium py-3 px-4 rounded-lg transition-colors"
               >
-                Go to Home
+                {t?.goToHome || 'Go to Home'}
               </button>
             </div>
 
             {process.env.NODE_ENV === 'development' && error && (
               <details className="mt-6">
                 <summary className="cursor-pointer text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100">
-                  Error Details (Development Only)
+                  {t?.errorDetailsDev || 'Error Details (Development Only)'}
                 </summary>
                 <div className="mt-3 p-4 bg-gray-100 dark:bg-gray-700 rounded-lg">
-                  <h3 className="font-medium text-red-600 mb-2">Error:</h3>
+                  <h3 className="font-medium text-red-600 mb-2">{t?.errorLabel || 'Error:'}</h3>
                   <pre className="text-xs text-red-600 mb-4 overflow-auto">
                     {error.toString()}
                   </pre>
                   
                   {errorInfo && (
                     <>
-                      <h3 className="font-medium text-red-600 mb-2">Component Stack:</h3>
+                      <h3 className="font-medium text-red-600 mb-2">{t?.componentStack || 'Component Stack:'}</h3>
                       <pre className="text-xs text-gray-600 dark:text-gray-400 overflow-auto">
                         {errorInfo.componentStack}
                       </pre>
@@ -135,7 +147,7 @@ class ErrorBoundary extends React.Component {
             
             <div className="mt-6 text-center">
               <p className="text-sm text-gray-500 dark:text-gray-400">
-                If this problem persists, please contact support with the error details above.
+                {t?.contactSupport || 'If this problem persists, please contact support with the error details above.'}
               </p>
             </div>
           </div>
@@ -147,4 +159,4 @@ class ErrorBoundary extends React.Component {
   }
 }
 
-export default ErrorBoundary;
+export default ErrorBoundaryWithTranslations;

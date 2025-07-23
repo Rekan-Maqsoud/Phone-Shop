@@ -225,9 +225,9 @@ export default function ProductModal({
               defaultValue={initialProduct?.category || 'phones'} 
               className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 dark:bg-gray-700 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400"
             >
-              <option value="phones">Phones</option>
-              <option value="tablets">Tablets</option>
-              <option value="accessories">Accessories</option>
+              <option value="phones">{t?.phones || 'Phones'}</option>
+              <option value="tablets">{t?.tablets || 'Tablets'}</option>
+              <option value="accessories">{t?.accessories || 'Accessories'}</option>
             </select>
           </div>
 

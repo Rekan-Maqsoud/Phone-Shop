@@ -66,7 +66,7 @@ const ProductTable = React.memo(function ProductTable({
                 </span>
               </td>
               <td className="px-4 py-2 font-semibold text-green-600 dark:text-green-400">
-                {formatCurrency(p.price, p.currency)}
+                {formatCurrency(p.buying_price || p.price || 0, p.currency)}
               </td>
               <td className={`px-4 py-2 ${!isArchived && p.stock < lowStockThreshold ? 'text-red-600 font-bold' : ''}`}>{p.stock}</td>
               <td className="px-4 py-2 font-semibold text-green-600 dark:text-green-400">

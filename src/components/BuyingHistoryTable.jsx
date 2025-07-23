@@ -391,7 +391,7 @@ const BuyingHistoryTable = React.memo(function BuyingHistoryTable({
                             )}
                             {(!entry.multi_currency_usd || entry.multi_currency_usd === 0) && 
                              (!entry.multi_currency_iqd || entry.multi_currency_iqd === 0) && (
-                              <span className="text-gray-500 italic">Multi-currency</span>
+                              <span className="text-gray-500 italic">{t?.multiCurrency || 'Multi-currency'}</span>
                             )}
                           </div>
                         ) : (

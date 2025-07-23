@@ -914,6 +914,151 @@ const translations = {
     sold: 'sold',
     marketShare: 'market share',
 
+    // Error Messages & System
+    applicationError: 'Application Error',
+    unexpectedError: 'The application encountered an unexpected error. Don\'t worry, your data is safe.',
+    maxRetriesReached: 'Max retries reached',
+    tryAgain: 'Try Again',
+    reloadApplication: 'Reload Application',
+    goToHome: 'Go to Home',
+    errorDetails: 'Error Details',
+    errorDetailsDev: 'Error Details (Development Only)',
+    errorLabel: 'Error:',
+    componentStack: 'Component Stack:',
+    contactSupport: 'If this problem persists, please contact support with the error details above.',
+    somethingWentWrong: 'Something went wrong. This error has been logged for debugging.',
+    tryToContinue: 'Try to Continue',
+    errorDetailsDevelopment: 'Error Details (Dev Only)',
+
+    // Status Indicators
+    checking: 'Checking...',
+    online: 'Online',
+    offline: 'Offline',
+
+    // Categories & Product Types
+    phones: 'Phones',
+    tablets: 'Tablets',
+    accessories: 'Accessories',
+
+    // Theme Options
+    system: 'System',
+    light: 'Light',
+    dark: 'Dark',
+    english: 'English',
+
+    // Time Periods
+    last7Days: 'Last 7 Days',
+    last30Days: 'Last 30 Days',
+    last90Days: 'Last 90 Days',
+    lastYear: 'Last Year',
+    allTime: 'All Time',
+    daily: 'Daily',
+    weekly: 'Weekly',
+    monthly: 'Monthly',
+
+    // Analytics & Reports
+    totalSales: 'Total Sales',
+    totalProfit: 'Total Profit',
+    totalSpending: 'Total Spending',
+    netGrowth: 'Net Growth',
+    vsLastPeriod: 'vs last period',
+    margin: 'margin',
+    salesVsSpending: 'Sales vs Spending',
+    profitAnalysis: 'Profit Analysis',
+    productsVsAccessories: 'Products vs Accessories',
+    netGrowthAnalysis: 'Net Growth Analysis',
+    currencyBreakdown: 'Currency Breakdown',
+    chartInteractionGuide: 'Chart Interaction Guide',
+    usdSalesTotal: 'USD Sales Total',
+    iqdSalesTotal: 'IQD Sales Total',
+    productsTotal: 'Products Total',
+    accessoriesTotal: 'Accessories Total',
+    advancedAnalyticsReports: 'Advanced Analytics & Reports',
+    comprehensiveBusinessInsights: 'Comprehensive business insights with interactive charts',
+    resetZoom: 'Reset Zoom',
+    exportChart: 'Export Chart',
+    salesSpendingTrends: 'Sales vs Spending Trends',
+    profitTrendsWithForecast: 'Profit Trends with Forecast',
+    productsAccessoriesSales: 'Products vs Accessories Sales',
+
+    // Debug & Development
+    location: 'Location',
+    hash: 'Hash',
+    time: 'Time',
+    mobileRomaAdmin: 'Mobile Roma Admin',
+    mobileRoma: 'Mobile Roma',
+
+    // Menu & Navigation Labels
+    dashboard: 'Dashboard',
+    analytics: 'Analytics',
+    products: 'Products',
+    accessories: 'Accessories',
+    archived: 'Archived',
+    sales: 'Sales',
+    buyingHistory: 'Buying History',
+    customerDebts: 'Customer Debts',
+    companyDebts: 'Company Debts',
+    incentives: 'Incentives',
+    personalLoans: 'Personal Loans',
+    reports: 'Reports',
+    backup: 'Backup',
+    settings: 'Settings',
+    logout: 'Logout',
+
+    // Action Labels
+    add: 'Add',
+    edit: 'Edit',
+    delete: 'Delete',
+    search: 'Search',
+    filter: 'Filter',
+    refresh: 'Refresh',
+    save: 'Save',
+    download: 'Download',
+    upload: 'Upload',
+
+    // Status Labels
+    success: 'Success',
+    error: 'Error',
+    warning: 'Warning',
+    info: 'Info',
+    loading: 'Loading',
+
+    // Additional Specific Terms
+    multiCurrency: 'Multi-currency',
+    ram: 'RAM',
+    storage: 'Storage',
+    fromBalance: 'from {currency} balance',
+    businessAnalytics: 'Business Analytics',
+
+    // Tooltips and Title Attributes
+    cloudBackupEnabled: 'Cloud backup enabled',
+    resetZoom: 'Reset Zoom',
+    exportChart: 'Export Chart',
+    printLastReceipt: 'Print last receipt',
+    showCurrencyBreakdown: 'Show currency breakdown',
+
+    // Chart interaction guide
+    chartGuideZoom: 'Zoom: Scroll mouse wheel over chart',
+    chartGuidePan: 'Pan: Hold Ctrl and drag to move around',
+    chartGuideReset: 'Reset: Click the reset button or double-click chart',
+    chartGuideExport: 'Export: Click download button to save as PNG',
+    chartGuideTooltip: 'Tooltip: Hover over data points for details',
+
+    // Balance labels
+    usdBalance: 'USD Balance',
+    iqdBalance: 'IQD Balance',
+
+    // Stats labels
+    totalProducts: 'Total Products',
+    totalAccessories: 'Total Accessories',
+    totalSales: 'Total Sales',
+
+    // Error handling
+    errorDetails: 'Error Details',
+
+    // Currency equivalents
+    iqdEquivalent: 'IQD Equivalent',
+
   },
   ku: {
     // Common
@@ -1780,6 +1925,151 @@ const translations = {
     financialHealthAssessment: 'هەڵسەنگاندنی تەندروستی دارایی',
     sold: 'فرۆشراو',
     marketShare: 'بەشی بازاڕ',
+
+    // Error Messages & System
+    applicationError: 'هەڵەی بەرنامە',
+    unexpectedError: 'بەرنامەکە بەرکەوتوویەتی هەڵەیەکی نەخوازراو. نیگەران مەبە، داتاکانت سەلامەتن.',
+    maxRetriesReached: 'گەیشتووە بە زۆرترین ژمارەی هەوڵ',
+    tryAgain: 'دووبارە هەوڵبدەوە',
+    reloadApplication: 'دووبارە بارکردنەوەی بەرنامە',
+    goToHome: 'بڕۆ بۆ سەرەتا',
+    errorDetails: 'وردەکاری هەڵە',
+    errorDetailsDev: 'وردەکاری هەڵە (تەنها بۆ گەشەپێدان)',
+    errorLabel: 'هەڵە:',
+    componentStack: 'کۆمەڵەی پێکهاتەکان:',
+    contactSupport: 'ئەگەر ئەم کێشەیە بەردەوام بوو، تکایە پەیوەندی بە پشتگیرییەوە بکە.',
+    somethingWentWrong: 'شتێک هەڵەی لێکەوت. ئەم هەڵەیە تۆمارکراوە بۆ چاککردنەوە.',
+    tryToContinue: 'هەوڵبدە بەردەوام بیت',
+    errorDetailsDevelopment: 'وردەکاری هەڵە (تەنها بۆ گەشەپێدان)',
+
+    // Status Indicators
+    checking: 'پشکنین...',
+    online: 'ئۆنلاین',
+    offline: 'ئۆفلاین',
+
+    // Categories & Product Types
+    phones: 'مۆبایلەکان',
+    tablets: 'تابلێتەکان',
+    accessories: 'ئەکسێسۆرییەکان',
+
+    // Theme Options
+    system: 'سیستەم',
+    light: 'ڕووناک',
+    dark: 'تاریک',
+    english: 'ئینگلیزی',
+
+    // Time Periods
+    last7Days: 'دوایین ٧ ڕۆژ',
+    last30Days: 'دوایین ٣٠ ڕۆژ',
+    last90Days: 'دوایین ٩٠ ڕۆژ',
+    lastYear: 'ساڵی ڕابردوو',
+    allTime: 'هەموو کات',
+    daily: 'ڕۆژانە',
+    weekly: 'هەفتانە',
+    monthly: 'مانگانە',
+
+    // Analytics & Reports
+    totalSales: 'کۆی فرۆشتن',
+    totalProfit: 'کۆی سوود',
+    totalSpending: 'کۆی خەرجکردن',
+    netGrowth: 'گەشەی پاک',
+    vsLastPeriod: 'بەراورد بە ماوەی پێشوو',
+    margin: 'سوود',
+    salesVsSpending: 'فرۆشتن دژ بە خەرجکردن',
+    profitAnalysis: 'شیکردنەوەی سوود',
+    productsVsAccessories: 'بەرهەمەکان دژ بە ئەکسێسۆرییەکان',
+    netGrowthAnalysis: 'شیکردنەوەی گەشەی پاک',
+    currencyBreakdown: 'دابەشکردنی دراو',
+    chartInteractionGuide: 'ڕێنمایی کارکردن لەگەڵ چارت',
+    usdSalesTotal: 'کۆی فرۆشتنی دۆلار',
+    iqdSalesTotal: 'کۆی فرۆشتنی دینار',
+    productsTotal: 'کۆی بەرهەمەکان',
+    accessoriesTotal: 'کۆی ئەکسێسۆرییەکان',
+    advancedAnalyticsReports: 'شیکردنەوە و ڕاپۆرتی پێشکەوتوو',
+    comprehensiveBusinessInsights: 'تێگەیشتنی تەواوی بازرگانی لەگەڵ چارتی کارکردن',
+    resetZoom: 'ڕیسێتکردنی زووم',
+    exportChart: 'ناردنی چارت',
+    salesSpendingTrends: 'ڕەوتی فرۆشتن و خەرجکردن',
+    profitTrendsWithForecast: 'ڕەوتی سوود لەگەڵ پێشبینی',
+    productsAccessoriesSales: 'فرۆشتنی بەرهەم و ئەکسێسۆرییەکان',
+
+    // Debug & Development
+    location: 'شوێن',
+    hash: 'هاش',
+    time: 'کات',
+    mobileRomaAdmin: 'بەڕێوەبەری مۆبایل ڕۆما',
+    mobileRoma: 'مۆبایل ڕۆما',
+
+    // Menu & Navigation Labels
+    dashboard: 'داشبۆرد',
+    analytics: 'شیکردنەوە',
+    products: 'بەرهەمەکان',
+    accessories: 'ئەکسێسۆرییەکان',
+    archived: 'ئەرشیفکراو',
+    sales: 'فرۆشتن',
+    buyingHistory: 'مێژووی کڕین',
+    customerDebts: 'قەرزی کڕیار',
+    companyDebts: 'قەرزی کۆمپانیا',
+    incentives: 'پاداشەکان',
+    personalLoans: 'قەرزی کەسی',
+    reports: 'ڕاپۆرتەکان',
+    backup: 'پاشەکەوتکردن',
+    settings: 'ڕێکخستنەکان',
+    logout: 'دەرچوون',
+
+    // Action Labels
+    add: 'زیادکردن',
+    edit: 'دەستکاریکردن',
+    delete: 'سڕینەوە',
+    search: 'گەڕان',
+    filter: 'فلتەر',
+    refresh: 'نوێکردنەوە',
+    save: 'پاشەکەوتکردن',
+    download: 'داگرتن',
+    upload: 'بارکردن',
+
+    // Status Labels
+    success: 'سەرکەوتوو',
+    error: 'هەڵە',
+    warning: 'ئاگاداری',
+    info: 'زانیاری',
+    loading: 'بارکردن',
+
+    // Additional Specific Terms
+    multiCurrency: 'فرە-دراو',
+    ram: 'RAM',
+    storage: 'بیرگە',
+    fromBalance: 'لە باڵانسی {currency}ەوە',
+    businessAnalytics: 'شیکردنەوەی بازرگانی',
+
+    // Tooltips and Title Attributes
+    cloudBackupEnabled: 'پاشەکەوتکردنی هەوری چالاکە',
+    resetZoom: 'ڕیسێتکردنی زووم',
+    exportChart: 'ناردنی چارت',
+    printLastReceipt: 'چاپکردنی دوایین وەسڵ',
+    showCurrencyBreakdown: 'پیشاندانی دابەشکردنی دراو',
+
+    // Chart interaction guide
+    chartGuideZoom: 'زووم: چەرخاندنی ماوس لەسەر چارت',
+    chartGuidePan: 'جوڵاندن: Ctrl ڕاگرە و ڕاکێشە بۆ جوڵان',
+    chartGuideReset: 'ڕێکخستنەوە: کلیک لە دوگمەی ڕێکخستنەوە یان دووجار کلیک لە چارت',
+    chartGuideExport: 'دەرهێنان: کلیک لە دوگمەی داگرتن بۆ پاشکەوتکردن وەک PNG',
+    chartGuideTooltip: 'نیشاندەر: ماوس بخەرە سەر خاڵەکانی داتا بۆ وردەکاری',
+
+    // Balance labels
+    usdBalance: 'باڵانسی دۆلار',
+    iqdBalance: 'باڵانسی دینار',
+
+    // Stats labels
+    totalProducts: 'کۆی بەرهەمەکان',
+    totalAccessories: 'کۆی ئەکسسوارەکان',
+    totalSales: 'کۆی فرۆشتنەکان',
+
+    // Error handling
+    errorDetails: 'وردەکاری هەڵە',
+
+    // Currency equivalents
+    iqdEquivalent: 'هاوتای دینار',
 
   },
   ar: {
@@ -2659,6 +2949,151 @@ const translations = {
     financialHealthAssessment: 'تقييم الصحة المالية',
     sold: 'مُباع',
     marketShare: 'حصة السوق',
+
+    // Error Messages & System
+    applicationError: 'خطأ في التطبيق',
+    unexpectedError: 'واجه التطبيق خطأ غير متوقع. لا تقلق، بياناتك آمنة.',
+    maxRetriesReached: 'تم الوصول للحد الأقصى من المحاولات',
+    tryAgain: 'حاول مرة أخرى',
+    reloadApplication: 'إعادة تحميل التطبيق',
+    goToHome: 'اذهب للرئيسية',
+    errorDetails: 'تفاصيل الخطأ',
+    errorDetailsDev: 'تفاصيل الخطأ (للتطوير فقط)',
+    errorLabel: 'خطأ:',
+    componentStack: 'مكدس المكونات:',
+    contactSupport: 'إذا استمرت هذه المشكلة، يرجى التواصل مع الدعم الفني.',
+    somethingWentWrong: 'حدث خطأ ما. تم تسجيل هذا الخطأ للتصحيح.',
+    tryToContinue: 'حاول المتابعة',
+    errorDetailsDevelopment: 'تفاصيل الخطأ (للتطوير فقط)',
+
+    // Status Indicators
+    checking: 'جاري التحقق...',
+    online: 'متصل',
+    offline: 'غير متصل',
+
+    // Categories & Product Types
+    phones: 'هواتف',
+    tablets: 'أجهزة لوحية',
+    accessories: 'إكسسوارات',
+
+    // Theme Options
+    system: 'النظام',
+    light: 'فاتح',
+    dark: 'داكن',
+    english: 'إنجليزي',
+
+    // Time Periods
+    last7Days: 'آخر ٧ أيام',
+    last30Days: 'آخر ٣٠ يوم',
+    last90Days: 'آخر ٩٠ يوم',
+    lastYear: 'السنة الماضية',
+    allTime: 'كل الوقت',
+    daily: 'يومي',
+    weekly: 'أسبوعي',
+    monthly: 'شهري',
+
+    // Analytics & Reports
+    totalSales: 'إجمالي المبيعات',
+    totalProfit: 'إجمالي الربح',
+    totalSpending: 'إجمالي الإنفاق',
+    netGrowth: 'النمو الصافي',
+    vsLastPeriod: 'مقارنة بالفترة السابقة',
+    margin: 'الهامش',
+    salesVsSpending: 'المبيعات مقابل الإنفاق',
+    profitAnalysis: 'تحليل الربح',
+    productsVsAccessories: 'المنتجات مقابل الإكسسوارات',
+    netGrowthAnalysis: 'تحليل النمو الصافي',
+    currencyBreakdown: 'تفصيل العملات',
+    chartInteractionGuide: 'دليل التفاعل مع المخططات',
+    usdSalesTotal: 'إجمالي مبيعات الدولار',
+    iqdSalesTotal: 'إجمالي مبيعات الدينار',
+    productsTotal: 'إجمالي المنتجات',
+    accessoriesTotal: 'إجمالي الإكسسوارات',
+    advancedAnalyticsReports: 'التحليلات والتقارير المتقدمة',
+    comprehensiveBusinessInsights: 'رؤى تجارية شاملة مع مخططات تفاعلية',
+    resetZoom: 'إعادة تعيين التكبير',
+    exportChart: 'تصدير المخطط',
+    salesSpendingTrends: 'اتجاهات المبيعات والإنفاق',
+    profitTrendsWithForecast: 'اتجاهات الربح مع التوقعات',
+    productsAccessoriesSales: 'مبيعات المنتجات والإكسسوارات',
+
+    // Debug & Development
+    location: 'الموقع',
+    hash: 'الهاش',
+    time: 'الوقت',
+    mobileRomaAdmin: 'إدارة موبايل روما',
+    mobileRoma: 'موبايل روما',
+
+    // Menu & Navigation Labels
+    dashboard: 'لوحة التحكم',
+    analytics: 'التحليلات',
+    products: 'المنتجات',
+    accessories: 'الإكسسوارات',
+    archived: 'المؤرشف',
+    sales: 'المبيعات',
+    buyingHistory: 'تاريخ الشراء',
+    customerDebts: 'ديون العملاء',
+    companyDebts: 'ديون الشركة',
+    incentives: 'الحوافز',
+    personalLoans: 'القروض الشخصية',
+    reports: 'التقارير',
+    backup: 'النسخ الاحتياطي',
+    settings: 'الإعدادات',
+    logout: 'تسجيل الخروج',
+
+    // Action Labels
+    add: 'إضافة',
+    edit: 'تعديل',
+    delete: 'حذف',
+    search: 'بحث',
+    filter: 'تصفية',
+    refresh: 'تحديث',
+    save: 'حفظ',
+    download: 'تحميل',
+    upload: 'رفع',
+
+    // Status Labels
+    success: 'نجح',
+    error: 'خطأ',
+    warning: 'تحذير',
+    info: 'معلومات',
+    loading: 'جاري التحميل',
+
+    // Additional Specific Terms
+    multiCurrency: 'متعدد العملات',
+    ram: 'RAM',
+    storage: 'التخزين',
+    fromBalance: 'من رصيد {currency}',
+    businessAnalytics: 'تحليلات الأعمال',
+
+    // Tooltips and Title Attributes
+    cloudBackupEnabled: 'النسخ الاحتياطي السحابي مُفعل',
+    resetZoom: 'إعادة تعيين التكبير',
+    exportChart: 'تصدير المخطط',
+    printLastReceipt: 'طباعة آخر إيصال',
+    showCurrencyBreakdown: 'إظهار تفصيل العملات',
+
+    // Chart interaction guide
+    chartGuideZoom: 'التكبير: قم بالتمرير بعجلة الماوس فوق الرسم البياني',
+    chartGuidePan: 'التحريك: اضغط مع الاستمرار على Ctrl واسحب للتحرك',
+    chartGuideReset: 'إعادة التعيين: انقر على زر الإعادة أو انقر نقرتين على الرسم البياني',
+    chartGuideExport: 'التصدير: انقر على زر التنزيل للحفظ بصيغة PNG',
+    chartGuideTooltip: 'التلميح: مرر فوق نقاط البيانات للحصول على التفاصيل',
+
+    // Balance labels
+    usdBalance: 'رصيد الدولار',
+    iqdBalance: 'رصيد الدينار',
+
+    // Stats labels
+    totalProducts: 'إجمالي المنتجات',
+    totalAccessories: 'إجمالي الاكسسوارات',
+    totalSales: 'إجمالي المبيعات',
+
+    // Error handling
+    errorDetails: 'تفاصيل الخطأ',
+
+    // Currency equivalents
+    iqdEquivalent: 'ما يعادل الدينار',
 
   },
 };

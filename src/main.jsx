@@ -16,8 +16,8 @@ if (import.meta.env.PROD) {
   }
 }
 
-// Add error boundary for production
-class ErrorBoundary extends React.Component {
+// Add error boundary for production - no translations here since LocaleProvider is inside App
+class MainErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
     this.state = { hasError: false, error: null, errorInfo: null };
@@ -42,29 +42,23 @@ class ErrorBoundary extends React.Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-900 p-4">
-          <div className="text-center p-8 max-w-2xl w-full mx-auto">
+        <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4">
+          <div className="max-w-md w-full bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 text-center">
             <div className="text-red-500 text-6xl mb-4">⚠️</div>
-            <h1 className="text-2xl font-bold text-red-600 dark:text-red-400 mb-4">Application Error</h1>
-            <p className="text-gray-600 dark:text-gray-300 mb-6 text-lg">
-              Something went wrong. This error has been logged for debugging.
+            <h1 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+              Application Error
+            </h1>
+            <p className="text-gray-600 dark:text-gray-300 mb-4">
+              Something went wrong. Please refresh the page to continue.
             </p>
-            <div className="space-y-3">
-              <button 
-                onClick={() => window.location.reload()}
-                className="w-full px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-lg font-medium"
-              >
-                Reload Application
-              </button>
-              <button
-                onClick={() => this.setState({ hasError: false, error: null, errorInfo: null })}
-                className="w-full px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors text-lg font-medium"
-              >
-                Try to Continue
-              </button>
-            </div>
-            {import.meta.env.DEV && this.state.error && (
-              <details className="mt-6 p-4 bg-gray-50 dark:bg-gray-800 rounded text-left">
+            <button
+              onClick={() => window.location.reload()}
+              className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors"
+            >
+              Refresh Page
+            </button>
+            {!import.meta.env.PROD && (
+              <details className="mt-6 text-left">
                 <summary className="cursor-pointer font-medium text-gray-700 dark:text-gray-300">Error Details (Dev Only)</summary>
                 <pre className="mt-2 text-xs text-gray-700 dark:text-gray-300 overflow-auto">
                   {this.state.error.toString()}
@@ -87,17 +81,17 @@ const root = createRoot(document.getElementById('root'));
 if (import.meta.env.PROD) {
   // Production: No StrictMode, with error boundary
   root.render(
-    <ErrorBoundary>
+    <MainErrorBoundary>
       <App />
-    </ErrorBoundary>
+    </MainErrorBoundary>
   );
 } else {
   // Development: StrictMode with error boundary
   root.render(
     <StrictMode>
-      <ErrorBoundary>
+      <MainErrorBoundary>
         <App />
-      </ErrorBoundary>
+      </MainErrorBoundary>
     </StrictMode>
   );
 }

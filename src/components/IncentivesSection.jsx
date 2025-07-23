@@ -29,7 +29,12 @@ const IncentivesSection = ({ t, admin, triggerCloudBackup }) => {
   // Group incentives by company name
   const groupedIncentives = useMemo(() => {
     const groups = filteredIncentives.reduce((acc, incentive) => {
-      const companyName = incentive.company_name.charAt(0).toUpperCase() + incentive.company_name.slice(1).toLowerCase();
+      // Safely handle company name
+      const rawCompanyName = incentive?.company_name || 'Unknown Company';
+      const companyName = typeof rawCompanyName === 'string' 
+        ? rawCompanyName.charAt(0).toUpperCase() + rawCompanyName.slice(1).toLowerCase()
+        : 'Unknown Company';
+        
       if (!acc[companyName]) {
         acc[companyName] = [];
       }
@@ -59,8 +64,11 @@ const IncentivesSection = ({ t, admin, triggerCloudBackup }) => {
   }, [filteredIncentives]);
 
   const handleOpenAddModal = (companyName = '') => {
+    // Ensure companyName is a string, not an object
+    const safeCompanyName = typeof companyName === 'string' ? companyName : '';
+    
     setFormData({
-      company_name: companyName,
+      company_name: safeCompanyName,
       amount: '',
       description: '',
       currency: 'IQD'
@@ -72,10 +80,10 @@ const IncentivesSection = ({ t, admin, triggerCloudBackup }) => {
 
   const handleEditIncentive = (incentive) => {
     setFormData({
-      company_name: incentive.company_name,
-      amount: incentive.amount.toString(),
+      company_name: incentive.company_name || '',
+      amount: incentive.amount ? incentive.amount.toString() : '',
       description: incentive.description || '',
-      currency: incentive.currency
+      currency: incentive.currency || 'IQD'
     });
     setEditingIncentive(incentive);
     setShowAddModal(true);
@@ -107,6 +115,8 @@ const IncentivesSection = ({ t, admin, triggerCloudBackup }) => {
         currency: formData.currency
       };
 
+      console.log('Submitting incentive data:', incentiveData);
+
       let result;
       if (editingIncentive) {
         result = await window.api.updateIncentive(editingIncentive.id, incentiveData);
@@ -114,7 +124,9 @@ const IncentivesSection = ({ t, admin, triggerCloudBackup }) => {
         result = await window.api.addIncentive(incentiveData);
       }
 
-      if (result.success) {
+      console.log('API result:', result);
+
+      if (result && result.success) {
         playSuccessSound();
         admin.setToast(editingIncentive ? (t.incentiveUpdated || 'Incentive updated successfully') : (t.incentiveAdded || 'Incentive added successfully'), 'success');
         await refreshIncentives();
@@ -122,12 +134,14 @@ const IncentivesSection = ({ t, admin, triggerCloudBackup }) => {
         handleCloseModal();
       } else {
         playErrorSound();
-        admin.setToast(result.message || (t.operationFailed || 'Operation failed'), 'error');
+        const errorMessage = result?.message || (t.operationFailed || 'Operation failed');
+        admin.setToast(errorMessage, 'error');
+        console.error('API Error:', result);
       }
     } catch (error) {
       console.error('Error saving incentive:', error);
       playErrorSound();
-      admin.setToast(t.operationFailed || 'Operation failed', 'error');
+      admin.setToast(error.message || (t.operationFailed || 'Operation failed'), 'error');
     } finally {
       setLoading(false);
     }

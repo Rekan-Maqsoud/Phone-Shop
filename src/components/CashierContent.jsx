@@ -208,10 +208,10 @@ export default function CashierContent({
       
       // Price range filter
       const itemPrice = currency === 'IQD' && (item.currency === 'USD' || !item.currency)
-        ? (item.price || 0) * EXCHANGE_RATES.USD_TO_IQD
+        ? (item.buying_price || item.price || 0) * EXCHANGE_RATES.USD_TO_IQD
         : currency === 'USD' && item.currency === 'IQD'
-        ? (item.price || 0) * EXCHANGE_RATES.IQD_TO_USD
-        : (item.price || 0);
+        ? (item.buying_price || item.price || 0) * EXCHANGE_RATES.IQD_TO_USD
+        : (item.buying_price || item.price || 0);
       
       if (filters.priceMin && itemPrice < Number(filters.priceMin)) return false;
       if (filters.priceMax && itemPrice > Number(filters.priceMax)) return false;
@@ -1271,9 +1271,9 @@ export default function CashierContent({
                   {/* Show RAM and Storage for phones, Type for accessories */}
                   {item.category === 'phones' || item.itemType === 'product' ? (
                     <div className="text-sm text-slate-600 dark:text-slate-400 mb-2">
-                      {item.ram && <span>RAM: {item.ram}</span>}
+                      {item.ram && <span>{t?.ram || 'RAM'}: {item.ram}</span>}
                       {item.ram && item.storage && <span className="mx-2">•</span>}
-                      {item.storage && <span>Storage: {item.storage}</span>}
+                      {item.storage && <span>{t?.storage || 'Storage'}: {item.storage}</span>}
                     </div>
                   ) : (item.category === 'accessories' || item.itemType === 'accessory') ? (
                     <div className="text-sm text-slate-600 dark:text-slate-400 mb-2">

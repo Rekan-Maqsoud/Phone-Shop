@@ -1,11 +1,13 @@
 import React from 'react';
+import { useLocale } from '../contexts/LocaleContext';
 
 export default function AdminLoadingFallback({ message = 'Loading Admin Panel...', timeout = false }) {
+  const { t } = useLocale();
   return (
     <div className="fixed inset-0 z-50 min-h-screen w-full bg-gradient-to-br from-gray-900 via-purple-900 to-gray-800 flex items-center justify-center">
       <div className="text-center">
         <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-purple-500 mx-auto mb-4"></div>
-        <h2 className="text-white text-2xl font-bold mb-2">Mobile Roma Admin</h2>
+        <h2 className="text-white text-2xl font-bold mb-2">{t?.mobileRomaAdmin || 'Mobile Roma Admin'}</h2>
         <p className="text-gray-300 text-lg mb-4">
           {timeout ? 'Taking longer than expected...' : message}
         </p>

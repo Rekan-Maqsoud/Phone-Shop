@@ -464,7 +464,7 @@ export default function EnhancedCompanyDebtModal({ show, onClose, debt, onMarkPa
                         <span className="font-medium text-red-600 dark:text-red-400">
                           <div className="flex flex-col">
                             <div>{paymentCurrency === 'USD' ? `$${paymentSummary.netDeduction.toFixed(2)}` : `د.ع${(paymentSummary.netDeduction * EXCHANGE_RATES.USD_TO_IQD).toFixed(0)}`}</div>
-                            <div className="text-xs opacity-75">from {paymentCurrency} balance</div>
+                            <div className="text-xs opacity-75">{t?.fromBalance?.replace('{currency}', paymentCurrency) || `from ${paymentCurrency} balance`}</div>
                           </div>
                         </span>
                       </div>

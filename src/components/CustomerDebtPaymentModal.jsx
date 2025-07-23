@@ -433,13 +433,13 @@ const CustomerDebtPaymentModal = ({
                 <div className="text-lg font-bold text-green-600 dark:text-green-400">
                   ${admin.balanceUSD?.toFixed(2) || '0.00'}
                 </div>
-                <div className="text-xs text-gray-500 dark:text-gray-400">USD Balance</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400">{t?.usdBalance || 'USD Balance'}</div>
               </div>
               <div className="text-center">
                 <div className="text-lg font-bold text-yellow-600 dark:text-yellow-400">
                   د.ع{admin.balanceIQD?.toFixed(2) || '0.00'}
                 </div>
-                <div className="text-xs text-gray-500 dark:text-gray-400">IQD Balance</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400">{t?.iqdBalance || 'IQD Balance'}</div>
               </div>
             </div>
           </div>
