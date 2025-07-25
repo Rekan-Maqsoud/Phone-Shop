@@ -190,11 +190,11 @@ const CustomerDebtPaymentModal = ({
         
         handleClose();
       } else {
-        admin.setToast?.('❌ Failed to mark debt as paid');
+        admin.setToast?.('Failed to mark debt as paid');
       }
     } catch (error) {
       console.error('Error marking debt as paid:', error);
-      admin.setToast?.('❌ Error marking debt as paid');
+      admin.setToast?.('Error marking debt as paid');
     }
   };
 
@@ -283,7 +283,8 @@ const CustomerDebtPaymentModal = ({
                           : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300'
                       }`}
                     >
-                      💵 USD
+                      <Icon name="dollar" size={16} />
+                      USD
                     </button>
                     <button
                       type="button"
@@ -294,7 +295,8 @@ const CustomerDebtPaymentModal = ({
                           : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300'
                       }`}
                     >
-                      🏛️ IQD
+                      <Icon name="building" size={16} />
+                      IQD
                     </button>
                   </div>
                 </div>
@@ -370,13 +372,15 @@ const CustomerDebtPaymentModal = ({
                         
                         {paymentSummary.status === 'perfect' && (
                           <div className="text-green-600 dark:text-green-400 font-medium flex items-center">
-                            ✅ {t.perfectPayment || 'Perfect Payment'}
+                            <Icon name="check" size={16} className="text-green-600" />
+                            {t.perfectPayment || 'Perfect Payment'}
                           </div>
                         )}
                         
                         {paymentSummary.status === 'underpaid' && (
                           <div className="text-red-600 dark:text-red-400 font-medium flex items-center">
-                            ⚠️ {t.remaining || 'Remaining'}: {formatCurrency(Math.abs(paymentSummary.difference), 'USD')}
+                            <Icon name="warning" size={16} className="text-amber-600" />
+                            {t.remaining || 'Remaining'}: {formatCurrency(Math.abs(paymentSummary.difference), 'USD')}
                             <span className="ml-2 text-xs">
                               (≈ د.ع{(Math.abs(paymentSummary.difference) * EXCHANGE_RATES.USD_TO_IQD).toFixed(0)})
                             </span>

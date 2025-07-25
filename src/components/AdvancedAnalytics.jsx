@@ -36,6 +36,7 @@ export default function AdvancedAnalytics({ admin, t }) {
   const [timeRange, setTimeRange] = useState('30days');
   const [viewMode, setViewMode] = useState('overview');
   const [balances, setBalances] = useState({ usd_balance: 0, iqd_balance: 0 });
+  const [totalProfitWithIncentives, setTotalProfitWithIncentives] = useState({ USD: 0, IQD: 0 });
 
   const fetchBalances = async () => {
     try {
@@ -48,8 +49,20 @@ export default function AdvancedAnalytics({ admin, t }) {
     }
   };
 
+  const fetchTotalProfitWithIncentives = async () => {
+    try {
+      if (window.api?.getTotalProfitWithIncentives) {
+        const profitData = await window.api.getTotalProfitWithIncentives();
+        setTotalProfitWithIncentives(profitData || { USD: 0, IQD: 0 });
+      }
+    } catch (error) {
+      console.error('Error fetching total profit with incentives:', error);
+    }
+  };
+
   useEffect(() => {
     fetchBalances();
+    fetchTotalProfitWithIncentives();
   }, [sales, debts]);
 
   // Calculate business metrics
@@ -614,10 +627,18 @@ export default function AdvancedAnalytics({ admin, t }) {
             </div>
             
             <div className="flex justify-between items-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-              <span className="text-gray-700 dark:text-gray-300">{t?.totalProfit}:</span>
+              <span className="text-gray-700 dark:text-gray-300">{t?.totalProfit} (Sales):</span>
               <div className="text-right">
                 <div className="font-bold text-blue-600">{formatCurrency(businessMetrics.profitUSD, 'USD')}</div>
                 <div className="font-bold text-blue-600">{formatCurrency(businessMetrics.profitIQD, 'IQD')}</div>
+              </div>
+            </div>
+            
+            <div className="flex justify-between items-center p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+              <span className="text-gray-700 dark:text-gray-300">{t?.totalProfit} (+ Incentives):</span>
+              <div className="text-right">
+                <div className="font-bold text-purple-600">{formatCurrency(totalProfitWithIncentives.USD, 'USD')}</div>
+                <div className="font-bold text-purple-600">{formatCurrency(totalProfitWithIncentives.IQD, 'IQD')}</div>
               </div>
             </div>
             

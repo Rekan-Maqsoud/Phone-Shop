@@ -400,7 +400,8 @@ const CustomerDebtsSection = ({
                                 
                                 {debt?.paid_at && (
                                   <div className="text-xs text-green-600 dark:text-green-400">
-                                    ✅ {t.paidOn || 'Paid on'} {new Date(debt.paid_at).toLocaleDateString()} at {new Date(debt.paid_at).toLocaleTimeString()}
+                                    <Icon name="check" size={12} className="text-green-600" />
+                                    {t.paidOn || 'Paid on'} {new Date(debt.paid_at).toLocaleDateString()} at {new Date(debt.paid_at).toLocaleTimeString()}
                                   </div>
                                 )}
                               </div>
@@ -413,7 +414,8 @@ const CustomerDebtsSection = ({
                                   }}
                                   className="px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm flex items-center gap-1"
                                 >
-                                  👁️ {t.view || 'View'}
+                                  <Icon name="eye" size={14} />
+                                  {t.view || 'View'}
                                 </button>
                                 
                                 {(debt ? !debt.paid_at : true) && (
@@ -447,7 +449,8 @@ const CustomerDebtsSection = ({
                                       className="px-3 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-sm flex items-center gap-1"
                                       title={t.returnSale || 'Return Sale'}
                                     >
-                                      ↩️ {t.returnSale || 'Return'}
+                                      <Icon name="undo" size={14} />
+                                      {t.returnSale || 'Return'}
                                     </button>
                                     
                                     <button

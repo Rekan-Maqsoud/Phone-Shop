@@ -408,7 +408,8 @@ function resetAllData(db) {
     const tablesToClear = [
       'sale_items', 'customer_debts', 'company_debt_items', 'company_debts', 
       'personal_loans', 'transactions', 'sales', 'products', 'accessories', 
-      'buying_history', 'monthly_reports', 'discounts'
+      'buying_history_items', 'buying_history', 'monthly_reports', 'discounts',
+      'incentives'
     ];
     
     tablesToClear.forEach(table => {

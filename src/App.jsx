@@ -5,11 +5,13 @@ import { LocaleProvider, useLocale } from './contexts/LocaleContext';
 import { DataProvider } from './contexts/DataContext';
 import { SoundProvider } from './contexts/SoundContext';
 import { BackupProgressProvider, BackupProgressOverlay } from './contexts/BackupProgressContext';
+import { useKeyboardNavigation } from './hooks/useKeyboardNavigation';
 import ErrorBoundary from './components/ErrorBoundary';
 import Cashier from './pages/Cashier';
 import Admin from './pages/Admin';
 import AdminTestPage from './components/AdminTestPage';
 import ToastUnified from './components/ToastUnified';
+import KeyboardShortcutsModal from './components/KeyboardShortcutsModal';
 import cloudAuthService from './services/CloudAuthService';
 
 // Error boundary wrapper for route components
@@ -68,6 +70,16 @@ function AppContent() {
   const [authInitialized, setAuthInitialized] = useState(false);
   const [dataInitialized, setDataInitialized] = useState(false);
   const [appReady, setAppReady] = useState(false);
+  const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
+
+  // Global keyboard shortcuts
+  useKeyboardNavigation({
+    enabled: appReady,
+    shortcuts: {
+      'f1': () => setShowKeyboardShortcuts(true),
+      'ctrl+shift+k': () => setShowKeyboardShortcuts(true),
+    }
+  });
 
   // Global error handling for production
   useEffect(() => {
@@ -268,6 +280,11 @@ function AppContent() {
           onClose={handleCloseToast}
         />
       )}
+      <KeyboardShortcutsModal
+        show={showKeyboardShortcuts}
+        onClose={() => setShowKeyboardShortcuts(false)}
+        t={t}
+      />
     </div>
   );
 }

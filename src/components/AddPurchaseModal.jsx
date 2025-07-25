@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import ModalBase from './ModalBase';
 import { phoneBrands, accessoryModels } from './phoneBrands';
 import SearchableSelect from './SearchableSelect';
+import AutocompleteInput from './AutocompleteInput';
 import { EXCHANGE_RATES, loadExchangeRatesFromDB } from '../utils/exchangeRates';
 import { Icon } from '../utils/icons.jsx';
 
@@ -86,6 +87,34 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
   const brandOptions = useMemo(() => phoneBrands.map(brand => brand.name), []);
   const ramOptions = useMemo(() => ['2GB', '3GB', '4GB', '6GB', '8GB', '12GB', '16GB', '18GB', '24GB'], []);
   const storageOptions = useMemo(() => ['32GB', '64GB', '128GB', '256GB', '512GB', '1TB', '2TB'], []);
+
+  // Extract unique company names from buying history and company debts for autocomplete
+  const companyNameSuggestions = useMemo(() => {
+    const names = new Set();
+    
+    // Get names from admin.buyingHistory (supplier field)
+    if (admin?.buyingHistory && Array.isArray(admin.buyingHistory)) {
+      admin.buyingHistory.forEach(entry => {
+        if (entry.supplier && entry.supplier.trim()) {
+          names.add(entry.supplier.trim());
+        }
+      });
+    }
+    
+    // Get names from admin.companyDebts (company_name field)
+    if (admin?.companyDebts && Array.isArray(admin.companyDebts)) {
+      admin.companyDebts.forEach(debt => {
+        if (debt.company_name && debt.company_name.trim()) {
+          names.add(debt.company_name.trim());
+        }
+      });
+    }
+    
+    // Convert to array and sort alphabetically
+    return Array.from(names)
+      .filter(name => name !== 'Company debt payment' && name !== 'Personal loan payment' && name !== 'Transaction')
+      .sort((a, b) => a.localeCompare(b));
+  }, [admin?.buyingHistory, admin?.companyDebts]);
 
   const addItem = useCallback((type) => {
     const newItem = {
@@ -424,12 +453,14 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             {t?.companyName || 'Company Name'} *
           </label>
-          <input
-            className="w-full border rounded-lg px-4 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder={t?.enterCompanyName || 'Enter company name'}
+          <AutocompleteInput
             value={companyName}
-            onChange={e => setCompanyName(e.target.value)}
+            onChange={setCompanyName}
+            suggestions={companyNameSuggestions}
+            placeholder={t?.enterCompanyName || 'Enter company name'}
+            className="w-full border rounded-lg px-4 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
             required
+            t={t}
           />
         </div>
 

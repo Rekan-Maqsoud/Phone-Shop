@@ -541,7 +541,10 @@ export default function BackupManager({ show, onClose, t, showConfirm = null }) 
 
               {/* Local Backups Section */}
               <div>
-                <h4 className="font-semibold mb-4 text-gray-800 dark:text-gray-100">💾 {t.localBackups || 'Local Backups'}</h4>
+                <h4 className="font-semibold mb-4 text-gray-800 dark:text-gray-100 flex items-center gap-2">
+                  <Icon name="save" size={16} />
+                  {t.localBackups || 'Local Backups'}
+                </h4>
                 <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
                   <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
                     {t.localBackupsStored || 'Local backups are stored in your Documents folder under "Mobile Roma BackUp"'}

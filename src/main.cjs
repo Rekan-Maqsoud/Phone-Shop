@@ -852,6 +852,20 @@ ipcMain.handle('getIncentiveTotals', async () => {
   }
 });
 
+ipcMain.handle('getTotalProfitWithIncentives', async () => {
+  try {
+    if (db && db.getTotalProfitWithIncentives) {
+      return db.getTotalProfitWithIncentives();
+    } else {
+      console.error('❌ Database or getTotalProfitWithIncentives function not available');
+      return { USD: 0, IQD: 0 };
+    }
+  } catch (error) {
+    console.error('❌ getTotalProfitWithIncentives error:', error);
+    return { USD: 0, IQD: 0 };
+  }
+});
+
 // Buying history handlers
 ipcMain.handle('getBuyingHistory', async () => {
   return db.getBuyingHistory();
@@ -1462,6 +1476,28 @@ ipcMain.handle('returnBuyingHistoryItem', async (event, entryId, itemId, quantit
     return { success: false, message: e.message };
   }
 });
+
+// Simplified return functions for buying history
+ipcMain.handle('returnBuyingHistoryEntrySimplified', async (event, entryId) => {
+  try {
+    const result = db.returnBuyingHistoryEntrySimplified(entryId);
+    await runAutoBackupAfterSale();
+    return result;
+  } catch (e) {
+    return { success: false, message: e.message };
+  }
+});
+
+ipcMain.handle('returnBuyingHistoryItemSimplified', async (event, entryId, itemId) => {
+  try {
+    const result = db.returnBuyingHistoryItemSimplified(entryId, itemId);
+    await runAutoBackupAfterSale();
+    return result;
+  } catch (e) {
+    return { success: false, message: e.message };
+  }
+});
+
 // Get current backup path for unified backup system
 ipcMain.handle('getCurrentBackupPath', async () => {
   try {

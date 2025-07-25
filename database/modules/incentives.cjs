@@ -33,6 +33,18 @@ function addIncentive(db, { company_name, amount, description, currency = 'IQD' 
         settings.setSetting(db, 'balanceIQD', newBalance.toString());
       }
       
+      // CRITICAL: Add incentive directly to profit tracking
+      // Incentives are considered pure profit since they don't have associated costs
+      if (currency === 'USD') {
+        const currentProfit = settings.getSetting(db, 'totalProfitUSD') || '0';
+        const newProfit = parseFloat(currentProfit) + amount;
+        settings.setSetting(db, 'totalProfitUSD', newProfit.toString());
+      } else if (currency === 'IQD') {
+        const currentProfit = settings.getSetting(db, 'totalProfitIQD') || '0';
+        const newProfit = parseFloat(currentProfit) + amount;
+        settings.setSetting(db, 'totalProfitIQD', newProfit.toString());
+      }
+      
       return result;
     });
     
@@ -67,6 +79,17 @@ function removeIncentive(db, id) {
         settings.setSetting(db, 'balanceIQD', newBalance.toString());
       }
       
+      // CRITICAL: Remove incentive from profit tracking
+      if (incentive.currency === 'USD') {
+        const currentProfit = settings.getSetting(db, 'totalProfitUSD') || '0';
+        const newProfit = parseFloat(currentProfit) - incentive.amount;
+        settings.setSetting(db, 'totalProfitUSD', newProfit.toString());
+      } else if (incentive.currency === 'IQD') {
+        const currentProfit = settings.getSetting(db, 'totalProfitIQD') || '0';
+        const newProfit = parseFloat(currentProfit) - incentive.amount;
+        settings.setSetting(db, 'totalProfitIQD', newProfit.toString());
+      }
+      
       // Delete the incentive
       return db.prepare('DELETE FROM incentives WHERE id = ?').run(id);
     });
@@ -99,7 +122,7 @@ function updateIncentive(db, id, { company_name, amount, description, currency }
       
       // If currency changed, remove old and add new
       if (oldCurrency !== newCurrency) {
-        // Remove old amount
+        // Remove old amount from balance
         if (oldCurrency === 'USD') {
           const currentBalance = settings.getSetting(db, 'balanceUSD') || '0';
           const newBalance = parseFloat(currentBalance) - oldAmount;
@@ -110,7 +133,7 @@ function updateIncentive(db, id, { company_name, amount, description, currency }
           settings.setSetting(db, 'balanceIQD', newBalance.toString());
         }
         
-        // Add new amount
+        // Add new amount to balance
         if (newCurrency === 'USD') {
           const currentBalance = settings.getSetting(db, 'balanceUSD') || '0';
           const newBalance = parseFloat(currentBalance) + newAmount;
@@ -119,6 +142,29 @@ function updateIncentive(db, id, { company_name, amount, description, currency }
           const currentBalance = settings.getSetting(db, 'balanceIQD') || '0';
           const newBalance = parseFloat(currentBalance) + newAmount;
           settings.setSetting(db, 'balanceIQD', newBalance.toString());
+        }
+        
+        // CRITICAL: Update profit tracking for currency change
+        // Remove old amount from profit
+        if (oldCurrency === 'USD') {
+          const currentProfit = settings.getSetting(db, 'totalProfitUSD') || '0';
+          const newProfit = parseFloat(currentProfit) - oldAmount;
+          settings.setSetting(db, 'totalProfitUSD', newProfit.toString());
+        } else if (oldCurrency === 'IQD') {
+          const currentProfit = settings.getSetting(db, 'totalProfitIQD') || '0';
+          const newProfit = parseFloat(currentProfit) - oldAmount;
+          settings.setSetting(db, 'totalProfitIQD', newProfit.toString());
+        }
+        
+        // Add new amount to profit
+        if (newCurrency === 'USD') {
+          const currentProfit = settings.getSetting(db, 'totalProfitUSD') || '0';
+          const newProfit = parseFloat(currentProfit) + newAmount;
+          settings.setSetting(db, 'totalProfitUSD', newProfit.toString());
+        } else if (newCurrency === 'IQD') {
+          const currentProfit = settings.getSetting(db, 'totalProfitIQD') || '0';
+          const newProfit = parseFloat(currentProfit) + newAmount;
+          settings.setSetting(db, 'totalProfitIQD', newProfit.toString());
         }
       } else {
         // Same currency, just adjust the difference
@@ -131,6 +177,17 @@ function updateIncentive(db, id, { company_name, amount, description, currency }
           const currentBalance = settings.getSetting(db, 'balanceIQD') || '0';
           const newBalance = parseFloat(currentBalance) + difference;
           settings.setSetting(db, 'balanceIQD', newBalance.toString());
+        }
+        
+        // CRITICAL: Update profit tracking for amount change
+        if (newCurrency === 'USD') {
+          const currentProfit = settings.getSetting(db, 'totalProfitUSD') || '0';
+          const newProfit = parseFloat(currentProfit) + difference;
+          settings.setSetting(db, 'totalProfitUSD', newProfit.toString());
+        } else if (newCurrency === 'IQD') {
+          const currentProfit = settings.getSetting(db, 'totalProfitIQD') || '0';
+          const newProfit = parseFloat(currentProfit) + difference;
+          settings.setSetting(db, 'totalProfitIQD', newProfit.toString());
         }
       }
       
@@ -173,11 +230,31 @@ function getIncentiveTotals(db) {
   }
 }
 
+// Get total profit including incentives
+function getTotalProfitWithIncentives(db) {
+  try {
+    const settings = require('./settings.cjs');
+    
+    // Get stored total profit (from sales)
+    const totalProfitUSD = parseFloat(settings.getSetting(db, 'totalProfitUSD') || '0');
+    const totalProfitIQD = parseFloat(settings.getSetting(db, 'totalProfitIQD') || '0');
+    
+    return {
+      USD: totalProfitUSD,
+      IQD: totalProfitIQD
+    };
+  } catch (error) {
+    console.error('❌ [incentives.cjs] Error getting total profit with incentives:', error);
+    return { USD: 0, IQD: 0 };
+  }
+}
+
 module.exports = {
   getIncentives,
   addIncentive,
   removeIncentive,
   updateIncentive,
   getIncentivesByCompany,
-  getIncentiveTotals
+  getIncentiveTotals,
+  getTotalProfitWithIncentives
 };

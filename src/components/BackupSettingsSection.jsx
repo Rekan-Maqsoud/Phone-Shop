@@ -29,9 +29,7 @@ export default function BackupSettingsSection({ admin, t, setShowBackupManager }
           setAutoBackupEnabled(autoBackupResult.enabled);
         }
 
-        // Get last backup info
-        // Note: getLastBackupInfo is not available, so we'll skip this for now
-        // TODO: Add getLastBackupInfo to the API if needed
+        // Note: getLastBackupInfo is not currently available
       } catch (error) {
         console.error('Error checking backup status:', error);
       }

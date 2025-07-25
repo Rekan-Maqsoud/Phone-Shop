@@ -6,6 +6,7 @@ import { useData } from '../contexts/DataContext';
 import { triggerCloudBackupAsync } from '../utils/cloudBackupEnhanced';
 import { playNavigationSound, playActionSound, playModalOpenSound, playModalCloseSound, playSuccessSound, playErrorSound } from '../utils/sounds';
 import { EXCHANGE_RATES, loadExchangeRatesFromDB } from '../utils/exchangeRates';
+import { useKeyboardNavigation } from '../hooks/useKeyboardNavigation';
 import useAdmin from '../components/useAdmin';
 import CustomerDebtsSection from '../components/CustomerDebtsSection';
 import CompanyDebtsSection from '../components/CompanyDebtsSection';
@@ -19,10 +20,9 @@ import SalesHistorySection from '../components/SalesHistorySection';
 import BuyingHistorySection from '../components/BuyingHistorySection';
 import AdminModals from '../components/AdminModals';
 import ToastUnified from '../components/ToastUnified';
-import AdvancedAnalytics from '../components/AdvancedAnalytics';
 import AdminLoadingFallback from '../components/AdminLoadingFallback';
 import ExchangeRateIndicator from '../components/ExchangeRateIndicator';
-import AdvancedAnalyticsAndReports from '../components/AdvancedAnalyticsAndReports';
+import MonthlyReport from '../components/MonthlyReport';
 import BackupSettingsSection from '../components/BackupSettingsSection';
 import { Icon } from '../utils/icons.jsx';
 
@@ -87,7 +87,7 @@ export default function Admin() {
     }
   }, [lowStockNotificationProducts, admin.setToast, t.lowStockAlert]);
 
-  // Calculate total profit - memoized
+  // Calculate total profit - memoized (traditional calculation for backward compatibility)
   const totalProfit = useMemo(() => {
     return sales.reduce((sum, sale) => {
       if (!sale.items) return sum;
@@ -106,6 +106,9 @@ export default function Admin() {
     }, 0);
   }, [sales, debts]);
 
+  // Use enhanced profit calculation that includes incentives from admin context
+  const totalProfitWithIncentives = admin.totalProfitWithIncentives || { USD: 0, IQD: 0 };
+
   // Recent activity and low stock products - memoized
   const criticalStockProducts = useMemo(() => products.filter(p => p.stock <= 2 && !p.archived), [products]);
   const lowStockProducts = useMemo(() => products.filter(p => p.stock > 2 && p.stock < admin.lowStockThreshold && !p.archived), [products, admin.lowStockThreshold]);
@@ -113,18 +116,17 @@ export default function Admin() {
   // Memoize nav items for performance with keyboard shortcuts and colors
   const navItems = useMemo(() => [
     { key: 'multiCurrencyDashboard', label: t.dashboard || 'Dashboard', icon: 'multiCurrency', shortcut: '1', color: 'blue' },
-    { key: 'active', label: t.products, icon: 'products', shortcut: '2', color: 'green' },
-    { key: 'accessories', label: t.accessories, icon: 'accessories', shortcut: '3', color: 'orange' },
-    { key: 'archived', label: t.archivedProducts, icon: 'archived', shortcut: '4', color: 'gray' },
-    { key: 'salesHistory', label: t.salesHistory, icon: 'salesHistory', shortcut: '5', color: 'emerald' },
-    { key: 'buyingHistory', label: t.buyingHistory, icon: 'buyingHistory', shortcut: '6', color: 'purple' },
-    { key: 'customerDebts', label: t.customerDebts, icon: 'customerDebts', shortcut: '7', color: 'red' },
-    { key: 'companyDebts', label: t.companyDebts, icon: 'companyDebts', shortcut: '8', color: 'yellow' },
-    { key: 'incentives', label: t.incentives, icon: 'incentives', shortcut: '9', color: 'pink' },
-    { key: 'personalLoans', label: t.personalLoans, icon: 'personalLoans', shortcut: '0', color: 'indigo' },
-    { key: 'monthlyReports', label: t.monthlyReports, icon: 'monthlyReports', shortcut: 'R', color: 'teal' },
-    { key: 'advancedAnalytics', label: t.businessAnalytics || 'Business Analytics', icon: 'barChart3', shortcut: 'A', color: 'cyan' },
-    { key: 'backupSettings', label: t.backupSettings || 'Backup & Settings', icon: 'cloud', shortcut: 'B', color: 'slate' }
+    { key: 'buyingHistory', label: t.buyingHistory, icon: 'buyingHistory', shortcut: '2', color: 'purple' },
+    { key: 'salesHistory', label: t.salesHistory, icon: 'salesHistory', shortcut: '3', color: 'emerald' },
+    { key: 'customerDebts', label: t.customerDebts, icon: 'customerDebts', shortcut: '4', color: 'red' },
+    { key: 'companyDebts', label: t.companyDebts, icon: 'companyDebts', shortcut: '5', color: 'yellow' },
+    { key: 'personalLoans', label: t.personalLoans, icon: 'personalLoans', shortcut: '6', color: 'indigo' },
+    { key: 'incentives', label: t.incentives, icon: 'incentives', shortcut: '7', color: 'pink' },
+    { key: 'active', label: t.products, icon: 'products', shortcut: '8', color: 'green' },
+    { key: 'accessories', label: t.accessories, icon: 'accessories', shortcut: '9', color: 'orange' },
+    { key: 'archived', label: t.archivedProducts, icon: 'archived', shortcut: '0', color: 'gray' },
+    { key: 'monthlyReports', label: t.monthlyReports, icon: 'monthlyReports', shortcut: '+', color: 'teal' },
+    { key: 'backupSettings', label: t.backupSettings || 'Backup & Settings', icon: 'cloud', shortcut: '-', color: 'slate' }
   ], [t]);
 
   // Helper function to get color classes with proper light mode support
@@ -203,27 +205,63 @@ export default function Admin() {
     playModalOpenSound();
   }, [admin]);
 
-  // Keyboard navigation
-  useEffect(() => {
-    const handleKeyPress = (e) => {
-      // Only trigger shortcuts when Ctrl (or Cmd on Mac) is pressed
-      if (!e.ctrlKey && !e.metaKey) return;
-      // Ignore if Alt key is also pressed to avoid conflicts
-      if (e.altKey) return;
-      
-      const key = e.key.toLowerCase();
-      const navItem = navItems.find(item => item.shortcut.toLowerCase() === key);
-      
-      if (navItem && section !== navItem.key) {
-        e.preventDefault();
-        setSection(navItem.key);
-        playNavigationSound();
-      }
-    };
+  // Enhanced keyboard navigation with arrow key support
+  const sectionKeys = useMemo(() => navItems.map(item => item.key), [navItems]);
+  const currentSectionIndex = useMemo(() => sectionKeys.indexOf(section), [sectionKeys, section]);
+  
+  const navigateToSection = useCallback((newIndex) => {
+    if (newIndex >= 0 && newIndex < sectionKeys.length) {
+      setSection(sectionKeys[newIndex]);
+      playNavigationSound();
+    }
+  }, [sectionKeys]);
 
-    window.addEventListener('keydown', handleKeyPress);
-    return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [navItems, section]);
+  // Keyboard shortcuts for admin sections
+  const adminShortcuts = useMemo(() => {
+    const shortcuts = {};
+    
+    // Number key shortcuts (with Ctrl)
+    navItems.forEach(item => {
+      if (item.shortcut) {
+        shortcuts[`ctrl+${item.shortcut.toLowerCase()}`] = () => {
+          if (section !== item.key) {
+            setSection(item.key);
+            playNavigationSound();
+          }
+        };
+      }
+    });
+    
+    // Additional shortcuts
+    shortcuts['ctrl+shift+c'] = () => navigate('/cashier');
+    shortcuts['ctrl+shift+s'] = () => setShowSettingsModal(true);
+    shortcuts['ctrl+shift+b'] = () => setShowBackupManager(true);
+    
+    return shortcuts;
+  }, [navItems, section, navigate]);
+
+  // Main keyboard navigation
+  useKeyboardNavigation({
+    enabled: true,
+    onArrowUp: () => {
+      const newIndex = currentSectionIndex > 0 ? currentSectionIndex - 1 : sectionKeys.length - 1;
+      navigateToSection(newIndex);
+    },
+    onArrowDown: () => {
+      const newIndex = currentSectionIndex < sectionKeys.length - 1 ? currentSectionIndex + 1 : 0;
+      navigateToSection(newIndex);
+    },
+    onArrowLeft: () => {
+      const newIndex = currentSectionIndex > 0 ? currentSectionIndex - 1 : sectionKeys.length - 1;
+      navigateToSection(newIndex);
+    },
+    onArrowRight: () => {
+      const newIndex = currentSectionIndex < sectionKeys.length - 1 ? currentSectionIndex + 1 : 0;
+      navigateToSection(newIndex);
+    },
+    shortcuts: adminShortcuts,
+    preventDefaultArrows: true,
+  });
 
   // Early loading state with improved fallback
   if (dataLoading && !apiReady) {
@@ -284,15 +322,19 @@ export default function Admin() {
                 <ExchangeRateIndicator t={t} showModal={true} size="md" onToast={admin.setToast} />
                 <button
                   onClick={() => setShowSettingsModal(true)}
-                  className="p-2 text-gray-400 hover:text-gray-500 dark:hover:text-gray-300"
+                  className="p-2 text-gray-400 hover:text-gray-500 dark:hover:text-gray-300 rounded-lg transition-colors"
+                  title="Settings (Ctrl+Shift+S)"
                 >
                   <Icon name="settings" size={20} />
                 </button>
                 <button
                   onClick={() => navigate('/cashier')}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                  title="Go to Cashier (Ctrl+Shift+C)"
                 >
+                  <Icon name="shopping-cart" size={16} />
                   {t.toCashier}
+                  <span className="text-xs opacity-75">Ctrl+Shift+C</span>
                 </button>
               </div>
             </div>
@@ -304,7 +346,7 @@ export default function Admin() {
           <nav className="w-64 bg-white dark:bg-gray-800 shadow-sm border-r border-gray-200 dark:border-gray-700 flex-shrink-0">
             <div className="p-4">
               <ul className="space-y-2">
-                {navItems.map((item) => (
+                {navItems.map((item, index) => (
                   <li key={item.key}>
                     <button
                       onClick={() => {
@@ -313,11 +355,19 @@ export default function Admin() {
                       }}
                       className={`w-full text-left px-4 py-2 rounded-lg transition-colors flex items-center gap-3 ${
                         getColorClasses(item.color, section === item.key)
-                      }`}
+                      } ${section === item.key ? 'ring-2 ring-offset-1 ring-offset-white dark:ring-offset-gray-800' : ''}`}
+                      title={`${item.label} - Ctrl+${item.shortcut}`}
                     >
                       <Icon name={item.icon} size={18} />
-                      <span>{item.label}</span>
-                      <span className="ml-auto text-xs opacity-50">{item.shortcut}</span>
+                      <span className="flex-1 text-sm">{item.label}</span>
+                      <div className="flex items-center gap-1">
+                        {section === item.key && (
+                          <Icon name="check" size={12} className="text-current" />
+                        )}
+                        <span className="text-xs opacity-70 bg-black/10 dark:bg-white/10 px-1.5 py-0.5 rounded">
+                          Ctrl+{item.shortcut}
+                        </span>
+                      </div>
                     </button>
                   </li>
                 ))}
@@ -330,6 +380,21 @@ export default function Admin() {
             {/* Section content */}
             <div className="flex-1 h-full w-full overflow-auto">
               {section === 'multiCurrencyDashboard' && <MultiCurrencyDashboard admin={admin} t={t} />}
+              {section === 'buyingHistory' && <BuyingHistorySection admin={admin} t={t} openAddPurchaseModal={openAddPurchaseModal} />}
+              {section === 'salesHistory' && <SalesHistorySection admin={admin} t={t} />}
+              {section === 'customerDebts' && <CustomerDebtsSection 
+                admin={admin} 
+                t={t} 
+                debtSearch={admin.debtSearch}
+                setDebtSearch={admin.setDebtSearch}
+                showPaidDebts={admin.showPaidDebts}
+                setShowPaidDebts={admin.setShowPaidDebts}
+                showConfirm={showConfirm}
+                setConfirm={setConfirm}
+                triggerCloudBackup={triggerCloudBackupAsync} 
+              />}
+              {section === 'companyDebts' && <CompanyDebtsSection admin={admin} t={t} openEnhancedCompanyDebtModal={openEnhancedCompanyDebtModal} openAddPurchaseModal={openAddPurchaseModal} />}
+              {section === 'incentives' && <IncentivesSection admin={admin} t={t} />}
               {section === 'active' && <ProductsSection admin={admin} t={t} handleEditProduct={(product) => {
                 admin.setEditProduct(product);
                 admin.setShowProductModal(true);
@@ -351,24 +416,8 @@ export default function Admin() {
               }} />}
               {section === 'accessories' && <AccessoriesSection admin={admin} t={t} />}
               {section === 'archived' && <ArchivedItemsSection admin={admin} t={t} />}
-              {section === 'salesHistory' && <SalesHistorySection admin={admin} t={t} />}
-              {section === 'buyingHistory' && <BuyingHistorySection admin={admin} t={t} openAddPurchaseModal={openAddPurchaseModal} />}
-              {section === 'customerDebts' && <CustomerDebtsSection 
-                admin={admin} 
-                t={t} 
-                debtSearch={admin.debtSearch}
-                setDebtSearch={admin.setDebtSearch}
-                showPaidDebts={admin.showPaidDebts}
-                setShowPaidDebts={admin.setShowPaidDebts}
-                showConfirm={showConfirm}
-                setConfirm={setConfirm}
-                triggerCloudBackup={triggerCloudBackupAsync} 
-              />}
-              {section === 'companyDebts' && <CompanyDebtsSection admin={admin} t={t} openEnhancedCompanyDebtModal={openEnhancedCompanyDebtModal} openAddPurchaseModal={openAddPurchaseModal} />}
-              {section === 'incentives' && <IncentivesSection admin={admin} t={t} />}
               {section === 'personalLoans' && <PersonalLoansSection admin={admin} t={t} />}
-              {section === 'monthlyReports' && <AdvancedAnalyticsAndReports admin={admin} t={t} />}
-              {section === 'advancedAnalytics' && <AdvancedAnalytics admin={admin} t={t} />}
+              {section === 'monthlyReports' && <MonthlyReport admin={admin} t={t} />}
               {section === 'backupSettings' && <BackupSettingsSection admin={admin} t={t} setShowBackupManager={setShowBackupManager} />}
             </div>
           </main>

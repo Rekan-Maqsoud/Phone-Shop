@@ -75,6 +75,22 @@ function getBalances(db) {
     iqd_balance: iqdBalance ? parseFloat(iqdBalance) : 0
   };
 }
+
+function getTotalProfit(db) {
+  const usdProfit = getSetting(db, 'totalProfitUSD');
+  const iqdProfit = getSetting(db, 'totalProfitIQD');
+  return {
+    usd_profit: usdProfit ? parseFloat(usdProfit) : 0,
+    iqd_profit: iqdProfit ? parseFloat(iqdProfit) : 0
+  };
+}
+
+function updateTotalProfit(db, currency, amount) {
+  const profitKey = currency === 'USD' ? 'totalProfitUSD' : 'totalProfitIQD';
+  const currentProfit = getSetting(db, profitKey) || '0';
+  const newProfit = parseFloat(currentProfit) + amount;
+  setSetting(db, profitKey, newProfit.toString());
+}
 function updateStoreSettings(db, settings) {
   const updates = [];
   if (settings.storeName !== undefined) {
@@ -190,6 +206,8 @@ module.exports = {
   setDefaultCurrency,
   getStoreSettings,
   getBalances,
+  getTotalProfit,
+  updateTotalProfit,
   updateStoreSettings,
   createBackup,
   restoreBackup,

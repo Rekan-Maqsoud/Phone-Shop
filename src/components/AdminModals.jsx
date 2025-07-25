@@ -228,14 +228,8 @@ export default function AdminModals({
                   const paymentCurrency = purchaseData.currency || 'IQD';
                   const hasPaymentCurrencyMismatch = currencies.some(itemCurrency => itemCurrency !== paymentCurrency);
                   
-                  // Log mixed currency detection for debugging
+                  // Check for mixed currency detection
                   if (hasMixedCurrencies || hasPaymentCurrencyMismatch) {
-                    console.log('[AdminModals] Currency mismatch/mixed currencies detected:', {
-                      itemCurrencies: currencies,
-                      paymentCurrency,
-                      hasMixedCurrencies,
-                      hasPaymentCurrencyMismatch
-                    });
                     detectedMixedCurrency = true;
                   }
                   

@@ -8,10 +8,11 @@ import {
 } from '../utils/exchangeRates';
 import OfflineIndicator from './OfflineIndicator';
 import UnderCostWarning from './UnderCostWarning';
+import { KeyboardShortcutHint } from './KeyboardShortcutsModal';
 import { Icon } from '../utils/icons.jsx';
 import useOnlineStatus from './hooks/useOnlineStatus';
 import { useSound } from '../contexts/SoundContext';
-import { playActionSound, playSystemSound } from '../utils/sounds';
+import { playActionSound } from '../utils/sounds';
 
 // Helper function for precise currency formatting
 const formatCurrencyPrecise = (amount, currency) => {
@@ -512,18 +513,36 @@ export default function CashierContent({
         {/* Header with Clock and Admin Button */}
         <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg p-4 flex-shrink-0">
           <div className="flex justify-between items-center">
-            <div className="text-2xl font-bold text-slate-800 dark:text-white">
-              {clock.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            <div className="flex flex-col">
+              <div className="text-2xl font-bold text-slate-800 dark:text-white">
+                {clock.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </div>
+              <div className="text-sm text-slate-600 dark:text-slate-300">
+                {clock.toLocaleDateString()}
+              </div>
             </div>
-            <button
-              onClick={() => window.location.hash = '#/admin'}
-              className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
-            >
-              {t.admin || 'Admin'}
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => window.location.hash = '#/admin'}
+                className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors flex items-center gap-2"
+                title="Go to Admin (Ctrl+Shift+C)"
+              >
+                <Icon name="settings" size={16} />
+                {t.admin || 'Admin'}
+              </button>
+            </div>
           </div>
-          <div className="text-sm text-slate-600 dark:text-slate-300 mt-1">
-            {clock.toLocaleDateString()}
+          
+          {/* Keyboard shortcuts hint */}
+          <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-600">
+            <KeyboardShortcutHint 
+              shortcuts={[
+                { key: 'F2', description: t?.completeSale || 'Complete Sale' },
+                { key: 'F1', description: t?.showAllShortcuts || 'All Shortcuts' },
+                { key: 'F4', description: t?.toggleDebt || 'Toggle Debt' }
+              ]}
+              className="justify-center"
+            />
           </div>
         </div>
 

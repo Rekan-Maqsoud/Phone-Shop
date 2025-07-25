@@ -51,6 +51,7 @@ contextBridge.exposeInMainWorld('api', {
   updateIncentive: (id, incentive) => ipcRenderer.invoke('updateIncentive', id, incentive),
   getIncentivesByCompany: (companyName) => ipcRenderer.invoke('getIncentivesByCompany', companyName),
   getIncentiveTotals: () => ipcRenderer.invoke('getIncentiveTotals'),
+  getTotalProfitWithIncentives: () => ipcRenderer.invoke('getTotalProfitWithIncentives'),
   
   // Buying history functionality
   getBuyingHistory: () => ipcRenderer.invoke('getBuyingHistory'),

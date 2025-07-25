@@ -115,16 +115,12 @@ const IncentivesSection = ({ t, admin, triggerCloudBackup }) => {
         currency: formData.currency
       };
 
-      console.log('Submitting incentive data:', incentiveData);
-
       let result;
       if (editingIncentive) {
         result = await window.api.updateIncentive(editingIncentive.id, incentiveData);
       } else {
         result = await window.api.addIncentive(incentiveData);
       }
-
-      console.log('API result:', result);
 
       if (result && result.success) {
         playSuccessSound();

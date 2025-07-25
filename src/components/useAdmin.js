@@ -603,6 +603,27 @@ export default function useAdmin(showConfirm = null) {
     return sum + a.buying_price * a.stock;
   }, 0);
 
+  // Enhanced profit calculation including incentives
+  const [totalProfitWithIncentives, setTotalProfitWithIncentives] = useState({ USD: 0, IQD: 0 });
+  
+  const loadTotalProfitWithIncentives = useCallback(async () => {
+    try {
+      if (window.api?.getTotalProfitWithIncentives) {
+        const profitData = await window.api.getTotalProfitWithIncentives();
+        if (profitData) {
+          setTotalProfitWithIncentives(profitData);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading total profit with incentives:', error);
+    }
+  }, []);
+
+  // Load total profit including incentives on component mount and when data refreshes
+  useEffect(() => {
+    loadTotalProfitWithIncentives();
+  }, [loadTotalProfitWithIncentives, sales, debts]);
+
   // Initialize settings on mount
   useEffect(() => {
     // No longer need to initialize auto backup as it's handled by CloudBackupService
@@ -668,6 +689,7 @@ export default function useAdmin(showConfirm = null) {
     loading: dataLoading,
     balanceUSD, balanceIQD, loadBalances,
     monthlySales, totalRevenue, inventoryValue,
+    totalProfitWithIncentives, loadTotalProfitWithIncentives,
     notificationsEnabled, setNotificationsEnabled,
     lowStockThreshold, setLowStockThreshold,
     adminModal, setAdminModal, openAdminModal, adminPassword, setAdminPassword, adminError, handleAdminAccess,
