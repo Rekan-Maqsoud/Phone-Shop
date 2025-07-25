@@ -578,8 +578,8 @@ module.exports = function(dbPath) {
       return sum + sellingPrice * i.quantity;
     }, 0);
     
-    // Use the total passed from frontend (already includes discount calculation)
-    const saleTotal = Math.round(total);
+    // Use the total passed from frontend (already includes discount calculation) - no rounding to preserve decimal precision
+    const saleTotal = typeof total === 'number' ? total : originalTotal;
     
     // Calculate discount ratio to apply to individual items for proper display
     // This ensures individual item prices reflect the discount correctly

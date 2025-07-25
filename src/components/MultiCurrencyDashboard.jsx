@@ -1067,7 +1067,7 @@ const TopSellingProductsChart = React.memo(({ sales, t }) => {
 
 // Monthly Profit Chart Component - Fixed USD calculation
 const MonthlyProfitChart = React.memo(({ sales, t }) => {
-  const { debts } = useData(); // Get debts data for filtering paid debt sales
+  const { debts, incentives } = useData(); // Get debts and incentives data
 
   const chartData = useMemo(() => {
     const last6Months = Array.from({ length: 6 }, (_, i) => {
@@ -1080,7 +1080,8 @@ const MonthlyProfitChart = React.memo(({ sales, t }) => {
     }).reverse();
 
     const monthlyProfits = last6Months.map(({ month }) => {
-      return (sales || [])
+      // Calculate profit from sales
+      const salesProfit = (sales || [])
         .filter(sale => {
           // Filter by month
           if (sale.created_at?.substring(0, 7) !== month) return false;
@@ -1128,6 +1129,22 @@ const MonthlyProfitChart = React.memo(({ sales, t }) => {
           
           return totalProfit + profitInSaleCurrency;
         }, 0);
+
+      // Calculate incentives for this month
+      const incentivesProfit = (incentives || [])
+        .filter(incentive => {
+          return incentive.created_at?.substring(0, 7) === month;
+        })
+        .reduce((totalIncentives, incentive) => {
+          const amount = Number(incentive.amount) || 0;
+          // Convert to USD for chart consistency
+          if (incentive.currency === 'IQD') {
+            return totalIncentives + (amount * EXCHANGE_RATES.IQD_TO_USD);
+          }
+          return totalIncentives + amount;
+        }, 0);
+
+      return salesProfit + incentivesProfit;
     });
 
     return {
@@ -1142,7 +1159,7 @@ const MonthlyProfitChart = React.memo(({ sales, t }) => {
         tension: 0.4,
       }]
     };
-  }, [sales, t]);
+  }, [sales, debts, incentives, t]);
 
   const options = useMemo(() => ({
     ...getCommonChartOptions(),

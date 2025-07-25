@@ -5,7 +5,7 @@ import { EXCHANGE_RATES, formatCurrencyWithTranslation } from '../utils/exchange
 import { Icon } from '../utils/icons.jsx';
 
 const MonthlyReport = ({ admin, t }) => {
-  const { sales, products, accessories, debts, buyingHistory, companyDebts } = useData();
+  const { sales, products, accessories, debts, buyingHistory, companyDebts, incentives } = useData();
   const { theme } = useTheme();
   const [selectedMonth, setSelectedMonth] = useState('');
 
@@ -288,6 +288,23 @@ const MonthlyReport = ({ admin, t }) => {
           companyOutstanding.USD += debt.amount || 0;
         } else {
           companyOutstanding.IQD += debt.amount || 0;
+        }
+      });
+    }
+
+    // Add incentives to profit
+    if (incentives && Array.isArray(incentives)) {
+      const monthIncentives = incentives.filter(incentive => {
+        const incentiveDate = new Date(incentive.created_at);
+        const incentiveMonthKey = `${incentiveDate.getFullYear()}-${String(incentiveDate.getMonth() + 1).padStart(2, '0')}`;
+        return incentiveMonthKey === selectedMonth;
+      });
+
+      monthIncentives.forEach(incentive => {
+        if (incentive.currency === 'USD') {
+          totalProfit.USD += incentive.amount || 0;
+        } else if (incentive.currency === 'IQD') {
+          totalProfit.IQD += incentive.amount || 0;
         }
       });
     }
