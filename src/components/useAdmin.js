@@ -21,6 +21,7 @@ export default function useAdmin(showConfirm = null) {
     companyDebts = [], setCompanyDebts = () => {},
     buyingHistory = [], setBuyingHistory = () => {},
     monthlyReports = [], setMonthlyReports = () => {},
+    incentives = [], setIncentives = () => {},
     loading: dataLoading = false,
     refreshProducts = () => {},
     refreshAccessories = () => {},
@@ -28,7 +29,8 @@ export default function useAdmin(showConfirm = null) {
     refreshDebts = () => {},
     refreshCompanyDebts = () => {},
     refreshBuyingHistory = () => {},
-    refreshMonthlyReports = () => {}
+    refreshMonthlyReports = () => {},
+    refreshIncentives = () => {}
   } = dataContext || {};
   
   // UI state
@@ -475,6 +477,7 @@ export default function useAdmin(showConfirm = null) {
           setCompanyDebts([]);
           setBuyingHistory([]);
           setMonthlyReports([]);
+          setIncentives([]); // Clear incentives as well
           
           // Wait a moment for state to clear, then refetch all data
           await new Promise(resolve => setTimeout(resolve, 100));
@@ -488,7 +491,8 @@ export default function useAdmin(showConfirm = null) {
             // debtSales handled by DataContext
             refreshCompanyDebts(),
             refreshBuyingHistory(),
-            refreshMonthlyReports()
+            refreshMonthlyReports(),
+            refreshIncentives() // Add incentives refresh
           ]);
         }
       }

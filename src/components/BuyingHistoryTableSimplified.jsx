@@ -443,7 +443,8 @@ const BuyingHistoryTableSimplified = React.memo(function BuyingHistoryTableSimpl
                             className="px-3 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-sm"
                             title={t?.returnPurchase || 'Return purchase'}
                           >
-                            <Icon name="undo" size={14} />
+                            <Icon name="undo" size={14} className="inline mr-1" />
+                            {t?.returnEntry || 'Return'}
                           </button>
                         </div>
                       </td>

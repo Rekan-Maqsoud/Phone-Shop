@@ -100,7 +100,7 @@ const IncentivesSection = ({ t, admin, triggerCloudBackup }) => {
     e.preventDefault();
     
     if (!formData.company_name.trim() || !formData.amount || parseFloat(formData.amount) <= 0) {
-      admin.setToast(t.fillRequiredFields || 'Please fill all required fields', 'error');
+      admin.setToast(t?.fillRequiredFields || 'Please fill all required fields', 'error');
       playErrorSound();
       return;
     }
@@ -124,27 +124,27 @@ const IncentivesSection = ({ t, admin, triggerCloudBackup }) => {
 
       if (result && result.success) {
         playSuccessSound();
-        admin.setToast(editingIncentive ? (t.incentiveUpdated || 'Incentive updated successfully') : (t.incentiveAdded || 'Incentive added successfully'), 'success');
+        admin.setToast(editingIncentive ? (t?.incentiveUpdated || 'Incentive updated successfully') : (t?.incentiveAdded || 'Incentive added successfully'), 'success');
         await refreshIncentives();
         await triggerCloudBackup();
         handleCloseModal();
       } else {
         playErrorSound();
-        const errorMessage = result?.message || (t.operationFailed || 'Operation failed');
+        const errorMessage = result?.message || (t?.operationFailed || 'Operation failed');
         admin.setToast(errorMessage, 'error');
         console.error('API Error:', result);
       }
     } catch (error) {
       console.error('Error saving incentive:', error);
       playErrorSound();
-      admin.setToast(error.message || (t.operationFailed || 'Operation failed'), 'error');
+      admin.setToast(error.message || (t?.operationFailed || 'Operation failed'), 'error');
     } finally {
       setLoading(false);
     }
   };
 
   const handleRemove = async (incentive) => {
-    const message = t.confirmDelete || `Are you sure you want to remove this incentive for ${incentive.company_name}?`;
+    const message = t?.confirmDelete || `Are you sure you want to remove this incentive for ${incentive.company_name}?`;
     
     // Use admin.showConfirm if available, otherwise fall back to window.confirm
     if (typeof admin?.showConfirm === 'function') {
@@ -167,17 +167,17 @@ const IncentivesSection = ({ t, admin, triggerCloudBackup }) => {
       
       if (result.success) {
         playSuccessSound();
-        admin.setToast(t.incentiveRemoved || 'Incentive removed successfully', 'success');
+        admin.setToast(t?.incentiveRemoved || 'Incentive removed successfully', 'success');
         await refreshIncentives();
         await triggerCloudBackup();
       } else {
         playErrorSound();
-        admin.setToast(result.message || (t.operationFailed || 'Operation failed'), 'error');
+        admin.setToast(result.message || (t?.operationFailed || 'Operation failed'), 'error');
       }
     } catch (error) {
       console.error('Error removing incentive:', error);
       playErrorSound();
-      admin.setToast(t.operationFailed || 'Operation failed', 'error');
+      admin.setToast(t?.operationFailed || 'Operation failed', 'error');
     } finally {
       setLoading(false);
     }
@@ -193,7 +193,7 @@ const IncentivesSection = ({ t, admin, triggerCloudBackup }) => {
           </div>
           <div>
             <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
-              {t.incentives || 'Incentives'}
+              {t?.incentives || 'Incentives'}
             </h1>
           </div>
         </div>
@@ -204,7 +204,7 @@ const IncentivesSection = ({ t, admin, triggerCloudBackup }) => {
             className="flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 transition font-semibold shadow-lg"
           >
             <Icon name="add" size={20} />
-            {t.addIncentive || 'Add Incentive'}
+            {t?.addIncentive || 'Add Incentive'}
           </button>
         </div>
       </div>
@@ -214,7 +214,7 @@ const IncentivesSection = ({ t, admin, triggerCloudBackup }) => {
         <div className="relative mb-6">
           <input
             type="text"
-            placeholder={t.searchIncentives || 'Search incentives by company or description...'}
+            placeholder={t?.searchIncentives || 'Search incentives by company or description...'}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full px-4 py-2 pl-10 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-800 dark:text-gray-100"
@@ -229,7 +229,7 @@ const IncentivesSection = ({ t, admin, triggerCloudBackup }) => {
         <div className="bg-gray-50 dark:bg-gray-700 rounded-xl p-6 mb-6">
           <div className="flex flex-wrap gap-4">
             <span className="text-lg font-bold text-green-600 dark:text-green-400">
-              {t.totalIncentives || 'Total Incentives'}:
+              {t?.totalIncentives || 'Total Incentives'}:
             </span>
             {totals.USD > 0 && (
               <span className="text-lg font-bold text-gray-800 dark:text-gray-100">
@@ -248,7 +248,7 @@ const IncentivesSection = ({ t, admin, triggerCloudBackup }) => {
       {/* Incentives List */}
       {filteredIncentives.length === 0 ? (
         <div className="text-center text-gray-400 py-6">
-          {searchTerm ? (t.noMatchingIncentives || 'No matching incentives found') : (t.noIncentives || 'No incentives added yet')}
+          {searchTerm ? (t?.noMatchingIncentives || 'No matching incentives found') : (t?.noIncentives || 'No incentives added yet')}
         </div>
       ) : (
         <div className="space-y-6">
@@ -403,14 +403,14 @@ const IncentivesSection = ({ t, admin, triggerCloudBackup }) => {
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  {t.description || 'Description'}
+                  {t?.description || 'Description'}
                 </label>
                 <textarea
                   value={formData.description}
                   onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100"
                   rows="3"
-                  placeholder={t.incentiveDescriptionPlaceholder || 'Enter description for this incentive...'}
+                  placeholder={t?.incentiveDescriptionPlaceholder || 'Enter description for this incentive...'}
                 />
               </div>
               

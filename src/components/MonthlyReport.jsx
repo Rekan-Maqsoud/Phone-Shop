@@ -5,7 +5,7 @@ import { EXCHANGE_RATES, formatCurrencyWithTranslation } from '../utils/exchange
 import { Icon } from '../utils/icons.jsx';
 
 const MonthlyReport = ({ admin, t }) => {
-  const { sales, products, accessories, debts, buyingHistory } = useData();
+  const { sales, products, accessories, debts, buyingHistory, companyDebts } = useData();
   const { theme } = useTheme();
   const [selectedMonth, setSelectedMonth] = useState('');
 
@@ -61,7 +61,8 @@ const MonthlyReport = ({ admin, t }) => {
         totalAccessoriesSold: 0,
         totalProductProfit: { USD: 0, IQD: 0 },
         totalAccessoryProfit: { USD: 0, IQD: 0 },
-        outstanding: { USD: 0, IQD: 0 }
+        outstanding: { USD: 0, IQD: 0 },
+        companyOutstanding: { USD: 0, IQD: 0 }
       };
     }
 
@@ -105,13 +106,14 @@ const MonthlyReport = ({ admin, t }) => {
         }
       }
 
-      // Calculate profit and quantities regardless of payment status
+      // Calculate profit based on actual payment (like in sales history for consistency)
+      let saleBuyingCostUSD = 0;
+      let saleBuyingCostIQD = 0;
+      
       if (sale.items && Array.isArray(sale.items)) {
         sale.items.forEach(item => {
           const quantity = item.quantity || 1;
-          const sellingPrice = item.selling_price || 0;  
           const buyingPrice = item.buying_price || 0;
-          const itemProfit = (sellingPrice - buyingPrice) * quantity;
           
           // Determine if it's a product or accessory
           const isProduct = products && products.find(p => p.id === item.product_id);
@@ -119,43 +121,139 @@ const MonthlyReport = ({ admin, t }) => {
           
           if (isProduct) {
             totalProductsSold += quantity;
-            const itemCurrency = item.product_currency || isProduct.currency || 'USD';
-            if (itemCurrency === 'USD') {
-              totalProductProfit.USD += itemProfit;
-            } else {
-              totalProductProfit.IQD += itemProfit;
-            }
           }
           
           if (isAccessory) {
             totalAccessoriesSold += quantity;
-            const itemCurrency = item.accessory_currency || isAccessory.currency || 'USD';
-            if (itemCurrency === 'USD') {
-              totalAccessoryProfit.USD += itemProfit;
-            } else {
-              totalAccessoryProfit.IQD += itemProfit;
-            }
           }
 
-          // Add to total profit
-          const itemCurrency = item.product_currency || item.accessory_currency || sale.currency || 'USD';
+          // Calculate buying costs by currency for accurate profit calculation
+          const itemCurrency = item.product_currency || item.accessory_currency || 'IQD';
           if (itemCurrency === 'USD') {
-            totalProfit.USD += itemProfit;
+            saleBuyingCostUSD += buyingPrice * quantity;
           } else {
-            totalProfit.IQD += itemProfit;
+            saleBuyingCostIQD += buyingPrice * quantity;
           }
         });
+        
+        // Calculate profit based on actual payment amount minus buying costs
+        if (sale.multi_currency_payment) {
+          // Multi-currency: profit = payment - buying costs in respective currencies
+          const usdRevenue = sale.multi_currency_payment.usd_amount || 0;
+          const iqdRevenue = sale.multi_currency_payment.iqd_amount || 0;
+          
+          totalProfit.USD += usdRevenue - saleBuyingCostUSD;
+          totalProfit.IQD += iqdRevenue - saleBuyingCostIQD;
+          
+          // Also split product/accessory profits proportionally
+          const totalRevenueInIQD = (usdRevenue * (sale.exchange_rate_usd_to_iqd || 1440)) + iqdRevenue;
+          const totalBuyingInIQD = (saleBuyingCostUSD * (sale.exchange_rate_usd_to_iqd || 1440)) + saleBuyingCostIQD;
+          const totalSaleProfit = totalRevenueInIQD - totalBuyingInIQD;
+          
+          // Proportionally split profit between products and accessories based on buying costs
+          const totalBuyingCost = saleBuyingCostUSD + saleBuyingCostIQD;
+          if (totalBuyingCost > 0) {
+            sale.items.forEach(item => {
+              const quantity = item.quantity || 1;
+              const buyingPrice = item.buying_price || 0;
+              const itemCurrency = item.product_currency || item.accessory_currency || 'IQD';
+              const itemBuyingCost = buyingPrice * quantity;
+              const itemProfitShare = (itemBuyingCost / totalBuyingCost) * totalSaleProfit;
+              
+              const isProduct = products && products.find(p => p.id === item.product_id);
+              const isAccessory = accessories && accessories.find(a => a.id === item.accessory_id);
+              
+              if (isProduct) {
+                if (itemCurrency === 'USD') {
+                  totalProductProfit.USD += itemProfitShare * (sale.exchange_rate_iqd_to_usd || 0.000694);
+                } else {
+                  totalProductProfit.IQD += itemProfitShare;
+                }
+              }
+              
+              if (isAccessory) {
+                if (itemCurrency === 'USD') {
+                  totalAccessoryProfit.USD += itemProfitShare * (sale.exchange_rate_iqd_to_usd || 0.000694);
+                } else {
+                  totalAccessoryProfit.IQD += itemProfitShare;
+                }
+              }
+            });
+          }
+        } else {
+          // Single currency: convert buying costs to sale currency and subtract
+          const saleTotal = sale.total || 0;
+          if (sale.currency === 'USD') {
+            const totalBuyingInUSD = saleBuyingCostUSD + (saleBuyingCostIQD * (sale.exchange_rate_iqd_to_usd || 0.000694));
+            const saleProfit = saleTotal - totalBuyingInUSD;
+            totalProfit.USD += saleProfit;
+            
+            // Split product/accessory profits proportionally
+            const totalBuyingCost = saleBuyingCostUSD + saleBuyingCostIQD;
+            if (totalBuyingCost > 0) {
+              sale.items.forEach(item => {
+                const quantity = item.quantity || 1;
+                const buyingPrice = item.buying_price || 0;
+                const itemBuyingCost = buyingPrice * quantity;
+                const itemProfitShare = (itemBuyingCost / totalBuyingCost) * saleProfit;
+                
+                const isProduct = products && products.find(p => p.id === item.product_id);
+                const isAccessory = accessories && accessories.find(a => a.id === item.accessory_id);
+                
+                if (isProduct) {
+                  totalProductProfit.USD += itemProfitShare;
+                }
+                
+                if (isAccessory) {
+                  totalAccessoryProfit.USD += itemProfitShare;
+                }
+              });
+            }
+          } else {
+            const totalBuyingInIQD = saleBuyingCostIQD + (saleBuyingCostUSD * (sale.exchange_rate_usd_to_iqd || 1440));
+            const saleProfit = saleTotal - totalBuyingInIQD;
+            totalProfit.IQD += saleProfit;
+            
+            // Split product/accessory profits proportionally
+            const totalBuyingCost = saleBuyingCostUSD + saleBuyingCostIQD;
+            if (totalBuyingCost > 0) {
+              sale.items.forEach(item => {
+                const quantity = item.quantity || 1;
+                const buyingPrice = item.buying_price || 0;
+                const itemBuyingCost = buyingPrice * quantity;
+                const itemProfitShare = (itemBuyingCost / totalBuyingCost) * saleProfit;
+                
+                const isProduct = products && products.find(p => p.id === item.product_id);
+                const isAccessory = accessories && accessories.find(a => a.id === item.accessory_id);
+                
+                if (isProduct) {
+                  totalProductProfit.IQD += itemProfitShare;
+                }
+                
+                if (isAccessory) {
+                  totalAccessoryProfit.IQD += itemProfitShare;
+                }
+              });
+            }
+          }
+        }
       }
     });
 
     // Calculate total spending
     const totalSpending = { USD: 0, IQD: 0 };
     monthPurchases.forEach(purchase => {
-      const amount = purchase.total_price || purchase.amount || 0;
-      if (purchase.currency === 'USD') {
-        totalSpending.USD += amount;
+      if (purchase.currency === 'MULTI') {
+        // Handle multi-currency purchases
+        totalSpending.USD += purchase.usd_amount || 0;
+        totalSpending.IQD += purchase.iqd_amount || 0;
       } else {
-        totalSpending.IQD += amount;
+        const amount = purchase.total_price || purchase.amount || 0;
+        if (purchase.currency === 'USD') {
+          totalSpending.USD += amount;
+        } else {
+          totalSpending.IQD += amount;
+        }
       }
     });
 
@@ -173,6 +271,27 @@ const MonthlyReport = ({ admin, t }) => {
       }
     });
 
+    // Calculate company debts for the month (company debts created in this month that are still unpaid)
+    const companyOutstanding = { USD: 0, IQD: 0 };
+    if (companyDebts && Array.isArray(companyDebts)) {
+      const monthCompanyDebts = companyDebts.filter(debt => {
+        const debtDate = new Date(debt.created_at);
+        const debtMonthKey = `${debtDate.getFullYear()}-${String(debtDate.getMonth() + 1).padStart(2, '0')}`;
+        return debtMonthKey === selectedMonth && !debt.paid_at;
+      });
+
+      monthCompanyDebts.forEach(debt => {
+        if (debt.currency === 'MULTI') {
+          companyOutstanding.USD += debt.usd_amount || 0;
+          companyOutstanding.IQD += debt.iqd_amount || 0;
+        } else if (debt.currency === 'USD') {
+          companyOutstanding.USD += debt.amount || 0;
+        } else {
+          companyOutstanding.IQD += debt.amount || 0;
+        }
+      });
+    }
+
     return {
       totalSales,
       totalSpending,
@@ -181,9 +300,10 @@ const MonthlyReport = ({ admin, t }) => {
       totalAccessoriesSold,
       totalProductProfit,
       totalAccessoryProfit,
-      outstanding
+      outstanding,
+      companyOutstanding
     };
-  }, [selectedMonth, sales, buyingHistory, debts, products, accessories]);
+  }, [selectedMonth, sales, buyingHistory, debts, products, accessories, companyDebts]);
 
   const formatCurrency = (amount, currency = 'USD') => {
     return formatCurrencyWithTranslation(amount, currency, t);
@@ -371,7 +491,7 @@ const MonthlyReport = ({ admin, t }) => {
             </div>
           </div>
 
-          {/* Outstanding of the Month */}
+          {/* Outstanding of the Month (Customer Debts) */}
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-200 dark:border-gray-700">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
@@ -379,7 +499,7 @@ const MonthlyReport = ({ admin, t }) => {
                   <Icon name="alertCircle" size={20} className="text-yellow-600 dark:text-yellow-400" />
                 </div>
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  {t.outstandingOfMonth || 'Outstanding of the Month'}
+                  {t?.customerOutstandingOfMonth || 'Customer Outstanding'}
                 </h3>
               </div>
             </div>
@@ -389,6 +509,28 @@ const MonthlyReport = ({ admin, t }) => {
               </div>
               <div className="text-xl font-bold text-yellow-600">
                 {formatCurrency(monthlyMetrics.outstanding.IQD, 'IQD')}
+              </div>
+            </div>
+          </div>
+
+          {/* Company Outstanding of the Month */}
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-orange-100 dark:bg-orange-900/20 rounded-lg">
+                  <Icon name="building" size={20} className="text-orange-600 dark:text-orange-400" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  {t?.companyOutstandingOfMonth || 'Company Outstanding'}
+                </h3>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <div className="text-2xl font-bold text-orange-600">
+                {formatCurrency(monthlyMetrics.companyOutstanding.USD, 'USD')}
+              </div>
+              <div className="text-xl font-bold text-orange-600">
+                {formatCurrency(monthlyMetrics.companyOutstanding.IQD, 'IQD')}
               </div>
             </div>
           </div>

@@ -15,14 +15,46 @@ const CompanyDebtsSection = ({
   const { companyDebts, refreshCompanyDebts, refreshBuyingHistory } = useData();
   const { isRTL } = useLocale();
 
-  // Helper function to format debt amount (simplified - all debts are in USD)
+  // Helper function to format debt amount with proper currency handling
   const formatDebtAmount = (debt) => {
-    return formatCurrency(debt.amount, 'USD');
+    if (debt.currency === 'MULTI') {
+      // Multi-currency debt
+      const usdPart = debt.usd_amount || 0;
+      const iqdPart = debt.iqd_amount || 0;
+      
+      if (usdPart > 0 && iqdPart > 0) {
+        return `${formatCurrency(usdPart, 'USD')} + ${formatCurrency(iqdPart, 'IQD')}`;
+      } else if (usdPart > 0) {
+        return formatCurrency(usdPart, 'USD');
+      } else if (iqdPart > 0) {
+        return formatCurrency(iqdPart, 'IQD');
+      } else {
+        return formatCurrency(0, 'USD');
+      }
+    } else {
+      // Single currency debt
+      const currency = debt.currency || 'IQD'; // Default to IQD if not specified
+      return formatCurrency(debt.amount || 0, currency);
+    }
   };
 
-  // Helper function to calculate total debt amount (simplified - all debts are in USD)
+  // Helper function to calculate total debt amount for display
   const getDebtTotalValue = (debt) => {
-    return debt.amount;
+    if (debt.currency === 'MULTI') {
+      // For multi-currency, return both amounts as an object
+      return {
+        usd: debt.usd_amount || 0,
+        iqd: debt.iqd_amount || 0,
+        isMulti: true
+      };
+    } else {
+      // Single currency debt
+      return {
+        amount: debt.amount || 0,
+        currency: debt.currency || 'IQD',
+        isMulti: false
+      };
+    }
   };
 
   return (
@@ -89,10 +121,10 @@ const CompanyDebtsSection = ({
           return <div className="text-center text-gray-400 py-6">{t.noCompanyDebts || 'No company debts'}</div>;
         }
 
-        // Group debts by company name (normalize case, ignore currency since all are USD now)
+        // Group debts by company name (normalize case)
         const groupedDebts = filteredDebts.reduce((groups, debt) => {
           const companyName = debt.company_name.charAt(0).toUpperCase() + debt.company_name.slice(1).toLowerCase();
-          const key = companyName; // No need for currency grouping since all are USD
+          const key = companyName;
           if (!groups[key]) {
             groups[key] = { companyName, debts: [] };
           }
@@ -102,8 +134,21 @@ const CompanyDebtsSection = ({
 
         // Sort companies by unpaid debt amount (highest first), then alphabetically (case-insensitive)
         const sortedCompanies = Object.values(groupedDebts).sort((a, b) => {
-          const aUnpaidTotal = a.debts.filter(d => !d.paid_at).reduce((sum, d) => sum + d.amount, 0);
-          const bUnpaidTotal = b.debts.filter(d => !d.paid_at).reduce((sum, d) => sum + d.amount, 0);
+          // Calculate unpaid amounts for comparison (convert to USD for comparison)
+          const calculateUnpaidUSDValue = (debts) => {
+            return debts.filter(d => !d.paid_at).reduce((sum, d) => {
+              if (d.currency === 'MULTI') {
+                return sum + (d.usd_amount || 0) + ((d.iqd_amount || 0) * EXCHANGE_RATES.IQD_TO_USD);
+              } else if (d.currency === 'USD') {
+                return sum + (d.amount || 0);
+              } else {
+                return sum + ((d.amount || 0) * EXCHANGE_RATES.IQD_TO_USD);
+              }
+            }, 0);
+          };
+          
+          const aUnpaidTotal = calculateUnpaidUSDValue(a.debts);
+          const bUnpaidTotal = calculateUnpaidUSDValue(b.debts);
           
           // If both have unpaid debts or both don't, sort alphabetically (case-insensitive)
           if ((aUnpaidTotal > 0 && bUnpaidTotal > 0) || (aUnpaidTotal === 0 && bUnpaidTotal === 0)) {
@@ -114,8 +159,18 @@ const CompanyDebtsSection = ({
           return bUnpaidTotal - aUnpaidTotal;
         });
 
-        // Calculate total unpaid debt (all are in USD now)
-        const totalCompanyDebtUSD = filteredDebts.filter(d => !d.paid_at).reduce((sum, d) => sum + d.amount, 0);
+        // Calculate total unpaid debt by currency
+        const totals = filteredDebts.filter(d => !d.paid_at).reduce((acc, d) => {
+          if (d.currency === 'MULTI') {
+            acc.usd += (d.usd_amount || 0);
+            acc.iqd += (d.iqd_amount || 0);
+          } else if (d.currency === 'USD') {
+            acc.usd += (d.amount || 0);
+          } else {
+            acc.iqd += (d.amount || 0);
+          }
+          return acc;
+        }, { usd: 0, iqd: 0 });
 
         if (filteredDebts.length === 0) {
           return <div className="text-center text-gray-400 py-6">{t.noMatchingDebts || 'No matching company debts found'}</div>;
@@ -125,10 +180,22 @@ const CompanyDebtsSection = ({
           <>
             <div className="bg-gray-50 dark:bg-gray-700 rounded-xl p-4 mb-6">
               <div className="flex flex-wrap gap-4">
-                {totalCompanyDebtUSD > 0 ? (
-                  <span className="text-lg font-bold text-red-600 dark:text-red-400">
-                    {t.totalCompanyDebtUSD || 'Total Company Debt'}: {formatCurrency(totalCompanyDebtUSD, 'USD')}
-                  </span>
+                {(totals.usd > 0 || totals.iqd > 0) ? (
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+                    <span className="text-lg font-bold text-red-600 dark:text-red-400">
+                      {t.totalCompanyDebt || 'Total Company Debt'}:
+                    </span>
+                    {totals.usd > 0 && (
+                      <span className="text-lg font-bold text-red-600 dark:text-red-400">
+                        {formatCurrency(totals.usd, 'USD')}
+                      </span>
+                    )}
+                    {totals.iqd > 0 && (
+                      <span className="text-lg font-bold text-red-600 dark:text-red-400">
+                        {formatCurrency(totals.iqd, 'IQD')}
+                      </span>
+                    )}
+                  </div>
                 ) : (
                   <span className="text-lg font-bold text-green-600 dark:text-green-400">
                     {t.noOutstandingDebts || 'No outstanding company debts'}
@@ -152,7 +219,17 @@ const CompanyDebtsSection = ({
                 
                 // Calculate total unpaid debt for this company
                 const unpaidDebts = sortedCompanyDebts.filter(d => !d.paid_at);
-                const totalUnpaidForCompany = unpaidDebts.reduce((sum, d) => sum + getDebtTotalValue(d), 0);
+                const totalUnpaidForCompany = unpaidDebts.reduce((acc, d) => {
+                  if (d.currency === 'MULTI') {
+                    acc.usd += (d.usd_amount || 0);
+                    acc.iqd += (d.iqd_amount || 0);
+                  } else if (d.currency === 'USD') {
+                    acc.usd += (d.amount || 0);
+                  } else {
+                    acc.iqd += (d.amount || 0);
+                  }
+                  return acc;
+                }, { usd: 0, iqd: 0 });
                 
                 return (
                   <div key={companyName} className="bg-gray-50 dark:bg-gray-700 rounded-xl shadow-lg overflow-hidden mb-6">
@@ -170,8 +247,16 @@ const CompanyDebtsSection = ({
                           </div>
                         </div>
                         <div className={getTextAlign(isRTL, 'right')}>
-                          <div className="text-2xl font-bold text-gray-800 dark:text-gray-100">
-                            {formatCurrency(totalUnpaidForCompany, 'USD')}
+                          <div className="text-lg font-bold text-gray-800 dark:text-gray-100 flex flex-col gap-1">
+                            {totalUnpaidForCompany.usd > 0 && (
+                              <div>{formatCurrency(totalUnpaidForCompany.usd, 'USD')}</div>
+                            )}
+                            {totalUnpaidForCompany.iqd > 0 && (
+                              <div>{formatCurrency(totalUnpaidForCompany.iqd, 'IQD')}</div>
+                            )}
+                            {totalUnpaidForCompany.usd === 0 && totalUnpaidForCompany.iqd === 0 && (
+                              <div className="text-green-600 dark:text-green-400">{t.allPaid || 'All Paid'}</div>
+                            )}
                           </div>
                           <div className="text-red-600 dark:text-red-400 text-sm">
                             {t.totalOwed || 'Total Owed'}

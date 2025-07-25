@@ -898,10 +898,10 @@ module.exports = function(dbPath) {
         
         // Update total profit settings
         if (totalSaleProfitUSD > 0) {
-          settingsModule.updateTotalProfit(db, 'USD', totalSaleProfitUSD);
+          settings.updateTotalProfit(db, 'USD', totalSaleProfitUSD);
         }
         if (totalSaleProfitIQD > 0) {
-          settingsModule.updateTotalProfit(db, 'IQD', totalSaleProfitIQD);
+          settings.updateTotalProfit(db, 'IQD', totalSaleProfitIQD);
         }
       }
       

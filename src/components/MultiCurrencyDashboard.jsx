@@ -39,7 +39,7 @@ ChartJS.register(
 );
 
 function MultiCurrencyDashboard({ admin, t }) {
-  const { products, accessories, sales, debts, buyingHistory, companyDebts, refreshAllData, refreshDebts } = useData();
+  const { products, accessories, sales, debts, buyingHistory, companyDebts, incentives, refreshAllData, refreshDebts } = useData();
   const [balances, setBalances] = useState({ usd_balance: 0, iqd_balance: 0 });
   const [dashboardData, setDashboardData] = useState(null);
   const [transactions, setTransactions] = useState([]);
@@ -110,6 +110,19 @@ function MultiCurrencyDashboard({ admin, t }) {
     // Calculate USD and IQD revenue using shared utility
     const todaysUSDSales = calculateRevenueByCurrency(todaysSales, 'USD');
     const todaysIQDSales = calculateRevenueByCurrency(todaysSales, 'IQD');
+
+    // Add today's incentives as income (but don't affect opening balance)
+    const todaysIncentivesUSD = (incentives || []).filter(incentive => {
+      if (!incentive.created_at) return false;
+      const incentiveDate = new Date(incentive.created_at);
+      return incentiveDate.toDateString() === today && incentive.currency === 'USD';
+    }).reduce((sum, incentive) => sum + (incentive.amount || 0), 0);
+
+    const todaysIncentivesIQD = (incentives || []).filter(incentive => {
+      if (!incentive.created_at) return false;
+      const incentiveDate = new Date(incentive.created_at);
+      return incentiveDate.toDateString() === today && (incentive.currency === 'IQD' || !incentive.currency);
+    }).reduce((sum, incentive) => sum + (incentive.amount || 0), 0);
 
     // This week's sales by currency - exclude unpaid debt sales
     const oneWeekAgo = new Date();
@@ -283,15 +296,32 @@ function MultiCurrencyDashboard({ admin, t }) {
              transaction.amount_iqd > 0;
     }).reduce((sum, transaction) => sum + transaction.amount_iqd, 0);
 
-    // Total spending includes purchases, debt payments, and other outgoing transactions, minus returns
-    const totalTodaysSpendingUSD = todaysSpendingUSD + todaysCompanyDebtPaymentsUSD + todaysTransactionSpendingUSD - todaysReturnsUSD;
-    const totalTodaysSpendingIQD = todaysSpendingIQD + todaysCompanyDebtPaymentsIQD + todaysTransactionSpendingIQD - todaysReturnsIQD;
+    // Add today's personal loan payments to spending (these should be counted as money going out)
+    const todaysPersonalLoanPaymentsUSD = (transactions || []).filter(transaction => {
+      if (!transaction.created_at) return false;
+      const transactionDate = new Date(transaction.created_at);
+      return transactionDate.toDateString() === today && 
+             transaction.type === 'personal_loan' && 
+             transaction.amount_usd > 0; // Positive means money going out (loan given)
+    }).reduce((sum, transaction) => sum + transaction.amount_usd, 0);
 
-    // Net performance: USD = native USD sales - USD spending
-    const netPerformanceUSD = todaysUSDSales - totalTodaysSpendingUSD;
+    const todaysPersonalLoanPaymentsIQD = (transactions || []).filter(transaction => {
+      if (!transaction.created_at) return false;
+      const transactionDate = new Date(transaction.created_at);
+      return transactionDate.toDateString() === today && 
+             transaction.type === 'personal_loan' && 
+             transaction.amount_iqd > 0; // Positive means money going out (loan given)
+    }).reduce((sum, transaction) => sum + transaction.amount_iqd, 0);
+
+    // Total spending includes purchases, debt payments, personal loans, and other outgoing transactions, minus returns
+    const totalTodaysSpendingUSD = todaysSpendingUSD + todaysCompanyDebtPaymentsUSD + todaysTransactionSpendingUSD + todaysPersonalLoanPaymentsUSD - todaysReturnsUSD;
+    const totalTodaysSpendingIQD = todaysSpendingIQD + todaysCompanyDebtPaymentsIQD + todaysTransactionSpendingIQD + todaysPersonalLoanPaymentsIQD - todaysReturnsIQD;
+
+    // Net performance: USD = native USD sales + incentives - USD spending
+    const netPerformanceUSD = todaysUSDSales + todaysIncentivesUSD - totalTodaysSpendingUSD;
     
-    // Net performance: IQD = native IQD sales - IQD spending (no conversion mixing)
-    const netPerformanceIQD = todaysIQDSales - totalTodaysSpendingIQD;
+    // Net performance: IQD = native IQD sales + incentives - IQD spending (no conversion mixing)
+    const netPerformanceIQD = todaysIQDSales + todaysIncentivesIQD - totalTodaysSpendingIQD;
 
     // Calculate inventory values
     const inventoryValueUSD = (products || [])
@@ -326,6 +356,8 @@ function MultiCurrencyDashboard({ admin, t }) {
       netPerformanceIQD,
       totalTodaysSpendingUSD,
       totalTodaysSpendingIQD,
+      todaysIncentivesUSD,
+      todaysIncentivesIQD,
       totalTransactions: todaysSales.length,
       totalDebtCount: unpaidDebtSalesUSD.length + unpaidDebtSalesIQD.length + unpaidCompanyDebts.length,
       totalLoanCount: unpaidLoans.length,
@@ -337,7 +369,7 @@ function MultiCurrencyDashboard({ admin, t }) {
       totalAccessoriesCount,
       totalStockCount,
     };
-  }, [sales, debts, buyingHistory, personalLoans, companyDebts, products, accessories]);
+  }, [sales, debts, buyingHistory, personalLoans, companyDebts, products, accessories, incentives]);
 
   return (
     <div className="w-full h-full p-8 space-y-6">
@@ -433,12 +465,18 @@ function MultiCurrencyDashboard({ admin, t }) {
             <div className="space-y-3 text-white/90">
               <div className="flex justify-between items-center">
                 <span>{t?.openingBalance || 'Opening Balance'}:</span>
-                <span className="font-bold">{formatCurrencyWithTranslation(balances.usd_balance - metrics.netPerformanceUSD, 'USD', t)}</span>
+                <span className="font-bold">{formatCurrencyWithTranslation(balances.usd_balance - todaysUSDSales - metrics.todaysIncentivesUSD + totalTodaysSpendingUSD, 'USD', t)}</span>
               </div>
               <div className="flex justify-between items-center text-green-300">
                 <span>+ {t?.todaysSales || "Today's Sales"}:</span>
                 <span className="font-bold">{formatCurrencyWithTranslation(metrics.todaysUSDSales, 'USD', t)}</span>
               </div>
+              {metrics.todaysIncentivesUSD > 0 && (
+                <div className="flex justify-between items-center text-blue-300">
+                  <span>+ {t?.todaysIncentives || "Today's Incentives"}:</span>
+                  <span className="font-bold">{formatCurrencyWithTranslation(metrics.todaysIncentivesUSD, 'USD', t)}</span>
+                </div>
+              )}
               <div className="flex justify-between items-center text-red-300">
                 <span>- {t?.todaysSpending || "Today's Spending"}:</span>
                 <span className="font-bold">{formatCurrencyWithTranslation(metrics.totalTodaysSpendingUSD, 'USD', t)}</span>
@@ -480,12 +518,18 @@ function MultiCurrencyDashboard({ admin, t }) {
             <div className="space-y-3 text-white/90">
               <div className="flex justify-between items-center">
                 <span>{t?.openingBalance || 'Opening Balance'}:</span>
-                <span className="font-bold">{formatCurrencyWithTranslation(balances.iqd_balance - metrics.netPerformanceIQD, 'IQD', t)}</span>
+                <span className="font-bold">{formatCurrencyWithTranslation(balances.iqd_balance - todaysIQDSales - metrics.todaysIncentivesIQD + totalTodaysSpendingIQD, 'IQD', t)}</span>
               </div>
               <div className="flex justify-between items-center text-green-300">
                 <span>+ {t?.todaysSales || "Today's Sales"}:</span>
                 <span className="font-bold">{formatCurrencyWithTranslation(metrics.todaysIQDSales, 'IQD', t)}</span>
               </div>
+              {metrics.todaysIncentivesIQD > 0 && (
+                <div className="flex justify-between items-center text-blue-300">
+                  <span>+ {t?.todaysIncentives || "Today's Incentives"}:</span>
+                  <span className="font-bold">{formatCurrencyWithTranslation(metrics.todaysIncentivesIQD, 'IQD', t)}</span>
+                </div>
+              )}
               <div className="flex justify-between items-center text-red-300">
                 <span>- {t?.todaysSpending || "Today's Spending"}:</span>
                 <span className="font-bold">{formatCurrencyWithTranslation(metrics.totalTodaysSpendingIQD, 'IQD', t)}</span>

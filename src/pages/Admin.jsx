@@ -24,6 +24,7 @@ import AdminLoadingFallback from '../components/AdminLoadingFallback';
 import ExchangeRateIndicator from '../components/ExchangeRateIndicator';
 import MonthlyReport from '../components/MonthlyReport';
 import BackupSettingsSection from '../components/BackupSettingsSection';
+import KeyboardShortcutsModal from '../components/KeyboardShortcutsModal';
 import { Icon } from '../utils/icons.jsx';
 
 export default function Admin() {
@@ -45,6 +46,7 @@ export default function Admin() {
   const [loading, setLoading] = useState(false);
   const [showBackupManager, setShowBackupManager] = useState(false);
   const [showAddPurchase, setShowAddPurchase] = useState(false);
+  const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
   // isCompanyDebtMode is now handled in useAdmin
 
   // ALL HOOKS MOVED TO TOP LEVEL - FIXES HOOKS RULE VIOLATION
@@ -236,6 +238,8 @@ export default function Admin() {
     shortcuts['ctrl+shift+c'] = () => navigate('/cashier');
     shortcuts['ctrl+shift+s'] = () => setShowSettingsModal(true);
     shortcuts['ctrl+shift+b'] = () => setShowBackupManager(true);
+    shortcuts['f1'] = () => setShowKeyboardShortcuts(true);
+    shortcuts['ctrl+shift+k'] = () => setShowKeyboardShortcuts(true);
     
     return shortcuts;
   }, [navItems, section, navigate]);
@@ -492,6 +496,13 @@ export default function Admin() {
             onClose={() => admin.setToast(null)}
           />
         )}
+
+        {/* Keyboard Shortcuts Modal */}
+        <KeyboardShortcutsModal
+          show={showKeyboardShortcuts}
+          onClose={() => setShowKeyboardShortcuts(false)}
+          t={t}
+        />
       </div>
     );
   } catch (renderError) {
