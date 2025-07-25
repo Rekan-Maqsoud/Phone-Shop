@@ -379,6 +379,35 @@ function runMigrations(db) {
     console.warn('Company debts migration warning:', e.message);
   }
 
+  // Migrate customer_debts table to support currency column
+  try {
+    const customerDebtsTableInfo = db.prepare("PRAGMA table_info(customer_debts)").all();
+    const hasCurrencyColumn = customerDebtsTableInfo.some(col => col.name === 'currency');
+
+    if (!hasCurrencyColumn) {
+      console.log('Adding currency column to customer_debts table...');
+      db.prepare('ALTER TABLE customer_debts ADD COLUMN currency TEXT DEFAULT \'IQD\'').run();
+      console.log('✅ Currency column added to customer_debts table');
+    }
+    
+    // Also ensure payment tracking columns exist
+    const hasPaymentUsdAmount = customerDebtsTableInfo.some(col => col.name === 'payment_usd_amount');
+    const hasPaymentIqdAmount = customerDebtsTableInfo.some(col => col.name === 'payment_iqd_amount');
+    const hasPaymentCurrencyUsed = customerDebtsTableInfo.some(col => col.name === 'payment_currency_used');
+
+    if (!hasPaymentUsdAmount) {
+      db.prepare('ALTER TABLE customer_debts ADD COLUMN payment_usd_amount REAL DEFAULT 0').run();
+    }
+    if (!hasPaymentIqdAmount) {
+      db.prepare('ALTER TABLE customer_debts ADD COLUMN payment_iqd_amount REAL DEFAULT 0').run();
+    }
+    if (!hasPaymentCurrencyUsed) {
+      db.prepare('ALTER TABLE customer_debts ADD COLUMN payment_currency_used TEXT').run();
+    }
+  } catch (e) {
+    console.warn('Customer debts migration warning:', e.message);
+  }
+
   // Migrate buying_history table to support has_items column
   try {
     const buyingHistoryTableInfo = db.prepare("PRAGMA table_info(buying_history)").all();

@@ -56,7 +56,7 @@ function getMonthlyReport(db, year, month) {
     ORDER BY revenue DESC
   `).all(startDate, endDate);
   
-  // Buying costs
+  // Buying costs from buying_history
   const buyingCosts = db.prepare(`
     SELECT 
       currency,
@@ -67,11 +67,76 @@ function getMonthlyReport(db, year, month) {
     GROUP BY currency
   `).all(startDate, endDate);
   
+  // Company debt payments (spending that should be included in reports)
+  const companyDebtPayments = db.prepare(`
+    SELECT 
+      CASE 
+        WHEN amount_usd > 0 AND amount_iqd > 0 THEN 'MULTI'
+        WHEN amount_usd > 0 THEN 'USD'
+        ELSE 'IQD'
+      END as currency,
+      SUM(CASE WHEN amount_usd > 0 THEN amount_usd ELSE 0 END) as usd_amount,
+      SUM(CASE WHEN amount_iqd > 0 THEN amount_iqd ELSE 0 END) as iqd_amount,
+      COUNT(*) as payment_count
+    FROM transactions 
+    WHERE type = 'company_debt_payment' 
+      AND DATE(created_at) BETWEEN ? AND ?
+    GROUP BY currency
+  `).all(startDate, endDate);
+  
+  // Combine buying costs with company debt payments
+  const combinedPurchases = [...buyingCosts];
+  
+  companyDebtPayments.forEach(payment => {
+    if (payment.currency === 'MULTI') {
+      // Add USD component
+      const existingUSD = combinedPurchases.find(p => p.currency === 'USD');
+      if (existingUSD) {
+        existingUSD.total_cost += payment.usd_amount;
+        existingUSD.purchase_count += payment.payment_count;
+      } else {
+        combinedPurchases.push({
+          currency: 'USD',
+          total_cost: payment.usd_amount,
+          purchase_count: payment.payment_count
+        });
+      }
+      
+      // Add IQD component
+      const existingIQD = combinedPurchases.find(p => p.currency === 'IQD');
+      if (existingIQD) {
+        existingIQD.total_cost += payment.iqd_amount;
+        existingIQD.purchase_count += payment.payment_count;
+      } else {
+        combinedPurchases.push({
+          currency: 'IQD',
+          total_cost: payment.iqd_amount,
+          purchase_count: payment.payment_count
+        });
+      }
+    } else {
+      // Single currency payment
+      const existing = combinedPurchases.find(p => p.currency === payment.currency);
+      const amount = payment.currency === 'USD' ? payment.usd_amount : payment.iqd_amount;
+      
+      if (existing) {
+        existing.total_cost += amount;
+        existing.purchase_count += payment.payment_count;
+      } else {
+        combinedPurchases.push({
+          currency: payment.currency,
+          total_cost: amount,
+          purchase_count: payment.payment_count
+        });
+      }
+    }
+  });
+  
   return {
     period: { year, month, startDate, endDate },
     sales: salesData,
     products: productSales,
-    purchases: buyingCosts
+    purchases: combinedPurchases
   };
 }
 
@@ -212,13 +277,99 @@ function getDashboardStats(db) {
   const today = new Date().toISOString().split('T')[0];
   const thisMonth = new Date().toISOString().slice(0, 7) + '-01';
   
-  // Today's sales
+  // Today's sales (including debt payments made today)
   const todaySales = db.prepare(`
     SELECT currency, SUM(total) as total, COUNT(*) as count
     FROM sales 
     WHERE DATE(created_at) = ?
     GROUP BY currency
   `).all(today);
+
+  // Today's debt payments (add these to today's sales)
+  const todayDebtPayments = db.prepare(`
+    SELECT 
+      CASE 
+        WHEN cd.payment_usd_amount > 0 AND cd.payment_iqd_amount > 0 THEN 'MULTI'
+        WHEN cd.payment_usd_amount > 0 THEN 'USD'
+        ELSE 'IQD'
+      END as currency,
+      SUM(CASE WHEN cd.payment_usd_amount > 0 THEN cd.payment_usd_amount ELSE 0 END) as usd_total,
+      SUM(CASE WHEN cd.payment_iqd_amount > 0 THEN cd.payment_iqd_amount ELSE 0 END) as iqd_total,
+      COUNT(*) as count
+    FROM customer_debts cd
+    WHERE DATE(cd.paid_at) = ? AND cd.paid_at IS NOT NULL
+    GROUP BY currency
+  `).all(today);
+
+  // Today's incentives (add these to today's income)
+  const todayIncentives = db.prepare(`
+    SELECT currency, SUM(amount) as total, COUNT(*) as count
+    FROM incentives 
+    WHERE DATE(created_at) = ?
+    GROUP BY currency
+  `).all(today);
+
+  // Merge debt payments and incentives with sales
+  const combinedTodaySales = [...todaySales];
+  todayDebtPayments.forEach(payment => {
+    if (payment.currency === 'MULTI') {
+      // Add USD component
+      const existingUSD = combinedTodaySales.find(s => s.currency === 'USD');
+      if (existingUSD) {
+        existingUSD.total += payment.usd_total;
+        existingUSD.count += payment.count;
+      } else {
+        combinedTodaySales.push({
+          currency: 'USD',
+          total: payment.usd_total,
+          count: payment.count
+        });
+      }
+      
+      // Add IQD component
+      const existingIQD = combinedTodaySales.find(s => s.currency === 'IQD');
+      if (existingIQD) {
+        existingIQD.total += payment.iqd_total;
+        existingIQD.count += payment.count;
+      } else {
+        combinedTodaySales.push({
+          currency: 'IQD',
+          total: payment.iqd_total,
+          count: payment.count
+        });
+      }
+    } else {
+      // Single currency payment
+      const existing = combinedTodaySales.find(s => s.currency === payment.currency);
+      const amount = payment.currency === 'USD' ? payment.usd_total : payment.iqd_total;
+      
+      if (existing) {
+        existing.total += amount;
+        existing.count += payment.count;
+      } else {
+        combinedTodaySales.push({
+          currency: payment.currency,
+          total: amount,
+          count: payment.count
+        });
+      }
+    }
+  });
+
+  // Add incentives to today's income
+  todayIncentives.forEach(incentive => {
+    const existing = combinedTodaySales.find(s => s.currency === incentive.currency);
+    if (existing) {
+      existing.total += incentive.total;
+      existing.count += incentive.count;
+    } else {
+      combinedTodaySales.push({
+        currency: incentive.currency,
+        total: incentive.total,
+        count: incentive.count
+      });
+    }
+  });
   
   // This month's sales
   const monthSales = db.prepare(`
@@ -227,6 +378,92 @@ function getDashboardStats(db) {
     WHERE DATE(created_at) >= ?
     GROUP BY currency
   `).all(thisMonth);
+
+  // This month's debt payments
+  const monthDebtPayments = db.prepare(`
+    SELECT 
+      CASE 
+        WHEN cd.payment_usd_amount > 0 AND cd.payment_iqd_amount > 0 THEN 'MULTI'
+        WHEN cd.payment_usd_amount > 0 THEN 'USD'
+        ELSE 'IQD'
+      END as currency,
+      SUM(CASE WHEN cd.payment_usd_amount > 0 THEN cd.payment_usd_amount ELSE 0 END) as usd_total,
+      SUM(CASE WHEN cd.payment_iqd_amount > 0 THEN cd.payment_iqd_amount ELSE 0 END) as iqd_total,
+      COUNT(*) as count
+    FROM customer_debts cd
+    WHERE DATE(cd.paid_at) >= ? AND cd.paid_at IS NOT NULL
+    GROUP BY currency
+  `).all(thisMonth);
+
+  // This month's incentives
+  const monthIncentives = db.prepare(`
+    SELECT currency, SUM(amount) as total, COUNT(*) as count
+    FROM incentives 
+    WHERE DATE(created_at) >= ?
+    GROUP BY currency
+  `).all(thisMonth);
+
+  // Merge debt payments and incentives with monthly sales
+  const combinedMonthSales = [...monthSales];
+  monthDebtPayments.forEach(payment => {
+    if (payment.currency === 'MULTI') {
+      // Add USD component
+      const existingUSD = combinedMonthSales.find(s => s.currency === 'USD');
+      if (existingUSD) {
+        existingUSD.total += payment.usd_total;
+        existingUSD.count += payment.count;
+      } else {
+        combinedMonthSales.push({
+          currency: 'USD',
+          total: payment.usd_total,
+          count: payment.count
+        });
+      }
+      
+      // Add IQD component
+      const existingIQD = combinedMonthSales.find(s => s.currency === 'IQD');
+      if (existingIQD) {
+        existingIQD.total += payment.iqd_total;
+        existingIQD.count += payment.count;
+      } else {
+        combinedMonthSales.push({
+          currency: 'IQD',
+          total: payment.iqd_total,
+          count: payment.count
+        });
+      }
+    } else {
+      // Single currency payment
+      const existing = combinedMonthSales.find(s => s.currency === payment.currency);
+      const amount = payment.currency === 'USD' ? payment.usd_total : payment.iqd_total;
+      
+      if (existing) {
+        existing.total += amount;
+        existing.count += payment.count;
+      } else {
+        combinedMonthSales.push({
+          currency: payment.currency,
+          total: amount,
+          count: payment.count
+        });
+      }
+    }
+  });
+
+  // Add incentives to monthly income
+  monthIncentives.forEach(incentive => {
+    const existing = combinedMonthSales.find(s => s.currency === incentive.currency);
+    if (existing) {
+      existing.total += incentive.total;
+      existing.count += incentive.count;
+    } else {
+      combinedMonthSales.push({
+        currency: incentive.currency,
+        total: incentive.total,
+        count: incentive.count
+      });
+    }
+  });
   
   // Pending debts
   const pendingDebts = db.prepare(`
@@ -250,8 +487,8 @@ function getDashboardStats(db) {
   };
   
   return {
-    today: todaySales,
-    thisMonth: monthSales,
+    today: combinedTodaySales,
+    thisMonth: combinedMonthSales,
     debts: pendingDebts,
     lowStock
   };
@@ -294,7 +531,7 @@ function createMonthlyReport(db, month, year) {
   // Get basic monthly report data
   const baseReport = getMonthlyReport(db, year, month);
   
-  // Calculate additional metrics
+  // Calculate additional metrics including company debt payments
   const totalSalesUSD = baseReport.sales.find(s => s.currency === 'USD')?.total_revenue || 0;
   const totalSalesIQD = baseReport.sales.find(s => s.currency === 'IQD')?.total_revenue || 0;
   

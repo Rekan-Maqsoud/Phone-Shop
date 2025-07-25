@@ -60,7 +60,7 @@ function createWindow() {
   const win = new BrowserWindow({
     width: 1200,
     height: 800,
-    icon: path.join(__dirname, '../public/app-icon.ico'),
+    icon: path.join(__dirname, '../public/web/android-chrome-512x512.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,

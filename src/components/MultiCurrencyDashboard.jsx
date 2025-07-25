@@ -465,7 +465,7 @@ function MultiCurrencyDashboard({ admin, t }) {
             <div className="space-y-3 text-white/90">
               <div className="flex justify-between items-center">
                 <span>{t?.openingBalance || 'Opening Balance'}:</span>
-                <span className="font-bold">{formatCurrencyWithTranslation(balances.usd_balance - todaysUSDSales - metrics.todaysIncentivesUSD + totalTodaysSpendingUSD, 'USD', t)}</span>
+                <span className="font-bold">{formatCurrencyWithTranslation(balances.usd_balance - metrics.todaysUSDSales - metrics.todaysIncentivesUSD + metrics.totalTodaysSpendingUSD, 'USD', t)}</span>
               </div>
               <div className="flex justify-between items-center text-green-300">
                 <span>+ {t?.todaysSales || "Today's Sales"}:</span>
@@ -518,7 +518,7 @@ function MultiCurrencyDashboard({ admin, t }) {
             <div className="space-y-3 text-white/90">
               <div className="flex justify-between items-center">
                 <span>{t?.openingBalance || 'Opening Balance'}:</span>
-                <span className="font-bold">{formatCurrencyWithTranslation(balances.iqd_balance - todaysIQDSales - metrics.todaysIncentivesIQD + totalTodaysSpendingIQD, 'IQD', t)}</span>
+                <span className="font-bold">{formatCurrencyWithTranslation(balances.iqd_balance - metrics.todaysIQDSales - metrics.todaysIncentivesIQD + metrics.totalTodaysSpendingIQD, 'IQD', t)}</span>
               </div>
               <div className="flex justify-between items-center text-green-300">
                 <span>+ {t?.todaysSales || "Today's Sales"}:</span>

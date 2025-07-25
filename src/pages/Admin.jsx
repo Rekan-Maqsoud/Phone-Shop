@@ -398,19 +398,33 @@ export default function Admin() {
                 triggerCloudBackup={triggerCloudBackupAsync} 
               />}
               {section === 'companyDebts' && <CompanyDebtsSection admin={admin} t={t} openEnhancedCompanyDebtModal={openEnhancedCompanyDebtModal} openAddPurchaseModal={openAddPurchaseModal} />}
-              {section === 'incentives' && <IncentivesSection admin={admin} t={t} />}
+              {section === 'incentives' && <IncentivesSection admin={admin} t={t} triggerCloudBackup={triggerCloudBackupAsync} />}
               {section === 'active' && <ProductsSection admin={admin} t={t} handleEditProduct={(product) => {
                 admin.setEditProduct(product);
                 admin.setShowProductModal(true);
               }} handleArchiveToggle={async (product, archive) => {
                 // Archive product functionality
                 try {
-                  const updatedProduct = { ...product, archived: archive ? 1 : 0 };
+                  // Ensure we have all required fields for the product update
+                  const updatedProduct = { 
+                    ...product, 
+                    archived: archive ? 1 : 0,
+                    // Ensure stock is set to 0 when archiving
+                    stock: archive ? 0 : product.stock,
+                    // Ensure all required fields are present
+                    name: product.name,
+                    buying_price: product.buying_price || 0,
+                    category: product.category || 'phones',
+                    currency: product.currency || 'IQD'
+                  };
+                  
                   const result = await window.api.editProduct(updatedProduct);
-                  if (result.success) {
+                  if (result && result.success) {
                     admin.setToast(archive ? t.productArchived : t.productUnarchived, 'success');
                     await admin.refreshProducts();
+                    await admin.refreshAccessories(); // Also refresh accessories in case it was an accessory
                   } else {
+                    console.error('Archive toggle failed:', result);
                     admin.setToast(archive ? t.archiveFailed : t.unarchiveFailed, 'error');
                   }
                 } catch (error) {

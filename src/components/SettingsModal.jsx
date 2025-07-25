@@ -17,7 +17,8 @@ export default function SettingsModal({
   handleTestPrint,
   handleResetAllData,
   show,
-  onClose
+  onClose,
+  handleRefreshBalances
 }) {
   const { soundSettings, toggleSounds, setVolume, toggleSoundType } = useSound();
   
@@ -180,6 +181,79 @@ export default function SettingsModal({
           />
         </div>
         
+        {/* Balance Management */}
+        <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+          <h3 className="text-lg font-semibold mb-4 text-gray-800 dark:text-gray-100 flex items-center">
+            💰 {t.balanceManagement || 'Balance Management'}
+          </h3>
+          
+          <div className="space-y-4">
+            {/* USD Balance */}
+            <div className="flex items-center justify-between">
+              <span className="text-gray-700 dark:text-gray-200 font-medium">
+                {t.usdBalance || 'USD Balance'}
+              </span>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="0.00"
+                  className="w-24 border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  id="usd-balance-input"
+                />
+                <button
+                  onClick={() => {
+                    const input = document.getElementById('usd-balance-input');
+                    const amount = parseFloat(input.value) || 0;
+                    if (window.api?.setBalance) {
+                      window.api.setBalance('USD', amount).then(() => {
+                        if (handleRefreshBalances) handleRefreshBalances();
+                        input.value = '';
+                      });
+                    }
+                  }}
+                  className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 transition"
+                >
+                  {t.set || 'Set'}
+                </button>
+              </div>
+            </div>
+            
+            {/* IQD Balance */}
+            <div className="flex items-center justify-between">
+              <span className="text-gray-700 dark:text-gray-200 font-medium">
+                {t.iqdBalance || 'IQD Balance'}
+              </span>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  step="1"
+                  min="0"
+                  placeholder="0"
+                  className="w-24 border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  id="iqd-balance-input"
+                />
+                <button
+                  onClick={() => {
+                    const input = document.getElementById('iqd-balance-input');
+                    const amount = parseFloat(input.value) || 0;
+                    if (window.api?.setBalance) {
+                      window.api.setBalance('IQD', amount).then(() => {
+                        if (handleRefreshBalances) handleRefreshBalances();
+                        input.value = '';
+                      });
+                    }
+                  }}
+                  className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 transition"
+                >
+                  {t.set || 'Set'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Export Buttons */}
         <div className="flex flex-col gap-2 mb-4">
           <button

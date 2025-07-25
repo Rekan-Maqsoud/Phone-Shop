@@ -1,7 +1,7 @@
 {
   "name": "mobile-roma",
   "private": true,
-  "version": "1.1.18",
+  "version": "1.1.19",
   "description": "Mobile Roma - Phone Shop Management System",
   "main": "src/main.cjs",
   "author": "Mobile Roma Team",
@@ -52,7 +52,7 @@
     "wait-on": "^7.2.0"
   },
   "build": {
-    "icon": "public/app-icon.ico",
+    "icon": "public/web/android-chrome-512x512.png",
     "appId": "com.mobilerema.phoneShop",
     "productName": "Mobile Roma",
     "artifactName": "Mobile Roma Setup ${version}.${ext}",
@@ -79,7 +79,7 @@
     },
     "win": {
       "target": "nsis",
-      "icon": "public/app-icon.ico",
+      "icon": "public/web/android-chrome-512x512.png",
       "requestedExecutionLevel": "asInvoker",
       "signAndEditExecutable": false
     },

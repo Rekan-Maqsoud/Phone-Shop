@@ -6,6 +6,50 @@ import { Icon } from '../utils/icons.jsx';
 export default function ArchivedItemsSection({ t, admin, handleArchiveToggle }) {
   const { products, accessories } = useData();
   
+  // Enhanced archive toggle handler for archived items
+  const handleUnarchive = async (item, isAccessory = false) => {
+    try {
+      // Determine which API to use based on item type
+      const apiCall = isAccessory ? window.api?.editAccessory : window.api?.editProduct;
+      
+      if (!apiCall) {
+        admin.setToast('API not available for this operation', 'error');
+        return;
+      }
+      
+      // Prepare the updated item with proper fields
+      const updatedItem = {
+        ...item,
+        archived: 0, // Unarchive the item
+        // Ensure all required fields are present
+        name: item.name,
+        buying_price: item.buying_price || 0,
+        stock: item.stock || 0,
+        category: item.category || (isAccessory ? 'accessories' : 'phones'),
+        currency: item.currency || 'IQD'
+      };
+      
+      // Add accessory-specific fields if needed
+      if (isAccessory) {
+        updatedItem.type = item.type || 'other';
+      }
+      
+      const result = await apiCall(updatedItem);
+      if (result && result.success) {
+        admin.setToast(t.productUnarchived || 'Item unarchived successfully', 'success');
+        // Refresh both products and accessories to ensure UI updates
+        await admin.refreshProducts();
+        await admin.refreshAccessories();
+      } else {
+        console.error('Unarchive failed:', result);
+        admin.setToast(t.unarchiveFailed || 'Failed to unarchive item', 'error');
+      }
+    } catch (error) {
+      console.error('Error unarchiving item:', error);
+      admin.setToast(t.unarchiveFailed || 'Failed to unarchive item', 'error');
+    }
+  };
+  
   return (
     <div className="w-full h-full p-8 space-y-8">
       {/* Header Section */}
@@ -32,7 +76,7 @@ export default function ArchivedItemsSection({ t, admin, handleArchiveToggle }) 
           products={products.filter(p => p && ((typeof p.archived === 'undefined' ? 0 : p.archived) === 1))}
           t={t}
           lowStockThreshold={admin.lowStockThreshold}
-          onUnarchive={p => handleArchiveToggle(p, false)}
+          onUnarchive={p => handleUnarchive(p, false)}
           isArchived={true}
         />
       </div>
@@ -44,7 +88,7 @@ export default function ArchivedItemsSection({ t, admin, handleArchiveToggle }) 
           products={accessories.filter(a => a && ((typeof a.archived === 'undefined' ? 0 : a.archived) === 1))}
           t={t}
           lowStockThreshold={admin.lowStockThreshold}
-          onUnarchive={a => handleArchiveToggle(a, false)}
+          onUnarchive={a => handleUnarchive(a, true)}
           isArchived={true}
           isAccessory={true}
         />

@@ -225,13 +225,23 @@ export default function CashierContent({
     const changeUSD = totalPaidUSD - totalRequiredUSD;
     if (changeUSD <= 0) return { changeUSD: 0, changeIQD: 0, changeInUSD: 0, changeInIQD: 0 };
     
-    // Default to giving change in IQD unless it's a small amount that's better in USD
+    // Check if change is less than $1 USD (ignore small change as per user requirement)
+    if (changeUSD < 1) {
+      return { changeUSD: 0, changeIQD: 0, changeInUSD: 0, changeInIQD: 0 };
+    }
+    
+    // Convert to IQD and check if less than 250 IQD (ignore small change as per user requirement)
     const changeIQD = changeUSD * EXCHANGE_RATES.USD_TO_IQD;
+    if (changeIQD < 250) {
+      return { changeUSD: 0, changeIQD: 0, changeInUSD: 0, changeInIQD: 0 };
+    }
+    
+    // Default to giving change in IQD (as per user preference)
     const roundedChangeIQD = roundIQDToNearestBill(changeIQD);
     
-    // If the rounded IQD change differs significantly, give change in USD instead
+    // Only use USD if the IQD rounding loses more than 10% of the value
     const iqdDifference = Math.abs(changeIQD - roundedChangeIQD);
-    const shouldUseUSD = iqdDifference > (changeUSD * 0.1); // If rounding loses more than 10%
+    const shouldUseUSD = iqdDifference > (changeUSD * 0.1);
     
     return {
       changeUSD,

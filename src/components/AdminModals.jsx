@@ -73,6 +73,7 @@ export default function AdminModals({
         handleExportInventory={admin.handleExportInventory}
         handleTestPrint={admin.handleTestPrint}
         handleResetAllData={admin.handleResetAllData}
+        handleRefreshBalances={admin.refreshBalances}
         t={t}
       />
 
@@ -380,6 +381,11 @@ export default function AdminModals({
               await refreshBuyingHistory();
               await refreshProducts();
               await refreshAccessories();
+              
+              // Refresh balances to show updated amounts in modal
+              if (admin.loadBalances) {
+                await admin.loadBalances();
+              }
               
               setShowAddPurchase(); // This calls the close function
               

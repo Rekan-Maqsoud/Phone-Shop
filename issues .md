@@ -1,11 +1,27 @@
-1- reset all data doesnt update incertive UI , make sure the screen is always showing latest data .
+1- IQD customer debt wasnt saved , make sure its fixed please .
 
-2- most of the keyboard short cuts doesnt remove , remove the UI guide or fix them .
+2- paying back a company debt should add to the spendings in both daily check ins and monthly reports fix that .
 
-3-fix the error of the cashier page that is shown in the screenshot. selling in USD fails.
+3- company debt saved in IQD  and shown as IQD in the company debt section , but then when i wanna pay it in the paying debt modal it thinks its USD and mistakefully calculates the amount that should be paid
 
-4- the total profit in sales history table is depending on the paid amount , but in the monthly reports it depends on the product currency , so make them identical carefully , either cope the logic of the monthly report to sales history or vice versa.
+4- paying a customer debt didnt add up to sales and resulted in huge mixcalculations in the daily checkings. 
 
-5-the return button have errors in sales history , see screenshot 2 
+5- adding incertive have an error saying triggercloudbacup isnt a function
 
-6- returning a quantity in the buying history section didnt update the record to have the correct new value and the edit and return button have no text, see the screenshot , and idk if there is even option to choose which currency balance it should affect.
+6- adding incertive still results in wrong daily checkin calculations add it to the label of today sales , and rename it with income or smth like that so we can add any type of money we get to that and any money we spend to the spending .
+
+
+
+
+
+
+
+
+
+
+
+
+
+new ones:
+1- the add purchase modal doesnt show the correct and current balances.
+2-the cashier should ignore changes that are less than 1 USD and , the change should be usually paid with IQD instead of USD . so ignore changes that are less than 250.
