@@ -21,6 +21,7 @@ export const DataProvider = ({ children }) => {
   const [buyingHistory, setBuyingHistory] = useState([]);
   const [monthlyReports, setMonthlyReports] = useState([]);
   const [incentives, setIncentives] = useState([]);
+  const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [apiReady, setApiReady] = useState(false);
 
@@ -78,9 +79,9 @@ export const DataProvider = ({ children }) => {
       const promises = [];
       
       // Enhanced error handling for each data type
-      const createDataFetch = (apiMethod, setter, dataType) => {
+      const createDataFetch = (apiMethod, setter, dataType, params = []) => {
         if (window.api?.[apiMethod]) {
-          return window.api[apiMethod]()
+          return window.api[apiMethod](...params)
             .then(data => {
               setter(data || []);
             })
@@ -105,6 +106,7 @@ export const DataProvider = ({ children }) => {
       promises.push(createDataFetch('getBuyingHistoryWithItems', setBuyingHistory, 'buying history'));
       promises.push(createDataFetch('getMonthlyReports', setMonthlyReports, 'monthly reports'));
       promises.push(createDataFetch('getIncentives', setIncentives, 'incentives'));
+      promises.push(createDataFetch('getTransactions', setTransactions, 'transactions', [200])); // Get recent 200 transactions
 
       await Promise.allSettled(promises); // Use allSettled to ensure all complete even if some fail
 
@@ -120,6 +122,7 @@ export const DataProvider = ({ children }) => {
       setBuyingHistory([]);
       setMonthlyReports([]);
       setIncentives([]);
+      setTransactions([]);
     } finally {
       setLoading(false);
     }
@@ -221,6 +224,16 @@ export const DataProvider = ({ children }) => {
       console.error('❌ DataContext: Error refreshing incentives:', error);
     }
   }, [apiReady]);
+
+  const refreshTransactions = useCallback(async () => {
+    if (!apiReady || !window.api?.getTransactions) return;
+    try {
+      const data = await window.api.getTransactions(200);
+      setTransactions(data || []);
+    } catch (error) {
+      console.error('❌ DataContext: Error refreshing transactions:', error);
+    }
+  }, [apiReady]);
   
   const refreshBuyingHistory = useCallback(async () => {
     if (!apiReady || !window.api?.getBuyingHistoryWithItems) return;
@@ -291,6 +304,7 @@ export const DataProvider = ({ children }) => {
     buyingHistory,
     monthlyReports,
     incentives,
+    transactions,
     loading,
     apiReady,
     
@@ -304,6 +318,7 @@ export const DataProvider = ({ children }) => {
     setBuyingHistory,
     setMonthlyReports,
     setIncentives,
+    setTransactions,
     
     // Fetch functions
     fetchAllData,
@@ -316,7 +331,8 @@ export const DataProvider = ({ children }) => {
     refreshCompanyDebts,
     refreshBuyingHistory,
     refreshMonthlyReports,
-    refreshIncentives
+    refreshIncentives,
+    refreshTransactions
   };
 
   return (

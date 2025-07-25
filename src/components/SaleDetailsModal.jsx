@@ -317,15 +317,27 @@ export default function SaleDetailsModal({ sale, t, onClose, onReturnItem }) {
     
     if (hasBothCurrencies) {
       return (
-        <div className="flex flex-col gap-0.5">
-          <span>{formatCurrency(totalBuyingUSD, 'USD')}</span>
-          <span>{formatCurrency(totalBuyingIQD, 'IQD')}</span>
+        <div className="flex flex-col gap-1">
+          <span className="inline-flex items-center px-2 py-1 rounded text-sm font-medium bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200">
+            {formatCurrency(totalBuyingUSD, 'USD')}
+          </span>
+          <span className="inline-flex items-center px-2 py-1 rounded text-sm font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+            {formatCurrency(totalBuyingIQD, 'IQD')}
+          </span>
         </div>
       );
     } else if (totalBuyingUSD > 0) {
-      return formatCurrency(totalBuyingUSD, 'USD');
+      return (
+        <span className="inline-flex items-center px-2 py-1 rounded text-sm font-medium bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200">
+          {formatCurrency(totalBuyingUSD, 'USD')}
+        </span>
+      );
     } else {
-      return formatCurrency(totalBuyingIQD, 'IQD');
+      return (
+        <span className="inline-flex items-center px-2 py-1 rounded text-sm font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+          {formatCurrency(totalBuyingIQD, 'IQD')}
+        </span>
+      );
     }
   };
 
@@ -437,7 +449,7 @@ export default function SaleDetailsModal({ sale, t, onClose, onReturnItem }) {
         <span className="text-green-600 font-bold">
           {formatCurrency(currentPrice, productCurrency)}
         </span>
-        <span className="ml-1 text-xs text-orange-600">
+        <span className="ml-1 text-xs text-orange-600 dark:text-orange-400">
           {discountText}
         </span>
       </span>
@@ -458,9 +470,13 @@ export default function SaleDetailsModal({ sale, t, onClose, onReturnItem }) {
       const usdAmount = sale.multi_currency_payment.usd_amount || 0;
       const iqdAmount = sale.multi_currency_payment.iqd_amount || 0;
       return (
-        <div className="flex flex-col">
-          <div>{formatCurrency(usdAmount, 'USD')}</div>
-          <div>{formatCurrency(iqdAmount, 'IQD')}</div>
+        <div className="flex flex-col gap-1">
+          <span className="inline-flex items-center px-2 py-1 rounded text-sm font-medium bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200">
+            {formatCurrency(usdAmount, 'USD')}
+          </span>
+          <span className="inline-flex items-center px-2 py-1 rounded text-sm font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+            {formatCurrency(iqdAmount, 'IQD')}
+          </span>
         </div>
       );
     } else {
@@ -566,9 +582,13 @@ export default function SaleDetailsModal({ sale, t, onClose, onReturnItem }) {
               <div className="text-right text-emerald-700 dark:text-emerald-300 font-semibold mt-2">
                 {t.productProfit || 'Product Profit'}: {
                   totalProductProfit?.isMultiCurrency ? (
-                    <div className="flex flex-col">
-                      <div>{totalProductProfit.usd}</div>
-                      <div>{totalProductProfit.iqd}</div>
+                    <div className="flex flex-col gap-1">
+                      <span className="inline-flex items-center px-2 py-1 rounded text-sm font-medium bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200">
+                        {totalProductProfit.usd}
+                      </span>
+                      <span className="inline-flex items-center px-2 py-1 rounded text-sm font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                        {totalProductProfit.iqd}
+                      </span>
                     </div>
                   ) : (
                     typeof totalProductProfit === 'string' ? totalProductProfit : formatCurrency(totalProductProfit, saleCurrency)
@@ -652,9 +672,13 @@ export default function SaleDetailsModal({ sale, t, onClose, onReturnItem }) {
               <div className="text-right text-emerald-700 dark:text-emerald-300 font-semibold mt-2">
                 {t.accessoryProfit || 'Accessory Profit'}: {
                   totalAccessoryProfit?.isMultiCurrency ? (
-                    <div className="flex flex-col">
-                      <div>{totalAccessoryProfit.usd}</div>
-                      <div>{totalAccessoryProfit.iqd}</div>
+                    <div className="flex flex-col gap-1">
+                      <span className="inline-flex items-center px-2 py-1 rounded text-sm font-medium bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200">
+                        {totalAccessoryProfit.usd}
+                      </span>
+                      <span className="inline-flex items-center px-2 py-1 rounded text-sm font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                        {totalAccessoryProfit.iqd}
+                      </span>
                     </div>
                   ) : (
                     typeof totalAccessoryProfit === 'string' ? totalAccessoryProfit : formatCurrency(totalAccessoryProfit, saleCurrency)

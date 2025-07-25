@@ -265,7 +265,7 @@ const SalesHistoryTableEnhanced = React.memo(function SalesHistoryTableEnhanced(
       {sortedSales.length > itemsPerPage && (
         <div className="bg-white/60 dark:bg-gray-800/80 rounded-2xl shadow-2xl mb-4 p-4 border border-white/20">
           <div className="flex justify-between items-center">
-            <div className="text-sm text-gray-600 dark:text-gray-400">
+            <div className="text-xs text-gray-600 dark:text-gray-400">
               Showing {startIndex + 1}-{Math.min(endIndex, sortedSales.length)} of {sortedSales.length} entries
             </div>
             <div className="flex gap-2">
@@ -299,7 +299,7 @@ const SalesHistoryTableEnhanced = React.memo(function SalesHistoryTableEnhanced(
               <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-2">
                 📊 {t.salesHistory}
               </h2>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
+              <p className="text-xs text-gray-600 dark:text-gray-400">
                 {t?.salesHistoryDesc || 'Track all your business sales and revenue'}
               </p>
             </div>
@@ -321,61 +321,61 @@ const SalesHistoryTableEnhanced = React.memo(function SalesHistoryTableEnhanced(
           <table className="w-full" dir="auto">
             <thead className="bg-gradient-to-r from-blue-700 via-cyan-600 to-blue-700 text-white relative">
               <tr>
-                <th className="px-6 py-6 font-bold text-lg text-center border-r border-white/20 relative">
-                  <div className="flex items-center gap-2 justify-center">
-                    <Icon name="expand" size={16} />
+                <th className="px-3 py-3 font-bold text-xs text-center border-r border-white/20 relative">
+                  <div className="flex items-center gap-1 justify-center">
+                    <Icon name="expand" size={12} />
                     {t?.expand || 'Expand'}
                   </div>
                 </th>
                 <th 
-                  className="px-6 py-6 font-bold text-lg text-center border-r border-white/20 cursor-pointer hover:bg-white/10 transition-colors"
+                  className="px-3 py-3 font-bold text-xs text-center border-r border-white/20 cursor-pointer hover:bg-white/10 transition-colors"
                   onClick={() => setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')}
                 >
-                  <div className="flex items-center gap-2 justify-center">
-                    <Icon name="calendar" size={16} />
+                  <div className="flex items-center gap-1 justify-center">
+                    <Icon name="calendar" size={12} />
                     {t.date}
-                    <Icon name={sortOrder === 'desc' ? "arrowDown" : "arrowUp"} size={14} />
+                    <Icon name={sortOrder === 'desc' ? "arrowDown" : "arrowUp"} size={10} />
                   </div>
                 </th>
-                <th className="px-6 py-6 font-bold text-lg text-center border-r border-white/20">
-                  <div className="flex items-center gap-2 justify-center">
-                    <Icon name="user" size={16} />
+                <th className="px-3 py-3 font-bold text-xs text-center border-r border-white/20">
+                  <div className="flex items-center gap-1 justify-center">
+                    <Icon name="user" size={12} />
                     {t.customer_name || 'Customer'}
                   </div>
                 </th>
-                <th className="px-6 py-6 font-bold text-lg text-center border-r border-white/20">
-                  <div className="flex items-center gap-2 justify-center">
-                    <Icon name="package" size={16} />
+                <th className="px-3 py-3 font-bold text-xs text-center border-r border-white/20">
+                  <div className="flex items-center gap-1 justify-center">
+                    <Icon name="package" size={12} />
                     {t.items || 'Items'}
                   </div>
                 </th>
-                <th className="px-6 py-6 font-bold text-lg text-center border-r border-white/20">
-                  <div className="flex items-center gap-2 justify-center">
-                    <Icon name="dollarSign" size={16} />
+                <th className="px-3 py-3 font-bold text-xs text-center border-r border-white/20">
+                  <div className="flex items-center gap-1 justify-center">
+                    <Icon name="dollarSign" size={12} />
                     {t.buyingPrice || 'Cost'}
                   </div>
                 </th>
-                <th className="px-6 py-6 font-bold text-lg text-center border-r border-white/20">
-                  <div className="flex items-center gap-2 justify-center">
-                    <Icon name="tag" size={16} />
+                <th className="px-3 py-3 font-bold text-xs text-center border-r border-white/20">
+                  <div className="flex items-center gap-1 justify-center">
+                    <Icon name="tag" size={12} />
                     {t.sellingPrice || 'Price'}
                   </div>
                 </th>
-                <th className="px-6 py-6 font-bold text-lg text-center border-r border-white/20">
-                  <div className="flex items-center gap-2 justify-center">
-                    <Icon name="banknote" size={16} />
+                <th className="px-3 py-3 font-bold text-xs text-center border-r border-white/20">
+                  <div className="flex items-center gap-1 justify-center">
+                    <Icon name="banknote" size={12} />
                     {t.totalPaid || 'Total Paid'}
                   </div>
                 </th>
-                <th className="px-6 py-6 font-bold text-lg text-center border-r border-white/20">
-                  <div className="flex items-center gap-2 justify-center">
-                    <Icon name="trendingUp" size={16} />
+                <th className="px-3 py-3 font-bold text-xs text-center border-r border-white/20">
+                  <div className="flex items-center gap-1 justify-center">
+                    <Icon name="trendingUp" size={12} />
                     {t.profit || 'Profit'}
                   </div>
                 </th>
-                <th className="px-6 py-6 font-bold text-lg text-center">
-                  <div className="flex items-center gap-2 justify-center">
-                    <Icon name="settings" size={16} />
+                <th className="px-3 py-3 font-bold text-xs text-center">
+                  <div className="flex items-center gap-1 justify-center">
+                    <Icon name="settings" size={12} />
                     {t.actions || 'Actions'}
                   </div>
                 </th>
@@ -397,90 +397,90 @@ const SalesHistoryTableEnhanced = React.memo(function SalesHistoryTableEnhanced(
                   return (
                     <React.Fragment key={sale.id}>
                       {/* Main Sale Row */}
-                      <tr className={`border-b-2 border-gray-200/50 dark:border-gray-600/50 ${idx % 2 === 0 ? 'bg-gradient-to-r from-white to-gray-50 dark:from-gray-800/80 dark:to-gray-900/60' : 'bg-gradient-to-r from-gray-50 to-white dark:from-gray-900/60 dark:to-gray-800/80'} hover:bg-gradient-to-r hover:from-blue-50 hover:to-cyan-50 dark:hover:from-cyan-900/30 dark:hover:to-blue-900/30 transition-all duration-200 transform hover:scale-[1.001] hover:shadow-md`}>
-                        <td className="px-6 py-5 border-r border-gray-200/30 dark:border-gray-600/30">
+                      <tr className={`border-b border-gray-200/50 dark:border-gray-600/50 ${idx % 2 === 0 ? 'bg-gradient-to-r from-white to-gray-50 dark:from-gray-800/80 dark:to-gray-900/60' : 'bg-gradient-to-r from-gray-50 to-white dark:from-gray-900/60 dark:to-gray-800/80'} hover:bg-gradient-to-r hover:from-blue-50 hover:to-cyan-50 dark:hover:from-cyan-900/30 dark:hover:to-blue-900/30 transition-all duration-200 transform hover:scale-[1.001] hover:shadow-md`}>
+                        <td className="px-3 py-2 border-r border-gray-200/30 dark:border-gray-600/30">
                           <div className="flex justify-center">
                             {hasMultipleCurrencies && (
                               <button
                                 onClick={() => toggleSaleExpansion(sale.id)}
-                                className="px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl hover:from-blue-700 hover:to-cyan-700 transition-all duration-200 transform hover:scale-105 shadow-lg shadow-blue-200 dark:shadow-blue-800 font-medium text-sm flex items-center gap-2"
+                                className="px-2 py-1 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-lg hover:from-blue-700 hover:to-cyan-700 transition-all duration-200 transform hover:scale-105 shadow-lg shadow-blue-200 dark:shadow-blue-800 font-medium text-xs flex items-center gap-1"
                                 title={t?.showCurrencyBreakdown || 'Show currency breakdown'}
                               >
-                                <Icon name={isExpanded ? "chevronDown" : "chevronRight"} size={16} />
+                                <Icon name={isExpanded ? "chevronDown" : "chevronRight"} size={12} />
                                 {isExpanded ? 'Hide' : 'Show'}
                               </button>
                             )}
                           </div>
                         </td>
-                        <td className="px-6 py-5 border-r border-gray-200/30 dark:border-gray-600/30">
+                        <td className="px-3 py-2 border-r border-gray-200/30 dark:border-gray-600/30">
                           <div className="flex flex-col space-y-1">
-                            <div className="text-sm font-medium text-gray-800 dark:text-gray-200">
+                            <div className="text-xs font-medium text-gray-800 dark:text-gray-200">
                               {new Date(sale.created_at).toLocaleDateString()}
                             </div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100/50 dark:bg-gray-700/50 px-2 py-1 rounded-full w-fit">
+                            <div className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100/50 dark:bg-gray-700/50 px-1 py-0.5 rounded-full w-fit">
                               {new Date(sale.created_at).toLocaleTimeString()}
                             </div>
                           </div>
                         </td>
-                        <td className="px-6 py-5 border-r border-gray-200/30 dark:border-gray-600/30">
-                          <div className="font-semibold text-gray-900 dark:text-gray-100 bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent dark:from-blue-400 dark:to-cyan-400">
+                        <td className="px-3 py-2 border-r border-gray-200/30 dark:border-gray-600/30">
+                          <div className="text-sm font-semibold text-gray-900 dark:text-gray-100 bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent dark:from-blue-400 dark:to-cyan-400">
                             {(sale.customer_name || t.walkInCustomer || 'Walk-in').toString().charAt(0).toUpperCase() + (sale.customer_name || t.walkInCustomer || 'Walk-in').toString().slice(1).toLowerCase()}
                           </div>
                         </td>
-                        <td className="px-6 py-5 border-r border-gray-200/30 dark:border-gray-600/30">
-                          <div className="text-gray-700 dark:text-gray-300 font-medium bg-gray-50/80 dark:bg-gray-700/50 px-3 py-2 rounded-lg">
+                        <td className="px-3 py-2 border-r border-gray-200/30 dark:border-gray-600/30">
+                          <div className="text-xs text-gray-700 dark:text-gray-300 font-medium bg-gray-50/80 dark:bg-gray-700/50 px-2 py-1 rounded-lg">
                             {sale.items ? `${sale.items.length} items (${sale.items.reduce((sum, item) => sum + (item.quantity || 1), 0)} total)` : '0 items'}
                           </div>
                         </td>
-                        <td className="px-6 py-5 border-r border-gray-200/30 dark:border-gray-600/30">
-                          <div className="flex flex-col gap-2">
+                        <td className="px-3 py-2 border-r border-gray-200/30 dark:border-gray-600/30">
+                          <div className="flex flex-col gap-1">
                             {breakdown.usd.buyingTotal > 0 && (
-                              <div className="bg-green-50 dark:bg-green-900/20 px-3 py-2 rounded-lg border-l-4 border-green-500">
-                                <span className="text-green-700 dark:text-green-400 font-bold text-lg">
+                              <div className="bg-orange-50 dark:bg-orange-900/20 px-2 py-1 rounded-lg border-l-2 border-orange-500">
+                                <span className="text-orange-700 dark:text-orange-400 font-bold text-sm">
                                   {formatCurrency(breakdown.usd.buyingTotal, 'USD')}
                                 </span>
                               </div>
                             )}
                             {breakdown.iqd.buyingTotal > 0 && (
-                              <div className="bg-blue-50 dark:bg-blue-900/20 px-3 py-2 rounded-lg border-l-4 border-blue-500">
-                                <span className="text-blue-700 dark:text-blue-400 font-bold text-lg">
+                              <div className="bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded-lg border-l-2 border-blue-500">
+                                <span className="text-blue-700 dark:text-blue-400 font-bold text-sm">
                                   {formatCurrency(breakdown.iqd.buyingTotal, 'IQD')}
                                 </span>
                               </div>
                             )}
                           </div>
                         </td>
-                        <td className="px-6 py-5 border-r border-gray-200/30 dark:border-gray-600/30">
-                          <div className="flex flex-col gap-2">
+                        <td className="px-3 py-2 border-r border-gray-200/30 dark:border-gray-600/30">
+                          <div className="flex flex-col gap-1">
                             {breakdown.usd.sellingTotal > 0 && (
-                              <div className="bg-green-50 dark:bg-green-900/20 px-3 py-2 rounded-lg border-l-4 border-green-500">
-                                <span className="text-green-700 dark:text-green-400 font-bold text-lg">
+                              <div className="bg-orange-50 dark:bg-orange-900/20 px-2 py-1 rounded-lg border-l-2 border-orange-500">
+                                <span className="text-orange-700 dark:text-orange-400 font-bold text-sm">
                                   {formatCurrency(breakdown.usd.sellingTotal, 'USD')}
                                 </span>
                               </div>
                             )}
                             {breakdown.iqd.sellingTotal > 0 && (
-                              <div className="bg-blue-50 dark:bg-blue-900/20 px-3 py-2 rounded-lg border-l-4 border-blue-500">
-                                <span className="text-blue-700 dark:text-blue-400 font-bold text-lg">
+                              <div className="bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded-lg border-l-2 border-blue-500">
+                                <span className="text-blue-700 dark:text-blue-400 font-bold text-sm">
                                   {formatCurrency(breakdown.iqd.sellingTotal, 'IQD')}
                                 </span>
                               </div>
                             )}
                           </div>
                         </td>
-                        <td className="px-6 py-5 border-r border-gray-200/30 dark:border-gray-600/30">
+                        <td className="px-3 py-2 border-r border-gray-200/30 dark:border-gray-600/30">
                           <div className="text-right">
-                            <div className="flex flex-col gap-2">
+                            <div className="flex flex-col gap-1">
                               {breakdown.usd.paid > 0 && (
-                                <div className="bg-green-50 dark:bg-green-900/20 px-3 py-2 rounded-lg border-l-4 border-green-500">
-                                  <span className="text-green-700 dark:text-green-400 font-bold text-lg">
+                                <div className="bg-orange-50 dark:bg-orange-900/20 px-2 py-1 rounded-lg border-l-2 border-orange-500">
+                                  <span className="text-orange-700 dark:text-orange-400 font-bold text-sm">
                                     {formatCurrency(breakdown.usd.paid, 'USD')}
                                   </span>
                                 </div>
                               )}
                               {breakdown.iqd.paid > 0 && (
-                                <div className="bg-blue-50 dark:bg-blue-900/20 px-3 py-2 rounded-lg border-l-4 border-blue-500">
-                                  <span className="text-blue-700 dark:text-blue-400 font-bold text-lg">
+                                <div className="bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded-lg border-l-2 border-blue-500">
+                                  <span className="text-blue-700 dark:text-blue-400 font-bold text-sm">
                                     {formatCurrency(breakdown.iqd.paid, 'IQD')}
                                   </span>
                                 </div>
@@ -488,48 +488,54 @@ const SalesHistoryTableEnhanced = React.memo(function SalesHistoryTableEnhanced(
                             </div>
                           </div>
                         </td>
-                        <td className="px-6 py-5 border-r border-gray-200/30 dark:border-gray-600/30">
+                        <td className="px-3 py-2 border-r border-gray-200/30 dark:border-gray-600/30">
                           {/* Show profit in the sale currency to match sale details modal */}
-                          <div className="flex flex-col gap-2">
+                          <div className="flex flex-col gap-1">
                             {breakdown.usd.actualProfit !== undefined && breakdown.usd.actualProfit !== 0 && (
-                              <div className={`px-4 py-3 rounded-xl font-bold text-xl ${
+                              <div className={`px-2 py-1 rounded-lg font-bold text-sm ${
                                 breakdown.usd.actualProfit >= 0 
-                                  ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-2 border-green-200 dark:border-green-600/50'
-                                  : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border-2 border-red-200 dark:border-red-600/50'
+                                  ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-600/50'
+                                  : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-600/50'
                               }`}>
                                 {formatCurrency(breakdown.usd.actualProfit, 'USD')}
                               </div>
                             )}
                             {breakdown.iqd.actualProfit !== undefined && breakdown.iqd.actualProfit !== 0 && (
-                              <div className={`px-4 py-3 rounded-xl font-bold text-xl ${
+                              <div className={`px-2 py-1 rounded-lg font-bold text-sm ${
                                 breakdown.iqd.actualProfit >= 0 
-                                  ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-2 border-green-200 dark:border-green-600/50'
-                                  : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border-2 border-red-200 dark:border-red-600/50'
+                                  ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-600/50'
+                                  : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-600/50'
                               }`}>
                                 {formatCurrency(breakdown.iqd.actualProfit, 'IQD')}
                               </div>
                             )}
                           </div>
                         </td>
-                        <td className="px-6 py-5">
-                          <div className="flex gap-3 justify-center">
+                        <td className="px-3 py-2">
+                          <div className="flex gap-2 justify-center">
                             <button
                               onClick={() => onView && onView(sale)}
-                              className="px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl hover:from-blue-700 hover:to-cyan-700 transition-all duration-200 transform hover:scale-105 shadow-lg shadow-blue-200 dark:shadow-blue-800 font-medium text-sm flex items-center gap-2"
+                              className="px-2 py-1 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-lg hover:from-blue-700 hover:to-cyan-700 transition-all duration-200 transform hover:scale-105 shadow-lg shadow-blue-200 dark:shadow-blue-800 font-medium text-xs flex items-center gap-1"
                               title={t.view}
                             >
-                              <Icon name="eye" size={18} />
+                              <Icon name="eye" size={12} />
                               {t.view}
                             </button>
                             {onReturn && (
                               <button
                                 onClick={() => {
-                                  onReturn(sale.id);
+                                  console.log('Return button clicked for sale:', sale.id);
+                                  console.log('onReturn function:', onReturn);
+                                  if (onReturn) {
+                                    onReturn(sale.id);
+                                  } else {
+                                    console.error('onReturn function is undefined');
+                                  }
                                 }}
-                                className="px-4 py-2 bg-gradient-to-r from-red-600 to-rose-600 text-white rounded-xl hover:from-red-700 hover:to-rose-700 transition-all duration-200 transform hover:scale-105 shadow-lg shadow-red-200 dark:shadow-red-800 font-medium text-sm flex items-center gap-2"
+                                className="px-2 py-1 bg-gradient-to-r from-red-600 to-rose-600 text-white rounded-lg hover:from-red-700 hover:to-rose-700 transition-all duration-200 transform hover:scale-105 shadow-lg shadow-red-200 dark:shadow-red-800 font-medium text-xs flex items-center gap-1"
                                 title={t.return}
                               >
-                                <Icon name="undo" size={18} />
+                                <Icon name="undo" size={12} />
                                 {t.return}
                               </button>
                             )}
@@ -543,41 +549,41 @@ const SalesHistoryTableEnhanced = React.memo(function SalesHistoryTableEnhanced(
                           {/* USD Row */}
                           {breakdown.usd.items.length > 0 && (
                             <tr className="bg-blue-50 dark:bg-blue-900/20 border-b">
-                              <td className="px-6 py-4 border-r border-gray-200/30 dark:border-gray-600/30"></td>
-                              <td className="px-8 py-4 text-sm text-blue-600 dark:text-blue-400 font-medium border-r border-gray-200/30 dark:border-gray-600/30">
-                                <div className="flex items-center gap-2">
-                                  <Icon name="dollarSign" size={16} />
+                              <td className="px-3 py-2 border-r border-gray-200/30 dark:border-gray-600/30"></td>
+                              <td className="px-3 py-2 text-xs text-blue-600 dark:text-blue-400 font-medium border-r border-gray-200/30 dark:border-gray-600/30">
+                                <div className="flex items-center gap-1">
+                                  <Icon name="dollarSign" size={12} />
                                   {t?.usd || 'USD'} Details
                                 </div>
                               </td>
-                              <td className="px-6 py-4 text-sm text-gray-800 dark:text-gray-200 border-r border-gray-200/30 dark:border-gray-600/30">
+                              <td className="px-3 py-2 text-xs text-gray-800 dark:text-gray-200 border-r border-gray-200/30 dark:border-gray-600/30">
                                 <span className="bg-blue-100 dark:bg-blue-800 px-2 py-1 rounded-full font-medium">
                                   {breakdown.usd.items.length} items
                                 </span>
                               </td>
-                              <td className="px-6 py-4 text-sm text-gray-800 dark:text-gray-200 border-r border-gray-200/30 dark:border-gray-600/30">
-                                <div className="bg-green-50 dark:bg-green-900/20 px-3 py-2 rounded-lg border-l-4 border-green-500">
-                                  <span className="text-green-700 dark:text-green-400 font-bold">
+                              <td className="px-3 py-2 text-xs text-gray-800 dark:text-gray-200 border-r border-gray-200/30 dark:border-gray-600/30">
+                                <div className="bg-orange-50 dark:bg-orange-900/20 px-2 py-1 rounded-lg border-l-2 border-orange-500">
+                                  <span className="text-orange-700 dark:text-orange-400 font-bold">
                                     {formatCurrency(breakdown.usd.buyingTotal, 'USD')}
                                   </span>
                                 </div>
                               </td>
-                              <td className="px-6 py-4 text-sm text-gray-800 dark:text-gray-200 border-r border-gray-200/30 dark:border-gray-600/30">
-                                <div className="bg-green-50 dark:bg-green-900/20 px-3 py-2 rounded-lg border-l-4 border-green-500">
-                                  <span className="text-green-700 dark:text-green-400 font-bold">
+                              <td className="px-3 py-2 text-xs text-gray-800 dark:text-gray-200 border-r border-gray-200/30 dark:border-gray-600/30">
+                                <div className="bg-orange-50 dark:bg-orange-900/20 px-2 py-1 rounded-lg border-l-2 border-orange-500">
+                                  <span className="text-orange-700 dark:text-orange-400 font-bold">
                                     {formatCurrency(breakdown.usd.sellingTotal, 'USD')}
                                   </span>
                                 </div>
                               </td>
-                              <td className="px-6 py-4 text-sm font-semibold text-gray-800 dark:text-gray-200 border-r border-gray-200/30 dark:border-gray-600/30">
-                                <div className="bg-green-50 dark:bg-green-900/20 px-3 py-2 rounded-lg border-l-4 border-green-500">
-                                  <span className="text-green-700 dark:text-green-400 font-bold">
+                              <td className="px-3 py-2 text-xs font-semibold text-gray-800 dark:text-gray-200 border-r border-gray-200/30 dark:border-gray-600/30">
+                                <div className="bg-orange-50 dark:bg-orange-900/20 px-2 py-1 rounded-lg border-l-2 border-orange-500">
+                                  <span className="text-orange-700 dark:text-orange-400 font-bold">
                                     {formatCurrency(breakdown.usd.paid, 'USD')}
                                   </span>
                                 </div>
                               </td>
-                              <td className={`px-6 py-4 text-sm font-semibold border-r border-gray-200/30 dark:border-gray-600/30`}>
-                                <div className={`px-3 py-2 rounded-lg border-l-4 ${
+                              <td className={`px-3 py-2 text-xs font-semibold border-r border-gray-200/30 dark:border-gray-600/30`}>
+                                <div className={`px-2 py-1 rounded-lg border-l-2 ${
                                   breakdown.usd.actualProfit >= 0 
                                     ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-green-500'
                                     : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border-red-500'
@@ -587,47 +593,47 @@ const SalesHistoryTableEnhanced = React.memo(function SalesHistoryTableEnhanced(
                                   </span>
                                 </div>
                               </td>
-                              <td className="px-6 py-4"></td>
+                              <td className="px-3 py-2"></td>
                             </tr>
                           )}
 
                           {/* IQD Row */}
                           {breakdown.iqd.items.length > 0 && (
                             <tr className="bg-green-50 dark:bg-green-900/20 border-b">
-                              <td className="px-6 py-4 border-r border-gray-200/30 dark:border-gray-600/30"></td>
-                              <td className="px-8 py-4 text-sm text-green-600 dark:text-green-400 font-medium border-r border-gray-200/30 dark:border-gray-600/30">
-                                <div className="flex items-center gap-2">
-                                  <Icon name="banknote" size={16} />
+                              <td className="px-3 py-2 border-r border-gray-200/30 dark:border-gray-600/30"></td>
+                              <td className="px-3 py-2 text-xs text-green-600 dark:text-green-400 font-medium border-r border-gray-200/30 dark:border-gray-600/30">
+                                <div className="flex items-center gap-1">
+                                  <Icon name="banknote" size={12} />
                                   {t?.iqd || 'IQD'} Details
                                 </div>
                               </td>
-                              <td className="px-6 py-4 text-sm text-gray-800 dark:text-gray-200 border-r border-gray-200/30 dark:border-gray-600/30">
+                              <td className="px-3 py-2 text-xs text-gray-800 dark:text-gray-200 border-r border-gray-200/30 dark:border-gray-600/30">
                                 <span className="bg-green-100 dark:bg-green-800 px-2 py-1 rounded-full font-medium">
                                   {breakdown.iqd.items.length} items
                                 </span>
                               </td>
-                              <td className="px-6 py-4 text-sm text-gray-800 dark:text-gray-200 border-r border-gray-200/30 dark:border-gray-600/30">
+                              <td className="px-6 py-4 text-xs text-gray-800 dark:text-gray-200 border-r border-gray-200/30 dark:border-gray-600/30">
                                 <div className="bg-blue-50 dark:bg-blue-900/20 px-3 py-2 rounded-lg border-l-4 border-blue-500">
                                   <span className="text-blue-700 dark:text-blue-400 font-bold">
                                     {formatCurrency(breakdown.iqd.buyingTotal, 'IQD')}
                                   </span>
                                 </div>
                               </td>
-                              <td className="px-6 py-4 text-sm text-gray-800 dark:text-gray-200 border-r border-gray-200/30 dark:border-gray-600/30">
+                              <td className="px-6 py-4 text-xs text-gray-800 dark:text-gray-200 border-r border-gray-200/30 dark:border-gray-600/30">
                                 <div className="bg-blue-50 dark:bg-blue-900/20 px-3 py-2 rounded-lg border-l-4 border-blue-500">
                                   <span className="text-blue-700 dark:text-blue-400 font-bold">
                                     {formatCurrency(breakdown.iqd.sellingTotal, 'IQD')}
                                   </span>
                                 </div>
                               </td>
-                              <td className="px-6 py-4 text-sm font-semibold text-gray-800 dark:text-gray-200 border-r border-gray-200/30 dark:border-gray-600/30">
+                              <td className="px-6 py-4 text-xs font-semibold text-gray-800 dark:text-gray-200 border-r border-gray-200/30 dark:border-gray-600/30">
                                 <div className="bg-blue-50 dark:bg-blue-900/20 px-3 py-2 rounded-lg border-l-4 border-blue-500">
                                   <span className="text-blue-700 dark:text-blue-400 font-bold">
                                     {formatCurrency(breakdown.iqd.paid, 'IQD')}
                                   </span>
                                 </div>
                               </td>
-                              <td className={`px-6 py-4 text-sm font-semibold border-r border-gray-200/30 dark:border-gray-600/30`}>
+                              <td className={`px-6 py-4 text-xs font-semibold border-r border-gray-200/30 dark:border-gray-600/30`}>
                                 <div className={`px-3 py-2 rounded-lg border-l-4 ${
                                   breakdown.iqd.actualProfit >= 0 
                                     ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-green-500'

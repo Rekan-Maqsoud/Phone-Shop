@@ -24,8 +24,8 @@ export default function EnhancedCompanyDebtModal({ show, onClose, debt, onMarkPa
       // Multi-currency debt - use USD amount as primary
       debtAmountUSD = debt.usd_amount || 0;
     } else {
-      // Legacy handling - assume USD if currency not specified
-      debtAmountUSD = debt.amount || 0;
+      // Legacy handling - assume IQD if currency not specified (default to IQD, not USD)
+      debtAmountUSD = (debt.amount || 0) / EXCHANGE_RATES.USD_TO_IQD;
     }
     
     let changeInfo = null;
@@ -85,19 +85,19 @@ export default function EnhancedCompanyDebtModal({ show, onClose, debt, onMarkPa
     // Set default payment amount when debt changes
     if (show && debt) {
       setPaymentCurrency('IQD');
-      // Set payment amount based on debt currency and default payment currency
+      // Set payment amount based on debt currency and default payment currency (IQD)
       if (debt.currency === 'IQD') {
-        setPaymentAmount(debt.amount || 0); // Debt is in IQD, use direct amount
+        setPaymentAmount(debt.amount || 0); // IQD debt, IQD payment - direct amount
       } else if (debt.currency === 'USD') {
-        setPaymentAmount((debt.amount || 0) * EXCHANGE_RATES.USD_TO_IQD); // Convert USD debt to IQD for payment
+        setPaymentAmount((debt.amount || 0) * EXCHANGE_RATES.USD_TO_IQD); // USD debt, convert to IQD for payment
       } else if (debt.currency === 'MULTI') {
         // For multi-currency debt, calculate total in IQD
         const usdInIQD = (debt.usd_amount || 0) * EXCHANGE_RATES.USD_TO_IQD;
         const totalIQD = usdInIQD + (debt.iqd_amount || 0);
         setPaymentAmount(totalIQD);
       } else {
-        // Legacy or unknown currency, assume USD and convert to IQD
-        setPaymentAmount((debt.amount || 0) * EXCHANGE_RATES.USD_TO_IQD);
+        // Legacy or unknown currency, default to IQD (assume debt amount is in IQD)
+        setPaymentAmount(debt.amount || 0);
       }
     }
   }, [show, debt]);
@@ -126,7 +126,12 @@ export default function EnhancedCompanyDebtModal({ show, onClose, debt, onMarkPa
       return;
     }
     
+    // Use new multi-currency format to properly track which currency was used for payment
     const paymentData = {
+      payment_currency_used: paymentCurrency,
+      payment_usd_amount: paymentCurrency === 'USD' ? paymentAmount : 0,
+      payment_iqd_amount: paymentCurrency === 'IQD' ? paymentAmount : 0,
+      // Keep legacy format for backward compatibility
       payment_currency: paymentCurrency,
       payment_amount: paymentAmount
     };
@@ -171,7 +176,14 @@ export default function EnhancedCompanyDebtModal({ show, onClose, debt, onMarkPa
                 {t?.amount || 'Amount'}
               </h3>
               <p className="text-2xl font-bold text-red-600 dark:text-red-400">
-                ${(debt.amount || 0).toFixed(2)}
+                {debt.currency === 'IQD' 
+                  ? `د.ع${Math.round(debt.amount || 0).toLocaleString()}`
+                  : debt.currency === 'MULTI'
+                  ? `$${(debt.usd_amount || 0).toFixed(2)}${debt.iqd_amount ? ` + د.ع${Math.round(debt.iqd_amount).toLocaleString()}` : ''}`
+                  : debt.currency === 'USD'
+                  ? `$${(debt.amount || 0).toFixed(2)}`
+                  : `د.ع${Math.round(debt.amount || 0).toLocaleString()}` // Default to IQD if currency not specified
+                }
               </p>
             </div>
             <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
@@ -392,7 +404,17 @@ export default function EnhancedCompanyDebtModal({ show, onClose, debt, onMarkPa
                     type="button"
                     onClick={() => {
                       setPaymentCurrency('USD');
-                      setPaymentAmount(debt.amount || 0); // Set to debt amount in USD
+                      // Set payment amount based on debt currency
+                      if (debt.currency === 'IQD') {
+                        setPaymentAmount((debt.amount || 0) / EXCHANGE_RATES.USD_TO_IQD); // Convert IQD debt to USD payment
+                      } else if (debt.currency === 'USD') {
+                        setPaymentAmount(debt.amount || 0); // USD debt, USD payment
+                      } else if (debt.currency === 'MULTI') {
+                        setPaymentAmount(debt.usd_amount || 0); // Multi-currency debt, use USD portion
+                      } else {
+                        // Legacy or unknown currency, assume IQD debt and convert to USD
+                        setPaymentAmount((debt.amount || 0) / EXCHANGE_RATES.USD_TO_IQD);
+                      }
                     }}
                     className={`p-3 rounded-lg text-sm font-medium transition-colors ${
                       paymentCurrency === 'USD'
@@ -411,7 +433,18 @@ export default function EnhancedCompanyDebtModal({ show, onClose, debt, onMarkPa
                     type="button"
                     onClick={() => {
                       setPaymentCurrency('IQD');
-                      setPaymentAmount((debt.amount || 0) * EXCHANGE_RATES.USD_TO_IQD); // Convert to IQD
+                      // Set payment amount based on debt currency
+                      if (debt.currency === 'IQD') {
+                        setPaymentAmount(debt.amount || 0); // IQD debt, IQD payment
+                      } else if (debt.currency === 'USD') {
+                        setPaymentAmount((debt.amount || 0) * EXCHANGE_RATES.USD_TO_IQD); // Convert USD debt to IQD payment
+                      } else if (debt.currency === 'MULTI') {
+                        const usdInIQD = (debt.usd_amount || 0) * EXCHANGE_RATES.USD_TO_IQD;
+                        setPaymentAmount(usdInIQD + (debt.iqd_amount || 0)); // Multi-currency debt, total in IQD
+                      } else {
+                        // Legacy or unknown currency, assume IQD debt
+                        setPaymentAmount(debt.amount || 0);
+                      }
                     }}
                     className={`p-3 rounded-lg text-sm font-medium transition-colors ${
                       paymentCurrency === 'IQD'
@@ -472,9 +505,9 @@ export default function EnhancedCompanyDebtModal({ show, onClose, debt, onMarkPa
                   )}
                   {(!debt.currency || (debt.currency !== 'USD' && debt.currency !== 'IQD' && debt.currency !== 'MULTI')) && (
                     <>
-                      <div>Debt Amount: ${(debt.amount || 0).toFixed(2)} USD (Legacy)</div>
-                      {paymentCurrency === 'IQD' && (
-                        <div>Equivalent: د.ع{((debt.amount || 0) * EXCHANGE_RATES.USD_TO_IQD).toFixed(0)} IQD</div>
+                      <div>Debt Amount: د.ع{(debt.amount || 0).toFixed(0)} IQD (Default Currency)</div>
+                      {paymentCurrency === 'USD' && (
+                        <div>Equivalent: ${((debt.amount || 0) / EXCHANGE_RATES.USD_TO_IQD).toFixed(2)} USD</div>
                       )}
                     </>
                   )}
@@ -490,7 +523,16 @@ export default function EnhancedCompanyDebtModal({ show, onClose, debt, onMarkPa
                     <div className="space-y-2">
                       <div className="flex justify-between">
                         <span>{t?.debtAmount || 'Debt Amount'}:</span>
-                        <span className="font-medium">${paymentSummary.debtAmount.toFixed(2)}</span>
+                        <span className="font-medium">
+                          {debt.currency === 'IQD' 
+                            ? `د.ع${Math.round(debt.amount || 0).toLocaleString()}`
+                            : debt.currency === 'MULTI'
+                            ? `$${(debt.usd_amount || 0).toFixed(2)}${debt.iqd_amount ? ` + د.ع${Math.round(debt.iqd_amount).toLocaleString()}` : ''}`
+                            : debt.currency === 'USD'
+                            ? `$${(debt.amount || 0).toFixed(2)}`
+                            : `د.ع${Math.round(debt.amount || 0).toLocaleString()}` // Default to IQD if currency not specified
+                          }
+                        </span>
                       </div>
                       <div className="flex justify-between">
                         <span>{t?.payingAmount || 'Paying'}:</span>

@@ -135,19 +135,38 @@ function markCustomerDebtPaid(db, id, paymentData) {
       
       if (debtRecord && debtRecord.sale_id) {
         // Update the sale record with actual payment information
+        // Use the currency that was actually paid, not the original debt currency
         const updateSaleStmt = db.prepare(`
           UPDATE sales 
           SET paid_amount_usd = ?, 
               paid_amount_iqd = ?,
-              is_multi_currency = ?
+              is_multi_currency = ?,
+              currency = ?,
+              total = ?
           WHERE id = ?
         `);
         
         const isMultiCurrencyPayment = finalUSDAmount > 0 && finalIQDAmount > 0;
+        const actualPaymentCurrency = isMultiCurrencyPayment ? 'MULTI' : 
+                                      (finalUSDAmount > 0 ? 'USD' : 'IQD');
+        
+        // Calculate the actual total paid (what customer paid, not original debt amount)
+        let actualTotalPaid = 0;
+        if (isMultiCurrencyPayment) {
+          // For multi-currency, use USD equivalent
+          actualTotalPaid = finalUSDAmount + (finalIQDAmount / 1440); // Convert IQD to USD
+        } else if (finalUSDAmount > 0) {
+          actualTotalPaid = finalUSDAmount;
+        } else {
+          actualTotalPaid = finalIQDAmount;
+        }
+        
         updateSaleStmt.run(
           finalUSDAmount || 0,
           finalIQDAmount || 0,
           isMultiCurrencyPayment ? 1 : 0,
+          actualPaymentCurrency, // Update currency to reflect actual payment currency
+          actualTotalPaid, // Update total to reflect actual amount paid
           debtRecord.sale_id
         );
       }
@@ -252,7 +271,7 @@ function addCompanyDebt(db, { company_name, amount, description, has_items = 0, 
   // This preserves the true currency of the debt
   try {
     return db.prepare(`INSERT INTO company_debts 
-      (company_name, amount, description, created_at, has_items, currency, multi_currency_usd, multi_currency_iqd) 
+      (company_name, amount, description, created_at, has_items, currency, usd_amount, iqd_amount) 
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
       .run(company_name, finalAmount, description, now, has_items, finalCurrency, usdAmount, iqdAmount);
   } catch (columnError) {

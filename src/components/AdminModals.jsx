@@ -52,7 +52,7 @@ export default function AdminModals({
   // Cloud Backup
   triggerCloudBackup
 }) {
-  const { refreshSales, refreshProducts, refreshAccessories, refreshCompanyDebts, refreshBuyingHistory, refreshDebts, refreshDebtSales } = useData();
+  const { refreshSales, refreshProducts, refreshAccessories, refreshCompanyDebts, refreshBuyingHistory, refreshDebts, refreshDebtSales, refreshTransactions } = useData();
   
 
   return (
@@ -244,10 +244,9 @@ export default function AdminModals({
                     .reduce((sum, item) => sum + (parseInt(item.quantity) * parseFloat(item.unit_price)), 0);
                   
                   // Check if we should use multi-currency handling
-                  // Use multi-currency if: mixed item currencies, payment currency mismatch, or explicit multi-currency enabled
+                  // Use multi-currency ONLY if: explicit multi-currency enabled OR user has mixed currencies AND didn't choose a single payment currency
                   const shouldUseMultiCurrency = (purchaseData.multi_currency && purchaseData.multi_currency.enabled) || 
-                                                 hasMixedCurrencies || 
-                                                 hasPaymentCurrencyMismatch;
+                                                 (hasMixedCurrencies && !paymentCurrency);
                   
                   if (shouldUseMultiCurrency) {
                     // For multi-currency purchases with items, use the dedicated function
@@ -258,23 +257,8 @@ export default function AdminModals({
                         // Explicit multi-currency payment
                         finalUsdAmount = purchaseData.multi_currency.usdAmount || 0;
                         finalIqdAmount = purchaseData.multi_currency.iqdAmount || 0;
-                      } else if (hasPaymentCurrencyMismatch && !hasMixedCurrencies) {
-                        // Single item currency but different payment currency - convert item totals to payment currency
-                        if (paymentCurrency === 'USD' && currencies[0] === 'IQD') {
-                          // Paying USD for IQD items
-                          finalUsdAmount = iqdTotal / EXCHANGE_RATES.USD_TO_IQD; // Convert IQD to USD using current rate
-                          finalIqdAmount = 0;
-                        } else if (paymentCurrency === 'IQD' && currencies[0] === 'USD') {
-                          // Paying IQD for USD items (this fixes the main issue)
-                          finalUsdAmount = 0;
-                          finalIqdAmount = usdTotal * EXCHANGE_RATES.USD_TO_IQD; // Convert USD to IQD using current rate
-                        } else {
-                          // Fallback to item currency totals
-                          finalUsdAmount = usdTotal;
-                          finalIqdAmount = iqdTotal;
-                        }
                       } else {
-                        // Mixed currencies or other cases, use item currency totals
+                        // Mixed currencies - use item currency totals
                         finalUsdAmount = usdTotal;
                         finalIqdAmount = iqdTotal;
                       }
@@ -295,20 +279,26 @@ export default function AdminModals({
                       throw new Error('Multi-currency purchase with items API not available');
                     }
                   } else {
+                    // Single currency payment - convert all items to the chosen payment currency
+                    const totalInPaymentCurrency = paymentCurrency === 'USD' 
+                      ? usdTotal + (iqdTotal / EXCHANGE_RATES.USD_TO_IQD) // Convert IQD items to USD
+                      : iqdTotal + (usdTotal * EXCHANGE_RATES.USD_TO_IQD); // Convert USD items to IQD
+                    
                     // Regular single-currency purchase with items
                     if (window.api?.addDirectPurchaseWithItems) {
                       result = await window.api.addDirectPurchaseWithItems({
                         supplier: purchaseData.company_name,
                         date: new Date().toISOString(),
                         items: purchaseData.items || [],
-                        currency: purchaseData.currency || 'USD'
+                        totalAmount: totalInPaymentCurrency,
+                        currency: paymentCurrency || 'IQD'
                       });
                       if (!result || result.error) {
-                        throw new Error(result?.error || 'Failed to add direct purchase with items');
+                        throw new Error(result?.error || 'Failed to add purchase with items');
                       }
                     } else {
                       console.error('[AdminModals] window.api.addDirectPurchaseWithItems not available');
-                      throw new Error('Direct purchase with items API not available');
+                      throw new Error('Purchase with items API not available');
                     }
                   }
                 }
@@ -429,6 +419,7 @@ export default function AdminModals({
           onPaymentComplete={async () => {
             await refreshCompanyDebts();
             await refreshBuyingHistory();
+            await refreshTransactions();
             triggerCloudBackup();
           }}
           admin={{

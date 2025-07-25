@@ -19,6 +19,7 @@ import ProductsSection from '../components/ProductsSection';
 import SalesHistorySection from '../components/SalesHistorySection';
 import BuyingHistorySection from '../components/BuyingHistorySection';
 import AdminModals from '../components/AdminModals';
+import ConfirmModal from '../components/ConfirmModal';
 import ToastUnified from '../components/ToastUnified';
 import AdminLoadingFallback from '../components/AdminLoadingFallback';
 import ExchangeRateIndicator from '../components/ExchangeRateIndicator';
@@ -385,7 +386,14 @@ export default function Admin() {
             <div className="flex-1 h-full w-full overflow-auto">
               {section === 'multiCurrencyDashboard' && <MultiCurrencyDashboard admin={admin} t={t} />}
               {section === 'buyingHistory' && <BuyingHistorySection admin={admin} t={t} openAddPurchaseModal={openAddPurchaseModal} />}
-              {section === 'salesHistory' && <SalesHistorySection admin={admin} t={t} />}
+              {section === 'salesHistory' && <SalesHistorySection 
+                admin={admin} 
+                t={t} 
+                showConfirm={showConfirm}
+                setConfirm={setConfirm}
+                setLoading={setLoading}
+                triggerCloudBackup={triggerCloudBackupAsync}
+              />}
               {section === 'customerDebts' && <CustomerDebtsSection 
                 admin={admin} 
                 t={t} 
@@ -500,6 +508,15 @@ export default function Admin() {
             </div>
           </div>
         )}
+
+        {/* Confirm Modal */}
+        <ConfirmModal
+          open={confirm.open}
+          message={confirm.message}
+          onConfirm={confirm.onConfirm}
+          onCancel={() => setConfirm({ open: false, message: '', onConfirm: null })}
+          t={t}
+        />
 
         {/* Toast notification */}
         {admin.toast && admin.toast.msg && (

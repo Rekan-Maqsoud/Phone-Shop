@@ -39,10 +39,9 @@ ChartJS.register(
 );
 
 function MultiCurrencyDashboard({ admin, t }) {
-  const { products, accessories, sales, debts, buyingHistory, companyDebts, incentives, refreshAllData, refreshDebts } = useData();
+  const { products, accessories, sales, debts, buyingHistory, companyDebts, incentives, transactions, refreshAllData, refreshDebts } = useData();
   const [balances, setBalances] = useState({ usd_balance: 0, iqd_balance: 0 });
   const [dashboardData, setDashboardData] = useState(null);
-  const [transactions, setTransactions] = useState([]);
   const [personalLoans, setPersonalLoans] = useState([]);
 
   // Memoize fetchBalanceData to prevent unnecessary API calls
@@ -55,13 +54,6 @@ function MultiCurrencyDashboard({ admin, t }) {
       } else {
         // Fallback to default values
         setBalances({ usd_balance: 0, iqd_balance: 0 });
-      }
-      
-      if (window.api?.getTransactions) {
-        // Fetch more transactions to ensure we capture today's spending transactions
-        // Even if there are many old transactions, we want to include today's purchases
-        const transactionData = await window.api.getTransactions(200);
-        setTransactions(transactionData || []);
       }
       
       if (window.api?.getPersonalLoans) {
@@ -210,34 +202,30 @@ function MultiCurrencyDashboard({ admin, t }) {
     }, 0);
 
     // Net performance (sales - spending) by currency - Include all outgoing payments
+    // Note: Multi-currency purchases are tracked in transactions table, so we exclude MULTI from buying_history to avoid double counting
     const todaysSpendingUSD = (buyingHistory || []).filter(entry => {
       if (!entry.paid_at) return false;
       const paidDate = new Date(entry.paid_at);
       return paidDate.toDateString() === today;
     }).reduce((sum, entry) => {
-      if (entry.currency === 'MULTI') {
-        return sum + (entry.multi_currency_usd || 0);
-      } else if (entry.currency === 'USD') {
+      // Only count single-currency USD purchases from buying_history
+      // Multi-currency purchases are handled via transactions table to avoid double counting
+      if (entry.currency === 'USD') {
         return sum + (entry.total_price || entry.amount || 0);
       }
       return sum;
     }, 0);
 
-    // Add company debt payments made today in USD
-    const todaysCompanyDebtPaymentsUSD = (companyDebts || []).filter(debt => {
-      if (!debt.paid_at) return false;
-      const paidDate = new Date(debt.paid_at);
-      return paidDate.toDateString() === today;
-    }).reduce((sum, debt) => {
-      if (debt.currency === 'MULTI') {
-        return sum + (debt.usd_amount || 0);
-      } else if (debt.currency === 'USD' || !debt.currency) {
-        return sum + (debt.amount || 0);
-      }
-      return sum;
-    }, 0);
+    // Add company debt payments made today in USD (from transactions table)
+    const todaysCompanyDebtPaymentsUSD = (transactions || []).filter(transaction => {
+      if (!transaction.created_at) return false;
+      const transactionDate = new Date(transaction.created_at);
+      return transactionDate.toDateString() === today && 
+             transaction.type === 'company_debt_payment' && 
+             transaction.amount_usd > 0;
+    }).reduce((sum, transaction) => sum + transaction.amount_usd, 0);
 
-    // Add today's transactions that are outgoing (negative amounts)
+    // Add today's transactions that are outgoing (negative amounts) - this includes multi-currency purchases
     const todaysTransactionSpendingUSD = (transactions || []).filter(transaction => {
       if (!transaction.created_at) return false;
       const transactionDate = new Date(transaction.created_at);
@@ -258,29 +246,24 @@ function MultiCurrencyDashboard({ admin, t }) {
       const paidDate = new Date(entry.paid_at);
       return paidDate.toDateString() === today;
     }).reduce((sum, entry) => {
-      if (entry.currency === 'MULTI') {
-        return sum + (entry.multi_currency_iqd || 0);
-      } else if (entry.currency === 'IQD' || !entry.currency) {
+      // Only count single-currency IQD purchases from buying_history
+      // Multi-currency purchases are handled via transactions table to avoid double counting
+      if (entry.currency === 'IQD' || !entry.currency) {
         return sum + (entry.total_price || entry.amount || 0);
       }
       return sum;
     }, 0);
 
-    // Add company debt payments made today in IQD
-    const todaysCompanyDebtPaymentsIQD = (companyDebts || []).filter(debt => {
-      if (!debt.paid_at) return false;
-      const paidDate = new Date(debt.paid_at);
-      return paidDate.toDateString() === today;
-    }).reduce((sum, debt) => {
-      if (debt.currency === 'MULTI') {
-        return sum + (debt.iqd_amount || 0);
-      } else if (debt.currency === 'IQD') {
-        return sum + (debt.amount || 0);
-      }
-      return sum;
-    }, 0);
+    // Add company debt payments made today in IQD (from transactions table)
+    const todaysCompanyDebtPaymentsIQD = (transactions || []).filter(transaction => {
+      if (!transaction.created_at) return false;
+      const transactionDate = new Date(transaction.created_at);
+      return transactionDate.toDateString() === today && 
+             transaction.type === 'company_debt_payment' && 
+             transaction.amount_iqd > 0;
+    }).reduce((sum, transaction) => sum + transaction.amount_iqd, 0);
 
-    // Add today's transactions that are outgoing (negative amounts)
+    // Add today's transactions that are outgoing (negative amounts) - this includes multi-currency purchases
     const todaysTransactionSpendingIQD = (transactions || []).filter(transaction => {
       if (!transaction.created_at) return false;
       const transactionDate = new Date(transaction.created_at);

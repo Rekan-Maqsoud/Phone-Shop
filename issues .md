@@ -1,4 +1,3 @@
-1- IQD customer debt wasnt saved , make sure its fixed please .
 
 2- paying back a company debt should add to the spendings in both daily check ins and monthly reports fix that .
 

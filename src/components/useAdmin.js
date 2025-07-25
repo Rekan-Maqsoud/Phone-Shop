@@ -30,7 +30,8 @@ export default function useAdmin(showConfirm = null) {
     refreshCompanyDebts = () => {},
     refreshBuyingHistory = () => {},
     refreshMonthlyReports = () => {},
-    refreshIncentives = () => {}
+    refreshIncentives = () => {},
+    refreshTransactions = () => {}
   } = dataContext || {};
   
   // UI state
@@ -585,6 +586,7 @@ export default function useAdmin(showConfirm = null) {
         await window.api.markCompanyDebtPaid(id, paymentData);
         refreshCompanyDebts();
         refreshBuyingHistory();
+        refreshTransactions();
         refreshProducts();
         refreshAccessories();
       }

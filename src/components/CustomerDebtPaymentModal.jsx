@@ -139,8 +139,11 @@ const CustomerDebtPaymentModal = ({
       
       if (debt && debt.id) {
         // If there's an existing debt record, mark it as paid
-    
         result = await window.api?.markCustomerDebtPaid?.(debt.id, new Date().toISOString(), {
+          payment_currency_used: multiCurrency.enabled ? 'MULTI' : paymentCurrency,
+          payment_usd_amount: paymentData.usdAmount || 0,
+          payment_iqd_amount: paymentData.iqdAmount || 0,
+          // Legacy format for backward compatibility
           currency: sale.currency,
           usdAmount: paymentData.usdAmount || 0,
           iqdAmount: paymentData.iqdAmount || 0,
@@ -165,6 +168,10 @@ const CustomerDebtPaymentModal = ({
         if (newDebtResult && newDebtResult.lastInsertRowid) {
       
           result = await window.api?.markCustomerDebtPaid?.(newDebtResult.lastInsertRowid, new Date().toISOString(), {
+            payment_currency_used: multiCurrency.enabled ? 'MULTI' : paymentCurrency,
+            payment_usd_amount: paymentData.usdAmount || 0,
+            payment_iqd_amount: paymentData.iqdAmount || 0,
+            // Legacy format for backward compatibility
             currency: sale.currency,
             usdAmount: paymentData.usdAmount || 0,
             iqdAmount: paymentData.iqdAmount || 0,

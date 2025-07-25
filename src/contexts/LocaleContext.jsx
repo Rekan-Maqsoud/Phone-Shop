@@ -247,8 +247,23 @@ const translations = {
     dailyBalanceCheck: 'Daily Balance Check',
     openingBalance: 'Opening Balance',
     todaysSpending: "Today's Spending",
+    todaysSales: "Today's Sales",
+    todaysIncentives: "Today's Incentives",
     expectedBalance: 'Expected Balance',
+    dailyDifference: 'Daily Difference',
     physicalMoneyCheck: 'Count your physical money and compare with this amount',
+    balance: 'Balance',
+    customerDebt: 'Customer Debt',
+    companyDebt: 'Company Debt',
+    inventoryValueUSD: 'Inventory Value USD',
+    inventoryValueIQD: 'Inventory Value IQD',
+    totalInventoryValue: 'Total Inventory Value',
+    productsInventory: 'Products',
+    financialOverview: 'Financial Overview',
+    customerOutstandingOfMonth: 'Customer Outstanding of Month',
+    companyOutstandingOfMonth: 'Company Outstanding of Month',
+    usd: 'USD',
+    iqd: 'IQD',
     
     // Personal loans
     loanAmount: 'Loan Amount',
@@ -604,6 +619,7 @@ const translations = {
     amount: 'Amount',
     purchasedItems: 'Purchased Items',
     viewItems: 'View items',
+    hideItems: 'Hide Items',
     
     // Customer Debts Section
     customerDebtsDesc: 'Track money owed to you by customers',
@@ -1359,8 +1375,23 @@ const translations = {
     dailyBalanceCheck: 'پشکنینی تەواوی ڕۆژانە',
     openingBalance: 'تەواوی کراوە',
     todaysSpending: 'خەرجی ئەمڕۆ',
+    todaysSales: 'فرۆشتنی ئەمڕۆ',
+    todaysIncentives: 'پاداشتی ئەمڕۆ',
     expectedBalance: 'تەواوی چاوەڕوانکراو',
+    dailyDifference: 'جیاوازیی ڕۆژانە',
     physicalMoneyCheck: 'پارە فیزەکییەکەت بژمێرە و بیبەراورد لەگەڵ ئەم بڕە',
+    balance: 'تەواوی',
+    customerDebt: 'قەرزی کڕیار',
+    companyDebt: 'قەرزی کۆمپانیا',
+    inventoryValueUSD: 'بەهای کۆگای دۆلار',
+    inventoryValueIQD: 'بەهای کۆگای دینار',
+    totalInventoryValue: 'کۆی بەهای کۆگا',
+    productsInventory: 'بەرهەمەکان',
+    financialOverview: 'کورتەی دارایی',
+    customerOutstandingOfMonth: 'قەرزی کڕیاری مانگ',
+    companyOutstandingOfMonth: 'قەرزی کۆمپانیای مانگ',
+    usd: 'دۆلار',
+    iqd: 'دینار',
     
     // Admin Dashboard - Today's Performance
     adminDashboard: 'داشبۆردی ئەدمین',
@@ -1416,6 +1447,8 @@ const translations = {
     latestTransactions: 'دوایین مامەڵەکان',
     debt: 'قەرز',
     view: 'بینین',
+    viewItems: 'بینینی بڕگەکان',
+    hideItems: 'شاردنەوەی بڕگەکان',
     noRecentSales: 'هیچ فرۆشتنی تازە نییە',
    
     // Stock alerts section
@@ -1458,6 +1491,9 @@ const translations = {
     successful: 'سەرکەوتوو',
     testPrintSuccessful: 'تاقیکردنەوەی چاپ سەرکەوتوو بوو!',
     printTestFailed: 'تاقیکردنەوەی چاپ شکستی هێنا',
+    
+    // Navigation shortcuts
+    goToCashier: 'چوون بۆ کاشیر',
     
     // Company debt and purchase modal
     addCompanyDebt: 'زیادکردنی قەرزی کۆمپانیا',
@@ -2430,6 +2466,29 @@ const translations = {
     outstandingOfMonth: 'المستحقات للشهر',
     cloudBackup: 'النسخ الاحتياطي السحابي',
     settings: 'الإعدادات',
+    personalLoans: 'القروض الشخصية',
+    multiCurrencyDashboard: 'لوحة التحكم متعددة العملات',
+    advancedAnalytics: 'التحليلات المتقدمة',
+    dailyBalanceCheck: 'فحص الرصيد اليومي',
+    openingBalance: 'الرصيد الافتتاحي',
+    todaysSpending: 'مصروفات اليوم',
+    todaysSales: 'مبيعات اليوم',
+    todaysIncentives: 'حوافز اليوم',
+    expectedBalance: 'الرصيد المتوقع',
+    dailyDifference: 'الفرق اليومي',
+    physicalMoneyCheck: 'احسب أموالك الفعلية وقارنها مع هذا المبلغ',
+    balance: 'الرصيد',
+    customerDebt: 'دين العميل',
+    companyDebt: 'دين الشركة',
+    inventoryValueUSD: 'قيمة المخزون بالدولار',
+    inventoryValueIQD: 'قيمة المخزون بالدينار',
+    totalInventoryValue: 'إجمالي قيمة المخزون',
+    productsInventory: 'المنتجات',
+    financialOverview: 'النظرة المالية العامة',
+    customerOutstandingOfMonth: 'مستحقات العملاء للشهر',
+    companyOutstandingOfMonth: 'مستحقات الشركة للشهر',
+    usd: 'دولار',
+    iqd: 'دينار',
     
     // Admin Dashboard - Today's Performance
     adminDashboard: 'لوحة تحكم الإدارة',
@@ -2485,6 +2544,8 @@ const translations = {
     latestTransactions: 'آخر المعاملات',
     debt: 'دين',
     view: 'عرض',
+    viewItems: 'عرض العناصر',
+    hideItems: 'إخفاء العناصر',
     noRecentSales: 'لا توجد مبيعات حديثة',
    
     // Stock alerts section
@@ -3260,6 +3321,14 @@ const translations = {
     delete: 'حذف',
     search: 'بحث',
     filter: 'تصفية',
+    refresh: 'تحديث',
+    save: 'حفظ',
+    download: 'تحميل',
+    upload: 'رفع',
+    
+    // Navigation shortcuts
+    goToCashier: 'الذهاب للكاشير',
+    toCashier: 'للكاشير',
     refresh: 'تحديث',
     save: 'حفظ',
     download: 'تحميل',

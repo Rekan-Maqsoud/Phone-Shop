@@ -80,16 +80,18 @@ function addDirectPurchase(db, { item_name, quantity, unit_price, supplier, date
   return transaction();
 }
 
-function addDirectPurchaseWithItems(db, { supplier, date, items, currency = 'IQD' }) {
+function addDirectPurchaseWithItems(db, { supplier, date, items, currency = 'IQD', totalAmount = null }) {
   const purchaseDate = date || new Date().toISOString();
   
   const transaction = db.transaction(() => {
-    let totalAmount = 0;
-    
-    // Calculate total amount
-    items.forEach(item => {
-      totalAmount += item.quantity * item.unit_price;
-    });
+    // Use provided totalAmount or calculate from items
+    let finalTotalAmount = totalAmount;
+    if (finalTotalAmount === null) {
+      finalTotalAmount = 0;
+      items.forEach(item => {
+        finalTotalAmount += item.quantity * item.unit_price;
+      });
+    }
     
     // Create a single buying history entry
     const result = db.prepare(`
@@ -99,8 +101,8 @@ function addDirectPurchaseWithItems(db, { supplier, date, items, currency = 'IQD
     `).run(
       `Purchase with ${items.length} items`, // Generic description for multi-item purchase
       items.reduce((sum, item) => sum + item.quantity, 0), // Total quantity of all items
-      totalAmount / items.reduce((sum, item) => sum + item.quantity, 0), // Average unit price
-      totalAmount,
+      finalTotalAmount / items.reduce((sum, item) => sum + item.quantity, 0), // Average unit price
+      finalTotalAmount,
       supplier,
       purchaseDate,
       currency,
@@ -200,8 +202,8 @@ function addDirectPurchaseWithItems(db, { supplier, date, items, currency = 'IQD
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `);
     
-    const usdAmount = currency === 'USD' ? totalAmount : 0;
-    const iqdAmount = currency === 'IQD' ? totalAmount : 0;
+    const usdAmount = currency === 'USD' ? finalTotalAmount : 0;
+    const iqdAmount = currency === 'IQD' ? finalTotalAmount : 0;
     
     addTransactionStmt.run(
       'direct_purchase',
@@ -215,12 +217,12 @@ function addDirectPurchaseWithItems(db, { supplier, date, items, currency = 'IQD
     
     // Deduct from balance
     if (currency === 'USD') {
-      settings.updateBalance(db, 'USD', -totalAmount);
+      settings.updateBalance(db, 'USD', -finalTotalAmount);
     } else {
-      settings.updateBalance(db, 'IQD', -totalAmount);
+      settings.updateBalance(db, 'IQD', -finalTotalAmount);
     }
     
-    return { success: true, buyingHistoryId, totalAmount };
+    return { success: true, buyingHistoryId, totalAmount: finalTotalAmount };
   });
   
   return transaction();

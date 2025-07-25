@@ -402,8 +402,39 @@ const BuyingHistoryTableSimplified = React.memo(function BuyingHistoryTableSimpl
 
                       {/* Amount */}
                       <td className="px-6 py-4 text-center">
-                        <div className="font-bold text-lg">
-                          {formatCurrency(entry, t)}
+                        <div className="flex flex-col gap-1">
+                          {entry.currency === 'MULTI' ? (
+                            <div className="space-y-1">
+                              {(entry.multi_currency_usd || 0) > 0 && (
+                                <div className="bg-orange-50 dark:bg-orange-900/20 px-2 py-1 rounded-lg border-l-2 border-orange-500">
+                                  <span className="text-orange-700 dark:text-orange-400 font-bold text-sm">
+                                    ${(() => {
+                                      const formatted = entry.multi_currency_usd.toFixed(2);
+                                      return formatted.endsWith('.00') ? formatted.slice(0, -3) : formatted;
+                                    })()}
+                                  </span>
+                                </div>
+                              )}
+                              {(entry.multi_currency_iqd || 0) > 0 && (
+                                <div className="bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded-lg border-l-2 border-blue-500">
+                                  <span className="text-blue-700 dark:text-blue-400 font-bold text-sm">
+                                    د.ع{Math.round(entry.multi_currency_iqd).toLocaleString()}
+                                  </span>
+                                </div>
+                              )}
+                              {(entry.multi_currency_usd || 0) === 0 && (entry.multi_currency_iqd || 0) === 0 && (
+                                <span className="text-gray-500 italic text-sm">{t?.multiCurrency || 'Multi-currency'}</span>
+                              )}
+                            </div>
+                          ) : (
+                            <div className={`px-2 py-1 rounded-lg font-bold text-sm ${
+                              entry.currency === 'USD' 
+                                ? 'bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 border-l-2 border-orange-500'
+                                : 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 border-l-2 border-blue-500'
+                            }`}>
+                              {formatCurrency(entry, t)}
+                            </div>
+                          )}
                         </div>
                       </td>
 
@@ -428,13 +459,19 @@ const BuyingHistoryTableSimplified = React.memo(function BuyingHistoryTableSimpl
                           {entry.has_items && entry.items && entry.items.length > 0 && (
                             <button
                               onClick={() => toggleExpanded(entry.id)}
-                              className="px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm"
+                              className="px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm flex items-center gap-1"
                               title={t?.viewItems || 'View items'}
                             >
                               {expandedEntries.has(entry.id) ? (
-                                <Icon name="chevronUp" size={14} />
+                                <>
+                                  <Icon name="chevronUp" size={14} />
+                                  <span>{t?.hideItems || 'Hide'}</span>
+                                </>
                               ) : (
-                                <Icon name="chevronDown" size={14} />
+                                <>
+                                  <Icon name="chevronDown" size={14} />
+                                  <span>{t?.viewItems || 'View'}</span>
+                                </>
                               )}
                             </button>
                           )}
@@ -479,16 +516,26 @@ const BuyingHistoryTableSimplified = React.memo(function BuyingHistoryTableSimpl
                                     </div>
                                     <div className="flex justify-between">
                                       <span className="text-gray-600 dark:text-gray-400">{t?.unitPrice || 'Unit Price'}:</span>
-                                      <span className="text-blue-600">
-                                        {item.currency === 'USD' ? '$' : 'د.ع'}
-                                        {item.currency === 'USD' ? item.unit_price.toFixed(2) : Math.round(item.unit_price).toLocaleString()}
-                                      </span>
+                                      <div className={`px-2 py-1 rounded-lg text-xs font-bold ${
+                                        item.currency === 'USD' 
+                                          ? 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200'
+                                          : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                                      }`}>
+                                        {item.currency === 'USD' 
+                                          ? `$${item.unit_price.toFixed(2).replace('.00', '')}`
+                                          : `د.ع${Math.round(item.unit_price).toLocaleString()}`
+                                        }
+                                      </div>
                                     </div>
                                     <div className="flex justify-between">
                                       <span className="text-gray-600 dark:text-gray-400">{t?.total || 'Total'}:</span>
-                                      <span className="font-bold text-green-600">
+                                      <div className={`px-2 py-1 rounded-lg text-xs font-bold ${
+                                        item.currency === 'USD' 
+                                          ? 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200'
+                                          : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                                      }`}>
                                         {formatItemCurrency(item, t)}
-                                      </span>
+                                      </div>
                                     </div>
                                     <div className="mt-2 pt-2 border-t">
                                       <button

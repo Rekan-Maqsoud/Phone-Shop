@@ -5,7 +5,7 @@ import { EXCHANGE_RATES, formatCurrencyWithTranslation } from '../utils/exchange
 import { Icon } from '../utils/icons.jsx';
 
 const MonthlyReport = ({ admin, t }) => {
-  const { sales, products, accessories, debts, buyingHistory, companyDebts, incentives } = useData();
+  const { sales, products, accessories, debts, buyingHistory, companyDebts, incentives, transactions } = useData();
   const { theme } = useTheme();
   const [selectedMonth, setSelectedMonth] = useState('');
 
@@ -240,22 +240,39 @@ const MonthlyReport = ({ admin, t }) => {
       }
     });
 
-    // Calculate total spending
+    // Calculate total spending - use transactions for accurate tracking
     const totalSpending = { USD: 0, IQD: 0 };
-    monthPurchases.forEach(purchase => {
-      if (purchase.currency === 'MULTI') {
-        // Handle multi-currency purchases
-        totalSpending.USD += purchase.usd_amount || 0;
-        totalSpending.IQD += purchase.iqd_amount || 0;
-      } else {
-        const amount = purchase.total_price || purchase.amount || 0;
-        if (purchase.currency === 'USD') {
-          totalSpending.USD += amount;
-        } else {
-          totalSpending.IQD += amount;
+    
+    if (transactions && Array.isArray(transactions)) {
+      const monthTransactions = transactions.filter(transaction => {
+        if (!transaction.created_at) return false;
+        const transactionDate = new Date(transaction.created_at);
+        return transactionDate >= startDate && transactionDate <= endDate;
+      });
+
+      monthTransactions.forEach(transaction => {
+        // Include all spending transactions: direct purchases, company debt payments, etc.
+        if (transaction.type === 'direct_purchase' || transaction.type === 'company_debt_payment') {
+          // For direct purchases, amounts are negative (spending), so we take absolute value
+          if (transaction.amount_usd < 0) {
+            totalSpending.USD += Math.abs(transaction.amount_usd);
+          }
+          if (transaction.amount_iqd < 0) {
+            totalSpending.IQD += Math.abs(transaction.amount_iqd);
+          }
+          
+          // For company debt payments, amounts are positive (money going out), so add directly
+          if (transaction.type === 'company_debt_payment') {
+            if (transaction.amount_usd > 0) {
+              totalSpending.USD += transaction.amount_usd;
+            }
+            if (transaction.amount_iqd > 0) {
+              totalSpending.IQD += transaction.amount_iqd;
+            }
+          }
         }
-      }
-    });
+      });
+    }
 
     // Calculate outstanding for the month (debts created in this month that are still unpaid)
     const outstanding = { USD: 0, IQD: 0 };

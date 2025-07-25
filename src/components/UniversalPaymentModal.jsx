@@ -28,7 +28,15 @@ const UniversalPaymentModal = ({
         ? debtData.sale.total 
         : debtData.sale.total / EXCHANGE_RATES.USD_TO_IQD;
     } else if (paymentType === 'company') {
-      return debtData.amount || 0; // Company debts stored in USD
+      // Company debts are stored in their original currency, need to convert based on currency field
+      if (debtData.currency === 'USD') {
+        return debtData.amount || 0;
+      } else if (debtData.currency === 'MULTI') {
+        return (debtData.usd_amount || 0) + ((debtData.iqd_amount || 0) / EXCHANGE_RATES.USD_TO_IQD);
+      } else {
+        // IQD or unknown currency - convert from IQD to USD
+        return (debtData.amount || 0) / EXCHANGE_RATES.USD_TO_IQD;
+      }
     } else if (paymentType === 'personal') {
       // For personal loans, calculate remaining amount
       const remainingUSD = (debtData.usd_amount || 0) - (debtData.payment_usd_amount || 0);
@@ -293,10 +301,34 @@ const UniversalPaymentModal = ({
                 {paymentType === 'personal' ? t?.loanAmount || 'Loan Amount' : t?.debtAmount || 'Debt Amount'}:
               </span>
               <span className="text-xl font-bold text-red-600 dark:text-red-400">
-                {formatCurrency(debtAmountUSD, 'USD')}
-                <div className="text-sm text-gray-500">
-                  (≈ {formatCurrency(debtAmountUSD * EXCHANGE_RATES.USD_TO_IQD, 'IQD')})
-                </div>
+                {paymentType === 'company' ? (
+                  debtData.currency === 'IQD' ? (
+                    <>
+                      {formatCurrency(debtData.amount || 0, 'IQD')}
+                      <div className="text-sm text-gray-500">
+                        (≈ {formatCurrency(debtAmountUSD, 'USD')})
+                      </div>
+                    </>
+                  ) : debtData.currency === 'MULTI' ? (
+                    <>
+                      {formatCurrency(debtData.usd_amount || 0, 'USD')} + {formatCurrency(debtData.iqd_amount || 0, 'IQD')}
+                    </>
+                  ) : (
+                    <>
+                      {formatCurrency(debtData.amount || 0, 'USD')}
+                      <div className="text-sm text-gray-500">
+                        (≈ {formatCurrency(debtAmountUSD * EXCHANGE_RATES.USD_TO_IQD, 'IQD')})
+                      </div>
+                    </>
+                  )
+                ) : (
+                  <>
+                    {formatCurrency(debtAmountUSD, 'USD')}
+                    <div className="text-sm text-gray-500">
+                      (≈ {formatCurrency(debtAmountUSD * EXCHANGE_RATES.USD_TO_IQD, 'IQD')})
+                    </div>
+                  </>
+                )}
               </span>
             </div>
           </div>
