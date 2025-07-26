@@ -208,6 +208,33 @@ export default function Admin() {
     playModalOpenSound();
   }, [admin]);
 
+  // Comprehensive refresh function to update all data
+  const handleRefreshAll = useCallback(async () => {
+    try {
+      setLoading(true);
+      playActionSound();
+      
+      console.log('Refreshing all admin data...');
+      
+      // Refresh all data from DataContext
+      if (refreshAllData) {
+        await refreshAllData();
+      }
+      
+      // Show success message
+      admin.setToast(t?.dataRefreshed || 'All data refreshed successfully!', 'success', 2000);
+      playSuccessSound();
+      
+      console.log('Admin refresh completed');
+    } catch (error) {
+      console.error('Error refreshing admin data:', error);
+      admin.setToast(t?.refreshError || 'Error refreshing data', 'error', 3000);
+      playErrorSound();
+    } finally {
+      setLoading(false);
+    }
+  }, [refreshAllData, admin, t, setLoading]);
+
   // Enhanced keyboard navigation with arrow key support
   const sectionKeys = useMemo(() => navItems.map(item => item.key), [navItems]);
   const currentSectionIndex = useMemo(() => sectionKeys.indexOf(section), [sectionKeys, section]);
@@ -239,11 +266,13 @@ export default function Admin() {
     shortcuts['ctrl+shift+c'] = () => navigate('/cashier');
     shortcuts['ctrl+shift+s'] = () => setShowSettingsModal(true);
     shortcuts['ctrl+shift+b'] = () => setShowBackupManager(true);
+    shortcuts['ctrl+r'] = () => handleRefreshAll();
+    shortcuts['f5'] = () => handleRefreshAll();
     shortcuts['f1'] = () => setShowKeyboardShortcuts(true);
     shortcuts['ctrl+shift+k'] = () => setShowKeyboardShortcuts(true);
     
     return shortcuts;
-  }, [navItems, section, navigate]);
+  }, [navItems, section, navigate, handleRefreshAll]);
 
   // Main keyboard navigation
   useKeyboardNavigation({
@@ -326,6 +355,14 @@ export default function Admin() {
               <div className="flex items-center space-x-4">
                 <ExchangeRateIndicator t={t} showModal={true} size="md" onToast={admin.setToast} />
                 <button
+                  onClick={handleRefreshAll}
+                  className="p-2 text-gray-400 hover:text-gray-500 dark:hover:text-gray-300 rounded-lg transition-colors"
+                  title="Refresh All Data (Ctrl+R)"
+                  disabled={loading}
+                >
+                  <Icon name={loading ? "loading" : "refresh"} size={20} className={loading ? "animate-spin" : ""} />
+                </button>
+                <button
                   onClick={() => setShowSettingsModal(true)}
                   className="p-2 text-gray-400 hover:text-gray-500 dark:hover:text-gray-300 rounded-lg transition-colors"
                   title="Settings (Ctrl+Shift+S)"
@@ -384,7 +421,7 @@ export default function Admin() {
           <main className="flex-1 flex flex-col w-full min-w-0 h-full bg-transparent">
             {/* Section content */}
             <div className="flex-1 h-full w-full overflow-auto">
-              {section === 'multiCurrencyDashboard' && <MultiCurrencyDashboard admin={admin} t={t} />}
+              {section === 'multiCurrencyDashboard' && <MultiCurrencyDashboard admin={admin} t={t} onRefresh={handleRefreshAll} />}
               {section === 'buyingHistory' && <BuyingHistorySection admin={admin} t={t} openAddPurchaseModal={openAddPurchaseModal} />}
               {section === 'salesHistory' && <SalesHistorySection 
                 admin={admin} 

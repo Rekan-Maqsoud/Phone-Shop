@@ -1,3 +1,5 @@
+import React, { createContext, useContext, useState, useMemo } from 'react';
+
 // Month names for filters and reports
 const monthNames = {
   en: [
@@ -13,9 +15,8 @@ const monthNames = {
     'يوليو', 'اغسطس', 'سبتمبر', 'اكتوبر', 'نوفمبر', 'ديسمبر'
   ]
 };
-import React, { createContext, useContext, useState, useMemo } from 'react';
 
-// Move the full translations object here from Admin.jsx
+// Clean translations object with no duplicates
 const translations = {
   en: {
     // Common
@@ -287,6 +288,14 @@ const translations = {
     profitIQD: 'Profit IQD',
     inventoryValue: 'Inventory Value',
     debts: 'Debts',
+
+    // Sales totals and metrics
+    totalProfitUSD: 'Total Profit USD',
+    totalProfitIQD: 'Total Profit IQD',
+    totalRevenueUSD: 'Total Revenue USD',
+    totalRevenueIQD: 'Total Revenue IQD',
+    totalSales: 'Total Sales',
+    totalProducts: 'Total Products',
 
     // Admin notifications
     lowStockAlert: 'Low stock alert',
@@ -663,24 +672,40 @@ const translations = {
 
     // Search and Filter
     searchAndFilter: 'Search and Filter',
-    searchFilterDesc: 'Search Filter Description',
-    searchByName: 'Search by Name',
-    searchType: 'Search by Type',
+    searchFilterDesc: 'Filter your data by name, date, or range',
+    searchByName: 'Search by name...',
+    brand: 'Brand',
+    allBrands: 'All Brands',
+    searchType: 'Search Type',
     selectPeriod: 'Select Period',
     quickSelect: 'Quick Select',
     singleDate: 'Single Date',
     weekRange: 'Week Range',
     customRange: 'Custom Range',
+    today: 'Today',
     yesterday: 'Yesterday',
     last7Days: 'Last 7 Days',
+    thisWeek: 'This Week',
     lastWeek: 'Last Week',
     last30Days: 'Last 30 Days',
-    LastMonth: 'Last Month',
+    thisMonth: 'This Month',
+    lastMonth: 'Last Month',
+    selectDate: 'Select Date',
     day: 'Day',
-    week: 'Week',
     month: 'Month',
     year: 'Year',
+    weekStartDate: 'Week Start',
+    to: 'to',
+    dateRange: 'Date Range',
+    from: 'From',
+    clearFilters: 'Clear',
+    showingResults: 'Showing',
+    of: 'of',
+    entries: 'entries',
 
+    // Refresh functionality
+    dataRefreshed: 'Data refreshed successfully!',
+    refreshError: 'Error refreshing data',
 
     //Buying History Section
     noBuyingHistory: 'No buying history',
@@ -2504,6 +2529,14 @@ const translations = {
     inventoryValue: 'قيمة المخزون',
     debts: 'الديون',
 
+    // Sales totals and metrics
+    totalProfitUSD: 'إجمالي الربح بالدولار',
+    totalProfitIQD: 'إجمالي الربح بالدينار',
+    totalRevenueUSD: 'إجمالي الإيرادات بالدولار',
+    totalRevenueIQD: 'إجمالي الإيرادات بالدينار',
+    totalSales: 'إجمالي المبيعات',
+    totalProducts: 'إجمالي المنتجات',
+
     // Admin notifications
     lowStockAlert: 'تنبيه مخزون منخفض',
     archiving: 'جاري الأرشفة',
@@ -2778,23 +2811,40 @@ const translations = {
 
     // Search and Filter
     searchAndFilter: 'البحث والتصفية',
-    searchFilterDesc: 'وصف مرشح البحث',
-    searchByName: 'البحث بالاسم',
-    searchType: 'البحث بالنوع',
+    searchFilterDesc: 'تصفية البيانات حسب الاسم أو التاريخ أو النطاق',
+    searchByName: 'البحث بالاسم...',
+    brand: 'العلامة التجارية',
+    allBrands: 'جميع العلامات التجارية',
+    searchType: 'نوع البحث',
     selectPeriod: 'اختر الفترة',
     quickSelect: 'اختيار سريع',
     singleDate: 'تاريخ واحد',
     weekRange: 'نطاق الأسبوع',
     customRange: 'نطاق مخصص',
+    today: 'اليوم',
     yesterday: 'أمس',
     last7Days: 'آخر 7 أيام',
+    thisWeek: 'هذا الأسبوع',
     lastWeek: 'الأسبوع الماضي',
     last30Days: 'آخر 30 يوم',
-    LastMonth: 'الشهر الماضي',
+    thisMonth: 'هذا الشهر',
+    lastMonth: 'الشهر الماضي',
+    selectDate: 'اختر التاريخ',
     day: 'يوم',
-    week: 'أسبوع',
     month: 'شهر',
     year: 'سنة',
+    weekStartDate: 'بداية الأسبوع',
+    to: 'إلى',
+    dateRange: 'نطاق التاريخ',
+    from: 'من',
+    clearFilters: 'مسح',
+    showingResults: 'عرض',
+    of: 'من',
+    entries: 'إدخالات',
+
+    // Refresh functionality
+    dataRefreshed: 'تم تحديث البيانات بنجاح!',
+    refreshError: 'خطأ في تحديث البيانات',
 
     //Buying History Section
     noBuyingHistory: 'لا يوجد تاريخ شراء',

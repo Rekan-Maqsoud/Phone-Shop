@@ -57,10 +57,18 @@ function getDatabasePath() {
   }
 }
 function createWindow() {
+  // Check if running in dev mode
+  const isDevMode = !app.isPackaged && (process.env.NODE_ENV === 'development' || process.argv.includes('--dev') || fs.existsSync(path.join(__dirname, '../vite.config.js')));
+  
+  // Set icon path based on mode
+  const iconPath = isDevMode 
+    ? path.join(__dirname, '../public/app-icon.ico')
+    : path.join(process.resourcesPath, 'app-icon.ico');
+
   const win = new BrowserWindow({
     width: 1200,
     height: 800,
-    icon: path.join(__dirname, '../public/web/android-chrome-512x512.png'),
+    icon: iconPath,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -70,9 +78,6 @@ function createWindow() {
   
   // Maximize the window (not fullscreen)
   win.maximize();
-  
-  // Check if running in dev mode
-  const isDevMode = !app.isPackaged && (process.env.NODE_ENV === 'development' || process.argv.includes('--dev') || fs.existsSync(path.join(__dirname, '../vite.config.js')));
   
   const urlToLoad = isDevMode 
     ? 'http://localhost:5173/'

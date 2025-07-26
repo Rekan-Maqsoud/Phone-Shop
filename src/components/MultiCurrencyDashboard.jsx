@@ -38,7 +38,7 @@ ChartJS.register(
   ArcElement
 );
 
-function MultiCurrencyDashboard({ admin, t }) {
+function MultiCurrencyDashboard({ admin, t, onRefresh }) {
   const { products, accessories, sales, debts, buyingHistory, companyDebts, incentives, transactions, refreshAllData, refreshDebts } = useData();
   const [balances, setBalances] = useState({ usd_balance: 0, iqd_balance: 0 });
   const [dashboardData, setDashboardData] = useState(null);
@@ -72,6 +72,40 @@ function MultiCurrencyDashboard({ admin, t }) {
     }
   }, []); // Empty dependency array since we only fetch data, don't depend on external state
 
+  // Comprehensive refresh function to update all UI data
+  const handleRefreshAll = useCallback(async () => {
+    try {
+      console.log('Refreshing all dashboard data...');
+      
+      // Refresh all data from DataContext
+      if (refreshAllData) {
+        await refreshAllData();
+      }
+      
+      // Refresh balance and local data
+      await fetchBalanceData();
+      
+      // Call parent refresh callback if provided
+      if (onRefresh) {
+        await onRefresh();
+      }
+      
+      // Show success message if admin.setToast is available
+      if (admin && admin.setToast) {
+        admin.setToast(t?.dataRefreshed || 'Data refreshed successfully!', 'success', 2000);
+      }
+      
+      console.log('Dashboard refresh completed');
+    } catch (error) {
+      console.error('Error refreshing dashboard data:', error);
+      
+      // Show error message if admin.setToast is available
+      if (admin && admin.setToast) {
+        admin.setToast(t?.refreshError || 'Error refreshing data', 'error', 3000);
+      }
+    }
+  }, [refreshAllData, fetchBalanceData, onRefresh, admin, t]);
+
   useEffect(() => {
     fetchBalanceData();
   }, [fetchBalanceData]);
@@ -84,7 +118,7 @@ function MultiCurrencyDashboard({ admin, t }) {
     }, 500); // Debounce by 500ms
     
     return () => clearTimeout(timeoutId);
-  }, [sales, buyingHistory, debts, companyDebts]);
+  }, [sales, buyingHistory, debts, companyDebts, transactions]);
 
   // Set up periodic refresh every 60 seconds (reduced from 30)
   useEffect(() => {
@@ -93,6 +127,13 @@ function MultiCurrencyDashboard({ admin, t }) {
   }, []);
 
   const metrics = useMemo(() => {
+    console.log('Recalculating metrics with data:', {
+      salesCount: sales?.length || 0,
+      buyingHistoryCount: buyingHistory?.length || 0,
+      debtsCount: debts?.length || 0,
+      transactionsCount: transactions?.length || 0
+    });
+    
     const currentDate = new Date();
     const today = currentDate.toDateString();
 
@@ -203,18 +244,33 @@ function MultiCurrencyDashboard({ admin, t }) {
 
     // Net performance (sales - spending) by currency - Include all outgoing payments
     // Note: Multi-currency purchases are tracked in transactions table, so we exclude MULTI from buying_history to avoid double counting
-    const todaysSpendingUSD = (buyingHistory || []).filter(entry => {
-      if (!entry.paid_at) return false;
-      const paidDate = new Date(entry.paid_at);
-      return paidDate.toDateString() === today;
-    }).reduce((sum, entry) => {
-      // Only count single-currency USD purchases from buying_history
-      // Multi-currency purchases are handled via transactions table to avoid double counting
-      if (entry.currency === 'USD') {
-        return sum + (entry.total_price || entry.amount || 0);
+    // Also exclude debt payments since they're tracked separately in transactions table
+    // IMPORTANT: We now use transactions table for all spending calculations to avoid double counting
+    // Regular purchases create both buying_history AND negative transactions - we count only transactions
+    
+    // For legacy compatibility: Check for buying_history entries without corresponding transactions
+    const legacyBuyingHistoryUSD = (buyingHistory || []).filter(entry => {
+      if (!entry.date) return false;
+      const entryDate = new Date(entry.date);
+      const isToday = entryDate.toDateString() === today;
+      const isUSD = entry.currency === 'USD';
+      const isNotDebtPayment = entry.type !== 'debt_payment';
+      
+      // Only include if it's a USD entry from today that's not a debt payment
+      // AND there's no corresponding transaction (legacy entries)
+      if (isToday && isUSD && isNotDebtPayment) {
+        // Check if there's a corresponding transaction
+        const hasTransaction = (transactions || []).some(t => 
+          t.reference_type === 'buying_history' && 
+          t.reference_id === entry.id &&
+          t.type === 'direct_purchase'
+        );
+        return !hasTransaction; // Include only if NO transaction exists
       }
-      return sum;
-    }, 0);
+      return false;
+    }).reduce((sum, entry) => sum + (entry.total_price || entry.amount || 0), 0);
+    
+    const todaysSpendingUSD = legacyBuyingHistoryUSD; // Include legacy entries only
 
     // Add company debt payments made today in USD (from transactions table)
     const todaysCompanyDebtPaymentsUSD = (transactions || []).filter(transaction => {
@@ -225,7 +281,7 @@ function MultiCurrencyDashboard({ admin, t }) {
              transaction.amount_usd > 0;
     }).reduce((sum, transaction) => sum + transaction.amount_usd, 0);
 
-    // Add today's transactions that are outgoing (negative amounts) - this includes multi-currency purchases
+    // Add today's transactions that are outgoing (negative amounts) - this includes all purchases
     const todaysTransactionSpendingUSD = (transactions || []).filter(transaction => {
       if (!transaction.created_at) return false;
       const transactionDate = new Date(transaction.created_at);
@@ -241,18 +297,29 @@ function MultiCurrencyDashboard({ admin, t }) {
              transaction.amount_usd > 0;
     }).reduce((sum, transaction) => sum + transaction.amount_usd, 0);
 
-    const todaysSpendingIQD = (buyingHistory || []).filter(entry => {
-      if (!entry.paid_at) return false;
-      const paidDate = new Date(entry.paid_at);
-      return paidDate.toDateString() === today;
-    }).reduce((sum, entry) => {
-      // Only count single-currency IQD purchases from buying_history
-      // Multi-currency purchases are handled via transactions table to avoid double counting
-      if (entry.currency === 'IQD' || !entry.currency) {
-        return sum + (entry.total_price || entry.amount || 0);
+    // For legacy compatibility: Check for buying_history entries without corresponding transactions
+    const legacyBuyingHistoryIQD = (buyingHistory || []).filter(entry => {
+      if (!entry.date) return false;
+      const entryDate = new Date(entry.date);
+      const isToday = entryDate.toDateString() === today;
+      const isIQD = entry.currency === 'IQD' || !entry.currency; // IQD is default
+      const isNotDebtPayment = entry.type !== 'debt_payment';
+      
+      // Only include if it's an IQD entry from today that's not a debt payment
+      // AND there's no corresponding transaction (legacy entries)
+      if (isToday && isIQD && isNotDebtPayment) {
+        // Check if there's a corresponding transaction
+        const hasTransaction = (transactions || []).some(t => 
+          t.reference_type === 'buying_history' && 
+          t.reference_id === entry.id &&
+          t.type === 'direct_purchase'
+        );
+        return !hasTransaction; // Include only if NO transaction exists
       }
-      return sum;
-    }, 0);
+      return false;
+    }).reduce((sum, entry) => sum + (entry.total_price || entry.amount || 0), 0);
+    
+    const todaysSpendingIQD = legacyBuyingHistoryIQD; // Include legacy entries only
 
     // Add company debt payments made today in IQD (from transactions table)
     const todaysCompanyDebtPaymentsIQD = (transactions || []).filter(transaction => {
@@ -263,7 +330,7 @@ function MultiCurrencyDashboard({ admin, t }) {
              transaction.amount_iqd > 0;
     }).reduce((sum, transaction) => sum + transaction.amount_iqd, 0);
 
-    // Add today's transactions that are outgoing (negative amounts) - this includes multi-currency purchases
+    // Add today's transactions that are outgoing (negative amounts) - this includes all purchases
     const todaysTransactionSpendingIQD = (transactions || []).filter(transaction => {
       if (!transaction.created_at) return false;
       const transactionDate = new Date(transaction.created_at);
@@ -352,7 +419,7 @@ function MultiCurrencyDashboard({ admin, t }) {
       totalAccessoriesCount,
       totalStockCount,
     };
-  }, [sales, debts, buyingHistory, personalLoans, companyDebts, products, accessories, incentives]);
+  }, [sales, debts, buyingHistory, personalLoans, companyDebts, products, accessories, incentives, transactions]);
 
   return (
     <div className="w-full h-full p-8 space-y-6">

@@ -9,7 +9,6 @@ import { useKeyboardNavigation } from './hooks/useKeyboardNavigation';
 import ErrorBoundary from './components/ErrorBoundary';
 import Cashier from './pages/Cashier';
 import Admin from './pages/Admin';
-import AdminTestPage from './components/AdminTestPage';
 import ToastUnified from './components/ToastUnified';
 import KeyboardShortcutsModal from './components/KeyboardShortcutsModal';
 import cloudAuthService from './services/CloudAuthService';

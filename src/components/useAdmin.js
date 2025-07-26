@@ -22,6 +22,7 @@ export default function useAdmin(showConfirm = null) {
     buyingHistory = [], setBuyingHistory = () => {},
     monthlyReports = [], setMonthlyReports = () => {},
     incentives = [], setIncentives = () => {},
+    transactions = [], setTransactions = () => {},
     loading: dataLoading = false,
     refreshProducts = () => {},
     refreshAccessories = () => {},
@@ -479,6 +480,7 @@ export default function useAdmin(showConfirm = null) {
           setBuyingHistory([]);
           setMonthlyReports([]);
           setIncentives([]); // Clear incentives as well
+          setTransactions([]); // Clear transactions as well
           
           // Wait a moment for state to clear, then refetch all data
           await new Promise(resolve => setTimeout(resolve, 100));
@@ -493,7 +495,8 @@ export default function useAdmin(showConfirm = null) {
             refreshCompanyDebts(),
             refreshBuyingHistory(),
             refreshMonthlyReports(),
-            refreshIncentives() // Add incentives refresh
+            refreshIncentives(), // Add incentives refresh
+            refreshTransactions() // Add transactions refresh to ensure accurate spending calculations
           ]);
         }
       }

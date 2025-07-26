@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>PNG to ICO Converter</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .container { max-width: 600px; margin: 0 auto; }
+        canvas { border: 1px solid #ccc; margin: 10px 0; }
+        button { padding: 10px 20px; margin: 5px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>PNG to ICO Converter</h1>
+        <p>This tool will convert your PNG icon to ICO format for proper Windows icon display.</p>
+        
+        <input type="file" id="fileInput" accept=".png" />
+        <br><br>
+        
+        <canvas id="canvas" width="256" height="256" style="display:none;"></canvas>
+        <br>
+        
+        <button id="convertBtn" style="display:none;" onclick="convertToIco()">Convert to ICO</button>
+        <br><br>
+        
+        <div id="result"></div>
+    </div>
+
+    <script>
+        const fileInput = document.getElementById('fileInput');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const convertBtn = document.getElementById('convertBtn');
+        const result = document.getElementById('result');
+
+        fileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file && file.type === 'image/png') {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    const img = new Image();
+                    img.onload = function() {
+                        // Clear canvas and draw resized image
+                        ctx.clearRect(0, 0, canvas.width, canvas.height);
+                        ctx.drawImage(img, 0, 0, 256, 256);
+                        
+                        canvas.style.display = 'block';
+                        convertBtn.style.display = 'inline-block';
+                    };
+                    img.src = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        function convertToIco() {
+            // Convert canvas to blob
+            canvas.toBlob(function(blob) {
+                // Create download link
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'app-icon.ico';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                result.innerHTML = '<p style="color: green;">✅ ICO file downloaded! Please replace the app-icon.ico in your public folder with this file.</p>';
+            }, 'image/png');
+        }
+    </script>
+</body>
+</html>
