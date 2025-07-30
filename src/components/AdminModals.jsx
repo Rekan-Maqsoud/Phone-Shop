@@ -90,6 +90,7 @@ export default function AdminModals({
           }}
           t={t}
           loading={loading}
+          onToast={admin.setToast}
         />
       ) : (
         <div className="text-red-600 font-bold p-4">ProductModal component not found or failed to import.</div>
@@ -142,7 +143,7 @@ export default function AdminModals({
                   
                   triggerCloudBackup();
                 } else {
-                  admin.setToast?.('Failed to return item: ' + (result?.message || 'Unknown error'));
+                  admin.setToast?.((t?.failedToReturnItem || 'Failed to return item') + ': ' + (result?.message || t?.unknownError || 'Unknown error'));
                 }
               } catch (error) {
                 admin.setToast?.('Error returning item: ' + error.message);

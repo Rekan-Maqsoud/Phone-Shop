@@ -237,7 +237,7 @@ const UniversalPaymentModal = ({
         
         handleClose();
       } else {
-        admin.setToast?.(`❌ ${t?.paymentFailed || 'Payment failed'}: ${result?.message || result?.error || 'Unknown error'}`, 'error');
+        admin.setToast?.(`❌ ${t?.paymentFailed || 'Payment failed'}: ${result?.message || result?.error || t?.unknownError || 'Unknown error'}`, 'error');
       }
     } catch (error) {
       console.error('Error processing payment:', error);

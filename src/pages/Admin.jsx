@@ -90,7 +90,7 @@ export default function Admin() {
     }
   }, [lowStockNotificationProducts, admin.setToast, t.lowStockAlert]);
 
-  // Calculate total profit - memoized (traditional calculation for backward compatibility)
+  // Calculate total profit - FIXED to use stored profit values from database
   const totalProfit = useMemo(() => {
     return sales.reduce((sum, sale) => {
       if (!sale.items) return sum;
@@ -99,12 +99,17 @@ export default function Admin() {
         const debt = debts?.find(d => d.sale_id === sale.id);
         if (!debt || (!debt.paid_at && !debt.paid)) return sum;
       }
+      
+      // FIXED: Use profit_in_sale_currency which accounts for discounts and exchange rates
       return sum + sale.items.reduce((itemSum, item) => {
-        const quantity = item.quantity || 1;
-        const buyingPrice = item.buying_price || 0;
-        const sellingPrice = item.selling_price || item.buying_price || 0;
-        const profit = (sellingPrice - buyingPrice) * quantity;
-        return itemSum + profit;
+        const storedProfit = Number(item.profit_in_sale_currency) || Number(item.profit) || 0;
+        
+        // Convert to IQD for display consistency (legacy)
+        if (sale.currency === 'USD') {
+          return itemSum + (storedProfit * (sale.exchange_rates?.usd_to_iqd || 1440));
+        } else {
+          return itemSum + storedProfit;
+        }
       }, 0);
     }, 0);
   }, [sales, debts]);
@@ -214,8 +219,6 @@ export default function Admin() {
       setLoading(true);
       playActionSound();
       
-      console.log('Refreshing all admin data...');
-      
       // Refresh all data from DataContext
       if (refreshAllData) {
         await refreshAllData();
@@ -224,8 +227,6 @@ export default function Admin() {
       // Show success message
       admin.setToast(t?.dataRefreshed || 'All data refreshed successfully!', 'success', 2000);
       playSuccessSound();
-      
-      console.log('Admin refresh completed');
     } catch (error) {
       console.error('Error refreshing admin data:', error);
       admin.setToast(t?.refreshError || 'Error refreshing data', 'error', 3000);
@@ -447,38 +448,182 @@ export default function Admin() {
               {section === 'active' && <ProductsSection admin={admin} t={t} handleEditProduct={(product) => {
                 admin.setEditProduct(product);
                 admin.setShowProductModal(true);
-              }} handleArchiveToggle={async (product, archive) => {
-                // Archive product functionality
+              }} handleArchiveToggle={async (item, archive) => {
+                // Archive item functionality - handles both products and accessories
                 try {
-                  // Ensure we have all required fields for the product update
-                  const updatedProduct = { 
-                    ...product, 
-                    archived: archive ? 1 : 0,
-                    // Ensure stock is set to 0 when archiving
-                    stock: archive ? 0 : product.stock,
-                    // Ensure all required fields are present
-                    name: product.name,
-                    buying_price: product.buying_price || 0,
-                    category: product.category || 'phones',
-                    currency: product.currency || 'IQD'
-                  };
+                  // IMPROVED: Better detection logic for products vs accessories
+                  const isAccessory = (
+                    // Direct type check for accessories
+                    item.type !== undefined ||
+                    // Check if it has accessory-specific fields but not product-specific fields
+                    (item.brand !== undefined && !item.ram && !item.storage && !item.model) ||
+                    // Check if it's coming from accessories table (no category field)
+                    (item.category === undefined && item.type !== undefined) ||
+                    // Explicit check for accessories table structure
+                    (item.hasOwnProperty('type') && !item.hasOwnProperty('category'))
+                  );
                   
-                  const result = await window.api.editProduct(updatedProduct);
-                  if (result && result.success) {
-                    admin.setToast(archive ? t.productArchived : t.productUnarchived, 'success');
-                    await admin.refreshProducts();
-                    await admin.refreshAccessories(); // Also refresh accessories in case it was an accessory
+                  if (isAccessory) {
+                    // Handle accessory archiving
+                    const updatedAccessory = { 
+                      id: item.id, // Ensure ID is included
+                      name: item.name,
+                      buying_price: Number(item.buying_price) || 0,
+                      stock: archive ? 0 : (Number(item.stock) || 0), // Set to 0 when archiving
+                      archived: archive ? 1 : 0,
+                      type: item.type || 'other',
+                      brand: item.brand || null,
+                      model: item.model || null,
+                      currency: item.currency || 'IQD'
+                    };
+                    
+                    const result = await window.api.editAccessory(updatedAccessory);
+                    
+                    if (result && result.success) {
+                      admin.setToast(archive ? (t.accessoryArchived || 'Accessory archived') : (t.accessoryUnarchived || 'Accessory unarchived'), 'success');
+                      // Force refresh accessories data immediately
+                      await admin.refreshAccessories();
+                      // Also refresh products in case of mixed display
+                      await admin.refreshProducts();
+                    } else {
+                      console.error('❌ Accessory archive toggle failed:', result);
+                      admin.setToast(archive ? (t.archiveFailed || 'Archive failed') : (t.unarchiveFailed || 'Unarchive failed'), 'error');
+                    }
                   } else {
-                    console.error('Archive toggle failed:', result);
-                    admin.setToast(archive ? t.archiveFailed : t.unarchiveFailed, 'error');
+                    // Handle product archiving
+                    const updatedProduct = { 
+                      id: item.id, // Ensure ID is included
+                      name: item.name,
+                      buying_price: Number(item.buying_price) || 0,
+                      stock: archive ? 0 : (Number(item.stock) || 0), // Set to 0 when archiving
+                      archived: archive ? 1 : 0,
+                      category: item.category || 'phones',
+                      ram: item.ram || null,
+                      storage: item.storage || null,
+                      model: item.model || null,
+                      brand: item.brand || null,
+                      currency: item.currency || 'IQD'
+                    };
+                    
+                    const result = await window.api.editProduct(updatedProduct);
+                    
+                    if (result && result.success) {
+                      admin.setToast(archive ? t.productArchived : t.productUnarchived, 'success');
+                      // Force refresh products data immediately
+                      await admin.refreshProducts();
+                      // Also refresh accessories in case of mixed display
+                      await admin.refreshAccessories();
+                    } else {
+                      console.error('❌ Product archive toggle failed:', result);
+                      admin.setToast(archive ? t.archiveFailed : t.unarchiveFailed, 'error');
+                    }
                   }
                 } catch (error) {
-                  console.error('Error toggling archive:', error);
-                  admin.setToast(archive ? t.archiveFailed : t.unarchiveFailed, 'error');
+                  console.error('💥 Error toggling archive:', error);
+                  admin.setToast(`${archive ? 'Archive' : 'Unarchive'} failed: ${error.message}`, 'error');
                 }
               }} />}
-              {section === 'accessories' && <AccessoriesSection admin={admin} t={t} />}
-              {section === 'archived' && <ArchivedItemsSection admin={admin} t={t} />}
+              {section === 'accessories' && <AccessoriesSection admin={admin} t={t} handleArchiveToggle={async (item, archive) => {
+                // Handle accessory archiving specifically
+                try {
+                  const updatedAccessory = { 
+                    id: item.id, // Ensure ID is included
+                    name: item.name,
+                    buying_price: Number(item.buying_price) || 0,
+                    stock: archive ? 0 : (Number(item.stock) || 0), // Set to 0 when archiving
+                    archived: archive ? 1 : 0,
+                    type: item.type || 'other',
+                    brand: item.brand || null,
+                    model: item.model || null,
+                    currency: item.currency || 'IQD'
+                  };
+                  
+                  const result = await window.api.editAccessory(updatedAccessory);
+                  
+                  if (result && result.success) {
+                    admin.setToast(archive ? (t.accessoryArchived || 'Accessory archived') : (t.accessoryUnarchived || 'Accessory unarchived'), 'success');
+                    // Force immediate refresh
+                    await admin.refreshAccessories();
+                    // Force UI re-render by triggering data context refresh
+                    setTimeout(() => admin.refreshAccessories(), 100);
+                  } else {
+                    console.error('❌ Accessory archive toggle failed:', result);
+                    admin.setToast(archive ? (t.archiveFailed || 'Archive failed') : (t.unarchiveFailed || 'Unarchive failed'), 'error');
+                  }
+                } catch (error) {
+                  console.error('💥 Error toggling accessory archive:', error);
+                  admin.setToast(`${archive ? 'Archive' : 'Unarchive'} failed: ${error.message}`, 'error');
+                }
+              }} />}
+              {section === 'archived' && <ArchivedItemsSection admin={admin} t={t} handleArchiveToggle={async (item, archive) => {
+                // Handle unarchiving - improved logic
+                try {
+                  // IMPROVED: Better detection for archived items
+                  const isAccessory = (
+                    item.type !== undefined ||
+                    (item.brand !== undefined && !item.ram && !item.storage && !item.model) ||
+                    (item.category === undefined && item.type !== undefined) ||
+                    (item.hasOwnProperty('type') && !item.hasOwnProperty('category'))
+                  );
+                  
+                  if (isAccessory) {
+                    // Handle accessory unarchiving
+                    const updatedAccessory = { 
+                      id: item.id,
+                      name: item.name,
+                      buying_price: Number(item.buying_price) || 0,
+                      stock: Number(item.stock) || 0, // Restore original stock when unarchiving
+                      archived: archive ? 1 : 0,
+                      type: item.type || 'other',
+                      brand: item.brand || null,
+                      model: item.model || null,
+                      currency: item.currency || 'IQD'
+                    };
+                    
+                    const result = await window.api.editAccessory(updatedAccessory);
+                    
+                    if (result && result.success) {
+                      admin.setToast(archive ? (t.accessoryArchived || 'Accessory archived') : (t.accessoryUnarchived || 'Accessory unarchived'), 'success');
+                      await admin.refreshAccessories();
+                      // Force UI refresh with delay
+                      setTimeout(() => admin.refreshAccessories(), 100);
+                    } else {
+                      console.error('❌ Accessory archive toggle failed:', result);
+                      admin.setToast(archive ? (t.archiveFailed || 'Archive failed') : (t.unarchiveFailed || 'Unarchive failed'), 'error');
+                    }
+                  } else {
+                    // Handle product unarchiving
+                    const updatedProduct = { 
+                      id: item.id,
+                      name: item.name,
+                      buying_price: Number(item.buying_price) || 0,
+                      stock: Number(item.stock) || 0, // Restore original stock when unarchiving
+                      archived: archive ? 1 : 0,
+                      category: item.category || 'phones',
+                      ram: item.ram || null,
+                      storage: item.storage || null,
+                      model: item.model || null,
+                      brand: item.brand || null,
+                      currency: item.currency || 'IQD'
+                    };
+                    
+                    const result = await window.api.editProduct(updatedProduct);
+                    
+                    if (result && result.success) {
+                      admin.setToast(archive ? t.productArchived : t.productUnarchived, 'success');
+                      await admin.refreshProducts();
+                      // Force UI refresh with delay
+                      setTimeout(() => admin.refreshProducts(), 100);
+                    } else {
+                      console.error('❌ Product archive toggle failed:', result);
+                      admin.setToast(archive ? t.archiveFailed : t.unarchiveFailed, 'error');
+                    }
+                  }
+                } catch (error) {
+                  console.error('💥 Error toggling archived item:', error);
+                  admin.setToast(`${archive ? 'Archive' : 'Unarchive'} failed: ${error.message}`, 'error');
+                }
+              }} />}
               {section === 'personalLoans' && <PersonalLoansSection admin={admin} t={t} />}
               {section === 'monthlyReports' && <MonthlyReport admin={admin} t={t} />}
               {section === 'backupSettings' && <BackupSettingsSection admin={admin} t={t} setShowBackupManager={setShowBackupManager} />}

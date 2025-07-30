@@ -40,7 +40,7 @@ export default function ExchangeRateIndicator({
       if (typeof onToast === 'function') {
         onToast(t.invalidExchangeRate || 'Please enter a valid exchange rate', 'error');
       } else {
-        alert(t.invalidExchangeRate || 'Please enter a valid exchange rate');
+        console.error('Please enter a valid exchange rate');
       }
       return;
     }
@@ -51,13 +51,13 @@ export default function ExchangeRateIndicator({
       if (typeof onToast === 'function') {
         onToast(t.exchangeRateUpdated || `Exchange rate updated successfully to 1$ = ${rate}${t?.iqd || 'IQD'}`, 'success');
       } else {
-        alert(t.exchangeRateUpdated || `Exchange rate updated successfully to 1$ = ${rate}${t?.iqd || 'IQD'}`);
+        console.log('Exchange rate updated successfully');
       }
     } else {
       if (typeof onToast === 'function') {
         onToast(t.exchangeRateUpdateFailed || 'Failed to update exchange rate', 'error');
       } else {
-        alert(t.exchangeRateUpdateFailed || 'Failed to update exchange rate');
+        console.error('Failed to update exchange rate');
       }
     }
   };

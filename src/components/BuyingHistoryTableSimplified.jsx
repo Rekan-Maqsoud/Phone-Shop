@@ -542,7 +542,6 @@ const BuyingHistoryTableSimplified = React.memo(function BuyingHistoryTableSimpl
                       {/* Items */}
                       <td className="px-6 py-4 text-center">
                         {(() => {
-                          // Debug: Check if entry has items
                           const hasItemsActually = entry.has_items && entry.items && Array.isArray(entry.items) && entry.items.length > 0;
                           
                           if (hasItemsActually) {

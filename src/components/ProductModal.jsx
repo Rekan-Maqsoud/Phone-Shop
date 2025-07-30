@@ -9,7 +9,8 @@ export default function ProductModal({
   onClose,
   onSubmit,
   initialProduct,
-  loading
+  loading,
+  onToast
 }) {
   const isEdit = !!initialProduct;
   const [brand, setBrand] = useState('');
@@ -59,7 +60,7 @@ export default function ProductModal({
   }, [show]);
 
   if (!show) return null;
-  // DEBUG: Show modal is rendering
+  
   return (
     <div className="fixed inset-0 bg-gray-900/40 dark:bg-black/40 flex items-center justify-center z-50 transition-opacity duration-200 animate-modal-in" role="dialog" aria-modal="true">
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8 w-full max-w-5xl max-h-[90vh] overflow-y-auto transform transition-all duration-200 scale-95 animate-modal-in" tabIndex="-1">
@@ -82,6 +83,20 @@ export default function ProductModal({
             currency: form.currency.value || 'IQD',
             ...(isEdit ? { id: initialProduct.id, archived: initialProduct.archived ?? 0 } : {})
           };
+          
+          // Debug logging
+          console.log('🛠️ ProductModal submit:', { isEdit, initialProduct, product });
+          
+          // Validate that edit operations have an ID
+          if (isEdit && !product.id) {
+            console.error('🚨 ProductModal: Trying to edit without ID!', { initialProduct, product });
+            if (typeof onToast === 'function') {
+              onToast(t?.cannotEditWithoutId || 'Error: Cannot edit product without ID', 'error');
+            } else {
+              console.error('Cannot edit product without ID');
+            }
+            return;
+          }
           
           // Check if RAM or Storage is empty and show confirmation
           if ((!ram || ram.trim() === '') || (!storage || storage.trim() === '')) {

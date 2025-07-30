@@ -121,7 +121,7 @@ export default function EnhancedCompanyDebtModal({ show, onClose, debt, onMarkPa
       if (typeof onToast === 'function') {
         onToast(t?.pleaseEnterValidAmount || 'Please enter a valid payment amount', 'error');
       } else {
-        alert(t?.pleaseEnterValidAmount || 'Please enter a valid payment amount');
+        console.error('Please enter a valid payment amount');
       }
       return;
     }

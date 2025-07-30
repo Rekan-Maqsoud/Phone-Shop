@@ -152,7 +152,7 @@ const IncentivesSection = ({ t, admin, triggerCloudBackup }) => {
         await performRemove(incentive);
       });
     } else {
-      if (!window.confirm(message)) {
+      if (!confirm(message)) {
         return;
       }
       await performRemove(incentive);

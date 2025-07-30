@@ -4,6 +4,10 @@ function getAccessories(db) {
   return db.prepare('SELECT * FROM accessories WHERE archived = 0').all();
 }
 
+function getAllAccessories(db) {
+  return db.prepare('SELECT * FROM accessories').all();
+}
+
 function addAccessory(db, { name, buying_price, stock, archived = 0, brand, model, type, currency = 'IQD' }) {
   // Check if accessory with same name, brand, model, and currency already exists
   const existingAccessory = db.prepare('SELECT * FROM accessories WHERE name = ? AND brand = ? AND model = ? AND currency = ? AND archived = 0')
@@ -50,8 +54,40 @@ function addAccessory(db, { name, buying_price, stock, archived = 0, brand, mode
 }
 
 function updateAccessory(db, { id, name, buying_price, stock, archived = 0, brand, model, type, currency = 'IQD' }) {
-  return db.prepare('UPDATE accessories SET name=?, buying_price=?, stock=?, archived=?, brand=?, model=?, type=?, currency=? WHERE id=?')
-    .run(name, buying_price, stock, archived, brand || null, model || null, type || null, currency, id);
+  try {
+    // Validate required fields
+    if (!id) {
+      throw new Error('Accessory ID is required for update');
+    }
+    if (!name || name.trim() === '') {
+      throw new Error('Accessory name is required');
+    }
+    
+    // Log the update operation
+    console.log('🔄 [accessories.cjs] Updating accessory:', { 
+      id, name, buying_price, stock, archived, brand, model, type, currency 
+    });
+    
+    // Check if accessory exists first
+    const existing = db.prepare('SELECT id FROM accessories WHERE id = ?').get(id);
+    if (!existing) {
+      throw new Error(`Accessory with ID ${id} not found`);
+    }
+    
+    const result = db.prepare('UPDATE accessories SET name=?, buying_price=?, stock=?, archived=?, brand=?, model=?, type=?, currency=? WHERE id=?')
+      .run(name, buying_price, stock, archived, brand || null, model || null, type || null, currency, id);
+    
+    console.log('✅ [accessories.cjs] Accessory updated successfully:', { id, changes: result.changes });
+    
+    // Verify the update
+    const updated = db.prepare('SELECT * FROM accessories WHERE id = ?').get(id);
+    console.log('🔍 [accessories.cjs] Updated accessory verification:', updated);
+    
+    return result;
+  } catch (error) {
+    console.error('❌ [accessories.cjs] updateAccessory error:', error);
+    throw error;
+  }
 }
 
 function updateAccessoryNoArchive(db, { id, name, buying_price, stock, brand, model, type }) {
@@ -109,6 +145,7 @@ function repairNullIds(db) {
 
 module.exports = {
   getAccessories,
+  getAllAccessories,
   addAccessory,
   updateAccessory,
   updateAccessoryNoArchive,

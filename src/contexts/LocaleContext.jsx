@@ -194,6 +194,70 @@ const translations = {
     // Company debts translations
     totalCompanyDebtUSD: 'Total Company Debt USD',
     totalCompanyDebtIQD: 'Total Company Debt IQD',
+    
+    // Hardcoded text fixes
+    productMergeConfirm: 'A product with the same specs already exists in {currency}. Do you want to update its currency to {newCurrency} and merge the prices?',
+    accessoryMergeConfirm: 'An accessory with the same name already exists in {currency}. Do you want to update its currency to {newCurrency} and merge the prices?',
+    productMergedSuccessfully: 'Product merged successfully: {name} ({currency})',
+    accessoryMergedSuccessfully: 'Accessory merged successfully: {name} ({currency})',
+    failedToMergeProduct: 'Failed to merge product.',
+    failedToMergeAccessory: 'Failed to merge accessory.',
+    addProductFailed: 'Add product failed.',
+    errorAddingProduct: 'Error adding product',
+    errorAddingAccessory: 'Error adding accessory',
+    errorMarkingDebtPaid: 'Error marking debt as paid',
+    
+    // BackupManager translations
+    databaseRestoredSuccessfully: 'Database restored successfully!',
+    appNeedsRestartToApplyChanges: 'The application needs to restart to apply changes. Restart now?',
+    failedToRestoreBackup: 'Failed to restore backup',
+    backupDeletedSuccessfully: 'Backup deleted successfully',
+    failedToDeleteBackup: 'Failed to delete backup',
+    confirmDeleteBackup: 'Are you sure you want to delete this backup? This action cannot be undone.',
+    confirmRestoreBackup: 'Are you sure you want to restore from this backup? Current data will be replaced.',
+    
+    // Admin page translations
+    dataRefreshed: 'All data refreshed successfully!',
+    refreshError: 'Error refreshing data',
+    errorDetails: 'Error Details',
+    accessoryArchived: 'Accessory archived',
+    accessoryUnarchived: 'Accessory unarchived',
+    archiveFailed: 'Archive failed',
+    unarchiveFailed: 'Unarchive failed',
+    
+    // IncentivesSection translations
+    operationFailed: 'Operation failed',
+    incentiveRemoved: 'Incentive removed successfully',
+    
+    // AdminModals translations
+    errorAddingPurchase: 'Error adding purchase',
+    purchaseAddedWithMixedCurrency: 'Purchase added successfully! Mixed currencies detected and handled automatically.',
+    purchaseAddedSuccessfully: 'Purchase added successfully!',
+    
+    // useAdmin translations
+    productAdded: 'Product added:',
+    accessoryAdded: 'Accessory added:',
+    
+    // Product table translations
+    inventoryValue: 'Inventory Value',
+    
+    // Additional missing translations
+    addAccessoryFailed: 'Add accessory failed.',
+    updateProductFailed: 'Update product failed.',
+    failedToLoadBackups: 'Failed to load backups',
+    failedToCreateBackup: 'Failed to create backup',
+    failedToCreateLocalBackup: 'Failed to create local backup',
+    failedToOpenBackupFolder: 'Failed to open backup folder',
+    failedToDownloadBackup: 'Failed to download backup',
+    failedToChangeAutoBackupSetting: 'Failed to change auto backup setting',
+    failedToRestoreFromLocalFile: 'Failed to restore from local file',
+    unknownError: 'Unknown error',
+    failedToReturnItem: 'Failed to return item',
+    failedToReturnSale: 'Failed to return sale',
+    failedToAddLoan: 'Failed to add loan',
+    failedToMarkLoanAsPaid: 'Failed to mark loan as paid',
+    errorAddingLoan: 'Error adding loan',
+    totalCompanyDebtIQD: 'Total Company Debt IQD',
     noOutstandingDebts: 'No outstanding company debts',
     unpaidDebts: 'Unpaid Debts',
     outstandingDebts: 'Outstanding Debts',
@@ -384,6 +448,9 @@ const translations = {
     incentiveRemoved: 'Incentive removed successfully',
     operationFailed: 'Operation failed',
     pleaseEnterValidAmount: 'Please enter a valid payment amount',
+    takingLongerThanExpected: 'Taking longer than expected...',
+    reloadApp: 'Reload App',
+    ifThisPersistsTryRestarting: 'If this persists, try restarting the application',
     
     // Keyboard Shortcuts
     keyboardShortcuts: 'Keyboard Shortcuts',
@@ -649,6 +716,9 @@ const translations = {
     searchCompanyDebts: 'Search company debts...',
     noCompanyDebts: 'No company debts',
     noMatchingDebts: 'No matching company debts found',
+    noMatchingCompanyDebts: 'No matching company debts found',
+    cannotOpenAddPurchaseModal: 'Error: Cannot open add purchase modal',
+    errorOpeningPurchaseModal: 'Error opening purchase modal',
     totalOwed: 'Total Owed',
     paid: 'Paid',
     noDescription: 'No description',
@@ -1074,6 +1144,9 @@ const translations = {
     somethingWentWrong: 'Something went wrong. This error has been logged for debugging.',
     tryToContinue: 'Try to Continue',
     errorDetailsDevelopment: 'Error Details (Dev Only)',
+    cannotEditWithoutId: 'Cannot edit product without ID',
+    cannotOpenAddPurchaseModal: 'Cannot open add purchase modal',
+    itemHasNoIdCannotUnarchive: 'Item has no ID, cannot unarchive',
 
     // Status Indicators
     checking: 'Checking...',
@@ -1209,6 +1282,26 @@ const translations = {
 
     // Currency equivalents
     iqdEquivalent: 'IQD Equivalent',
+
+    // Missing translations
+    balanceManagement: 'Balance Management',
+    item: 'Item',
+    returnCurrency: 'Return Currency',
+    purchaseWithItems: 'Purchase with Items',
+    originalPurchase: 'Original Purchase',
+    leaveEmptyForFull: 'Leave empty for full return',
+    returnSummary: 'Return Summary',
+    showAdvanced: 'Show Advanced',
+    hideAdvanced: 'Hide Advanced',
+    confirmReturn: 'Confirm Return',
+    customer_name: 'Customer Name',
+    expand: 'Expand',
+    searchDebtsDesc: 'Search and filter debts by customer name or amount',
+    archivedItemsDescription: 'View and manage archived products and accessories',
+    invalidDate: 'Invalid Date',
+    max: 'Max',
+    show: 'Show',
+    hide: 'Hide',
 
   },
   ku: {
@@ -1365,6 +1458,9 @@ const translations = {
     saleFailed: 'فرۆشتن شکستی هێنا',
     saleApiUnavailable: 'API ی فرۆشتن بەردەست نیە',
     unknownError: 'هەڵەی نەناسراو',
+    takingLongerThanExpected: 'زیاتر لە چاوەڕوانکراو کات دەخایەنێت...',
+    reloadApp: 'دووبارە بارکردنی بەرنامە',
+    ifThisPersistsTryRestarting: 'ئەگەر ئەمە بەردەوام بوو، هەوڵی دووبارە کردنەوەی بەرنامەکە بدە',
     
     // Keyboard shortcuts
     completeSaleNotImplemented: 'تەواوکردنی فرۆشتن (جێبەجێ نەکراوە)',
@@ -1720,6 +1816,9 @@ const translations = {
     searchCompanyDebts: 'گەڕان بە دوای قەرزی کۆمپانیاکان...',
     noCompanyDebts: 'هیچ قەرزی کۆمپانیایەک نییە',
     noMatchingDebts: 'هیچ قەرزی کۆمپانیایەک نەدۆزرایەوە',
+    noMatchingCompanyDebts: 'هیچ قەرزی کۆمپانیایەک نەدۆزرایەوە',
+    cannotOpenAddPurchaseModal: 'هەڵە: ناتوانرێت مۆدالی زیادکردنی کڕین بکرێتەوە',
+    errorOpeningPurchaseModal: 'هەڵە لە کردنەوەی مۆدالی کڕین',
     totalOwed: 'کۆی قەرز',
     paid: 'پارە درا',
     noDescription: 'وەسف نییە',
@@ -1875,6 +1974,70 @@ const translations = {
     
     // Company debts translations
     totalCompanyDebtUSD: 'کۆی قەرزی کۆمپانیا USD',
+    totalCompanyDebtIQD: 'کۆی قەرزی کۆمپانیا IQD',
+    
+    // Hardcoded text fixes
+    productMergeConfirm: 'بەرهەمێک بە هەمان تایبەتمەندی لە {currency} هەیە. دەتەوێت دراوەکەی بگۆڕیت بۆ {newCurrency} و نرخەکان یەکبگرەوە؟',
+    accessoryMergeConfirm: 'ئامێری یارمەتیدەرێک بە هەمان ناو لە {currency} هەیە. دەتەوێت دراوەکەی بگۆڕیت بۆ {newCurrency} و نرخەکان یەکبگرەوە؟',
+    productMergedSuccessfully: 'بەرهەم بە سەرکەوتوویی یەکگرایەوە: {name} ({currency})',
+    accessoryMergedSuccessfully: 'ئامێری یارمەتیدەر بە سەرکەوتوویی یەکگرایەوە: {name} ({currency})',
+    failedToMergeProduct: 'یەکگرتنەوەی بەرهەم شکستی هێنا.',
+    failedToMergeAccessory: 'یەکگرتنەوەی ئامێری یارمەتیدەر شکستی هێنا.',
+    addProductFailed: 'زیادکردنی بەرهەم شکستی هێنا.',
+    errorAddingProduct: 'هەڵە لە زیادکردنی بەرهەم',
+    errorAddingAccessory: 'هەڵە لە زیادکردنی ئامێری یارمەتیدەر',
+    errorMarkingDebtPaid: 'هەڵە لە نیشان کردنی قەرز وەک پارە دراو',
+    
+    // BackupManager translations
+    databaseRestoredSuccessfully: 'بنکەی زانیاری بە سەرکەوتوویی گەڕایەوە!',
+    appNeedsRestartToApplyChanges: 'ئەپڵیکەیشنەکە پێویستی بە دووبارە دەستپێکردنەوەیە بۆ جێبەجێکردنی گۆڕانکاریەکان. ئێستا دووبارە دەستپێبکەیتەوە؟',
+    failedToRestoreBackup: 'گەڕاندنەوەی پاشەکەوت شکستی هێنا',
+    backupDeletedSuccessfully: 'پاشەکەوت بە سەرکەوتوویی سڕایەوە',
+    failedToDeleteBackup: 'سڕینەوەی پاشەکەوت شکستی هێنا',
+    confirmDeleteBackup: 'دڵنیایت کە دەتەوێت ئەم پاشەکەوتە بسڕیتەوە؟ ئەم کردارە ناگەڕێتەوە.',
+    confirmRestoreBackup: 'دڵنیایت کە دەتەوێت لەم پاشەکەوتەوە بگەڕێیتەوە؟ زانیاری ئێستا جێگۆڕکێ دەبێت.',
+    
+    // Admin page translations
+    dataRefreshed: 'هەموو زانیاری بە سەرکەوتوویی نوێکرایەوە!',
+    refreshError: 'هەڵە لە نوێکردنەوەی زانیاری',
+    errorDetails: 'وردەکاریەکانی هەڵە',
+    accessoryArchived: 'ئامێری یارمەتیدەر ئەرشیو کرا',
+    accessoryUnarchived: 'ئامێری یارمەتیدەر لە ئەرشیفەوە دەرهێنرا',
+    archiveFailed: 'ئەرشیو کردن شکستی هێنا',
+    unarchiveFailed: 'لە ئەرشیفەوە دەرهێنان شکستی هێنا',
+    
+    // IncentivesSection translations
+    operationFailed: 'کردارەکە شکستی هێنا',
+    incentiveRemoved: 'هانەدەر بە سەرکەوتوویی لابرا',
+    
+    // AdminModals translations
+    errorAddingPurchase: 'هەڵە لە زیادکردنی کڕین',
+    purchaseAddedWithMixedCurrency: 'کڕین بە سەرکەوتوویی زیادکرا! دراوی تێکەڵ دۆزرایەوە و بە خۆکاری مامەڵەی لەگەڵ کرا.',
+    purchaseAddedSuccessfully: 'کڕین بە سەرکەوتوویی زیادکرا!',
+    
+    // useAdmin translations
+    productAdded: 'بەرهەم زیادکرا:',
+    accessoryAdded: 'ئامێری یارمەتیدەر زیادکرا:',
+    
+    // Product table translations
+    inventoryValue: 'نرخی کۆگا',
+    
+    // Additional missing translations
+    addAccessoryFailed: 'زیادکردنی ئامێری یارمەتیدەر شکستی هێنا.',
+    updateProductFailed: 'نوێکردنەوەی بەرهەم شکستی هێنا.',
+    failedToLoadBackups: 'بارکردنی پاشەکەوتەکان شکستی هێنا',
+    failedToCreateBackup: 'دروستکردنی پاشەکەوت شکستی هێنا',
+    failedToCreateLocalBackup: 'دروستکردنی پاشەکەوتی ناوخۆیی شکستی هێنا',
+    failedToOpenBackupFolder: 'کردنەوەی بوخچەی پاشەکەوت شکستی هێنا',
+    failedToDownloadBackup: 'داگرتنی پاشەکەوت شکستی هێنا',
+    failedToChangeAutoBackupSetting: 'گۆڕینی ڕێکخستنی پاشەکەوتی خۆکار شکستی هێنا',
+    failedToRestoreFromLocalFile: 'گەڕاندنەوە لە فایلی ناوخۆییەوە شکستی هێنا',
+    unknownError: 'هەڵەی نەزانراو',
+    failedToReturnItem: 'گەڕاندنەوەی بڕگە شکستی هێنا',
+    failedToReturnSale: 'گەڕاندنەوەی فرۆشتن شکستی هێنا',
+    failedToAddLoan: 'زیادکردنی قەرز شکستی هێنا',
+    failedToMarkLoanAsPaid: 'نیشان کردنی قەرز وەک پارەدراو شکستی هێنا',
+    errorAddingLoan: 'هەڵە لە زیادکردنی قەرز',
     totalCompanyDebtIQD: 'کۆی قەرزی کۆمپانیا IQD',
     noOutstandingDebts: 'قەرزی باوەڕپێنەکراو نییە',
     unpaidDebts: 'قەرزە نەدراوەکان',
@@ -2261,6 +2424,9 @@ const translations = {
     warning: 'ئاگاداری',
     info: 'زانیاری',
     loading: 'بارکردن',
+    cannotEditWithoutId: 'ناتوانرێت بەبێ ناسنامە بەرهەم دەستکاری بکرێت',
+    cannotOpenAddPurchaseModal: 'ناتوانرێت مۆدالی زیادکردنی کڕین بکرێتەوە',
+    itemHasNoIdCannotUnarchive: 'بابەت ناسنامەی نییە، ناتوانرێت لە ئەرشیفەوە دەربهێنرێت',
 
     // Additional Specific Terms
     multiCurrency: 'فرە-دراو',
@@ -2297,6 +2463,26 @@ const translations = {
 
     // Currency equivalents
     iqdEquivalent: 'هاوتای دینار',
+
+    // Missing translations
+    balanceManagement: 'بەڕێوەبردنی بالانس',
+    item: 'ئایتم',
+    returnCurrency: 'دراوی گەڕاندنەوە',
+    purchaseWithItems: 'کڕین لەگەڵ ئایتمەکان',
+    originalPurchase: 'کڕینی سەرەتایی',
+    leaveEmptyForFull: 'بەتاڵی بهێڵە بۆ گەڕاندنەوەی تەواو',
+    returnSummary: 'کورتەی گەڕاندنەوە',
+    showAdvanced: 'پیشاندانی پێشکەوتوو',
+    hideAdvanced: 'شاردنەوەی پێشکەوتوو',
+    confirmReturn: 'دڵنیایی لە گەڕاندنەوە',
+    customer_name: 'ناوی کڕیار',
+    expand: 'فراوانکردن',
+    searchDebtsDesc: 'گەڕان و فلتەرکردنی قەرزەکان بەپێی ناوی کڕیار یان بڕ',
+    archivedItemsDescription: 'بینین و بەڕێوەبردنی بەرهەم و ئەکسسوارە ئەرشیڤکراوەکان',
+    invalidDate: 'بەرواری نادروست',
+    max: 'زۆرترین',
+    show: 'نیشاندان',
+    hide: 'شاردنەوە',
 
   },
   ar: {
@@ -2453,6 +2639,9 @@ const translations = {
     saleFailed: 'فشل البيع',
     saleApiUnavailable: 'API البيع غير متاح',
     unknownError: 'خطأ غير معروف',
+    takingLongerThanExpected: 'يستغرق وقتاً أطول من المتوقع...',
+    reloadApp: 'إعادة تحميل التطبيق',
+    ifThisPersistsTryRestarting: 'إذا استمر هذا، حاول إعادة تشغيل التطبيق',
     
     // Keyboard shortcuts
     completeSaleNotImplemented: 'إتمام البيع (غير مطبق)',
@@ -2792,6 +2981,9 @@ const translations = {
     searchCompanyDebts: 'البحث في ديون الشركات...',
     noCompanyDebts: 'لا توجد ديون شركات',
     noMatchingDebts: 'لم يتم العثور على ديون شركات مطابقة',
+    noMatchingCompanyDebts: 'لم يتم العثور على ديون شركات مطابقة',
+    cannotOpenAddPurchaseModal: 'خطأ: لا يمكن فتح نافذة إضافة عملية الشراء',
+    errorOpeningPurchaseModal: 'خطأ في فتح نافذة الشراء',
     totalOwed: 'إجمالي المدين',
     paid: 'مدفوع',
     noDescription: 'لا يوجد وصف',
@@ -2950,6 +3142,70 @@ const translations = {
     
     // Company debts translations
     totalCompanyDebtUSD: 'إجمالي دين الشركة USD',
+    totalCompanyDebtIQD: 'إجمالي دين الشركة IQD',
+    
+    // Hardcoded text fixes
+    productMergeConfirm: 'يوجد منتج بنفس المواصفات في {currency}. هل تريد تحديث عملته إلى {newCurrency} ودمج الأسعار؟',
+    accessoryMergeConfirm: 'يوجد إكسسوار بنفس الاسم في {currency}. هل تريد تحديث عملته إلى {newCurrency} ودمج الأسعار؟',
+    productMergedSuccessfully: 'تم دمج المنتج بنجاح: {name} ({currency})',
+    accessoryMergedSuccessfully: 'تم دمج الإكسسوار بنجاح: {name} ({currency})',
+    failedToMergeProduct: 'فشل في دمج المنتج.',
+    failedToMergeAccessory: 'فشل في دمج الإكسسوار.',
+    addProductFailed: 'فشل في إضافة المنتج.',
+    errorAddingProduct: 'خطأ في إضافة المنتج',
+    errorAddingAccessory: 'خطأ في إضافة الإكسسوار',
+    errorMarkingDebtPaid: 'خطأ في تمييز الدين كمدفوع',
+    
+    // BackupManager translations
+    databaseRestoredSuccessfully: 'تم استعادة قاعدة البيانات بنجاح!',
+    appNeedsRestartToApplyChanges: 'يحتاج التطبيق إلى إعادة التشغيل لتطبيق التغييرات. إعادة التشغيل الآن؟',
+    failedToRestoreBackup: 'فشل في استعادة النسخة الاحتياطية',
+    backupDeletedSuccessfully: 'تم حذف النسخة الاحتياطية بنجاح',
+    failedToDeleteBackup: 'فشل في حذف النسخة الاحتياطية',
+    confirmDeleteBackup: 'هل أنت متأكد من أنك تريد حذف هذه النسخة الاحتياطية؟ لا يمكن التراجع عن هذا الإجراء.',
+    confirmRestoreBackup: 'هل أنت متأكد من أنك تريد الاستعادة من هذه النسخة الاحتياطية؟ سيتم استبدال البيانات الحالية.',
+    
+    // Admin page translations
+    dataRefreshed: 'تم تحديث جميع البيانات بنجاح!',
+    refreshError: 'خطأ في تحديث البيانات',
+    errorDetails: 'تفاصيل الخطأ',
+    accessoryArchived: 'تم أرشفة الإكسسوار',
+    accessoryUnarchived: 'تم إلغاء أرشفة الإكسسوار',
+    archiveFailed: 'فشل في الأرشفة',
+    unarchiveFailed: 'فشل في إلغاء الأرشفة',
+    
+    // IncentivesSection translations
+    operationFailed: 'فشلت العملية',
+    incentiveRemoved: 'تم إزالة الحافز بنجاح',
+    
+    // AdminModals translations
+    errorAddingPurchase: 'خطأ في إضافة الشراء',
+    purchaseAddedWithMixedCurrency: 'تم إضافة الشراء بنجاح! تم اكتشاف العملات المختلطة والتعامل معها تلقائياً.',
+    purchaseAddedSuccessfully: 'تم إضافة الشراء بنجاح!',
+    
+    // useAdmin translations
+    productAdded: 'تم إضافة المنتج:',
+    accessoryAdded: 'تم إضافة الإكسسوار:',
+    
+    // Product table translations
+    inventoryValue: 'قيمة المخزون',
+    
+    // Additional missing translations
+    addAccessoryFailed: 'فشل في إضافة الإكسسوار.',
+    updateProductFailed: 'فشل في تحديث المنتج.',
+    failedToLoadBackups: 'فشل في تحميل النسخ الاحتياطية',
+    failedToCreateBackup: 'فشل في إنشاء النسخة الاحتياطية',
+    failedToCreateLocalBackup: 'فشل في إنشاء النسخة الاحتياطية المحلية',
+    failedToOpenBackupFolder: 'فشل في فتح مجلد النسخ الاحتياطية',
+    failedToDownloadBackup: 'فشل في تحميل النسخة الاحتياطية',
+    failedToChangeAutoBackupSetting: 'فشل في تغيير إعداد النسخ الاحتياطي التلقائي',
+    failedToRestoreFromLocalFile: 'فشل في الاستعادة من الملف المحلي',
+    unknownError: 'خطأ غير معروف',
+    failedToReturnItem: 'فشل في إرجاع العنصر',
+    failedToReturnSale: 'فشل في إرجاع البيع',
+    failedToAddLoan: 'فشل في إضافة القرض',
+    failedToMarkLoanAsPaid: 'فشل في تمييز القرض كمدفوع',
+    errorAddingLoan: 'خطأ في إضافة القرض',
     totalCompanyDebtIQD: 'إجمالي دين الشركة IQD',
     noOutstandingDebts: 'لا توجد ديون شركات مستحقة',
     unpaidDebts: 'ديون غير مدفوعة',
@@ -3398,6 +3654,9 @@ const translations = {
     warning: 'تحذير',
     info: 'معلومات',
     loading: 'جاري التحميل',
+    cannotEditWithoutId: 'لا يمكن تعديل المنتج بدون معرف',
+    cannotOpenAddPurchaseModal: 'لا يمكن فتح نافذة إضافة الشراء',
+    itemHasNoIdCannotUnarchive: 'العنصر ليس لديه معرف، لا يمكن إلغاء أرشفته',
 
     // Additional Specific Terms
     multiCurrency: 'متعدد العملات',
@@ -3408,8 +3667,6 @@ const translations = {
 
     // Tooltips and Title Attributes
     cloudBackupEnabled: 'النسخ الاحتياطي السحابي مُفعل',
-    resetZoom: 'إعادة تعيين التكبير',
-    exportChart: 'تصدير المخطط',
     printLastReceipt: 'طباعة آخر إيصال',
     showCurrencyBreakdown: 'إظهار تفصيل العملات',
 
@@ -3420,20 +3677,28 @@ const translations = {
     chartGuideExport: 'التصدير: انقر على زر التنزيل للحفظ بصيغة PNG',
     chartGuideTooltip: 'التلميح: مرر فوق نقاط البيانات للحصول على التفاصيل',
 
-    // Balance labels
-    usdBalance: 'رصيد الدولار',
-    iqdBalance: 'رصيد الدينار',
-
-    // Stats labels
-    totalProducts: 'إجمالي المنتجات',
-    totalAccessories: 'إجمالي الاكسسوارات',
-    totalSales: 'إجمالي المبيعات',
-
-    // Error handling
-    errorDetails: 'تفاصيل الخطأ',
-
     // Currency equivalents
     iqdEquivalent: 'ما يعادل الدينار',
+
+    // Missing translations
+    balanceManagement: 'إدارة الرصيد',
+    item: 'عنصر',
+    returnCurrency: 'عملة الإرجاع',
+    purchaseWithItems: 'شراء مع العناصر',
+    originalPurchase: 'الشراء الأصلي',
+    leaveEmptyForFull: 'اتركه فارغاً للإرجاع الكامل',
+    returnSummary: 'ملخص الإرجاع',
+    showAdvanced: 'إظهار متقدم',
+    hideAdvanced: 'إخفاء متقدم',
+    confirmReturn: 'تأكيد الإرجاع',
+    customer_name: 'اسم العميل',
+    expand: 'توسيع',
+    searchDebtsDesc: 'البحث وتصفية الديون حسب اسم العميل أو المبلغ',
+    archivedItemsDescription: 'عرض وإدارة المنتجات والإكسسوارات المؤرشفة',
+    invalidDate: 'تاريخ غير صحيح',
+    max: 'الحد الأقصى',
+    show: 'إظهار',
+    hide: 'إخفاء',
 
   },
 };

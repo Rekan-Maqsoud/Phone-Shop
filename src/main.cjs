@@ -1,6 +1,6 @@
 // Electron main process
 
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 let db; // Will be initialized after DB path is set
@@ -60,24 +60,61 @@ function createWindow() {
   // Check if running in dev mode
   const isDevMode = !app.isPackaged && (process.env.NODE_ENV === 'development' || process.argv.includes('--dev') || fs.existsSync(path.join(__dirname, '../vite.config.js')));
   
-  // Set icon path based on mode
-  const iconPath = isDevMode 
-    ? path.join(__dirname, '../public/app-icon.ico')
-    : path.join(process.resourcesPath, 'app-icon.ico');
+  // Set icon path based on mode with better error handling
+  let iconPath;
+  if (isDevMode) {
+    iconPath = path.join(__dirname, '../public/app-icon.ico');
+  } else {
+    // Try multiple possible locations for the icon in production
+    const possiblePaths = [
+      path.join(process.resourcesPath, 'app-icon.ico'),
+      path.join(__dirname, '../public/app-icon.ico'),
+      path.join(process.resourcesPath, 'app/public/app-icon.ico'),
+      path.join(__dirname, '../../app-icon.ico')
+    ];
+    
+    iconPath = possiblePaths.find(p => fs.existsSync(p)) || possiblePaths[0];
+  }
+
+  // Verify icon exists and create nativeImage
+  let iconImage = null;
+  if (fs.existsSync(iconPath)) {
+    try {
+      iconImage = nativeImage.createFromPath(iconPath);
+      if (iconImage.isEmpty()) {
+        console.warn('Warning: App icon is empty or invalid:', iconPath);
+        iconImage = null;
+      }
+    } catch (error) {
+      console.warn('Warning: Failed to load app icon:', error.message);
+    }
+  } else {
+    console.warn('Warning: App icon not found at:', iconPath);
+  }
 
   const win = new BrowserWindow({
     width: 1200,
     height: 800,
-    icon: iconPath,
+    icon: iconImage || iconPath, // Use nativeImage if available, fallback to path
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
     },
+    show: false, // Don't show until ready
+    autoHideMenuBar: true, // Hide menu bar by default
   });
   
-  // Maximize the window (not fullscreen)
-  win.maximize();
+  // Set the window icon again after creation (Windows fix)
+  if (process.platform === 'win32' && iconImage) {
+    win.setIcon(iconImage);
+  }
+  
+  // Show window when ready
+  win.once('ready-to-show', () => {
+    win.show();
+    win.maximize();
+  });
   
   const urlToLoad = isDevMode 
     ? 'http://localhost:5173/'
@@ -252,16 +289,20 @@ ipcMain.handle('addProduct', async (event, product) => {
 ipcMain.handle('editProduct', async (event, product) => {
   try {
     if (db.updateProduct) {
-      db.updateProduct(product);
+      const result = db.updateProduct(product);
+      
       // Pass archive type for archived products
       const operationType = product.archived ? 'archive' : 'product';
       await runAutoBackupAfterSale(operationType);
-      return { success: true };
+      
+      return { success: true, result };
     } else {
+      console.error('❌ [main.cjs] Database updateProduct function not available');
       return { success: false, message: 'Database function not available' };
     }
   } catch (e) {
-    return { success: false, message: e.message };
+    console.error('❌ [main.cjs] editProduct error:', e);
+    return { success: false, message: e.message, error: e.toString() };
   }
 });
 ipcMain.handle('deleteProduct', async (event, id) => {
@@ -300,6 +341,70 @@ ipcMain.handle('getAllAccessories', async () => {
     return [];
   }
 });
+
+// Add handler for getting archived products
+ipcMain.handle('getArchivedProducts', async () => {
+  try {
+    if (db && db.getArchivedProducts) {
+      return db.getArchivedProducts() || [];
+    } else {
+      console.error('Database or getArchivedProducts function not available');
+      return [];
+    }
+  } catch (e) {
+    console.error('getArchivedProducts error:', e);
+    return [];
+  }
+});
+
+// Add handler for getting archived accessories  
+ipcMain.handle('getArchivedAccessories', async () => {
+  try {
+    if (db && db.getArchivedAccessories) {
+      return db.getArchivedAccessories() || [];
+    } else {
+      console.error('Database or getArchivedAccessories function not available');
+      return [];
+    }
+  } catch (e) {
+    console.error('getArchivedAccessories error:', e);
+    return [];
+  }
+});
+
+// Add handler for getting ALL products (including archived)
+ipcMain.handle('getAllProducts', async () => {
+  try {
+    if (db && db.getProducts && db.getArchivedProducts) {
+      const activeProducts = db.getProducts() || [];
+      const archivedProducts = db.getArchivedProducts() || [];
+      return [...activeProducts, ...archivedProducts];
+    } else {
+      console.error('Database functions not available');
+      return [];
+    }
+  } catch (e) {
+    console.error('getAllProducts error:', e);
+    return [];
+  }
+});
+
+// Add handler for getting ALL accessories (including archived)
+ipcMain.handle('getAllAccessoriesIncludingArchived', async () => {
+  try {
+    if (db && db.getAccessories && db.getArchivedAccessories) {
+      const activeAccessories = db.getAccessories() || [];
+      const archivedAccessories = db.getArchivedAccessories() || [];
+      return [...activeAccessories, ...archivedAccessories];
+    } else {
+      console.error('Database functions not available');
+      return [];
+    }
+  } catch (e) {
+    console.error('getAllAccessoriesIncludingArchived error:', e);
+    return [];
+  }
+});
 ipcMain.handle('addAccessory', async (event, accessory) => {
   try {
     if (db.addAccessory) {
@@ -320,16 +425,20 @@ ipcMain.handle('addAccessory', async (event, accessory) => {
 ipcMain.handle('editAccessory', async (event, accessory) => {
   try {
     if (db.updateAccessory) {
-      db.updateAccessory(accessory);
+      const result = db.updateAccessory(accessory);
+      
       // Pass archive type for archived accessories
       const operationType = accessory.archived ? 'archive' : 'accessory';
       await runAutoBackupAfterSale(operationType);
-      return { success: true };
+      
+      return { success: true, result };
     } else {
+      console.error('❌ [main.cjs] Database updateAccessory function not available');
       return { success: false, message: 'Database function not available' };
     }
   } catch (e) {
-    return { success: false, message: e.message };
+    console.error('❌ [main.cjs] editAccessory error:', e);
+    return { success: false, message: e.message, error: e.toString() };
   }
 });
 ipcMain.handle('deleteAccessory', async (event, id) => {

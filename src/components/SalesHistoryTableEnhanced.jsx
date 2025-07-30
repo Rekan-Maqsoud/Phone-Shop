@@ -56,44 +56,21 @@ const SalesHistoryTableEnhanced = React.memo(function SalesHistoryTableEnhanced(
         }
       }
 
-      // Calculate actual profit considering discounts and change given
-      let totalBuyingCostUSD = 0;
-      let totalBuyingCostIQD = 0;
-      
+      // FIXED: Use the profit values stored in sale_items table instead of recalculating
+      // These values already account for discounts, exchange rates, and multi-currency transactions
       if (sale.items && Array.isArray(sale.items)) {
         sale.items.forEach(item => {
           const qty = item.quantity || 1;
-          const buyingPrice = item.buying_price || 0;
-          // Use the correct product currency fields - prioritize stored currency over fallback
-          const itemCurrency = item.product_currency || 
-                             item.product_currency_from_table || 
-                             item.accessory_currency_from_table || 
-                             'IQD';
+          // Use the profit_in_sale_currency which is correctly calculated during sale
+          const itemProfit = Number(item.profit_in_sale_currency) || Number(item.profit) || 0;
           
-          if (itemCurrency === 'USD') {
-            totalBuyingCostUSD += buyingPrice * qty;
-          } else {
-            totalBuyingCostIQD += buyingPrice * qty;
+          if (sale.currency === 'USD') {
+            totalProfitUSD += itemProfit;
+          } else if (sale.currency === 'IQD') {
+            totalProfitIQD += itemProfit;
           }
         });
         totalProducts += sale.items.reduce((sum, item) => sum + (item.quantity || 1), 0);
-      }
-      
-      // Calculate actual profit from revenue minus buying costs
-      if (sale.multi_currency_payment) {
-        // Multi-currency: profit = payment - buying costs in respective currencies
-        totalProfitUSD += (sale.multi_currency_payment.usd_amount || 0) - totalBuyingCostUSD;
-        totalProfitIQD += (sale.multi_currency_payment.iqd_amount || 0) - totalBuyingCostIQD;
-      } else {
-        // Single currency: convert buying costs to sale currency and subtract
-        const saleTotal = sale.total || 0;
-        if (sale.currency === 'USD') {
-          const totalBuyingInUSD = totalBuyingCostUSD + (totalBuyingCostIQD * (sale.exchange_rate_iqd_to_usd || 0.000694));
-          totalProfitUSD += saleTotal - totalBuyingInUSD;
-        } else {
-          const totalBuyingInIQD = totalBuyingCostIQD + (totalBuyingCostUSD * (sale.exchange_rate_usd_to_iqd || 1440));
-          totalProfitIQD += saleTotal - totalBuyingInIQD;
-        }
       }
     });
 

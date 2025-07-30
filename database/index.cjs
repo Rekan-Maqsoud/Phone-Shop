@@ -41,6 +41,14 @@ module.exports = function(dbPath) {
     return products.deleteProduct(db, id);
   }
 
+  function getAllProducts() {
+    return products.getAllProducts(db);
+  }
+
+  function getArchivedProducts() {
+    return products.getArchivedProducts(db);
+  }
+
   // Accessory functions
   function getAccessories() {
     return accessories.getAccessories(db);
@@ -80,6 +88,12 @@ module.exports = function(dbPath) {
 
   function getAllAccessories() {
     return accessories.getAccessories(db);
+  }
+
+  function getAllAccessoriesIncludingArchived() {
+    const active = accessories.getAccessories(db) || [];
+    const archived = accessories.getArchivedAccessories(db) || [];
+    return [...active, ...archived];
   }
 
   // Sales functions
@@ -1972,6 +1986,7 @@ module.exports = function(dbPath) {
     
     // Products
     getProducts,
+    getAllProducts,
     addProduct,
     updateProduct,
     updateProductNoArchive,
@@ -1980,6 +1995,8 @@ module.exports = function(dbPath) {
     
     // Accessories
     getAccessories,
+    getAllAccessories,
+    getAllAccessoriesIncludingArchived,
     addAccessory,
     updateAccessory,
     updateAccessoryNoArchive,

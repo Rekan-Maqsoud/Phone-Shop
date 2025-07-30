@@ -4,6 +4,14 @@ function getProducts(db) {
   return db.prepare('SELECT * FROM products WHERE archived = 0').all();
 }
 
+function getArchivedProducts(db) {
+  return db.prepare('SELECT * FROM products WHERE archived = 1').all();
+}
+
+function getAllProducts(db) {
+  return db.prepare('SELECT * FROM products').all();
+}
+
 function addProduct(db, { name, buying_price, stock, archived = 0, ram, storage, model, brand, category = 'phones', currency = 'IQD' }) {
   // Check if product with same name, brand, model, RAM, storage, and currency already exists
   const existingProduct = db.prepare(`
@@ -63,8 +71,40 @@ function ensureValidProductId(db, productId) {
 }
 
 function updateProduct(db, { id, name, buying_price, stock, archived = 0, ram, storage, model, brand, category = 'phones', currency = 'IQD' }) {
-  return db.prepare('UPDATE products SET name=?, buying_price=?, stock=?, archived=?, ram=?, storage=?, model=?, brand=?, category=?, currency=? WHERE id=?')
-    .run(name, buying_price, stock, archived, ram || null, storage || null, model || null, brand || null, category, currency, id);
+  try {
+    // Validate required fields
+    if (!id) {
+      throw new Error('Product ID is required for update');
+    }
+    if (!name || name.trim() === '') {
+      throw new Error('Product name is required');
+    }
+    
+    // Log the update operation
+    console.log('🔄 [products.cjs] Updating product:', { 
+      id, name, buying_price, stock, archived, ram, storage, model, brand, category, currency 
+    });
+    
+    // Check if product exists first
+    const existing = db.prepare('SELECT id FROM products WHERE id = ?').get(id);
+    if (!existing) {
+      throw new Error(`Product with ID ${id} not found`);
+    }
+    
+    const result = db.prepare('UPDATE products SET name=?, buying_price=?, stock=?, archived=?, ram=?, storage=?, model=?, brand=?, category=?, currency=? WHERE id=?')
+      .run(name, buying_price, stock, archived, ram || null, storage || null, model || null, brand || null, category, currency, id);
+    
+    console.log('✅ [products.cjs] Product updated successfully:', { id, changes: result.changes });
+    
+    // Verify the update
+    const updated = db.prepare('SELECT * FROM products WHERE id = ?').get(id);
+    console.log('🔍 [products.cjs] Updated product verification:', updated);
+    
+    return result;
+  } catch (error) {
+    console.error('❌ [products.cjs] updateProduct error:', error);
+    throw error;
+  }
 }
 
 function updateProductNoArchive(db, { id, name, buying_price, stock, ram, storage, brand }) {
@@ -83,6 +123,8 @@ function deleteProduct(db, id) {
 
 module.exports = {
   getProducts,
+  getArchivedProducts,
+  getAllProducts,
   addProduct,
   updateProduct,
   updateProductNoArchive,

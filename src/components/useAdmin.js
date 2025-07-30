@@ -113,7 +113,7 @@ export default function useAdmin(showConfirm = null) {
       }
     } catch (error) {
       console.error('Error marking debt as paid:', error);
-      setToast('Error marking debt as paid', 'error');
+      setToast(t?.errorMarkingDebtPaid || 'Error marking debt as paid', 'error');
     }
   };
 
@@ -147,6 +147,7 @@ export default function useAdmin(showConfirm = null) {
           // Show confirmation to merge with existing product
           if (showConfirm) {
             showConfirm(
+              t?.productMergeConfirm?.replace('{currency}', existingProduct.currency)?.replace('{newCurrency}', product.currency) ||
               `A product with the same specs already exists in ${existingProduct.currency}. Do you want to update its currency to ${product.currency} and merge the prices?`,
               async () => {
                 // Convert the existing product to new currency and merge
@@ -186,19 +187,21 @@ export default function useAdmin(showConfirm = null) {
                 
                 const res = await window.api.editProduct(updatedProduct);
                 if (res.success) {
-                  setToast(`Product merged successfully: ${product.name} (${product.currency})`);
+                  setToast(t?.productMergedSuccessfully?.replace('{name}', product.name)?.replace('{currency}', product.currency) || 
+                          `Product merged successfully: ${product.name} (${product.currency})`);
                   await refreshProducts();
                   setShowProductModal(false);
                   setEditProduct(null);
                 } else {
-                  setToast(res.message || 'Failed to merge product.');
+                  setToast(res.message || t?.failedToMergeProduct || 'Failed to merge product.');
                 }
               }
             );
             return;
           } else {
             // Fallback to native confirm if showConfirm not available
-            const confirmMerge = window.confirm(
+            const confirmMerge = confirm(
+              t?.productMergeConfirm?.replace('{currency}', existingProduct.currency)?.replace('{newCurrency}', product.currency) ||
               `A product with the same specs already exists in ${existingProduct.currency}. Do you want to update its currency to ${product.currency} and merge the prices?`
             );
             
@@ -237,12 +240,13 @@ export default function useAdmin(showConfirm = null) {
               
               const res = await window.api.editProduct(updatedProduct);
               if (res.success) {
-                setToast(`Product merged successfully: ${product.name} (${product.currency})`);
+                setToast(t?.productMergedSuccessfully?.replace('{name}', product.name)?.replace('{currency}', product.currency) || 
+                        `Product merged successfully: ${product.name} (${product.currency})`);
                 await refreshProducts();
                 setShowProductModal(false);
                 setEditProduct(null);
               } else {
-                setToast(res.message || 'Failed to merge product.');
+                setToast(res.message || t?.failedToMergeProduct || 'Failed to merge product.');
               }
               return;
             }
@@ -252,17 +256,17 @@ export default function useAdmin(showConfirm = null) {
         // If no existing product or user chose not to merge, add normally
         const res = await window.api.addProduct(product);
         if (res.success) {
-          setToast(`${t.productAdded} ${product.name}`);
+          setToast(`${t?.productAdded || 'Product added:'} ${product.name}`);
           await refreshProducts();
           setShowProductModal(false); // Close modal on success
           setEditProduct(null); // Clear edit state
         } else {
-          setToast(res.message || t.addProductFailed || 'Add product failed.');
+          setToast(res.message || t?.addProductFailed || 'Add product failed.');
         }
       }
     } catch (error) {
       console.error('Error adding product:', error);
-      setToast('Error adding product', 'error');
+      setToast(t?.errorAddingProduct || 'Error adding product', 'error');
     }
   };
 
@@ -282,6 +286,7 @@ export default function useAdmin(showConfirm = null) {
           // Show confirmation to merge with existing accessory
           if (showConfirm) {
             showConfirm(
+              t?.accessoryMergeConfirm?.replace('{currency}', existingAccessory.currency)?.replace('{newCurrency}', accessory.currency) ||
               `An accessory with the same name already exists in ${existingAccessory.currency}. Do you want to update its currency to ${accessory.currency} and merge the prices?`,
               async () => {
                 // Convert the existing accessory to new currency and merge
@@ -321,17 +326,19 @@ export default function useAdmin(showConfirm = null) {
                 
                 const res = await window.api.editAccessory(updatedAccessory);
                 if (res.success) {
-                  setToast(`Accessory merged successfully: ${accessory.name} (${accessory.currency})`);
+                  setToast(t?.accessoryMergedSuccessfully?.replace('{name}', accessory.name)?.replace('{currency}', accessory.currency) ||
+                          `Accessory merged successfully: ${accessory.name} (${accessory.currency})`);
                   await refreshAccessories();
                 } else {
-                  setToast(res.message || 'Failed to merge accessory.');
+                  setToast(res.message || t?.failedToMergeAccessory || 'Failed to merge accessory.');
                 }
               }
             );
             return;
           } else {
             // Fallback to native confirm if showConfirm not available
-            const confirmMerge = window.confirm(
+            const confirmMerge = confirm(
+              t?.accessoryMergeConfirm?.replace('{currency}', existingAccessory.currency)?.replace('{newCurrency}', accessory.currency) ||
               `An accessory with the same name already exists in ${existingAccessory.currency}. Do you want to update its currency to ${accessory.currency} and merge the prices?`
             );
             
@@ -370,10 +377,11 @@ export default function useAdmin(showConfirm = null) {
               
               const res = await window.api.editAccessory(updatedAccessory);
               if (res.success) {
-                setToast(`Accessory merged successfully: ${accessory.name} (${accessory.currency})`);
+                setToast(t?.accessoryMergedSuccessfully?.replace('{name}', accessory.name)?.replace('{currency}', accessory.currency) ||
+                        `Accessory merged successfully: ${accessory.name} (${accessory.currency})`);
                 await refreshAccessories();
               } else {
-                setToast(res.message || 'Failed to merge accessory.');
+                setToast(res.message || t?.failedToMergeAccessory || 'Failed to merge accessory.');
               }
               return;
             }
@@ -383,15 +391,15 @@ export default function useAdmin(showConfirm = null) {
         // If no existing accessory or user chose not to merge, add normally
         const res = await window.api.addAccessory(accessory);
         if (res.success) {
-          setToast(`${t.accessoryAdded || 'Accessory added'}: ${accessory.name}`);
+          setToast(`${t?.accessoryAdded || 'Accessory added'}: ${accessory.name}`);
           await refreshAccessories();
         } else {
-          setToast(res.message || 'Add accessory failed.');
+          setToast(res.message || t?.addAccessoryFailed || 'Add accessory failed.');
         }
       }
     } catch (error) {
       console.error('Error adding accessory:', error);
-      setToast('Error adding accessory', 'error');
+      setToast(t?.errorAddingAccessory || 'Error adding accessory', 'error');
     }
   };
 
@@ -703,6 +711,8 @@ export default function useAdmin(showConfirm = null) {
     lowStockThreshold, setLowStockThreshold,
     adminModal, setAdminModal, openAdminModal, adminPassword, setAdminPassword, adminError, handleAdminAccess,
     goToAdmin,
+    // Add refresh functions to admin object
+    refreshProducts, refreshAccessories, refreshSales, refreshDebts, refreshCompanyDebts, refreshBuyingHistory, refreshMonthlyReports,
   }), [
     products, accessories, sales, showProductModal, editProduct, viewSale, debts, debtSales, companyDebts, buyingHistory, monthlyReports,
     selectedCompanyDebt, showEnhancedCompanyDebtModal, activeSection, showPaidDebts, debtSearch, showAddPurchaseModal, isCompanyDebtMode,

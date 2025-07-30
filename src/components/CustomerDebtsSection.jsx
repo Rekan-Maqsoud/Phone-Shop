@@ -438,7 +438,7 @@ const CustomerDebtsSection = ({
                                                 ]);
                                                 triggerCloudBackup();
                                               } else {
-                                                admin.setToast?.('Failed to return sale: ' + (result?.message || 'Unknown error'));
+                                                admin.setToast?.((t?.failedToReturnSale || 'Failed to return sale') + ': ' + (result?.message || t?.unknownError || 'Unknown error'));
                                               }
                                             } catch (error) {
                                               admin.setToast?.('Error returning sale: ' + error.message);

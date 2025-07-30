@@ -34,7 +34,8 @@ export default function QuickAddProduct({ t, onAdd, loading, onToast = null, sho
         });
         return;
       } else {
-        const proceed = window.confirm(message);
+        // Use default confirm message since showConfirm isn't available
+        const proceed = confirm(message);
         if (!proceed) return;
       }
     }

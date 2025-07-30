@@ -75,8 +75,6 @@ function MultiCurrencyDashboard({ admin, t, onRefresh }) {
   // Comprehensive refresh function to update all UI data
   const handleRefreshAll = useCallback(async () => {
     try {
-      console.log('Refreshing all dashboard data...');
-      
       // Refresh all data from DataContext
       if (refreshAllData) {
         await refreshAllData();
@@ -94,8 +92,6 @@ function MultiCurrencyDashboard({ admin, t, onRefresh }) {
       if (admin && admin.setToast) {
         admin.setToast(t?.dataRefreshed || 'Data refreshed successfully!', 'success', 2000);
       }
-      
-      console.log('Dashboard refresh completed');
     } catch (error) {
       console.error('Error refreshing dashboard data:', error);
       
@@ -127,13 +123,6 @@ function MultiCurrencyDashboard({ admin, t, onRefresh }) {
   }, [fetchBalanceData]);
 
   const metrics = useMemo(() => {
-    console.log('Recalculating metrics with data:', {
-      salesCount: sales?.length || 0,
-      buyingHistoryCount: buyingHistory?.length || 0,
-      debtsCount: debts?.length || 0,
-      transactionsCount: transactions?.length || 0
-    });
-    
     const currentDate = new Date();
     const today = currentDate.toDateString();
 
@@ -847,23 +836,43 @@ function MultiCurrencyDashboard({ admin, t, onRefresh }) {
 
 export default React.memo(MultiCurrencyDashboard);
 
-// Sales Chart Component - Single Y-axis with USD equivalent values
+// Sales Chart Component - FIXED to handle multi-currency sales correctly
 const SalesChart = React.memo(({ sales, t }) => {
   const chartData = useMemo(() => {
     const dateRange = generateDateRange(7);
 
-    // Calculate USD sales from actual selling prices
+    // Calculate USD sales - including multi-currency USD portions
     const usdData = dateRange.map(({ iso }) => {
       return (sales || [])
-        .filter(sale => sale.created_at?.split('T')[0] === iso && sale.currency === 'USD')
-        .reduce((sum, sale) => sum + (sale.total || 0), 0);
+        .filter(sale => sale.created_at?.split('T')[0] === iso)
+        .reduce((sum, sale) => {
+          // Handle multi-currency sales
+          if (sale.is_multi_currency && sale.paid_amount_usd) {
+            return sum + (sale.paid_amount_usd || 0);
+          }
+          // Handle single-currency USD sales
+          else if (sale.currency === 'USD') {
+            return sum + (sale.total || 0);
+          }
+          return sum;
+        }, 0);
     });
 
-    // Calculate IQD sales converted to USD equivalent for single axis comparison
+    // Calculate IQD sales converted to USD equivalent - including multi-currency IQD portions
     const iqdData = dateRange.map(({ iso }) => {
       const iqdTotal = (sales || [])
-        .filter(sale => sale.created_at?.split('T')[0] === iso && sale.currency === 'IQD')
-        .reduce((sum, sale) => sum + (sale.total || 0), 0);
+        .filter(sale => sale.created_at?.split('T')[0] === iso)
+        .reduce((sum, sale) => {
+          // Handle multi-currency sales
+          if (sale.is_multi_currency && sale.paid_amount_iqd) {
+            return sum + (sale.paid_amount_iqd || 0);
+          }
+          // Handle single-currency IQD sales
+          else if (sale.currency === 'IQD') {
+            return sum + (sale.total || 0);
+          }
+          return sum;
+        }, 0);
       return iqdTotal * EXCHANGE_RATES.IQD_TO_USD; // Convert to USD equivalent
     });
 
@@ -1147,37 +1156,23 @@ const MonthlyProfitChart = React.memo(({ sales, t }) => {
         .reduce((totalProfit, sale) => {
           if (!sale.items || sale.items.length === 0) return totalProfit;
           
-          // Calculate profit based on actual amounts received vs costs
-          const saleTotal = sale.total || 0; // This accounts for discounts and actual payment
-          let totalCostInSaleCurrency = 0;
+          // FIXED: Use the stored profit values from sale_items table
+          // These already account for discounts, exchange rates, and currency conversions
+          let saleProfitInUSD = 0;
           
-          // Calculate total cost in the sale's currency
           sale.items.forEach(item => {
-            const qty = item.quantity || 1;
-            const buyingPrice = Number(item.buying_price) || 0;
-            const itemCurrency = item.product_currency || 'IQD';
+            // Use profit_in_sale_currency which is correctly calculated during sale
+            const itemProfit = Number(item.profit_in_sale_currency) || Number(item.profit) || 0;
             
-            if (itemCurrency === sale.currency) {
-              totalCostInSaleCurrency += buyingPrice * qty;
-            } else {
-              // Convert cost to sale currency
-              if (sale.currency === 'USD' && itemCurrency === 'IQD') {
-                totalCostInSaleCurrency += (buyingPrice * qty) * EXCHANGE_RATES.IQD_TO_USD;
-              } else if (sale.currency === 'IQD' && itemCurrency === 'USD') {
-                totalCostInSaleCurrency += (buyingPrice * qty) * EXCHANGE_RATES.USD_TO_IQD;
-              }
+            // Convert to USD for chart consistency
+            if (sale.currency === 'USD') {
+              saleProfitInUSD += itemProfit;
+            } else if (sale.currency === 'IQD') {
+              saleProfitInUSD += itemProfit * EXCHANGE_RATES.IQD_TO_USD;
             }
           });
           
-          // Calculate profit in sale currency
-          let profitInSaleCurrency = saleTotal - totalCostInSaleCurrency;
-          
-          // Convert to USD for chart consistency
-          if (sale.currency === 'IQD') {
-            profitInSaleCurrency = profitInSaleCurrency * EXCHANGE_RATES.IQD_TO_USD;
-          }
-          
-          return totalProfit + profitInSaleCurrency;
+          return totalProfit + saleProfitInUSD;
         }, 0);
 
       // Calculate incentives for this month

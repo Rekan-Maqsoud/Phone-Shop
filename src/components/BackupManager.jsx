@@ -76,10 +76,10 @@ export default function BackupManager({ show, onClose, t, showConfirm = null }) 
       if (result?.success) {
         setBackups(result.backups || []);
       } else {
-        showMessage(result?.message || 'Failed to load backups', 'error');
+        showMessage(result?.message || t?.failedToLoadBackups || 'Failed to load backups', 'error');
       }
     } catch (error) {
-      showMessage('Failed to load backups', 'error');
+      showMessage(t?.failedToLoadBackups || 'Failed to load backups', 'error');
     } finally {
       setLoading(false);
     }
@@ -143,10 +143,10 @@ export default function BackupManager({ show, onClose, t, showConfirm = null }) 
         showMessage('Backup created successfully!', 'success');
         loadBackups();
       } else {
-        showMessage(result?.message || 'Failed to create backup', 'error');
+        showMessage(result?.message || t?.failedToCreateBackup || 'Failed to create backup', 'error');
       }
     } catch (error) {
-      showMessage('Failed to create backup', 'error');
+      showMessage(t?.failedToCreateBackup || 'Failed to create backup', 'error');
     } finally {
       setLoading(false);
     }
@@ -159,10 +159,10 @@ export default function BackupManager({ show, onClose, t, showConfirm = null }) 
       if (result?.success) {
         showMessage(`Local backup created successfully at: ${result.path}`, 'success');
       } else {
-        showMessage(result?.message || 'Failed to create local backup', 'error');
+        showMessage(result?.message || t?.failedToCreateLocalBackup || 'Failed to create local backup', 'error');
       }
     } catch (error) {
-      showMessage('Failed to create local backup', 'error');
+      showMessage(t?.failedToCreateLocalBackup || 'Failed to create local backup', 'error');
     } finally {
       setLoading(false);
     }
@@ -172,10 +172,10 @@ export default function BackupManager({ show, onClose, t, showConfirm = null }) 
     try {
       const result = await window.api?.openBackupFolder();
       if (!result?.success) {
-        showMessage(result?.message || 'Failed to open backup folder', 'error');
+        showMessage(result?.message || t?.failedToOpenBackupFolder || 'Failed to open backup folder', 'error');
       }
     } catch (error) {
-      showMessage('Failed to open backup folder', 'error');
+      showMessage(t?.failedToOpenBackupFolder || 'Failed to open backup folder', 'error');
     }
   };
 
@@ -184,14 +184,14 @@ export default function BackupManager({ show, onClose, t, showConfirm = null }) 
     try {
       const result = await window.api?.downloadCloudBackup(backup.$id);
       if (result?.success) {
-        const message = `Backup downloaded. Do you want to restore it now? This will replace all current data!`;
+        const message = t?.confirmRestoreBackup || `Backup downloaded. Do you want to restore it now? This will replace all current data!`;
         
         const performRestore = async () => {
           const restoreResult = await window.api?.restoreFromFile(result.downloadPath);
           if (restoreResult?.success) {
-            showMessage('Database restored successfully!', 'success');
+            showMessage(t?.databaseRestoredSuccessfully || 'Database restored successfully!', 'success');
             if (restoreResult.requiresRestart) {
-              const restartMessage = 'The application needs to restart to apply changes. Restart now?';
+              const restartMessage = t?.appNeedsRestartToApplyChanges || 'The application needs to restart to apply changes. Restart now?';
               
               const handleRestart = () => {
                 window.api?.restartApp();
@@ -207,7 +207,7 @@ export default function BackupManager({ show, onClose, t, showConfirm = null }) 
               }
             }
           } else {
-            showMessage(restoreResult?.message || 'Failed to restore backup', 'error');
+            showMessage(restoreResult?.message || t?.failedToRestoreBackup || 'Failed to restore backup', 'error');
           }
         };
         
@@ -236,30 +236,30 @@ export default function BackupManager({ show, onClose, t, showConfirm = null }) 
       if (result?.success) {
         showMessage(`Backup downloaded successfully to: ${result.downloadPath}`, 'success');
       } else {
-        showMessage(result?.message || 'Failed to download backup', 'error');
+        showMessage(result?.message || t?.failedToDownloadBackup || 'Failed to download backup', 'error');
       }
     } catch (error) {
-      showMessage('Failed to download backup', 'error');
+      showMessage(t?.failedToDownloadBackup || 'Failed to download backup', 'error');
     } finally {
       setLoading(false);
     }
   };
 
   const deleteBackup = async (backup) => {
-    const message = `Are you sure you want to delete "${backup.fileName}"?`;
+    const message = t?.confirmDeleteBackup || `Are you sure you want to delete "${backup.fileName}"?`;
     
     const performDelete = async () => {
       setLoading(true);
       try {
         const result = await window.api?.deleteCloudBackup(backup.$id);
         if (result?.success) {
-          showMessage('Backup deleted successfully', 'success');
+          showMessage(t?.backupDeletedSuccessfully || 'Backup deleted successfully', 'success');
           loadBackups();
         } else {
-          showMessage(result?.message || 'Failed to delete backup', 'error');
+          showMessage(result?.message || t?.failedToDeleteBackup || 'Failed to delete backup', 'error');
         }
       } catch (error) {
-        showMessage('Failed to delete backup', 'error');
+        showMessage(t?.failedToDeleteBackup || 'Failed to delete backup', 'error');
       } finally {
         setLoading(false);
       }
@@ -283,10 +283,10 @@ export default function BackupManager({ show, onClose, t, showConfirm = null }) 
         setAutoBackupEnabled(newState);
         showMessage(`Auto backup ${newState ? 'enabled' : 'disabled'}`, 'success');
       } else {
-        showMessage('Failed to change auto backup setting', 'error');
+        showMessage(t?.failedToChangeAutoBackupSetting || 'Failed to change auto backup setting', 'error');
       }
     } catch (error) {
-      showMessage('Failed to change auto backup setting', 'error');
+      showMessage(t?.failedToChangeAutoBackupSetting || 'Failed to change auto backup setting', 'error');
     }
   };
 
@@ -312,10 +312,10 @@ export default function BackupManager({ show, onClose, t, showConfirm = null }) 
           }
         }
       } else {
-        showMessage(result?.message || 'Failed to restore from local file', 'error');
+        showMessage(result?.message || t?.failedToRestoreFromLocalFile || 'Failed to restore from local file', 'error');
       }
     } catch (error) {
-      showMessage('Failed to restore from local file', 'error');
+      showMessage(t?.failedToRestoreFromLocalFile || 'Failed to restore from local file', 'error');
     }
   };
 

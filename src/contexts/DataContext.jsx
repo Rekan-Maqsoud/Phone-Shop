@@ -98,7 +98,7 @@ export const DataProvider = ({ children }) => {
       };
       
       promises.push(createDataFetch('getProducts', setProducts, 'products'));
-      promises.push(createDataFetch('getAllAccessories', setAccessories, 'accessories'));
+      promises.push(createDataFetch('getAccessories', setAccessories, 'accessories'));
       promises.push(createDataFetch('getSales', setSales, 'sales'));
       promises.push(createDataFetch('getDebts', setDebts, 'debts'));
       promises.push(createDataFetch('getDebtSales', setDebtSales, 'debt sales'));
@@ -176,9 +176,9 @@ export const DataProvider = ({ children }) => {
   }, [apiReady]);
   
   const refreshAccessories = useCallback(async () => {
-    if (!apiReady || !window.api?.getAllAccessories) return;
+    if (!apiReady || !window.api?.getAccessories) return;
     try {
-      const data = await window.api.getAllAccessories();
+      const data = await window.api.getAccessories();
       setAccessories(data || []);
     } catch (error) {
       console.error('❌ DataContext: Error refreshing accessories:', error);

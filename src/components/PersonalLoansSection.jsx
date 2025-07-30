@@ -85,11 +85,11 @@ export default function PersonalLoansSection({ admin, t, showConfirm }) {
         fetchLoans();
         fetchBalances(); // Refresh balances after adding loan
       } else {
-        admin.setToast?.(`${t.error || 'Error'}: Failed to add loan: ` + (result?.message || result?.error || 'Unknown error'), 'error');
+        admin.setToast?.(`${t.error || 'Error'}: ${t?.failedToAddLoan || 'Failed to add loan'}: ` + (result?.message || result?.error || t?.unknownError || 'Unknown error'), 'error');
       }
     } catch (error) {
       console.error('Error adding loan:', error);
-      admin.setToast?.(`${t.error || 'Error'}: Error adding loan`, 'error');
+      admin.setToast?.(`${t.error || 'Error'}: ${t?.errorAddingLoan || 'Error adding loan'}`, 'error');
     } finally {
       setLoading(false);
     }
@@ -157,7 +157,7 @@ export default function PersonalLoansSection({ admin, t, showConfirm }) {
         setShowPaymentModal(false);
         setSelectedLoan(null);
       } else {
-        admin.setToast?.(`${t.error || 'Error'}: Failed to mark loan as paid: ` + (result?.message || result?.error || 'Unknown error'), 'error');
+        admin.setToast?.(`${t.error || 'Error'}: ${t?.failedToMarkLoanAsPaid || 'Failed to mark loan as paid'}: ` + (result?.message || result?.error || t?.unknownError || 'Unknown error'), 'error');
       }
     } catch (error) {
       console.error('Error marking loan as paid:', error);

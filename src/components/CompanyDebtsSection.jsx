@@ -80,11 +80,11 @@ const CompanyDebtsSection = ({
                   openAddPurchaseModal(true); // Pass true for company debt mode
                 } else {
                   console.error('Add Purchase Modal function not available');
-                  admin.setToast?.('Error: Cannot open add purchase modal', 'error', 5000);
+                  admin.setToast?.(t?.cannotOpenAddPurchaseModal || 'Error: Cannot open add purchase modal', 'error', 5000);
                 }
               } catch (error) {
                 console.error('Error opening Add Purchase Modal:', error);
-                admin.setToast?.('Error opening purchase modal', 'error', 5000);
+                admin.setToast?.(t?.errorOpeningPurchaseModal || 'Error opening purchase modal', 'error', 5000);
               }
             }}
             className="flex items-center gap-2 px-6 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 transition font-semibold shadow-lg"
@@ -173,7 +173,7 @@ const CompanyDebtsSection = ({
         }, { usd: 0, iqd: 0 });
 
         if (filteredDebts.length === 0) {
-          return <div className="text-center text-gray-400 py-6">{t.noMatchingDebts || 'No matching company debts found'}</div>;
+          return <div className="text-center text-gray-400 py-6">{t.noMatchingCompanyDebts || 'No matching company debts found'}</div>;
         }
 
         return (

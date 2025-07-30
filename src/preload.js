@@ -73,9 +73,14 @@ contextBridge.exposeInMainWorld('api', {
   // Accessory functionality
   getAccessories: () => ipcRenderer.invoke('getAccessories'),
   getAllAccessories: () => ipcRenderer.invoke('getAllAccessories'),
+  getArchivedAccessories: () => ipcRenderer.invoke('getArchivedAccessories'),
   addAccessory: (accessory) => ipcRenderer.invoke('addAccessory', accessory),
   editAccessory: (accessory) => ipcRenderer.invoke('editAccessory', accessory),
   deleteAccessory: (id) => ipcRenderer.invoke('deleteAccessory', id),
+  
+  // Product archive functionality
+  getAllProducts: () => ipcRenderer.invoke('getAllProducts'),
+  getArchivedProducts: () => ipcRenderer.invoke('getArchivedProducts'),
   
   // New Cloud Backup functionality
   setCloudBackupSession: (sessionData) => ipcRenderer.invoke('setCloudBackupSession', sessionData),
