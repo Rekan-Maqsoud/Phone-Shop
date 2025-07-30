@@ -70,7 +70,7 @@ function MultiCurrencyDashboard({ admin, t, onRefresh }) {
       // Set safe defaults on error
       setBalances({ usd_balance: 0, iqd_balance: 0 });
     }
-  }, []); // Empty dependency array since we only fetch data, don't depend on external state
+  }, [refreshDebts]); // Include refreshDebts as dependency to prevent infinite re-renders
 
   // Comprehensive refresh function to update all UI data
   const handleRefreshAll = useCallback(async () => {
@@ -118,13 +118,13 @@ function MultiCurrencyDashboard({ admin, t, onRefresh }) {
     }, 500); // Debounce by 500ms
     
     return () => clearTimeout(timeoutId);
-  }, [sales, buyingHistory, debts, companyDebts, transactions]);
+  }, [sales, buyingHistory, debts, companyDebts, transactions, fetchBalanceData]);
 
   // Set up periodic refresh every 60 seconds (reduced from 30)
   useEffect(() => {
     const interval = setInterval(fetchBalanceData, 60000);
     return () => clearInterval(interval);
-  }, []);
+  }, [fetchBalanceData]);
 
   const metrics = useMemo(() => {
     console.log('Recalculating metrics with data:', {

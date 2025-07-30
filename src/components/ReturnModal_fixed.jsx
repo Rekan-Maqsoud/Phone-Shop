@@ -37,9 +37,6 @@ const ReturnModal = ({
   const [customAmount, setCustomAmount] = useState('');
   const [allowCustomCurrency, setAllowCustomCurrency] = useState(false);
   
-  // Calculate maxQuantity early to avoid hoisting issues
-  const maxQuantity = returnData?.maxQuantity || returnData?.entry?.quantity || 1;
-  
   // Initialize multi-currency based on original purchase
   const [multiCurrency, setMultiCurrency] = useState(() => {
     if (isFullEntryReturn && returnData?.entry?.currency === 'MULTI') {
@@ -103,12 +100,8 @@ const ReturnModal = ({
       }
     }
 
-    // Handle full entry returns - check for multi-currency values first
-    const hasMultiCurrencyUSD = (entry.multi_currency_usd || 0) > 0;
-    const hasMultiCurrencyIQD = (entry.multi_currency_iqd || 0) > 0;
-    
-    if (hasMultiCurrencyUSD || hasMultiCurrencyIQD) {
-      // Use multi-currency values
+    // Handle full entry returns with multi-currency
+    if (entry.currency === 'MULTI') {
       const usdPortion = (entry.multi_currency_usd || 0) * (quantity / maxQuantity);
       const iqdPortion = (entry.multi_currency_iqd || 0) * (quantity / maxQuantity);
       
@@ -116,10 +109,10 @@ const ReturnModal = ({
         usd: usdPortion,
         iqd: iqdPortion,
         total: usdPortion + (iqdPortion / EXCHANGE_RATES.USD_TO_IQD), // Total in USD equivalent
-        currency: (hasMultiCurrencyUSD && hasMultiCurrencyIQD) ? 'MULTI' : (hasMultiCurrencyUSD ? 'USD' : 'IQD')
+        currency: 'MULTI'
       };
     } else {
-      // Fallback to legacy single currency
+      // Single currency purchase
       const totalPrice = entry.total_price || entry.amount || 0;
       const returnAmount = totalPrice * (quantity / maxQuantity);
       
@@ -143,7 +136,7 @@ const ReturnModal = ({
 
   // Calculate return amounts based on user selection
   const returnAmounts = useMemo(() => {
-    if (!returnData?.entry) return { usd: 0, iqd: 0, exceeded: false };
+    if (!returnData?.entry) return { usd: 0, iqd: 0 };
     
     if (multiCurrency.enabled) {
       // Validate multi-currency amounts don't exceed maximum
@@ -161,112 +154,40 @@ const ReturnModal = ({
       
       return { usd: requestedUSD, iqd: requestedIQD, exceeded: false };
     } else if (customAmount) {
-      // Single currency custom amount with validation
+      // Single currency custom amount
       const amount = parseFloat(customAmount) || 0;
+      const maxAmount = returnCurrency === 'USD' ? maxReturnAmounts.usd : maxReturnAmounts.iqd;
       
-      // For currency validation, check if requesting currency that wasn't used in purchase
-      if (returnCurrency === 'USD') {
-        // User wants USD refund
-        if (maxReturnAmounts.currency === 'IQD' && maxReturnAmounts.usd === 0) {
-          // Purchase was in IQD only, convert IQD to USD for return
-          const availableUSD = maxReturnAmounts.iqd / EXCHANGE_RATES.USD_TO_IQD;
-          if (amount > availableUSD) {
-            return {
-              usd: availableUSD,
-              iqd: 0,
-              exceeded: true,
-              insufficientCurrency: true,
-              availableAmount: availableUSD,
-              requestedAmount: amount
-            };
-          }
-          return { usd: amount, iqd: 0, exceeded: false };
-        } else {
-          // Purchase had USD component
-          if (amount > maxReturnAmounts.usd) {
-            return {
-              usd: maxReturnAmounts.usd,
-              iqd: 0,
-              exceeded: true,
-              insufficientCurrency: true,
-              availableAmount: maxReturnAmounts.usd,
-              requestedAmount: amount
-            };
-          }
-          return { usd: amount, iqd: 0, exceeded: false };
-        }
-      } else {
-        // User wants IQD refund
-        if (maxReturnAmounts.currency === 'USD' && maxReturnAmounts.iqd === 0) {
-          // Purchase was in USD only, convert USD to IQD for return
-          const availableIQD = maxReturnAmounts.usd * EXCHANGE_RATES.USD_TO_IQD;
-          if (amount > availableIQD) {
-            return {
-              usd: 0,
-              iqd: availableIQD,
-              exceeded: true,
-              insufficientCurrency: true,
-              availableAmount: availableIQD,
-              requestedAmount: amount
-            };
-          }
-          return { usd: 0, iqd: amount, exceeded: false };
-        } else {
-          // Purchase had IQD component
-          if (amount > maxReturnAmounts.iqd) {
-            return {
-              usd: 0,
-              iqd: maxReturnAmounts.iqd,
-              exceeded: true,
-              insufficientCurrency: true,
-              availableAmount: maxReturnAmounts.iqd,
-              requestedAmount: amount
-            };
-          }
-          return { usd: 0, iqd: amount, exceeded: false };
-        }
+      if (amount > maxAmount) {
+        return {
+          usd: returnCurrency === 'USD' ? maxAmount : 0,
+          iqd: returnCurrency === 'IQD' ? maxAmount : 0,
+          exceeded: true
+        };
       }
+      
+      return {
+        usd: returnCurrency === 'USD' ? amount : 0,
+        iqd: returnCurrency === 'IQD' ? amount : 0,
+        exceeded: false
+      };
     } else {
       // Default: return full amount in selected currency
       if (returnCurrency === 'USD') {
-        if (maxReturnAmounts.currency === 'USD') {
-          // Purchase was in USD
-          return { usd: maxReturnAmounts.usd, iqd: 0, exceeded: false };
-        } else if (maxReturnAmounts.currency === 'IQD') {
-          // Purchase was in IQD, convert to USD
-          const usdAmount = maxReturnAmounts.iqd / EXCHANGE_RATES.USD_TO_IQD;
-          return { usd: usdAmount, iqd: 0, exceeded: false };
-        } else {
-          // Multi-currency purchase
-          return { usd: maxReturnAmounts.usd, iqd: 0, exceeded: false };
-        }
+        const usdAmount = maxReturnAmounts.currency === 'USD' 
+          ? maxReturnAmounts.usd 
+          : maxReturnAmounts.iqd / EXCHANGE_RATES.USD_TO_IQD;
+        return { usd: usdAmount, iqd: 0, exceeded: false };
       } else {
-        if (maxReturnAmounts.currency === 'IQD') {
-          // Purchase was in IQD
-          return { usd: 0, iqd: maxReturnAmounts.iqd, exceeded: false };
-        } else if (maxReturnAmounts.currency === 'USD') {
-          // Purchase was in USD, convert to IQD
-          const iqdAmount = maxReturnAmounts.usd * EXCHANGE_RATES.USD_TO_IQD;
-          return { usd: 0, iqd: iqdAmount, exceeded: false };
-        } else {
-          // Multi-currency purchase
-          return { usd: 0, iqd: maxReturnAmounts.iqd, exceeded: false };
-        }
+        const iqdAmount = maxReturnAmounts.currency === 'IQD' 
+          ? maxReturnAmounts.iqd 
+          : maxReturnAmounts.usd * EXCHANGE_RATES.USD_TO_IQD;
+        return { usd: 0, iqd: iqdAmount, exceeded: false };
       }
     }
   }, [returnData, returnQuantity, returnCurrency, customAmount, multiCurrency, maxReturnAmounts, allowCustomCurrency]);
 
   const handleConfirm = () => {
-    // Prevent confirming if amounts are exceeded or invalid
-    if (returnAmounts.exceeded) {
-      return;
-    }
-    
-    // Ensure at least some amount is being returned
-    if (returnAmounts.usd === 0 && returnAmounts.iqd === 0) {
-      return;
-    }
-    
     const result = {
       returnQuantity,
       returnAmounts: returnAmounts
@@ -371,6 +292,7 @@ const ReturnModal = ({
   if (!show || !returnData?.entry) return null;
 
   const entry = returnData.entry;
+  const maxQuantity = returnData.maxQuantity || entry.quantity || 1;
 
   return (
     <ModalBase show={show} onClose={handleClose} maxWidth="2xl">
@@ -595,28 +517,9 @@ const ReturnModal = ({
                 </div>
               )}
               {returnAmounts.exceeded && (
-                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 mt-2">
-                  <p className="text-red-600 dark:text-red-400 text-sm font-medium">
-                    {returnAmounts.insufficientCurrency ? (
-                      <>
-                        {t?.insufficientCurrency || 'Insufficient currency amount for return'}
-                        {returnAmounts.availableAmount !== undefined && returnAmounts.requestedAmount !== undefined && (
-                          <span className="block text-xs mt-1">
-                            {t?.available || 'Available'}: {formatCurrency(returnAmounts.availableAmount, returnCurrency)} | 
-                            {t?.requested || 'Requested'}: {formatCurrency(returnAmounts.requestedAmount, returnCurrency)}
-                          </span>
-                        )}
-                      </>
-                    ) : (
-                      t?.amountExceeded || 'Amount exceeds maximum returnable amount'
-                    )}
-                  </p>
-                  {returnAmounts.insufficientCurrency && (
-                    <p className="text-red-500 dark:text-red-400 text-xs mt-2">
-                      {t?.currencyValidationHint || 'The purchase was made in a different currency. You can either return in the original currency or use the multi-currency option.'}
-                    </p>
-                  )}
-                </div>
+                <p className="text-red-600 dark:text-red-400 text-xs mt-2">
+                  {t?.amountExceeded || 'Amount exceeds maximum returnable amount'}
+                </p>
               )}
             </div>
           </div>

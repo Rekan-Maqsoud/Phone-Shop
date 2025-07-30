@@ -116,8 +116,8 @@ const MonthlyReport = ({ admin, t }) => {
           const buyingPrice = item.buying_price || 0;
           
           // Determine if it's a product or accessory
-          const isProduct = products && products.find(p => p.id === item.product_id);
-          const isAccessory = accessories && accessories.find(a => a.id === item.accessory_id);
+          const isProduct = !item.is_accessory && products && products.find(p => p.id === item.product_id);
+          const isAccessory = item.is_accessory && accessories && accessories.find(a => a.id === item.product_id);
           
           if (isProduct) {
             totalProductsSold += quantity;
@@ -145,41 +145,35 @@ const MonthlyReport = ({ admin, t }) => {
           totalProfit.USD += usdRevenue - saleBuyingCostUSD;
           totalProfit.IQD += iqdRevenue - saleBuyingCostIQD;
           
-          // Also split product/accessory profits proportionally
-          const totalRevenueInIQD = (usdRevenue * (sale.exchange_rate_usd_to_iqd || 1440)) + iqdRevenue;
-          const totalBuyingInIQD = (saleBuyingCostUSD * (sale.exchange_rate_usd_to_iqd || 1440)) + saleBuyingCostIQD;
-          const totalSaleProfit = totalRevenueInIQD - totalBuyingInIQD;
-          
-          // Proportionally split profit between products and accessories based on buying costs
-          const totalBuyingCost = saleBuyingCostUSD + saleBuyingCostIQD;
-          if (totalBuyingCost > 0) {
-            sale.items.forEach(item => {
-              const quantity = item.quantity || 1;
-              const buyingPrice = item.buying_price || 0;
-              const itemCurrency = item.product_currency || item.accessory_currency || 'IQD';
-              const itemBuyingCost = buyingPrice * quantity;
-              const itemProfitShare = (itemBuyingCost / totalBuyingCost) * totalSaleProfit;
-              
-              const isProduct = products && products.find(p => p.id === item.product_id);
-              const isAccessory = accessories && accessories.find(a => a.id === item.accessory_id);
-              
-              if (isProduct) {
-                if (itemCurrency === 'USD') {
-                  totalProductProfit.USD += itemProfitShare * (sale.exchange_rate_iqd_to_usd || 0.000694);
-                } else {
-                  totalProductProfit.IQD += itemProfitShare;
-                }
+          // Split product/accessory profits based on their selling prices, not buying costs
+          sale.items.forEach(item => {
+            const quantity = item.quantity || 1;
+            const sellingPrice = item.selling_price || item.price || 0;
+            const buyingPrice = item.buying_price || 0;
+            const itemCurrency = item.product_currency || item.accessory_currency || 'IQD';
+            
+            // Calculate individual item profit
+            const itemProfit = (sellingPrice - buyingPrice) * quantity;
+            
+            const isProduct = !item.is_accessory && products && products.find(p => p.id === item.product_id);
+            const isAccessory = item.is_accessory && accessories && accessories.find(a => a.id === item.product_id);
+            
+            if (isProduct) {
+              if (itemCurrency === 'USD') {
+                totalProductProfit.USD += itemProfit;
+              } else {
+                totalProductProfit.IQD += itemProfit;
               }
-              
-              if (isAccessory) {
-                if (itemCurrency === 'USD') {
-                  totalAccessoryProfit.USD += itemProfitShare * (sale.exchange_rate_iqd_to_usd || 0.000694);
-                } else {
-                  totalAccessoryProfit.IQD += itemProfitShare;
-                }
+            }
+            
+            if (isAccessory) {
+              if (itemCurrency === 'USD') {
+                totalAccessoryProfit.USD += itemProfit;
+              } else {
+                totalAccessoryProfit.IQD += itemProfit;
               }
-            });
-          }
+            }
+          });
         } else {
           // Single currency: convert buying costs to sale currency and subtract
           const saleTotal = sale.total || 0;
@@ -188,53 +182,59 @@ const MonthlyReport = ({ admin, t }) => {
             const saleProfit = saleTotal - totalBuyingInUSD;
             totalProfit.USD += saleProfit;
             
-            // Split product/accessory profits proportionally
-            const totalBuyingCost = saleBuyingCostUSD + saleBuyingCostIQD;
-            if (totalBuyingCost > 0) {
-              sale.items.forEach(item => {
-                const quantity = item.quantity || 1;
-                const buyingPrice = item.buying_price || 0;
-                const itemBuyingCost = buyingPrice * quantity;
-                const itemProfitShare = (itemBuyingCost / totalBuyingCost) * saleProfit;
-                
-                const isProduct = products && products.find(p => p.id === item.product_id);
-                const isAccessory = accessories && accessories.find(a => a.id === item.accessory_id);
-                
-                if (isProduct) {
-                  totalProductProfit.USD += itemProfitShare;
-                }
-                
-                if (isAccessory) {
-                  totalAccessoryProfit.USD += itemProfitShare;
-                }
-              });
-            }
+            // Split product/accessory profits based on individual item profits, not proportional shares
+            sale.items.forEach(item => {
+              const quantity = item.quantity || 1;
+              const sellingPrice = item.selling_price || item.price || 0;
+              const buyingPrice = item.buying_price || 0;
+              const itemCurrency = item.product_currency || item.accessory_currency || 'IQD';
+              
+              // Calculate individual item profit in sale currency (USD)
+              let itemProfit = (sellingPrice - buyingPrice) * quantity;
+              if (itemCurrency === 'IQD') {
+                itemProfit *= (sale.exchange_rate_iqd_to_usd || 0.000694);
+              }
+              
+              const isProduct = !item.is_accessory && products && products.find(p => p.id === item.product_id);
+              const isAccessory = item.is_accessory && accessories && accessories.find(a => a.id === item.product_id);
+              
+              if (isProduct) {
+                totalProductProfit.USD += itemProfit;
+              }
+              
+              if (isAccessory) {
+                totalAccessoryProfit.USD += itemProfit;
+              }
+            });
           } else {
             const totalBuyingInIQD = saleBuyingCostIQD + (saleBuyingCostUSD * (sale.exchange_rate_usd_to_iqd || 1440));
             const saleProfit = saleTotal - totalBuyingInIQD;
             totalProfit.IQD += saleProfit;
             
-            // Split product/accessory profits proportionally
-            const totalBuyingCost = saleBuyingCostUSD + saleBuyingCostIQD;
-            if (totalBuyingCost > 0) {
-              sale.items.forEach(item => {
-                const quantity = item.quantity || 1;
-                const buyingPrice = item.buying_price || 0;
-                const itemBuyingCost = buyingPrice * quantity;
-                const itemProfitShare = (itemBuyingCost / totalBuyingCost) * saleProfit;
-                
-                const isProduct = products && products.find(p => p.id === item.product_id);
-                const isAccessory = accessories && accessories.find(a => a.id === item.accessory_id);
-                
-                if (isProduct) {
-                  totalProductProfit.IQD += itemProfitShare;
-                }
-                
-                if (isAccessory) {
-                  totalAccessoryProfit.IQD += itemProfitShare;
-                }
-              });
-            }
+            // Split product/accessory profits based on individual item profits, not proportional shares
+            sale.items.forEach(item => {
+              const quantity = item.quantity || 1;
+              const sellingPrice = item.selling_price || item.price || 0;
+              const buyingPrice = item.buying_price || 0;
+              const itemCurrency = item.product_currency || item.accessory_currency || 'IQD';
+              
+              // Calculate individual item profit in sale currency (IQD)
+              let itemProfit = (sellingPrice - buyingPrice) * quantity;
+              if (itemCurrency === 'USD') {
+                itemProfit *= (sale.exchange_rate_usd_to_iqd || 1440);
+              }
+              
+              const isProduct = !item.is_accessory && products && products.find(p => p.id === item.product_id);
+              const isAccessory = item.is_accessory && accessories && accessories.find(a => a.id === item.product_id);
+              
+              if (isProduct) {
+                totalProductProfit.IQD += itemProfit;
+              }
+              
+              if (isAccessory) {
+                totalAccessoryProfit.IQD += itemProfit;
+              }
+            });
           }
         }
       }

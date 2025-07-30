@@ -93,21 +93,60 @@ function addDirectPurchaseWithItems(db, { supplier, date, items, currency = 'IQD
       });
     }
     
-    // Create a single buying history entry
-    const result = db.prepare(`
-      INSERT INTO buying_history 
-      (item_name, quantity, unit_price, total_price, supplier, date, currency, has_items) 
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      `Purchase with ${items.length} items`, // Generic description for multi-item purchase
-      items.reduce((sum, item) => sum + item.quantity, 0), // Total quantity of all items
-      finalTotalAmount / items.reduce((sum, item) => sum + item.quantity, 0), // Average unit price
-      finalTotalAmount,
-      supplier,
-      purchaseDate,
-      currency,
-      1 // has_items = true
-    );
+    // Check for mixed-currency scenario (item values in different currency than payment)
+    const itemCurrencies = [...new Set(items.map(item => item.currency || 'IQD'))];
+    const hasMixedCurrencies = itemCurrencies.length > 1;
+    const hasPaymentCurrencyMismatch = itemCurrencies.some(itemCurrency => itemCurrency !== currency);
+    const isMixedCurrencyPurchase = hasMixedCurrencies || hasPaymentCurrencyMismatch;
+    
+    // Calculate totals by original item currency
+    const usdItemsTotal = items
+      .filter(item => (item.currency || 'IQD') === 'USD')
+      .reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
+    
+    const iqdItemsTotal = items
+      .filter(item => (item.currency || 'IQD') === 'IQD')
+      .reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
+    
+    // Determine if we need to use multi-currency columns
+    const shouldUseMultiCurrencyColumns = isMixedCurrencyPurchase && (usdItemsTotal > 0 || iqdItemsTotal > 0);
+    
+    let result;
+    if (shouldUseMultiCurrencyColumns) {
+      // Create entry with multi-currency columns populated
+      result = db.prepare(`
+        INSERT INTO buying_history 
+        (item_name, quantity, unit_price, total_price, supplier, date, currency, has_items, multi_currency_usd, multi_currency_iqd) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        `Purchase with ${items.length} items`, // Generic description for multi-item purchase
+        items.reduce((sum, item) => sum + item.quantity, 0), // Total quantity of all items
+        finalTotalAmount / items.reduce((sum, item) => sum + item.quantity, 0), // Average unit price
+        finalTotalAmount,
+        supplier,
+        purchaseDate,
+        currency,
+        1, // has_items = true
+        usdItemsTotal, // Store original USD item values
+        iqdItemsTotal  // Store original IQD item values
+      );
+    } else {
+      // Standard single-currency entry
+      result = db.prepare(`
+        INSERT INTO buying_history 
+        (item_name, quantity, unit_price, total_price, supplier, date, currency, has_items) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        `Purchase with ${items.length} items`, // Generic description for multi-item purchase
+        items.reduce((sum, item) => sum + item.quantity, 0), // Total quantity of all items
+        finalTotalAmount / items.reduce((sum, item) => sum + item.quantity, 0), // Average unit price
+        finalTotalAmount,
+        supplier,
+        purchaseDate,
+        currency,
+        1 // has_items = true
+      );
+    }
     
     const buyingHistoryId = result.lastInsertRowid;
     
@@ -202,20 +241,34 @@ function addDirectPurchaseWithItems(db, { supplier, date, items, currency = 'IQD
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `);
     
-    const usdAmount = currency === 'USD' ? finalTotalAmount : 0;
-    const iqdAmount = currency === 'IQD' ? finalTotalAmount : 0;
+    let transactionUsdAmount, transactionIqdAmount;
+    
+    if (shouldUseMultiCurrencyColumns) {
+      // For mixed-currency purchases, record the actual payment amounts based on payment currency
+      if (currency === 'USD') {
+        transactionUsdAmount = finalTotalAmount;
+        transactionIqdAmount = 0;
+      } else {
+        transactionUsdAmount = 0;
+        transactionIqdAmount = finalTotalAmount;
+      }
+    } else {
+      // Standard single-currency transaction
+      transactionUsdAmount = currency === 'USD' ? finalTotalAmount : 0;
+      transactionIqdAmount = currency === 'IQD' ? finalTotalAmount : 0;
+    }
     
     addTransactionStmt.run(
       'direct_purchase',
-      -usdAmount, // Negative to indicate spending
-      -iqdAmount, // Negative to indicate spending
-      `Direct purchase with ${items.length} items from ${supplier}`,
+      -transactionUsdAmount, // Negative to indicate spending
+      -transactionIqdAmount, // Negative to indicate spending
+      `Direct purchase with ${items.length} items from ${supplier}${shouldUseMultiCurrencyColumns ? ' (mixed-currency)' : ''}`,
       buyingHistoryId,
       'buying_history',
       purchaseDate
     );
     
-    // Deduct from balance
+    // Deduct from balance based on payment currency
     if (currency === 'USD') {
       settings.updateBalance(db, 'USD', -finalTotalAmount);
     } else {

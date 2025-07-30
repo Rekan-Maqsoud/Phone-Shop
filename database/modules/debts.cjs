@@ -774,10 +774,14 @@ function markPersonalLoanPaid(db, id, paymentData) {
       const remainingUSD = (loanInfo.usd_amount || 0) - (loanInfo.payment_usd_amount || 0);
       const remainingIQD = (loanInfo.iqd_amount || 0) - (loanInfo.payment_iqd_amount || 0);
 
+      // Get current exchange rates from database
+      const iqdToUsdRate = settings.getExchangeRate(db, 'IQD', 'USD') || 0.000694;
+      const usdToIqdRate = settings.getExchangeRate(db, 'USD', 'IQD') || 1440;
+
       // Enhanced validation for cross-currency payments
       // Convert payment to equivalent values for validation
-      const paymentUSDEquivalent = payment_usd_amount + (payment_iqd_amount * EXCHANGE_RATES.IQD_TO_USD);
-      const remainingTotalUSDEquivalent = remainingUSD + (remainingIQD * EXCHANGE_RATES.IQD_TO_USD);
+      const paymentUSDEquivalent = payment_usd_amount + (payment_iqd_amount * iqdToUsdRate);
+      const remainingTotalUSDEquivalent = remainingUSD + (remainingIQD * iqdToUsdRate);
       
       // Allow cross-currency payment as long as total doesn't exceed remaining loan
       if (paymentUSDEquivalent > remainingTotalUSDEquivalent + 0.01) { // Small tolerance for rounding
@@ -795,13 +799,13 @@ function markPersonalLoanPaid(db, id, paymentData) {
       if (payment_usd_amount > remainingUSD && remainingIQD > 0) {
         // Paying more USD than owed, convert excess to IQD payment
         const excessUSD = payment_usd_amount - remainingUSD;
-        const excessAsIQD = excessUSD * EXCHANGE_RATES.USD_TO_IQD;
+        const excessAsIQD = excessUSD * usdToIqdRate;
         finalPaymentUSD = remainingUSD;
         finalPaymentIQD = Math.min(payment_iqd_amount + excessAsIQD, remainingIQD);
       } else if (payment_iqd_amount > remainingIQD && remainingUSD > 0) {
         // Paying more IQD than owed, convert excess to USD payment
         const excessIQD = payment_iqd_amount - remainingIQD;
-        const excessAsUSD = excessIQD * EXCHANGE_RATES.IQD_TO_USD;
+        const excessAsUSD = excessIQD * iqdToUsdRate;
         finalPaymentIQD = remainingIQD;
         finalPaymentUSD = Math.min(payment_usd_amount + excessAsUSD, remainingUSD);
       }

@@ -126,8 +126,12 @@ const BuyingHistoryTable = React.memo(function BuyingHistoryTable({
         
         // Build refund amount display
         const refundAmounts = [];
-        if (returnInfo.returnAmounts.usd > 0) refundAmounts.push(`$${returnInfo.returnAmounts.usd.toFixed(2)}`);
-        if (returnInfo.returnAmounts.iqd > 0) refundAmounts.push(`د.ع${returnInfo.returnAmounts.iqd.toFixed(0)}`);
+        if (result.refundedUSD > 0) {
+          const formatted = result.refundedUSD.toFixed(2);
+          const cleanFormatted = formatted.endsWith('.00') ? formatted.slice(0, -3) : formatted;
+          refundAmounts.push(`$${cleanFormatted}`);
+        }
+        if (result.refundedIQD > 0) refundAmounts.push(`د.ع${result.refundedIQD.toFixed(0)}`);
         
         if (refundAmounts.length > 0) {
           toastMessage += ` Amount refunded: ${refundAmounts.join(' + ')}`;
@@ -209,7 +213,11 @@ const BuyingHistoryTable = React.memo(function BuyingHistoryTable({
         
         // Build refund amount display
         const refundAmounts = [];
-        if (result.returnedAmountUSD > 0) refundAmounts.push(`$${result.returnedAmountUSD.toFixed(2)}`);
+        if (result.returnedAmountUSD > 0) {
+          const formatted = result.returnedAmountUSD.toFixed(2);
+          const cleanFormatted = formatted.endsWith('.00') ? formatted.slice(0, -3) : formatted;
+          refundAmounts.push(`$${cleanFormatted}`);
+        }
         if (result.returnedAmountIQD > 0) refundAmounts.push(`د.ع${Math.round(result.returnedAmountIQD).toLocaleString()}`);
         
         if (refundAmounts.length > 0) {

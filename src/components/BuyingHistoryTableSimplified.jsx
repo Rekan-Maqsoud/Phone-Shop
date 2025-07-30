@@ -3,6 +3,7 @@ import { useLocale } from '../contexts/LocaleContext';
 import { useData } from '../contexts/DataContext';
 import HistorySearchFilter from './HistorySearchFilter';
 import ConfirmModal from './ConfirmModal';
+import ReturnModal from './ReturnModal';
 import { Icon } from '../utils/icons.jsx';
 import { getTextAlign } from '../utils/rtlUtils';
 
@@ -17,12 +18,8 @@ const BuyingHistoryTableSimplified = React.memo(function BuyingHistoryTableSimpl
   const [expandedEntries, setExpandedEntries] = useState(new Set());
   const [filteredHistory, setFilteredHistory] = useState([]);
   const [confirmModal, setConfirmModal] = useState(null);
-  const [quantityModal, setQuantityModal] = useState({ 
-    isOpen: false, 
-    entry: null, 
-    item: null, 
-    maxQuantity: 0 
-  });
+  const [showReturnModal, setShowReturnModal] = useState(false);
+  const [returnModalData, setReturnModalData] = useState(null);
   const { isRTL } = useLocale();
   const { refreshProducts, refreshAccessories } = useData() || {};
   const [currentPage, setCurrentPage] = useState(1);
@@ -79,60 +76,149 @@ const BuyingHistoryTableSimplified = React.memo(function BuyingHistoryTableSimpl
     setExpandedEntries(newExpanded);
   }, [expandedEntries]);
 
-  // Handle return entry - complete purchase return
-  const handleReturnEntry = useCallback(async (entry) => {
-    setConfirmModal({
-      isOpen: true,
-      message: `${t?.confirmReturnPurchase || 'Are you sure you want to return this purchase?'}\n\n${t?.companyName || 'Company'}: ${entry.supplier || entry.company_name || 'N/A'}\n${t?.amount || 'Amount'}: ${formatCurrency(entry, t)}\n\n${t?.thisWillReturnStock || 'This will return items to stock and refund the amount to your balance.'}`,
-      onConfirm: () => processEntryReturn(entry),
-      onCancel: () => setConfirmModal(null)
+  // Handle return entry with new ReturnModal
+  const handleReturnEntry = useCallback((entry) => {
+    setReturnModalData({
+      type: 'entry', // Mark as full entry return
+      entry: entry,
+      quantity: entry.quantity || 1,
+      maxQuantity: entry.quantity || 1,
     });
-  }, [t]);
+    setShowReturnModal(true);
+  }, []);
 
-  // Handle return individual item
-  const handleReturnItem = useCallback(async (entry, item) => {
-    // Set up quantity selection
-    const availableQuantity = item.quantity || 1;
+  // Handle return item with quantity
+  const handleReturnItem = useCallback((entry, item) => {
+    setReturnModalData({
+      type: 'item', // Mark as individual item return
+      entryId: entry.id,
+      itemId: item.id,
+      itemName: item.item_name,
+      currentQuantity: item.quantity,
+      unitPrice: item.unit_price,
+      maxReturnQuantity: item.quantity,
+      entry: entry, // Include full entry for currency context
+      currency: item.currency || 'IQD', // Use item's currency instead of entry currency
+      itemData: {
+        unitPrice: item.unit_price,
+        currency: item.currency || 'IQD',
+        itemName: item.item_name
+      },
+      isItemReturn: true
+    });
+    setShowReturnModal(true);
+  }, []);
+
+  // Process return with proper currency handling
+  const processReturn = useCallback(async (returnInfo) => {
+    if (!returnModalData || returnModalData.type !== 'entry') return;
     
-    if (availableQuantity <= 1) {
-      // Single item, show confirmation
-      setConfirmModal({
-        isOpen: true,
-        message: `${t?.confirmReturnItem || 'Are you sure you want to return this item?'}\n\n${t?.itemName || 'Item'}: ${item.item_name}\n${t?.quantity || 'Quantity'}: ${item.quantity}\n${t?.amount || 'Amount'}: ${formatItemCurrency(item, t)}\n\n${t?.thisWillReturnStock || 'This will return items to stock and refund the amount to your balance.'}`,
-        onConfirm: () => processItemReturn(entry, item, 1),
-        onCancel: () => setConfirmModal(null)
+    try {
+      const result = await window.api.returnBuyingHistoryEntry(returnModalData.entry.id, {
+        quantity: returnInfo.returnQuantity,
+        returnAmounts: returnInfo.returnAmounts
       });
-    } else {
-      // Multiple items, show quantity input
-      setQuantityModal({
-        isOpen: true,
-        entry,
-        item,
-        maxQuantity: availableQuantity
-      });
-    }
-  }, [t]);
-
-  // Handle quantity modal confirmation
-  const handleQuantityConfirm = useCallback((quantity) => {
-    const { entry, item } = quantityModal;
-    const unitPrice = item.unit_price || 0;
-    const totalPrice = quantity * unitPrice;
-    const currency = item.currency === 'USD' ? '$' : 'د.ع';
-    const formattedAmount = item.currency === 'USD' ? 
-      `${currency}${totalPrice.toFixed(2)}` : 
-      `${currency}${Math.round(totalPrice).toLocaleString()}`;
-
-    setConfirmModal({
-      isOpen: true,
-      message: `${t?.confirmReturnItem || 'Are you sure you want to return this item?'}\n\n${t?.itemName || 'Item'}: ${item.item_name}\n${t?.quantity || 'Quantity'}: ${quantity}\n${t?.amount || 'Amount'}: ${formattedAmount}\n\n${t?.thisWillReturnStock || 'This will return items to stock and refund the amount to your balance.'}`,
-      onConfirm: () => processItemReturn(entry, item, quantity),
-      onCancel: () => {
-        setConfirmModal(null);
-        setQuantityModal({ isOpen: false, entry: null, item: null, maxQuantity: 0 });
+      
+      if (result.success) {
+        let toastMessage = result.isPartialReturn 
+          ? (t?.partialReturnSuccess || 'Partial return completed successfully!')
+          : (t?.returnSuccess || 'Purchase returned successfully!');
+        
+        // Build refund amount display
+        const refundAmounts = [];
+        if (result.refundedUSD > 0) {
+          const formatted = result.refundedUSD.toFixed(2);
+          const cleanFormatted = formatted.endsWith('.00') ? formatted.slice(0, -3) : formatted;
+          refundAmounts.push(`$${cleanFormatted}`);
+        }
+        if (result.refundedIQD > 0) refundAmounts.push(`د.ع${result.refundedIQD.toFixed(0)}`);
+        
+        if (refundAmounts.length > 0) {
+          toastMessage += ` Amount refunded: ${refundAmounts.join(' + ')}`;
+        }
+        
+        // Add partial return information
+        if (result.isPartialReturn && result.remainingQuantity > 0) {
+          toastMessage += `\n\nRemaining quantity: ${result.remainingQuantity}`;
+        }
+        
+        if (result.hasStockIssues) {
+          toastMessage += '\n\nNote: Some items had insufficient stock. Only available quantities were returned.';
+        }
+        
+        admin?.setToast(toastMessage, result.hasStockIssues ? 'warning' : 'success');
+        
+        // Close modal
+        setShowReturnModal(false);
+        setReturnModalData(null);
+        
+        refreshBuyingHistory();
+        // Also refresh products and accessories to show updated stock levels
+        if (refreshProducts) await refreshProducts();
+        if (refreshAccessories) await refreshAccessories();
+      } else {
+        admin?.setToast(result.message || t?.returnFailed || 'Failed to return purchase', 'error');
       }
-    });
-  }, [quantityModal, t]);
+    } catch (error) {
+      console.error('Error returning entry:', error);
+      // Show more specific error message if available
+      const errorMessage = error.message || error.toString();
+      if (errorMessage.includes('Invalid return amount') || errorMessage.includes('Maximum refundable')) {
+        admin?.setToast(errorMessage, 'error');
+      } else {
+        admin?.setToast(t?.returnError || 'Error occurred during return', 'error');
+      }
+    }
+  }, [t, refreshBuyingHistory, refreshProducts, refreshAccessories, admin, returnModalData]);
+
+  const executeItemReturn = async (returnInfo) => {
+    if (!returnModalData || returnModalData.type !== 'item') return;
+
+    try {
+      const result = await window.api.returnBuyingHistoryItem(
+        returnModalData.entryId,
+        returnModalData.itemId,
+        returnInfo.returnQuantity,
+        {
+          returnAmounts: returnInfo.returnAmounts
+        }
+      );
+      
+      if (result.success) {
+        let toastMessage = t?.returnSuccess || 'Item returned successfully!';
+        
+        // Build refund amount display
+        const refundAmounts = [];
+        if (result.returnedAmountUSD > 0) {
+          const formatted = result.returnedAmountUSD.toFixed(2);
+          const cleanFormatted = formatted.endsWith('.00') ? formatted.slice(0, -3) : formatted;
+          refundAmounts.push(`$${cleanFormatted}`);
+        }
+        if (result.returnedAmountIQD > 0) refundAmounts.push(`د.ع${Math.round(result.returnedAmountIQD).toLocaleString()}`);
+        
+        if (refundAmounts.length > 0) {
+          toastMessage += ` Amount refunded: ${refundAmounts.join(' + ')}`;
+        }
+        
+        if (result.hasStockIssue) {
+          toastMessage += `\n\nNote: Only ${result.actualReturnQty} items were returned due to insufficient stock (${result.availableStock} available).`;
+        }
+        
+        admin?.setToast(toastMessage, result.hasStockIssue ? 'warning' : 'success');
+        refreshBuyingHistory();
+        // Also refresh products and accessories to show updated stock levels
+        if (refreshProducts) await refreshProducts();
+        if (refreshAccessories) await refreshAccessories();
+        setShowReturnModal(false);
+        setReturnModalData(null);
+      } else {
+        admin?.setToast(t?.returnError || `Failed to return item: ${result.message}`, 'error');
+      }
+    } catch (error) {
+      console.error('Error returning item:', error);
+      admin?.setToast(t?.returnError || 'Failed to return item', 'error');
+    }
+  };
 
   // Process complete entry return
   const processEntryReturn = async (entry) => {
@@ -142,7 +228,9 @@ const BuyingHistoryTableSimplified = React.memo(function BuyingHistoryTableSimpl
       if (result.success) {
         let message = t?.returnSuccess || 'Purchase returned successfully!';
         if (result.refundedUSD > 0) {
-          message += `\n${t?.refundedUSD || 'Refunded USD'}: $${result.refundedUSD.toFixed(2)}`;
+          const formatted = result.refundedUSD.toFixed(2);
+          const cleanFormatted = formatted.endsWith('.00') ? formatted.slice(0, -3) : formatted;
+          message += `\n${t?.refundedUSD || 'Refunded USD'}: $${cleanFormatted}`;
         }
         if (result.refundedIQD > 0) {
           message += `\n${t?.refundedIQD || 'Refunded IQD'}: د.ع${Math.round(result.refundedIQD).toLocaleString()}`;
@@ -176,7 +264,9 @@ const BuyingHistoryTableSimplified = React.memo(function BuyingHistoryTableSimpl
       if (result.success) {
         let message = t?.returnSuccess || 'Item returned successfully!';
         if (result.refundedUSD > 0) {
-          message += `\n${t?.refundedUSD || 'Refunded USD'}: $${result.refundedUSD.toFixed(2)}`;
+          const formatted = result.refundedUSD.toFixed(2);
+          const cleanFormatted = formatted.endsWith('.00') ? formatted.slice(0, -3) : formatted;
+          message += `\n${t?.refundedUSD || 'Refunded USD'}: $${cleanFormatted}`;
         }
         if (result.refundedIQD > 0) {
           message += `\n${t?.refundedIQD || 'Refunded IQD'}: د.ع${Math.round(result.refundedIQD).toLocaleString()}`;
@@ -193,11 +283,16 @@ const BuyingHistoryTableSimplified = React.memo(function BuyingHistoryTableSimpl
       }
     } catch (error) {
       console.error('Error returning item:', error);
-      admin?.setToast(t?.returnError || 'Error occurred during return', 'error');
+      // Show more specific error message if available
+      const errorMessage = error.message || error.toString();
+      if (errorMessage.includes('Invalid return amount') || errorMessage.includes('Maximum refundable')) {
+        admin?.setToast(errorMessage, 'error');
+      } else {
+        admin?.setToast(t?.returnError || 'Error occurred during return', 'error');
+      }
     }
     
     setConfirmModal(null);
-    setQuantityModal({ isOpen: false, entry: null, item: null, maxQuantity: 0 });
   };
 
   // Format currency display for entries
@@ -205,7 +300,9 @@ const BuyingHistoryTableSimplified = React.memo(function BuyingHistoryTableSimpl
     if (entry.currency === 'MULTI') {
       const parts = [];
       if ((entry.multi_currency_usd || 0) > 0) {
-        parts.push(`$${entry.multi_currency_usd.toFixed(2)}`);
+        const formatted = entry.multi_currency_usd.toFixed(2);
+        const cleanFormatted = formatted.endsWith('.00') ? formatted.slice(0, -3) : formatted;
+        parts.push(`$${cleanFormatted}`);
       }
       if ((entry.multi_currency_iqd || 0) > 0) {
         parts.push(`د.ع${Math.round(entry.multi_currency_iqd).toLocaleString()}`);
@@ -214,7 +311,9 @@ const BuyingHistoryTableSimplified = React.memo(function BuyingHistoryTableSimpl
     } else {
       const amount = entry.total_price || entry.amount || 0;
       if (entry.currency === 'USD') {
-        return `$${amount.toFixed(2)}`;
+        const formatted = amount.toFixed(2);
+        const cleanFormatted = formatted.endsWith('.00') ? formatted.slice(0, -3) : formatted;
+        return `$${cleanFormatted}`;
       } else {
         return `د.ع${Math.round(amount).toLocaleString()}`;
       }
@@ -225,7 +324,9 @@ const BuyingHistoryTableSimplified = React.memo(function BuyingHistoryTableSimpl
   const formatItemCurrency = (item, t) => {
     const totalPrice = (item.quantity || 1) * (item.unit_price || 0);
     if (item.currency === 'USD') {
-      return `$${totalPrice.toFixed(2)}`;
+      const formatted = totalPrice.toFixed(2);
+      const cleanFormatted = formatted.endsWith('.00') ? formatted.slice(0, -3) : formatted;
+      return `$${cleanFormatted}`;
     } else {
       return `د.ع${Math.round(totalPrice).toLocaleString()}`;
     }
@@ -440,41 +541,55 @@ const BuyingHistoryTableSimplified = React.memo(function BuyingHistoryTableSimpl
 
                       {/* Items */}
                       <td className="px-6 py-4 text-center">
-                        {entry.has_items ? (
-                          <span className="px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
-                            <Icon name="package" size={14} className="inline mr-1" />
-                            {t?.withItems || 'With Items'}
-                          </span>
-                        ) : (
-                          <span className="px-3 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">
-                            <Icon name="dollarSign" size={14} className="inline mr-1" />
-                            {t?.expense || 'Expense'}
-                          </span>
-                        )}
+                        {(() => {
+                          // Debug: Check if entry has items
+                          const hasItemsActually = entry.has_items && entry.items && Array.isArray(entry.items) && entry.items.length > 0;
+                          
+                          if (hasItemsActually) {
+                            return (
+                              <span className="px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                                <Icon name="package" size={14} className="inline mr-1" />
+                                {entry.items.length} {entry.items.length === 1 ? (t?.item || 'Item') : (t?.items || 'Items')}
+                              </span>
+                            );
+                          } else {
+                            return (
+                              <span className="px-3 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">
+                                <Icon name="dollarSign" size={14} className="inline mr-1" />
+                                {t?.expense || 'Expense'}
+                              </span>
+                            );
+                          }
+                        })()}
                       </td>
 
                       {/* Actions */}
                       <td className="px-6 py-4 text-center">
                         <div className="flex gap-2 justify-center">
-                          {entry.has_items && entry.items && entry.items.length > 0 && (
-                            <button
-                              onClick={() => toggleExpanded(entry.id)}
-                              className="px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm flex items-center gap-1"
-                              title={t?.viewItems || 'View items'}
-                            >
-                              {expandedEntries.has(entry.id) ? (
-                                <>
-                                  <Icon name="chevronUp" size={14} />
-                                  <span>{t?.hideItems || 'Hide'}</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Icon name="chevronDown" size={14} />
-                                  <span>{t?.viewItems || 'View'}</span>
-                                </>
-                              )}
-                            </button>
-                          )}
+                          {(() => {
+                            // Use same logic as Items column to ensure consistency
+                            const hasItemsActually = entry.has_items && entry.items && Array.isArray(entry.items) && entry.items.length > 0;
+                            
+                            return hasItemsActually && (
+                              <button
+                                onClick={() => toggleExpanded(entry.id)}
+                                className="px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm flex items-center gap-1"
+                                title={t?.viewItems || 'View items'}
+                              >
+                                {expandedEntries.has(entry.id) ? (
+                                  <>
+                                    <Icon name="chevronUp" size={14} />
+                                    <span>{t?.hideItems || 'Hide'}</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Icon name="chevronDown" size={14} />
+                                    <span>{t?.viewItems || 'View'}</span>
+                                  </>
+                                )}
+                              </button>
+                            );
+                          })()}
                           <button
                             onClick={() => handleReturnEntry(entry)}
                             className="px-3 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-sm"
@@ -522,7 +637,10 @@ const BuyingHistoryTableSimplified = React.memo(function BuyingHistoryTableSimpl
                                           : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
                                       }`}>
                                         {item.currency === 'USD' 
-                                          ? `$${item.unit_price.toFixed(2).replace('.00', '')}`
+                                          ? (() => {
+                                              const formatted = item.unit_price.toFixed(2);
+                                              return `$${formatted.endsWith('.00') ? formatted.slice(0, -3) : formatted}`;
+                                            })()
                                           : `د.ع${Math.round(item.unit_price).toLocaleString()}`
                                         }
                                       </div>
@@ -562,52 +680,19 @@ const BuyingHistoryTableSimplified = React.memo(function BuyingHistoryTableSimpl
         </div>
       </div>
 
-      {/* Quantity Selection Modal */}
-      {quantityModal.isOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-96 max-w-md mx-4">
-            <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">
-              {t?.selectQuantity || 'Select Quantity to Return'}
-            </h3>
-            
-            <div className="mb-4">
-              <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                <strong>{t?.item || 'Item'}:</strong> {quantityModal.item?.item_name}
-              </p>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                <strong>{t?.availableQuantity || 'Available'}:</strong> {quantityModal.maxQuantity}
-              </p>
-              
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                {t?.quantityToReturn || 'Quantity to Return'}
-              </label>
-              <select
-                id="returnQuantity"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200"
-                defaultValue="1"
-                onChange={(e) => {
-                  const quantity = parseInt(e.target.value);
-                  handleQuantityConfirm(quantity);
-                }}
-              >
-                {Array.from({ length: quantityModal.maxQuantity }, (_, i) => i + 1).map(num => (
-                  <option key={num} value={num}>
-                    {num} {num === 1 ? (t?.item || 'item') : (t?.items || 'items')}
-                  </option>
-                ))}
-              </select>
-            </div>
-            
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => setQuantityModal({ isOpen: false, entry: null, item: null, maxQuantity: 0 })}
-                className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition"
-              >
-                {t?.cancel || 'Cancel'}
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* Enhanced Return Modal */}
+      {showReturnModal && returnModalData && (
+        <ReturnModal
+          show={showReturnModal}
+          onClose={() => {
+            setShowReturnModal(false);
+            setReturnModalData(null);
+          }}
+          onConfirm={returnModalData.type === 'item' ? executeItemReturn : processReturn}
+          returnData={returnModalData}
+          admin={admin}
+          t={t}
+        />
       )}
 
       {/* Confirmation Modal */}

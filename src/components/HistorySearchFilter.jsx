@@ -2,6 +2,25 @@ import React, { useState, useMemo } from 'react';
 import { useLocale } from '../contexts/LocaleContext';
 import { Icon } from '../utils/icons';
 
+// Helper function to format totals without forcing decimal places
+const formatTotal = (amount, currency) => {
+  const numAmount = Number(amount || 0);
+  
+  if (currency === 'IQD') {
+    // IQD should never show decimals
+    return `د.ع${Math.round(numAmount).toLocaleString()}`;
+  }
+  
+  // For USD: show decimals only if needed
+  if (numAmount % 1 === 0) {
+    // Whole number, no decimals
+    return `$${numAmount.toLocaleString()}`;
+  } else {
+    // Has decimals, show 2 decimal places
+    return `$${numAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+};
+
 export default function HistorySearchFilter({
   data = [],
   onFilteredDataChange,
@@ -522,7 +541,7 @@ export default function HistorySearchFilter({
               <div className="text-center">
                 <div className="text-xs text-gray-600 dark:text-gray-400">{t?.totalProfitUSD || 'Total Profit USD'}</div>
                 <div className="text-lg font-bold text-green-600 dark:text-green-400">
-                  ${totals.totalProfitUSD.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  {formatTotal(totals.totalProfitUSD, 'USD')}
                 </div>
               </div>
             )}
@@ -530,7 +549,7 @@ export default function HistorySearchFilter({
               <div className="text-center">
                 <div className="text-xs text-gray-600 dark:text-gray-400">{t?.totalProfitIQD || 'Total Profit IQD'}</div>
                 <div className="text-lg font-bold text-green-600 dark:text-green-400">
-                  د.ع{totals.totalProfitIQD.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  {formatTotal(totals.totalProfitIQD, 'IQD')}
                 </div>
               </div>
             )}
@@ -538,7 +557,7 @@ export default function HistorySearchFilter({
               <div className="text-center">
                 <div className="text-xs text-gray-600 dark:text-gray-400">{t?.totalRevenueUSD || 'Total Revenue USD'}</div>
                 <div className="text-lg font-bold text-blue-600 dark:text-blue-400">
-                  ${totals.totalRevenueUSD.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  {formatTotal(totals.totalRevenueUSD, 'USD')}
                 </div>
               </div>
             )}
@@ -546,7 +565,7 @@ export default function HistorySearchFilter({
               <div className="text-center">
                 <div className="text-xs text-gray-600 dark:text-gray-400">{t?.totalRevenueIQD || 'Total Revenue IQD'}</div>
                 <div className="text-lg font-bold text-blue-600 dark:text-blue-400">
-                  د.ع{totals.totalRevenueIQD.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  {formatTotal(totals.totalRevenueIQD, 'IQD')}
                 </div>
               </div>
             )}

@@ -114,29 +114,39 @@ export const convertCurrency = (amount, fromCurrency, toCurrency) => {
   return amount; // fallback
 };
 
-export const formatCurrency = (amount, currency) => {
+export const formatCurrency = (amount, currency, hideZeroDecimals = true) => {
+  const numAmount = Number(amount || 0);
+  
   if (currency === 'IQD') {
-    const rounded = Math.round(amount);
-    return `${rounded.toLocaleString()} د.ع`;
+    // IQD should never show decimals
+    const rounded = Math.round(numAmount);
+    return `د.ع${rounded.toLocaleString()}`;
   }
   
-  // For USD: show 2 decimals, but remove .00 for whole numbers
-  const formatted = Number(amount).toFixed(2);
-  const cleanFormatted = formatted.endsWith('.00') ? formatted.slice(0, -3) : formatted;
-  return `${cleanFormatted} USD`;
+  // For USD: show 2 decimals, but remove .00 for whole numbers if hideZeroDecimals is true
+  if (hideZeroDecimals) {
+    const formatted = numAmount.toFixed(2);
+    const cleanFormatted = formatted.endsWith('.00') ? formatted.slice(0, -3) : formatted;
+    return `$${cleanFormatted}`;
+  } else {
+    const formatted = numAmount.toFixed(2);
+    return `$${formatted}`;
+  }
 };
 
 // New function that uses translations
 export const formatCurrencyWithTranslation = (amount, currency, t) => {
+  const numAmount = Number(amount || 0);
+  
   if (currency === 'IQD') {
-    const rounded = Math.round(amount);
-    return `${rounded.toLocaleString()} ${t?.iqd || 'د.ع'}`;
+    const rounded = Math.round(numAmount);
+    return `د.ع${rounded.toLocaleString()}`;
   }
   
   // For USD: show 2 decimals, but remove .00 for whole numbers
-  const formatted = Number(amount).toFixed(2);
+  const formatted = numAmount.toFixed(2);
   const cleanFormatted = formatted.endsWith('.00') ? formatted.slice(0, -3) : formatted;
-  return `${cleanFormatted} ${t?.usd || 'USD'}`;
+  return `$${cleanFormatted}`;
 };
 
 // Round IQD amounts to nearest 250 (smallest bill denomination)

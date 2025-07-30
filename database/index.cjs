@@ -1101,7 +1101,7 @@ module.exports = function(dbPath) {
     return transaction();
   }
 
-  function returnSaleItem(saleId, itemId, returnQuantity = null) {
+  function returnSaleItem(saleId, itemId, returnQuantity = null, options = {}) {
     const transaction = db.transaction(() => {
       // Validate parameters
       if (!saleId || isNaN(Number(saleId))) {
@@ -1150,12 +1150,43 @@ module.exports = function(dbPath) {
         db.prepare('UPDATE sale_items SET quantity = ? WHERE id = ?').run(newQuantity, Number(itemId));
       }
 
-      // Update sale total if removing/reducing quantity
+      // Calculate return value
       const returnValue = returnQty * unitPrice;
+      
+      // Update sale total if removing/reducing quantity
       db.prepare('UPDATE sales SET total = total - ? WHERE id = ?').run(returnValue, Number(saleId));
       
       // Get the sale to check if it's a debt sale and get currency
       const sale = db.prepare('SELECT * FROM sales WHERE id = ?').get(Number(saleId));
+      
+      let refundUSD = 0;
+      let refundIQD = 0;
+      
+      // Handle custom return amounts if provided
+      if (options.returnAmounts && (options.returnAmounts.usd > 0 || options.returnAmounts.iqd > 0)) {
+        refundUSD = Number(options.returnAmounts.usd) || 0;
+        refundIQD = Number(options.returnAmounts.iqd) || 0;
+      } else {
+        // Default calculation based on sale currency
+        if (sale && sale.is_multi_currency) {
+          // Calculate proportional amounts for multi-currency sales
+          const totalSaleValue = Number(sale.total) || 1; // Avoid division by zero
+          const returnProportion = returnValue / totalSaleValue;
+          
+          const originalUSD = Number(sale.paid_amount_usd) || 0;
+          const originalIQD = Number(sale.paid_amount_iqd) || 0;
+          
+          refundUSD = originalUSD * returnProportion;
+          refundIQD = originalIQD * returnProportion;
+        } else if (sale) {
+          // Single currency sale
+          if (sale.currency === 'USD') {
+            refundUSD = returnValue;
+          } else {
+            refundIQD = returnValue;
+          }
+        }
+      }
       
       // Update balances for completed sales returns (subtract from balances if it wasn't a debt sale)
       if (sale && !sale.is_debt) {
@@ -1198,57 +1229,23 @@ module.exports = function(dbPath) {
           settings.updateTotalProfit(db, saleCurrency, -profitToReverse);
         }
 
-        // Calculate the proportion of the return value for multi-currency sales
-        if (sale.is_multi_currency) {
-          const totalSaleValue = Number(sale.total) || 1; // Avoid division by zero
-          const returnProportion = returnValue / totalSaleValue;
-          
-          const originalUSD = Number(sale.paid_amount_usd) || 0;
-          const originalIQD = Number(sale.paid_amount_iqd) || 0;
-          
-          const returnUSD = originalUSD * returnProportion;
-          const returnIQD = originalIQD * returnProportion;
-          
-          if (returnUSD > 0) {
-            updateBalance('USD', -returnUSD);
-          }
-          if (returnIQD > 0) {
-            updateBalance('IQD', -returnIQD);
-          }
-
-          // Add transaction record for the partial multi-currency sale return
-          addTransaction({
-            type: 'sale_return',
-            amount_usd: -returnUSD,
-            amount_iqd: -returnIQD,
-            description: `Partial sale return - ${item.name}${sale.customer_name ? ` - ${sale.customer_name}` : ''} (qty: ${returnQty}) (Multi-currency)`,
-            reference_id: Number(saleId),
-            reference_type: 'sale'
-          });
-        } else {
-          // Single currency partial return
-          if (sale.currency === 'USD') {
-            updateBalance('USD', -returnValue);
-          } else if (sale.currency === 'IQD') {
-            updateBalance('IQD', -returnValue);
-          } else {
-            // For legacy sales or mixed currency, use USD as default
-            updateBalance('USD', -returnValue);
-          }
-
-          // Add transaction record for the partial sale return
-          const usdAmount = sale.currency === 'USD' ? -returnValue : 0;
-          const iqdAmount = sale.currency === 'IQD' ? -returnValue : 0;
-          
-          addTransaction({
-            type: 'sale_return',
-            amount_usd: usdAmount,
-            amount_iqd: iqdAmount,
-            description: `Partial sale return - ${item.name}${sale.customer_name ? ` - ${sale.customer_name}` : ''} (qty: ${returnQty})`,
-            reference_id: Number(saleId),
-            reference_type: 'sale'
-          });
+        // Return money to balances
+        if (refundUSD > 0) {
+          updateBalance('USD', -refundUSD);
         }
+        if (refundIQD > 0) {
+          updateBalance('IQD', -refundIQD);
+        }
+
+        // Add transaction record for the partial return
+        addTransaction({
+          type: 'sale_return',
+          amount_usd: -refundUSD,
+          amount_iqd: -refundIQD,
+          description: `Sale item return - ${item.name}${sale.customer_name ? ` - ${sale.customer_name}` : ''} (qty: ${returnQty})`,
+          reference_id: Number(saleId),
+          reference_type: 'sale'
+        });
       } else if (sale && sale.is_debt) {
         // For debt sales, reduce the debt amount by the return value
         const updateDebtStmt = db.prepare('UPDATE customer_debts SET amount = amount - ? WHERE sale_id = ?');
@@ -1282,14 +1279,19 @@ module.exports = function(dbPath) {
         }
       }
       
-      return { success: true, message: 'Item returned successfully' };
+      return { 
+        success: true, 
+        message: 'Item returned successfully',
+        returnedAmountUSD: refundUSD,
+        returnedAmountIQD: refundIQD
+      };
     });
     
     return transaction();
   }
 
   // Return functions for buying history
-  function returnBuyingHistoryEntry(entryId) {
+  function returnBuyingHistoryEntry(entryId, options = {}) {
     const transaction = db.transaction(() => {
       // Get the buying history entry
       const entry = db.prepare('SELECT * FROM buying_history WHERE id = ?').get(entryId);
@@ -1299,272 +1301,248 @@ module.exports = function(dbPath) {
 
       let stockIssues = [];
       let successfulReturns = [];
+      let refundUSD = 0;
+      let refundIQD = 0;
 
-      // Check if this is a purchase with items (check has_items flag first, then fallback to reference_id)
+      // Determine if this is a partial return
+      const originalQuantity = entry.quantity || 1;
+      const returnQuantity = Number(options.quantity) || originalQuantity;
+      const isPartialReturn = returnQuantity < originalQuantity;
+      const quantityRatio = Math.min(returnQuantity / originalQuantity, 1);
+
+      // Handle custom return amounts if provided - with validation
+      if (options.returnAmounts && (options.returnAmounts.usd > 0 || options.returnAmounts.iqd > 0)) {
+        const requestedUSD = Number(options.returnAmounts.usd) || 0;
+        const requestedIQD = Number(options.returnAmounts.iqd) || 0;
+        
+        // Validate return amounts don't exceed original purchase
+        let maxRefundUSD = 0;
+        let maxRefundIQD = 0;
+        
+        if (entry.currency === 'MULTI' || (entry.multi_currency_usd > 0 && entry.multi_currency_iqd > 0)) {
+          // Multi-currency entry (either marked as MULTI or has both USD and IQD amounts)
+          maxRefundUSD = (entry.multi_currency_usd || 0) * quantityRatio;
+          maxRefundIQD = (entry.multi_currency_iqd || 0) * quantityRatio;
+        } else if ((entry.multi_currency_usd || 0) > 0 || (entry.multi_currency_iqd || 0) > 0) {
+          // Single currency but stored in multi-currency columns
+          maxRefundUSD = (entry.multi_currency_usd || 0) * quantityRatio;
+          maxRefundIQD = (entry.multi_currency_iqd || 0) * quantityRatio;
+        } else {
+          // Traditional single currency entry
+          const originalAmount = (entry.total_price || entry.amount || 0) * quantityRatio;
+          if (entry.currency === 'USD') {
+            maxRefundUSD = originalAmount;
+          } else {
+            maxRefundIQD = originalAmount;
+          }
+        }
+        
+        // Check if requested amounts exceed available amounts
+        if (requestedUSD > maxRefundUSD || requestedIQD > maxRefundIQD) {
+          throw new Error(`Invalid return amount. Maximum refundable: $${maxRefundUSD.toFixed(2)} USD, ${maxRefundIQD.toFixed(0)} IQD. Requested: $${requestedUSD.toFixed(2)} USD, ${requestedIQD.toFixed(0)} IQD.`);
+        }
+        
+        refundUSD = requestedUSD;
+        refundIQD = requestedIQD;
+      } else {
+        // Calculate default refund amounts based on original purchase
+        if (entry.currency === 'MULTI' || (entry.multi_currency_usd > 0 && entry.multi_currency_iqd > 0)) {
+          // Multi-currency entry (either marked as MULTI or has both USD and IQD amounts)
+          refundUSD = (entry.multi_currency_usd || 0) * quantityRatio;
+          refundIQD = (entry.multi_currency_iqd || 0) * quantityRatio;
+        } else if ((entry.multi_currency_usd || 0) > 0 || (entry.multi_currency_iqd || 0) > 0) {
+          // Single currency but stored in multi-currency columns
+          refundUSD = (entry.multi_currency_usd || 0) * quantityRatio;
+          refundIQD = (entry.multi_currency_iqd || 0) * quantityRatio;
+        } else {
+          // Traditional single currency entry
+          const returnValue = (entry.total_price || entry.amount || 0) * quantityRatio;
+          if (entry.currency === 'USD') {
+            refundUSD = returnValue;
+          } else {
+            refundIQD = returnValue;
+          }
+        }
+      }
+
+      // Return items to stock if this purchase has items
       if (entry.has_items) {
-        // New style - items stored in buying_history_items table
         const items = db.prepare('SELECT * FROM buying_history_items WHERE buying_history_id = ?').all(entry.id);
         
         for (const item of items) {
-          const qty = Number(item.quantity) || 1;
-          let currentStock = 0;
+          // Calculate return quantity for this item proportionally
+          const itemOriginalQty = Number(item.quantity) || 1;
+          const itemReturnQty = isPartialReturn ? 
+            Math.floor(itemOriginalQty * quantityRatio) : 
+            itemOriginalQty;
           
-          // Check current stock before attempting to decrease
-          if (item.item_type === 'accessory') {
-            const accessory = db.prepare('SELECT stock FROM accessories WHERE name = ?').get(item.item_name);
-            currentStock = accessory ? accessory.stock : 0;
-            
-            if (currentStock >= qty) {
-              // Decrease accessory stock
-              db.prepare('UPDATE accessories SET stock = stock - ? WHERE name = ?').run(qty, item.item_name);
-              successfulReturns.push({ ...item, returnedQty: qty });
-            } else {
-              // Partial return - only what's available in stock
-              if (currentStock > 0) {
-                db.prepare('UPDATE accessories SET stock = 0 WHERE name = ?').run(item.item_name);
-                successfulReturns.push({ ...item, returnedQty: currentStock });
-                stockIssues.push({ ...item, requestedQty: qty, availableQty: currentStock });
+          if (itemReturnQty > 0) {
+            try {
+              if (item.item_type === 'accessory') {
+                // Add back to accessories stock
+                db.prepare(`
+                  UPDATE accessories 
+                  SET stock = stock + ? 
+                  WHERE name = ?
+                `).run(itemReturnQty, item.item_name);
               } else {
-                stockIssues.push({ ...item, requestedQty: qty, availableQty: 0 });
-              }
-            }
-          } else {
-            // For products, check stock
-            const product = db.prepare(`
-              SELECT stock FROM products 
-              WHERE name = ? AND model = ? AND ram = ? AND storage = ?
-            `).get(item.item_name, item.model || '', item.ram || '', item.storage || '');
-            currentStock = product ? product.stock : 0;
-            
-            if (currentStock >= qty) {
-              // Decrease product stock
-              const productUpdate = db.prepare(`
-                UPDATE products 
-                SET stock = stock - ? 
-                WHERE name = ? AND model = ? AND ram = ? AND storage = ?
-              `);
-              productUpdate.run(qty, item.item_name, item.model || '', item.ram || '', item.storage || '');
-              successfulReturns.push({ ...item, returnedQty: qty });
-            } else {
-              // Partial return - only what's available in stock
-              if (currentStock > 0) {
-                const productUpdate = db.prepare(`
+                // Add back to products stock
+                db.prepare(`
                   UPDATE products 
-                  SET stock = 0 
+                  SET stock = stock + ? 
                   WHERE name = ? AND model = ? AND ram = ? AND storage = ?
-                `);
-                productUpdate.run(item.item_name, item.model || '', item.ram || '', item.storage || '');
-                successfulReturns.push({ ...item, returnedQty: currentStock });
-                stockIssues.push({ ...item, requestedQty: qty, availableQty: currentStock });
-              } else {
-                stockIssues.push({ ...item, requestedQty: qty, availableQty: 0 });
+                `).run(itemReturnQty, item.item_name, item.model || '', item.ram || '', item.storage || '');
               }
+              
+              successfulReturns.push({
+                name: item.item_name,
+                quantity: itemReturnQty,
+                type: item.item_type
+              });
+            } catch (error) {
+              stockIssues.push({
+                name: item.item_name,
+                error: error.message
+              });
             }
           }
         }
         
-        // Delete all items from buying_history_items table
-        db.prepare('DELETE FROM buying_history_items WHERE buying_history_id = ?').run(entry.id);
-      } else if (entry.reference_id && entry.type === 'company_purchase') {
-        // Old style - items stored in company_debt_items table
-        const companyDebt = db.prepare('SELECT * FROM company_debts WHERE id = ?').get(entry.reference_id);
-        if (companyDebt && companyDebt.has_items) {
-          const items = db.prepare('SELECT * FROM company_debt_items WHERE debt_id = ?').all(entry.reference_id);
-          
+        if (isPartialReturn) {
+          // For partial returns, update item quantities instead of deleting
           for (const item of items) {
-            const qty = Number(item.quantity) || 1;
-            let currentStock = 0;
+            const itemOriginalQty = Number(item.quantity) || 1;
+            const itemReturnQty = Math.floor(itemOriginalQty * quantityRatio);
+            const remainingQty = itemOriginalQty - itemReturnQty;
             
-            if (item.item_type === 'accessory') {
-              const accessory = db.prepare('SELECT stock FROM accessories WHERE name = ?').get(item.item_name);
-              currentStock = accessory ? accessory.stock : 0;
-              
-              if (currentStock >= qty) {
-                db.prepare('UPDATE accessories SET stock = stock - ? WHERE name = ?').run(qty, item.item_name);
-                successfulReturns.push({ ...item, returnedQty: qty });
-              } else {
-                if (currentStock > 0) {
-                  db.prepare('UPDATE accessories SET stock = 0 WHERE name = ?').run(item.item_name);
-                  successfulReturns.push({ ...item, returnedQty: currentStock });
-                  stockIssues.push({ ...item, requestedQty: qty, availableQty: currentStock });
-                } else {
-                  stockIssues.push({ ...item, requestedQty: qty, availableQty: 0 });
-                }
-              }
+            if (remainingQty > 0) {
+              db.prepare('UPDATE buying_history_items SET quantity = ? WHERE id = ?').run(remainingQty, item.id);
             } else {
-              const product = db.prepare(`
-                SELECT stock FROM products 
-                WHERE name = ? AND model = ? AND ram = ? AND storage = ?
-              `).get(item.item_name, item.model || '', item.ram || '', item.storage || '');
-              currentStock = product ? product.stock : 0;
-              
-              if (currentStock >= qty) {
-                const productUpdate = db.prepare(`
-                  UPDATE products 
-                  SET stock = stock - ? 
-                  WHERE name = ? AND model = ? AND ram = ? AND storage = ?
-                `);
-                productUpdate.run(qty, item.item_name, item.model || '', item.ram || '', item.storage || '');
-                successfulReturns.push({ ...item, returnedQty: qty });
-              } else {
-                if (currentStock > 0) {
-                  const productUpdate = db.prepare(`
-                    UPDATE products 
-                    SET stock = 0 
-                    WHERE name = ? AND model = ? AND ram = ? AND storage = ?
-                  `);
-                  productUpdate.run(item.item_name, item.model || '', item.ram || '', item.storage || '');
-                  successfulReturns.push({ ...item, returnedQty: currentStock });
-                  stockIssues.push({ ...item, requestedQty: qty, availableQty: currentStock });
-                } else {
-                  stockIssues.push({ ...item, requestedQty: qty, availableQty: 0 });
-                }
-              }
+              db.prepare('DELETE FROM buying_history_items WHERE id = ?').run(item.id);
             }
-          }
-        }
-      } else {
-        // Simple purchase - restore stock by decreasing it (since it was increased when purchased)
-        // Only if the entry corresponds to a real product (not just a general expense)
-        const productExists = db.prepare('SELECT stock FROM products WHERE name = ?').get(entry.item_name);
-        const accessoryExists = db.prepare('SELECT stock FROM accessories WHERE name = ?').get(entry.item_name);
-        
-        const qty = Number(entry.quantity) || 1;
-        let currentStock = 0;
-        
-        if (productExists) {
-          currentStock = productExists.stock;
-          if (currentStock >= qty) {
-            db.prepare('UPDATE products SET stock = stock - ? WHERE name = ?').run(qty, entry.item_name);
-            successfulReturns.push({ item_name: entry.item_name, returnedQty: qty, unit_price: entry.unit_price || (entry.total_price / qty), currency: entry.currency });
-          } else {
-            if (currentStock > 0) {
-              db.prepare('UPDATE products SET stock = 0 WHERE name = ?').run(entry.item_name);
-              successfulReturns.push({ item_name: entry.item_name, returnedQty: currentStock, unit_price: entry.unit_price || (entry.total_price / qty), currency: entry.currency });
-              stockIssues.push({ item_name: entry.item_name, requestedQty: qty, availableQty: currentStock });
-            } else {
-              stockIssues.push({ item_name: entry.item_name, requestedQty: qty, availableQty: 0 });
-            }
-          }
-        } else if (accessoryExists) {
-          currentStock = accessoryExists.stock;
-          if (currentStock >= qty) {
-            db.prepare('UPDATE accessories SET stock = stock - ? WHERE name = ?').run(qty, entry.item_name);
-            successfulReturns.push({ item_name: entry.item_name, returnedQty: qty, unit_price: entry.unit_price || (entry.total_price / qty), currency: entry.currency });
-          } else {
-            if (currentStock > 0) {
-              db.prepare('UPDATE accessories SET stock = 0 WHERE name = ?').run(entry.item_name);
-              successfulReturns.push({ item_name: entry.item_name, returnedQty: currentStock, unit_price: entry.unit_price || (entry.total_price / qty), currency: entry.currency });
-              stockIssues.push({ item_name: entry.item_name, requestedQty: qty, availableQty: currentStock });
-            } else {
-              stockIssues.push({ item_name: entry.item_name, requestedQty: qty, availableQty: 0 });
-            }
-          }
-        }
-      }
-
-      // Calculate the amount to refund based on successful returns
-      let refundUSD = 0;
-      let refundIQD = 0;
-      
-      // Handle multi-currency purchases properly
-      if (entry.currency === 'MULTI') {
-        // Get the actual amounts paid from the transaction record
-        const transaction = db.prepare(`
-          SELECT amount_usd, amount_iqd 
-          FROM transactions 
-          WHERE reference_id = ? AND reference_type = 'buying_history' AND type = 'direct_purchase'
-          ORDER BY created_at DESC 
-          LIMIT 1
-        `).get(entry.id);
-        
-        if (transaction) {
-          const originalUSD = Math.abs(transaction.amount_usd || 0);
-          const originalIQD = Math.abs(transaction.amount_iqd || 0);
-          
-          if (stockIssues.length > 0) {
-            // Calculate partial refund based on successfully returned items
-            const totalOriginalQty = successfulReturns.reduce((sum, item) => sum + (item.quantity || 1), 0) + 
-                                    stockIssues.reduce((sum, item) => sum + item.requestedQty, 0);
-            const totalReturnedQty = successfulReturns.reduce((sum, item) => sum + item.returnedQty, 0);
-            
-            if (totalOriginalQty > 0) {
-              const returnRatio = totalReturnedQty / totalOriginalQty;
-              refundUSD = originalUSD * returnRatio;
-              refundIQD = originalIQD * returnRatio;
-            }
-          } else {
-            // Full refund
-            refundUSD = originalUSD;
-            refundIQD = originalIQD;
-          }
-        }
-      } else {
-        // Single currency purchase
-        const currency = entry.currency || 'IQD';
-        
-        if (stockIssues.length > 0) {
-          // Calculate partial refund based on successfully returned items
-          const totalReturnValue = successfulReturns.reduce((sum, item) => {
-            return sum + ((item.unit_price || 0) * item.returnedQty);
-          }, 0);
-          
-          if (currency === 'USD') {
-            refundUSD = totalReturnValue;
-          } else {
-            refundIQD = totalReturnValue;
           }
         } else {
-          // Full refund
-          const totalAmount = entry.total_price || entry.amount || 0;
-          if (currency === 'USD') {
-            refundUSD = totalAmount;
+          // For full returns, delete all items
+          db.prepare('DELETE FROM buying_history_items WHERE buying_history_id = ?').run(entry.id);
+        }
+      } else {
+        // Simple purchase - add back to stock if product/accessory exists
+        try {
+          // Check if it's a product
+          const product = db.prepare('SELECT id FROM products WHERE name = ?').get(entry.item_name);
+          if (product) {
+            db.prepare('UPDATE products SET stock = stock + ? WHERE name = ?').run(returnQuantity, entry.item_name);
+            successfulReturns.push({
+              name: entry.item_name,
+              quantity: returnQuantity,
+              type: 'product'
+            });
           } else {
-            refundIQD = totalAmount;
+            // Check if it's an accessory
+            const accessory = db.prepare('SELECT id FROM accessories WHERE name = ?').get(entry.item_name);
+            if (accessory) {
+              db.prepare('UPDATE accessories SET stock = stock + ? WHERE name = ?').run(returnQuantity, entry.item_name);
+              successfulReturns.push({
+                name: entry.item_name,
+                quantity: returnQuantity,
+                type: 'accessory'
+              });
+            }
           }
+        } catch (error) {
+          stockIssues.push({
+            name: entry.item_name,
+            error: error.message
+          });
         }
       }
 
-      // Add transaction record for the return
-      const addTransactionStmt = db.prepare(`
+      // Refund amounts to balance
+      if (refundUSD > 0) {
+        settings.updateBalance(db, 'USD', refundUSD);
+      }
+      if (refundIQD > 0) {
+        settings.updateBalance(db, 'IQD', refundIQD);
+      }
+
+      // Create a reverse transaction for tracking
+      const transactionStmt = db.prepare(`
         INSERT INTO transactions (type, amount_usd, amount_iqd, description, reference_id, reference_type, created_at) 
         VALUES (?, ?, ?, ?, ?, ?, ?)
       `);
       
-      addTransactionStmt.run(
-        'buying_history_return',
-        refundUSD,
-        refundIQD,
-        `Buying history return: ${entry.item_name || 'Purchase return'}${stockIssues.length > 0 ? ' (Partial - insufficient stock)' : ''}`,
-        entryId,
+      const returnDescription = isPartialReturn ? 
+        `Partial purchase return: ${entry.item_name || 'Multiple items'} (${returnQuantity}x)` :
+        `Purchase return: ${entry.item_name || 'Multiple items'}`;
+      
+      transactionStmt.run(
+        'purchase_return',
+        refundUSD, // Positive to indicate refund/income
+        refundIQD, // Positive to indicate refund/income
+        returnDescription,
+        entry.id,
         'buying_history',
         new Date().toISOString()
       );
 
-      // Add back to balance (refund the purchase)
-      if (refundUSD > 0) {
-        updateBalance('USD', refundUSD);
+      if (isPartialReturn) {
+        // For partial returns, update the entry quantities and prices
+        const remainingQuantity = originalQuantity - returnQuantity;
+        const remainingRatio = remainingQuantity / originalQuantity;
+        
+        // Update the entry with remaining quantities and adjusted prices
+        if (entry.currency === 'MULTI' || (entry.multi_currency_usd > 0 && entry.multi_currency_iqd > 0)) {
+          // Multi-currency entry (either marked as MULTI or has both USD and IQD amounts)
+          const newUSD = (entry.multi_currency_usd || 0) * remainingRatio;
+          const newIQD = (entry.multi_currency_iqd || 0) * remainingRatio;
+          
+          db.prepare(`
+            UPDATE buying_history 
+            SET quantity = ?, multi_currency_usd = ?, multi_currency_iqd = ?, total_price = ?
+            WHERE id = ?
+          `).run(remainingQuantity, newUSD, newIQD, newUSD + (newIQD / (settings.getExchangeRate(db, 'USD', 'IQD') || 1390)), entry.id);
+        } else if ((entry.multi_currency_usd || 0) > 0 || (entry.multi_currency_iqd || 0) > 0) {
+          // Single currency but stored in multi-currency columns
+          const newUSD = (entry.multi_currency_usd || 0) * remainingRatio;
+          const newIQD = (entry.multi_currency_iqd || 0) * remainingRatio;
+          const newTotalPrice = (entry.total_price || entry.amount || 0) * remainingRatio;
+          
+          db.prepare(`
+            UPDATE buying_history 
+            SET quantity = ?, multi_currency_usd = ?, multi_currency_iqd = ?, total_price = ?, amount = ?
+            WHERE id = ?
+          `).run(remainingQuantity, newUSD, newIQD, newTotalPrice, newTotalPrice, entry.id);
+        } else {
+          // Traditional single currency entry
+          const newTotalPrice = (entry.total_price || entry.amount || 0) * remainingRatio;
+          
+          db.prepare(`
+            UPDATE buying_history 
+            SET quantity = ?, total_price = ?, amount = ?
+            WHERE id = ?
+          `).run(remainingQuantity, newTotalPrice, newTotalPrice, entry.id);
+        }
+      } else {
+        // For full returns, delete the buying history entry
+        db.prepare('DELETE FROM buying_history WHERE id = ?').run(entry.id);
       }
-      if (refundIQD > 0) {
-        updateBalance('IQD', refundIQD);
-      }
-      
-      // Delete the buying history entry
-      db.prepare('DELETE FROM buying_history WHERE id = ?').run(entryId);
-      
-      return { 
-        success: true, 
-        returnedAmountUSD: refundUSD,
-        returnedAmountIQD: refundIQD,
-        stockIssues: stockIssues,
-        hasStockIssues: stockIssues.length > 0
+
+      return {
+        success: true,
+        refundedUSD: refundUSD,
+        refundedIQD: refundIQD,
+        successfulReturns,
+        stockIssues,
+        hasStockIssues: stockIssues.length > 0,
+        isPartialReturn,
+        remainingQuantity: isPartialReturn ? originalQuantity - returnQuantity : 0
       };
     });
-    
+
     return transaction();
   }
 
-  function returnBuyingHistoryItem(entryId, itemId, returnQuantity = null) {
+  function returnBuyingHistoryItem(entryId, itemId, returnQuantity = null, options = {}) {
     const transaction = db.transaction(() => {
       // Get the buying history entry
       const entry = db.prepare('SELECT * FROM buying_history WHERE id = ?').get(entryId);
@@ -1590,84 +1568,53 @@ module.exports = function(dbPath) {
         throw new Error('Invalid return quantity');
       }
 
-      // Check stock availability before attempting to decrease
-      let currentStock = 0;
-      let actualReturnQty = returnQty;
-      let hasStockIssue = false;
-      
+      // Add item back to stock (since it's a return, we give the item back)
       if (item.item_type === 'accessory') {
-        const accessory = db.prepare('SELECT stock FROM accessories WHERE name = ?').get(item.item_name);
-        currentStock = accessory ? accessory.stock : 0;
-        
-        if (currentStock < returnQty) {
-          actualReturnQty = currentStock;
-          hasStockIssue = currentStock < returnQty;
-        }
-        
-        if (actualReturnQty > 0) {
-          db.prepare('UPDATE accessories SET stock = stock - ? WHERE name = ?').run(actualReturnQty, item.item_name);
-        }
+        db.prepare('UPDATE accessories SET stock = stock + ? WHERE name = ?').run(returnQty, item.item_name);
       } else {
-        const product = db.prepare(`
-          SELECT stock FROM products 
+        const productUpdate = db.prepare(`
+          UPDATE products 
+          SET stock = stock + ? 
           WHERE name = ? AND model = ? AND ram = ? AND storage = ?
-        `).get(item.item_name, item.model || '', item.ram || '', item.storage || '');
-        currentStock = product ? product.stock : 0;
-        
-        if (currentStock < returnQty) {
-          actualReturnQty = currentStock;
-          hasStockIssue = currentStock < returnQty;
-        }
-        
-        if (actualReturnQty > 0) {
-          const productUpdate = db.prepare(`
-            UPDATE products 
-            SET stock = stock - ? 
-            WHERE name = ? AND model = ? AND ram = ? AND storage = ?
-          `);
-          productUpdate.run(actualReturnQty, item.item_name, item.model || '', item.ram || '', item.storage || '');
-        }
+        `);
+        productUpdate.run(returnQty, item.item_name, item.model || '', item.ram || '', item.storage || '');
       }
 
-      const newQuantity = currentQuantity - actualReturnQty;
+      const newQuantity = currentQuantity - returnQty;
       let refundUSD = 0;
       let refundIQD = 0;
       
-      // Calculate refund amount based on currency
-      if (entry.currency === 'MULTI') {
-        // For multi-currency purchases, need to calculate proportional refund
-        const transaction = db.prepare(`
-          SELECT amount_usd, amount_iqd 
-          FROM transactions 
-          WHERE reference_id = ? AND reference_type = 'buying_history' AND type = 'direct_purchase'
-          ORDER BY created_at DESC 
-          LIMIT 1
-        `).get(entryId);
-        
-        if (transaction) {
-          const originalUSD = Math.abs(transaction.amount_usd || 0);
-          const originalIQD = Math.abs(transaction.amount_iqd || 0);
+      // Calculate the original item cost that should be refunded
+      const itemReturnValue = (item.unit_price || 0) * returnQty;
+      const itemCurrency = item.currency || entry.currency || 'IQD';
+      
+      // Handle custom return amounts if provided
+      if (options.returnAmounts && (options.returnAmounts.usd > 0 || options.returnAmounts.iqd > 0)) {
+        refundUSD = Number(options.returnAmounts.usd) || 0;
+        refundIQD = Number(options.returnAmounts.iqd) || 0;
+      } else {
+        // Default refund calculation based on original purchase
+        if (entry.currency === 'MULTI') {
+          // For multi-currency purchases, calculate proportional refund
+          const totalOriginalUSD = entry.multi_currency_usd || 0;
+          const totalOriginalIQD = entry.multi_currency_iqd || 0;
           
-          // Get all items to calculate total quantities
+          // Get all items to calculate total value
           const allItems = db.prepare('SELECT * FROM buying_history_items WHERE buying_history_id = ?').all(entryId);
           const totalOriginalValue = allItems.reduce((sum, i) => sum + ((i.unit_price || 0) * (i.quantity || 1)), 0);
-          const itemOriginalValue = (item.unit_price || 0) * actualReturnQty;
           
           if (totalOriginalValue > 0) {
-            const returnRatio = itemOriginalValue / totalOriginalValue;
-            refundUSD = originalUSD * returnRatio;
-            refundIQD = originalIQD * returnRatio;
+            const returnRatio = itemReturnValue / totalOriginalValue;
+            refundUSD = totalOriginalUSD * returnRatio;
+            refundIQD = totalOriginalIQD * returnRatio;
           }
-        }
-      } else {
-        // Single currency
-        const itemCurrency = item.currency || entry.currency || 'IQD';
-        const returnValue = (item.unit_price || 0) * actualReturnQty;
-        
-        if (itemCurrency === 'USD') {
-          refundUSD = returnValue;
         } else {
-          refundIQD = returnValue;
+          // Single currency
+          if (itemCurrency === 'USD') {
+            refundUSD = itemReturnValue;
+          } else {
+            refundIQD = itemReturnValue;
+          }
         }
       }
       
@@ -1680,9 +1627,21 @@ module.exports = function(dbPath) {
         db.prepare('UPDATE buying_history_items SET quantity = ?, total_price = ? WHERE id = ?').run(newQuantity, newTotalPrice, itemId);
       }
       
-      // Recalculate buying history entry total
+      // Update the buying history entry totals
       const remainingItems = db.prepare('SELECT * FROM buying_history_items WHERE buying_history_id = ?').all(entryId);
-      const newTotal = remainingItems.reduce((sum, item) => sum + item.total_price, 0);
+      
+      if (entry.currency === 'MULTI') {
+        // Update multi-currency totals
+        const newUSDTotal = Math.max(0, (entry.multi_currency_usd || 0) - refundUSD);
+        const newIQDTotal = Math.max(0, (entry.multi_currency_iqd || 0) - refundIQD);
+        
+        db.prepare('UPDATE buying_history SET multi_currency_usd = ?, multi_currency_iqd = ?, total_price = ? WHERE id = ?')
+          .run(newUSDTotal, newIQDTotal, newUSDTotal + (newIQDTotal / 1440), entryId);
+      } else {
+        // Single currency - update total price
+        const newTotal = remainingItems.reduce((sum, item) => sum + item.total_price, 0);
+        db.prepare('UPDATE buying_history SET total_price = ? WHERE id = ?').run(newTotal, entryId);
+      }
       
       // Add transaction record for the partial return
       const addTransactionStmt = db.prepare(`
@@ -1694,7 +1653,7 @@ module.exports = function(dbPath) {
         'buying_history_item_return',
         refundUSD,
         refundIQD,
-        `Buying history item return: ${item.item_name} (${actualReturnQty}x)${hasStockIssue ? ' - Partial due to insufficient stock' : ''}`,
+        `Buying history item return: ${item.item_name} (${returnQty}x)`,
         entryId,
         'buying_history',
         new Date().toISOString()
@@ -1708,11 +1667,8 @@ module.exports = function(dbPath) {
         updateBalance('IQD', refundIQD);
       }
       
-      // Update the buying history entry total
-      if (newTotal > 0) {
-        db.prepare('UPDATE buying_history SET total_price = ? WHERE id = ?').run(newTotal, entryId);
-      } else {
-        // If no items left, remove the buying history entry entirely
+      // If no items left, remove the buying history entry entirely
+      if (remainingItems.length === 0) {
         db.prepare('DELETE FROM buying_history WHERE id = ?').run(entryId);
       }
       
@@ -1720,9 +1676,9 @@ module.exports = function(dbPath) {
         success: true, 
         returnedAmountUSD: refundUSD,
         returnedAmountIQD: refundIQD,
-        actualReturnQty: actualReturnQty,
-        hasStockIssue: hasStockIssue,
-        availableStock: currentStock
+        actualReturnQty: returnQty,
+        hasStockIssue: false,
+        availableStock: currentQuantity
       };
     });
     

@@ -107,7 +107,10 @@ export default function AdminModals({
               setConfirm({ open: false, message: '', onConfirm: null });
               setLoading(true);
               try {
-                const result = await window.api?.returnSaleItem?.(saleId, itemId, quantity);
+                const result = await window.api?.returnSaleItem?.(saleId, itemId, quantity, {
+                  // Use default currency behavior for now, can be enhanced later
+                  returnAmounts: null
+                });
                 if (result?.success) {
                   admin.setToast?.(`Item returned successfully${quantityText}. Stock has been restored.`);
                   
@@ -117,7 +120,9 @@ export default function AdminModals({
                     refreshProducts(),
                     refreshAccessories(),
                     refreshDebts(),
-                    refreshDebtSales()
+                    refreshDebtSales(),
+                    refreshTransactions(),
+                    refreshBuyingHistory()
                   ]);
                   
                   // Refresh the current sale view to show updated information
@@ -371,6 +376,7 @@ export default function AdminModals({
               await refreshBuyingHistory();
               await refreshProducts();
               await refreshAccessories();
+              await refreshTransactions();
               
               // Refresh balances to show updated amounts in modal
               if (admin.loadBalances) {

@@ -1463,22 +1463,24 @@ ipcMain.handle('returnSaleItem', async (event, saleId, itemId, quantity = null) 
 });
 
 // Buying History Return handlers
-ipcMain.handle('returnBuyingHistoryEntry', async (event, entryId) => {
+ipcMain.handle('returnBuyingHistoryEntry', async (event, entryId, options = {}) => {
   try {
-    const result = db.returnBuyingHistoryEntry(entryId);
+    const result = db.returnBuyingHistoryEntry(entryId, options);
     await runAutoBackupAfterSale();
-    return { success: true, returnedAmount: result.returnedAmount };
+    return result; // Return the full result object with refund details
   } catch (e) {
+    console.error('Error in returnBuyingHistoryEntry:', e);
     return { success: false, message: e.message };
   }
 });
 
-ipcMain.handle('returnBuyingHistoryItem', async (event, entryId, itemId, quantity = null) => {
+ipcMain.handle('returnBuyingHistoryItem', async (event, entryId, itemId, quantity = null, options = {}) => {
   try {
-    const result = db.returnBuyingHistoryItem(entryId, itemId, quantity);
+    const result = db.returnBuyingHistoryItem(entryId, itemId, quantity, options);
     await runAutoBackupAfterSale();
-    return { success: true, returnedAmount: result.returnedAmount, newTotal: result.newTotal };
+    return result; // Return the full result object with refund details
   } catch (e) {
+    console.error('Error in returnBuyingHistoryItem:', e);
     return { success: false, message: e.message };
   }
 });

@@ -420,6 +420,40 @@ function runMigrations(db) {
     console.warn('Buying history migration warning:', e.message);
   }
 
+  // Migrate buying_history table to support multi-currency columns
+  try {
+    const buyingHistoryTableInfo = db.prepare("PRAGMA table_info(buying_history)").all();
+    const hasMultiCurrencyUsd = buyingHistoryTableInfo.some(col => col.name === 'multi_currency_usd');
+    const hasMultiCurrencyIqd = buyingHistoryTableInfo.some(col => col.name === 'multi_currency_iqd');
+
+    if (!hasMultiCurrencyUsd) {
+      db.prepare('ALTER TABLE buying_history ADD COLUMN multi_currency_usd REAL DEFAULT 0').run();
+    }
+    if (!hasMultiCurrencyIqd) {
+      db.prepare('ALTER TABLE buying_history ADD COLUMN multi_currency_iqd REAL DEFAULT 0').run();
+    }
+
+    // Migrate existing data to populate multi-currency columns
+    const existingEntries = db.prepare(`
+      SELECT id, currency, total_price, amount 
+      FROM buying_history 
+      WHERE (multi_currency_usd = 0 AND multi_currency_iqd = 0) AND (total_price > 0 OR amount > 0)
+    `).all();
+    
+    for (const entry of existingEntries) {
+      const value = entry.total_price || entry.amount || 0;
+      if (value > 0) {
+        if (entry.currency === 'USD') {
+          db.prepare('UPDATE buying_history SET multi_currency_usd = ? WHERE id = ?').run(value, entry.id);
+        } else {
+          db.prepare('UPDATE buying_history SET multi_currency_iqd = ? WHERE id = ?').run(value, entry.id);
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('Buying history multi-currency migration warning:', e.message);
+  }
+
   // Initialize sample data if tables are empty
   initializeSampleData(db);
 }

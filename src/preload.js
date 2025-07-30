@@ -106,8 +106,8 @@ contextBridge.exposeInMainWorld('api', {
   returnSale: (saleId) => ipcRenderer.invoke('returnSale', saleId),
   returnSaleItem: (saleId, itemId, quantity) => ipcRenderer.invoke('returnSaleItem', saleId, itemId, quantity),
   // Buying History Return functionality
-  returnBuyingHistoryEntry: (entryId) => ipcRenderer.invoke('returnBuyingHistoryEntry', entryId),
-  returnBuyingHistoryItem: (entryId, itemId, quantity) => ipcRenderer.invoke('returnBuyingHistoryItem', entryId, itemId, quantity),
+  returnBuyingHistoryEntry: (entryId, options) => ipcRenderer.invoke('returnBuyingHistoryEntry', entryId, options),
+  returnBuyingHistoryItem: (entryId, itemId, quantity, options) => ipcRenderer.invoke('returnBuyingHistoryItem', entryId, itemId, quantity, options),
   
   // Balance and Dashboard functionality
   getBalances: () => ipcRenderer.invoke('getBalances'),

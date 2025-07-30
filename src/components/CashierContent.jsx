@@ -644,11 +644,41 @@ export default function CashierContent({
                             <label className="text-sm font-medium text-slate-600 dark:text-slate-400">Price:</label>
                             <input
                               type="number"
-                              value={item.selling_price}
+                              value={(() => {
+                                // Show price in payment currency
+                                const itemCurrency = item.currency || product?.currency || 'USD';
+                                let displayPrice = item.selling_price;
+                                
+                                if (currency === 'IQD' && itemCurrency === 'USD') {
+                                  displayPrice = item.selling_price * EXCHANGE_RATES.USD_TO_IQD;
+                                } else if (currency === 'USD' && itemCurrency === 'IQD') {
+                                  displayPrice = item.selling_price * EXCHANGE_RATES.IQD_TO_USD;
+                                }
+                                
+                                // Format to appropriate precision
+                                return currency === 'IQD' ? Math.round(displayPrice) : Number(displayPrice.toFixed(2));
+                              })()}
                               onChange={(e) => {
-                                const newPrice = Number(e.target.value) || 0;
+                                const inputPrice = Number(e.target.value) || 0;
+                                const itemCurrency = item.currency || product?.currency || 'USD';
+                                let storedPrice = inputPrice;
+                                
+                                // Convert input price back to item's native currency
+                                if (currency === 'IQD' && itemCurrency === 'USD') {
+                                  storedPrice = inputPrice * EXCHANGE_RATES.IQD_TO_USD;
+                                } else if (currency === 'USD' && itemCurrency === 'IQD') {
+                                  storedPrice = inputPrice * EXCHANGE_RATES.USD_TO_IQD;
+                                }
+                                
+                                // Round to appropriate precision for storage
+                                if (itemCurrency === 'IQD') {
+                                  storedPrice = Math.round(storedPrice);
+                                } else {
+                                  storedPrice = Math.round(storedPrice * 100) / 100;
+                                }
+                                
                                 const updatedItems = items.map((cartItem, i) => 
-                                  i === index ? { ...cartItem, selling_price: newPrice } : cartItem
+                                  i === index ? { ...cartItem, selling_price: storedPrice } : cartItem
                                 );
                                 setItems(updatedItems);
                               }}
