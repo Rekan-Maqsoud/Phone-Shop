@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { playActionSound, playDeleteSound, playErrorSound, playSuccessSound } from '../../utils/sounds';
 import { EXCHANGE_RATES } from '../../utils/exchangeRates';
+import { getProductSpecKey } from '../../utils/productUtils';
 
 export default function useCart(showToast, showConfirm, t = {}) {
   const [items, setItems] = useState([]);
@@ -24,20 +25,22 @@ export default function useCart(showToast, showConfirm, t = {}) {
         itemType = 'product'; // default fallback
       }
 
-      // Create a more robust unique ID
+      // Create a specification-based unique ID that ensures products with different 
+      // specs are treated as separate items even if they have the same name
       let uniqueId = product.uniqueId;
       if (!uniqueId) {
-        // If no uniqueId provided, create one using available product info
-        const id = product.id || product.name?.replace(/\s+/g, '_').toLowerCase() || Math.random().toString(36).substr(2, 9);
-        uniqueId = `${itemType}_${id}`;
+        // Create unique ID based on product specifications to avoid confusion between variants
+        const specKey = getProductSpecKey(product);
+        const baseId = product.id || product.name?.replace(/\s+/g, '_').toLowerCase() || Math.random().toString(36).substr(2, 9);
+        uniqueId = `${itemType}_${baseId}_${specKey.replace(/\|/g, '_')}`;
       }
       
-      // Find existing item by product name and type, regardless of currency
-      // This allows merging items with different currencies
+      // Find existing item by comprehensive product specifications and type
+      // This ensures products with same name but different specs are treated separately
       const existing = prevItems.find(item => 
         item.isReturn === isReturn && 
-        item.name === product.name && 
-        item.itemType === itemType
+        item.itemType === itemType &&
+        getProductSpecKey(item) === getProductSpecKey(product)
       );
       
       const availableStock = product.stock ?? 1;

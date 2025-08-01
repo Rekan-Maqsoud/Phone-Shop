@@ -126,6 +126,7 @@ export default function SalesHistorySection({
       <SalesHistoryTableEnhanced
       sales={filteredSales}
       t={t}
+      admin={admin}
       onView={sale => admin.setViewSale(sale)}
       onReturn={async (saleId) => {
         showConfirm(

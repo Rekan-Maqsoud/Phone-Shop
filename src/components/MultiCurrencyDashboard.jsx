@@ -24,6 +24,7 @@ import {
   getCommonChartOptions,
   CHART_COLORS
 } from '../utils/chartUtils';
+import { formatProductDisplayName } from '../utils/productUtils';
 import { Icon } from '../utils/icons.jsx';
 
 ChartJS.register(
@@ -106,15 +107,34 @@ function MultiCurrencyDashboard({ admin, t, onRefresh }) {
     fetchBalanceData();
   }, [fetchBalanceData]);
 
-  // Refresh data when sales, buyingHistory, debts, or companyDebts change
+  // Refresh data when sales, buyingHistory, debts, companyDebts, or transactions change
   // Use a debounced effect to prevent excessive refreshes
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       fetchBalanceData();
-    }, 500); // Debounce by 500ms
+    }, 300); // Reduced debounce for faster response to returns
     
     return () => clearTimeout(timeoutId);
   }, [sales, buyingHistory, debts, companyDebts, transactions, fetchBalanceData]);
+
+  // Additional effect to refresh when buying history changes (for immediate return feedback)
+  useEffect(() => {
+    if (buyingHistory) {
+      const timeoutId = setTimeout(() => {
+        fetchBalanceData();
+      }, 100); // Quick refresh for buying history changes
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [buyingHistory, fetchBalanceData]);
+  
+  // Force refresh when transactions change (critical for Today's Returns)
+  useEffect(() => {
+    if (transactions && transactions.length > 0) {
+      // Immediate refresh when transactions data changes (no debounce for returns)
+      fetchBalanceData();
+    }
+  }, [transactions, fetchBalanceData]);
 
   // Set up periodic refresh every 60 seconds (reduced from 30)
   useEffect(() => {
@@ -271,19 +291,36 @@ function MultiCurrencyDashboard({ admin, t, onRefresh }) {
     }).reduce((sum, transaction) => sum + transaction.amount_usd, 0);
 
     // Add today's transactions that are outgoing (negative amounts) - this includes all purchases
+    // EXCLUDE sales returns from spending calculation to prevent double-counting
     const todaysTransactionSpendingUSD = (transactions || []).filter(transaction => {
       if (!transaction.created_at) return false;
       const transactionDate = new Date(transaction.created_at);
-      return transactionDate.toDateString() === today && transaction.amount_usd < 0;
+      const isToday = transactionDate.toDateString() === today;
+      const hasNegativeUSD = transaction.amount_usd < 0;
+      const isSaleReturn = ['sale_return', 'debt_sale_return'].includes(transaction.type);
+      
+      // Include outgoing transactions but exclude sales returns (those affect sales, not spending)
+      return isToday && hasNegativeUSD && !isSaleReturn;
     }).reduce((sum, transaction) => sum + Math.abs(transaction.amount_usd), 0);
 
-    // Subtract today's buying history returns from spending (returns represent negative spending)
+    // Subtract ALL returns from today's effective spending (returns add money back to balance)
     const todaysReturnsUSD = (transactions || []).filter(transaction => {
       if (!transaction.created_at) return false;
       const transactionDate = new Date(transaction.created_at);
-      return transactionDate.toDateString() === today && 
-             transaction.type === 'buying_history_return' && 
-             transaction.amount_usd > 0;
+      const isToday = transactionDate.toDateString() === today;
+      const isReturnTransaction = [
+        'purchase_return', 
+        'item_return', 
+        'buying_history_item_return', 
+        'buying_history_return',
+        'sale_return',
+        'debt_sale_return'
+      ].includes(transaction.type);
+      const hasUSDAmount = transaction.amount_usd > 0;
+      
+      // Include ALL return transactions that happened today and have positive USD amounts
+      // This ensures that returns from previous purchases properly reduce today's effective spending
+      return isToday && isReturnTransaction && hasUSDAmount;
     }).reduce((sum, transaction) => sum + transaction.amount_usd, 0);
 
     // For legacy compatibility: Check for buying_history entries without corresponding transactions
@@ -320,19 +357,36 @@ function MultiCurrencyDashboard({ admin, t, onRefresh }) {
     }).reduce((sum, transaction) => sum + transaction.amount_iqd, 0);
 
     // Add today's transactions that are outgoing (negative amounts) - this includes all purchases
+    // EXCLUDE sales returns from spending calculation to prevent double-counting
     const todaysTransactionSpendingIQD = (transactions || []).filter(transaction => {
       if (!transaction.created_at) return false;
       const transactionDate = new Date(transaction.created_at);
-      return transactionDate.toDateString() === today && transaction.amount_iqd < 0;
+      const isToday = transactionDate.toDateString() === today;
+      const hasNegativeIQD = transaction.amount_iqd < 0;
+      const isSaleReturn = ['sale_return', 'debt_sale_return'].includes(transaction.type);
+      
+      // Include outgoing transactions but exclude sales returns (those affect sales, not spending)
+      return isToday && hasNegativeIQD && !isSaleReturn;
     }).reduce((sum, transaction) => sum + Math.abs(transaction.amount_iqd), 0);
 
-    // Subtract today's buying history returns from spending (returns represent negative spending)
+    // Subtract ALL returns from today's effective spending (returns add money back to balance) 
     const todaysReturnsIQD = (transactions || []).filter(transaction => {
       if (!transaction.created_at) return false;
       const transactionDate = new Date(transaction.created_at);
-      return transactionDate.toDateString() === today && 
-             transaction.type === 'buying_history_return' && 
-             transaction.amount_iqd > 0;
+      const isToday = transactionDate.toDateString() === today;
+      const isReturnTransaction = [
+        'purchase_return', 
+        'item_return', 
+        'buying_history_item_return', 
+        'buying_history_return',
+        'sale_return',
+        'debt_sale_return'
+      ].includes(transaction.type);
+      const hasIQDAmount = transaction.amount_iqd > 0;
+      
+      // Include ALL return transactions that happened today and have positive IQD amounts
+      // This ensures that returns from previous purchases properly reduce today's effective spending
+      return isToday && isReturnTransaction && hasIQDAmount;
     }).reduce((sum, transaction) => sum + transaction.amount_iqd, 0);
 
     // Add today's personal loan payments to spending (these should be counted as money going out)
@@ -356,11 +410,51 @@ function MultiCurrencyDashboard({ admin, t, onRefresh }) {
     const totalTodaysSpendingUSD = todaysSpendingUSD + todaysCompanyDebtPaymentsUSD + todaysTransactionSpendingUSD + todaysPersonalLoanPaymentsUSD - todaysReturnsUSD;
     const totalTodaysSpendingIQD = todaysSpendingIQD + todaysCompanyDebtPaymentsIQD + todaysTransactionSpendingIQD + todaysPersonalLoanPaymentsIQD - todaysReturnsIQD;
 
+    // Debug logging for balance calculations
+    console.log('🔍 [DASHBOARD DEBUG] Daily balance calculation:', {
+      USD: {
+        basicSpending: todaysSpendingUSD,
+        companyDebtPayments: todaysCompanyDebtPaymentsUSD,
+        transactionSpending: todaysTransactionSpendingUSD,
+        personalLoanPayments: todaysPersonalLoanPaymentsUSD,
+        returns: todaysReturnsUSD,
+        totalSpending: totalTodaysSpendingUSD,
+        calculation: `${todaysSpendingUSD} + ${todaysCompanyDebtPaymentsUSD} + ${todaysTransactionSpendingUSD} + ${todaysPersonalLoanPaymentsUSD} - ${todaysReturnsUSD} = ${totalTodaysSpendingUSD}`
+      },
+      IQD: {
+        basicSpending: todaysSpendingIQD,
+        companyDebtPayments: todaysCompanyDebtPaymentsIQD,
+        transactionSpending: todaysTransactionSpendingIQD,
+        personalLoanPayments: todaysPersonalLoanPaymentsIQD,
+        returns: todaysReturnsIQD,
+        totalSpending: totalTodaysSpendingIQD,
+        calculation: `${todaysSpendingIQD} + ${todaysCompanyDebtPaymentsIQD} + ${todaysTransactionSpendingIQD} + ${todaysPersonalLoanPaymentsIQD} - ${todaysReturnsIQD} = ${totalTodaysSpendingIQD}`
+      }
+    });
+
     // Net performance: USD = native USD sales + incentives - USD spending
     const netPerformanceUSD = todaysUSDSales + todaysIncentivesUSD - totalTodaysSpendingUSD;
     
     // Net performance: IQD = native IQD sales + incentives - IQD spending (no conversion mixing)
     const netPerformanceIQD = todaysIQDSales + todaysIncentivesIQD - totalTodaysSpendingIQD;
+
+    // Debug logging for net performance calculations
+    console.log('🔍 [DASHBOARD DEBUG] Net performance calculation:', {
+      USD: {
+        sales: todaysUSDSales,
+        incentives: todaysIncentivesUSD,
+        totalSpending: totalTodaysSpendingUSD,
+        netPerformance: netPerformanceUSD,
+        calculation: `${todaysUSDSales} + ${todaysIncentivesUSD} - ${totalTodaysSpendingUSD} = ${netPerformanceUSD}`
+      },
+      IQD: {
+        sales: todaysIQDSales,
+        incentives: todaysIncentivesIQD,
+        totalSpending: totalTodaysSpendingIQD,
+        netPerformance: netPerformanceIQD,
+        calculation: `${todaysIQDSales} + ${todaysIncentivesIQD} - ${totalTodaysSpendingIQD} = ${netPerformanceIQD}`
+      }
+    });
 
     // Calculate inventory values
     const inventoryValueUSD = (products || [])
@@ -397,6 +491,8 @@ function MultiCurrencyDashboard({ admin, t, onRefresh }) {
       totalTodaysSpendingIQD,
       todaysIncentivesUSD,
       todaysIncentivesIQD,
+      todaysReturnsUSD, // Add return amounts for display
+      todaysReturnsIQD, // Add return amounts for display
       totalTransactions: todaysSales.length,
       totalDebtCount: unpaidDebtSalesUSD.length + unpaidDebtSalesIQD.length + unpaidCompanyDebts.length,
       totalLoanCount: unpaidLoans.length,
@@ -412,6 +508,24 @@ function MultiCurrencyDashboard({ admin, t, onRefresh }) {
 
   return (
     <div className="w-full h-full p-8 space-y-6">
+      
+      {/* Dashboard Header with Refresh Button */}
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-3">
+          <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.21c.12 2.19 1.76 3.42 3.98 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/>
+          </svg>
+          {t?.multiCurrencyDashboard || 'Multi-Currency Dashboard'}
+        </h2>
+        <button
+          onClick={handleRefreshAll}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors shadow-sm"
+          title={t?.refreshAllData || 'Refresh All Data'}
+        >
+          <Icon name="refresh" size={16} />
+          <span className="text-sm font-medium">{t?.refresh || 'Refresh'}</span>
+        </button>
+      </div>
 
       {/* Financial Overview - Balance and Debts */}
       <div className="bg-gradient-to-r from-indigo-500 via-purple-600 to-pink-600 rounded-3xl p-8 text-white shadow-2xl">
@@ -516,6 +630,12 @@ function MultiCurrencyDashboard({ admin, t, onRefresh }) {
                   <span className="font-bold">{formatCurrencyWithTranslation(metrics.todaysIncentivesUSD, 'USD', t)}</span>
                 </div>
               )}
+              {metrics.todaysReturnsUSD > 0 && (
+                <div className="flex justify-between items-center text-cyan-300">
+                  <span>+ {t?.todaysReturns || "Today's Returns"}:</span>
+                  <span className="font-bold">{formatCurrencyWithTranslation(metrics.todaysReturnsUSD, 'USD', t)}</span>
+                </div>
+              )}
               <div className="flex justify-between items-center text-red-300">
                 <span>- {t?.todaysSpending || "Today's Spending"}:</span>
                 <span className="font-bold">{formatCurrencyWithTranslation(metrics.totalTodaysSpendingUSD, 'USD', t)}</span>
@@ -567,6 +687,12 @@ function MultiCurrencyDashboard({ admin, t, onRefresh }) {
                 <div className="flex justify-between items-center text-blue-300">
                   <span>+ {t?.todaysIncentives || "Today's Incentives"}:</span>
                   <span className="font-bold">{formatCurrencyWithTranslation(metrics.todaysIncentivesIQD, 'IQD', t)}</span>
+                </div>
+              )}
+              {metrics.todaysReturnsIQD > 0 && (
+                <div className="flex justify-between items-center text-cyan-300">
+                  <span>+ {t?.todaysReturns || "Today's Returns"}:</span>
+                  <span className="font-bold">{formatCurrencyWithTranslation(metrics.todaysReturnsIQD, 'IQD', t)}</span>
                 </div>
               )}
               <div className="flex justify-between items-center text-red-300">
@@ -1048,7 +1174,8 @@ const TopSellingProductsChart = React.memo(({ sales, t }) => {
     (sales || []).forEach(sale => {
       if (sale.items && sale.items.length > 0) {
         sale.items.forEach(item => {
-          const productName = item.name || 'Unknown Product';
+          // Use full product display name including specifications to avoid confusion
+          const productName = formatProductDisplayName(item, true);
           const qty = item.quantity || 1;
           
           productSales[productName] = (productSales[productName] || 0) + qty;
@@ -1299,7 +1426,7 @@ const LowStockAlerts = React.memo(({ products, accessories, t }) => {
                 item.urgency === 'high' ? 'text-orange-600 dark:text-orange-400' :
                 'text-yellow-600 dark:text-yellow-400'
               }`}>
-                {item.stock === 0 ? 'OUT OF STOCK' : `${item.stock} left`}
+                {item.stock === 0 ? (t?.outOfStock || 'OUT OF STOCK') : `${item.stock} ${t?.left || 'left'}`}
               </div>
             </div>
           </div>
@@ -1345,7 +1472,7 @@ const QuickStatsDisplay = React.memo(({ sales, products, accessories, t }) => {
       </div>
       
       <div className="flex justify-between items-center p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
-        <div className="text-sm text-gray-600 dark:text-gray-400">Today's Sales</div>
+        <div className="text-sm text-gray-600 dark:text-gray-400">{t?.todaysSales || "Today's Sales"}</div>
         <div className="text-lg font-bold text-orange-600 dark:text-orange-400">{stats.todaySales}</div>
       </div>
     </div>

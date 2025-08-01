@@ -66,7 +66,30 @@ function getMonthlyReport(db, year, month) {
     WHERE DATE(date) BETWEEN ? AND ?
     GROUP BY currency
   `).all(startDate, endDate);
-  
+
+  // Same-day returns that should be subtracted from spending
+  const sameDayReturns = db.prepare(`
+    SELECT 
+      CASE 
+        WHEN t.amount_usd > 0 AND t.amount_iqd > 0 THEN 'MULTI'
+        WHEN t.amount_usd > 0 THEN 'USD'
+        ELSE 'IQD'
+      END as currency,
+      SUM(CASE WHEN t.amount_usd > 0 THEN t.amount_usd ELSE 0 END) as usd_amount,
+      SUM(CASE WHEN t.amount_iqd > 0 THEN t.amount_iqd ELSE 0 END) as iqd_amount,
+      COUNT(*) as return_count
+    FROM transactions t
+    WHERE t.type IN ('purchase_return', 'item_return', 'buying_history_item_return')
+      AND DATE(t.created_at) BETWEEN ? AND ?
+      -- Only include returns where the original purchase was on the same day
+      AND EXISTS (
+        SELECT 1 FROM buying_history bh 
+        WHERE bh.id = t.reference_id 
+        AND DATE(bh.date) = DATE(t.created_at)
+      )
+    GROUP BY currency
+  `).all(startDate, endDate);
+
   // Company debt payments (spending that should be included in reports)
   const companyDebtPayments = db.prepare(`
     SELECT 
@@ -82,6 +105,26 @@ function getMonthlyReport(db, year, month) {
     WHERE type = 'company_debt_payment' 
       AND DATE(created_at) BETWEEN ? AND ?
     GROUP BY currency
+  `).all(startDate, endDate);
+
+  // Other spending transactions (negative amounts) - EXCLUDE sales returns to prevent double-counting
+  const otherSpendingTransactions = db.prepare(`
+    SELECT 
+      CASE 
+        WHEN amount_usd < 0 AND amount_iqd < 0 THEN 'MULTI'
+        WHEN amount_usd < 0 THEN 'USD'
+        WHEN amount_iqd < 0 THEN 'IQD'
+        ELSE NULL
+      END as currency,
+      SUM(CASE WHEN amount_usd < 0 THEN ABS(amount_usd) ELSE 0 END) as usd_amount,
+      SUM(CASE WHEN amount_iqd < 0 THEN ABS(amount_iqd) ELSE 0 END) as iqd_amount,
+      COUNT(*) as transaction_count
+    FROM transactions 
+    WHERE (amount_usd < 0 OR amount_iqd < 0)
+      AND type NOT IN ('sale_return', 'debt_sale_return') -- Exclude sales returns
+      AND DATE(created_at) BETWEEN ? AND ?
+    GROUP BY currency
+    HAVING currency IS NOT NULL
   `).all(startDate, endDate);
   
   // Combine buying costs with company debt payments
@@ -128,6 +171,77 @@ function getMonthlyReport(db, year, month) {
           total_cost: amount,
           purchase_count: payment.payment_count
         });
+      }
+    }
+  });
+
+  // Add other spending transactions (excluding sales returns)
+  otherSpendingTransactions.forEach(transaction => {
+    if (transaction.currency === 'MULTI') {
+      // Add USD component
+      const existingUSD = combinedPurchases.find(p => p.currency === 'USD');
+      if (existingUSD) {
+        existingUSD.total_cost += transaction.usd_amount;
+        existingUSD.purchase_count += transaction.transaction_count;
+      } else {
+        combinedPurchases.push({
+          currency: 'USD',
+          total_cost: transaction.usd_amount,
+          purchase_count: transaction.transaction_count
+        });
+      }
+      
+      // Add IQD component
+      const existingIQD = combinedPurchases.find(p => p.currency === 'IQD');
+      if (existingIQD) {
+        existingIQD.total_cost += transaction.iqd_amount;
+        existingIQD.purchase_count += transaction.transaction_count;
+      } else {
+        combinedPurchases.push({
+          currency: 'IQD',
+          total_cost: transaction.iqd_amount,
+          purchase_count: transaction.transaction_count
+        });
+      }
+    } else {
+      // Single currency transaction
+      const existing = combinedPurchases.find(p => p.currency === transaction.currency);
+      const amount = transaction.currency === 'USD' ? transaction.usd_amount : transaction.iqd_amount;
+      
+      if (existing) {
+        existing.total_cost += amount;
+        existing.purchase_count += transaction.transaction_count;
+      } else {
+        combinedPurchases.push({
+          currency: transaction.currency,
+          total_cost: amount,
+          purchase_count: transaction.transaction_count
+        });
+      }
+    }
+  });
+
+  // Subtract same-day returns from spending totals
+  sameDayReturns.forEach(returnData => {
+    if (returnData.currency === 'MULTI') {
+      // Subtract USD component
+      const existingUSD = combinedPurchases.find(p => p.currency === 'USD');
+      if (existingUSD) {
+        existingUSD.total_cost = Math.max(0, existingUSD.total_cost - returnData.usd_amount);
+      }
+      
+      // Subtract IQD component  
+      const existingIQD = combinedPurchases.find(p => p.currency === 'IQD');
+      if (existingIQD) {
+        existingIQD.total_cost = Math.max(0, existingIQD.total_cost - returnData.iqd_amount);
+      }
+    } else {
+      // Single currency return
+      const existing = combinedPurchases.find(p => p.currency === returnData.currency);
+      const amount = returnData.currency === 'USD' ? returnData.usd_amount : returnData.iqd_amount;
+      
+      if (existing) {
+        existing.total_cost = Math.max(0, existing.total_cost - amount);
       }
     }
   });

@@ -106,6 +106,10 @@ const translations = {
     totalPaid: 'Total Paid',
     totalRequired: 'Total Required',
     exactAmount: 'Exact Amount',
+    roundToNearest10k: 'Round to nearest 10k',
+    clear: 'Clear',
+    remaining: 'Remaining',
+    change: 'Change',
     
     // Multi-currency debt payment
     deductFrom: 'Deduct Payment From',
@@ -123,8 +127,6 @@ const translations = {
     remove: 'Remove',
     logout: 'Logout',
     searching: 'Searching...',
-    remaining: 'Remaining',
-    change: 'Change',
     enterNewExchangeRate: 'Enter new exchange rate',
     
     // Product messages
@@ -132,6 +134,7 @@ const translations = {
     productNotFoundOrInvalid: 'Product not found or invalid',
     noProducts: 'No products found.',
     multipleProductsFound: 'Multiple products found',
+    selectCorrectProduct: 'Please select the correct product with matching specifications:',
     
     // Stock messages
     outOfStock: 'Out of Stock',
@@ -670,7 +673,45 @@ const translations = {
     itemInformation: 'Item Information',
     returnConfiguration: 'Return Configuration',
     totalReturnAmount: 'Total Return Amount',
+    outOfStock: 'OUT OF STOCK',
+    left: 'left',
+    show: 'Show',
+    hide: 'Hide',
+    showing: 'Showing',
+    of: 'of',
+    entries: 'entries',
+    refreshData: 'Refresh All Data',
+    total: 'total',
+    passwordsDoNotMatch: 'Passwords do not match',
+    accountCreatedSuccessfully: 'Account created successfully!',
+    signUpFailed: 'Sign up failed',
+    signedInSuccessfully: 'Signed in successfully!',
+    signInFailed: 'Sign in failed',
+    authenticationFailed: 'Authentication failed',
+    signedOutSuccessfully: 'Signed out successfully',
+    signOutFailed: 'Sign out failed',
+    backupCreatedSuccessfully: 'Backup created successfully!',
+    localBackupCreatedSuccessfully: 'Local backup created successfully',
+    backupDownloadedSuccessfully: 'Backup downloaded successfully',
+    autoBackupToggled: 'Auto backup setting changed',
+    databaseRestoredFromLocalFile: 'Database restored successfully from local file!',
     returnNow: 'Return Now',
+    
+    // Return Modal translations
+    originalPurchase: 'Original Transaction',
+    availableToReturn: 'Available to Return',
+    returnCurrency: 'How would you like to receive the refund?',
+    allInUSD: 'All in USD',
+    allInIQD: 'All in IQD',
+    mixedCurrency: 'Mixed Currency',
+    customAmounts: 'Custom amounts',
+    returnSummary: 'Return Summary',
+    confirmReturn: 'Confirm Return',
+    mixed: 'Mixed',
+    confirm: 'Confirm',
+    
+    // Dashboard returns display
+    todaysReturns: "Today's Returns",
     
     // Buying History Section
     buyingHistoryDesc: 'Track all your business purchases and expenses',
@@ -1398,6 +1439,10 @@ const translations = {
     totalPaid: 'کۆی پارەدراو',
     totalRequired: 'کۆی پێویست',
     exactAmount: 'بڕی وردەکارانە',
+    roundToNearest10k: 'بیگەڕێنە نزیکترین ١٠هەزار',
+    clear: 'پاککردنەوە',
+    remaining: 'ماوە',
+    change: 'گۆڕانکاری',
     
     // Multi-currency debt payment
     deductFrom: 'کەمکردنەوەی پارە لە',
@@ -1424,6 +1469,7 @@ const translations = {
     productNotFoundOrInvalid: 'بەرهەم نەدۆزرایەوە یان نادروستە',
     noProducts: 'هیچ بەرهەمێک نەدۆزرایەوە.',
     multipleProductsFound: 'چەندین بەرهەم دۆزرایەوە',
+    selectCorrectProduct: 'تکایە بەرهەمی دروست بە تایبەتمەندییەکانی هاوتا هەڵبژێرە:',
     
     // Stock messages
     outOfStock: 'لە کۆگا تەواو بووە',
@@ -1664,6 +1710,11 @@ const translations = {
     outstandingLoans: 'قەرزە باوەڕپێکراوەکان',
     totalOutstandingUSD: 'کۆی ماوە USD',
     totalOutstandingIQD: 'کۆی ماوە IQD',
+    totalProfitUSD: 'کۆی قازانج USD',
+    totalProfitIQD: 'کۆی قازانج IQD',
+    totalRevenueUSD: 'کۆی داهات USD',
+    totalRevenueIQD: 'کۆی داهات IQD',
+    total: 'کۆ',
     balanceAndTransactions: 'تەواو و مامەڵەکان',
     addPersonalLoan: 'زیادکردنی قەرزی کەسی',
     loansAddedToday: 'قەرزەکانی ئەمڕۆ زیادکراو',
@@ -1799,7 +1850,44 @@ const translations = {
     itemInformation: 'زانیاری بابەت',
     returnConfiguration: 'ڕێکخستنی گەڕاندنەوە',
     totalReturnAmount: 'کۆی بڕی گەڕاندنەوە',
+    outOfStock: 'کۆتایی هاتووە',
+    left: 'ماوە',
+    show: 'پیشاندان',
+    hide: 'شاردنەوە',
+    showing: 'پیشاندانی',
+    of: 'لە',
+    entries: 'بابەت',
+    refreshData: 'نوێکردنەوەی هەموو زانیارییەکان',
+    passwordsDoNotMatch: 'وشەی نهێنییەکان یەک ناگرنەوە',
+    accountCreatedSuccessfully: 'هەژمار بە سەرکەوتوویی دروست کرا!',
+    signUpFailed: 'تۆمارکردن سەرکەوتوو نەبوو',
+    signedInSuccessfully: 'بە سەرکەوتوویی چوویتە ژوورەوە!',
+    signInFailed: 'چوونە ژوورەوە سەرکەوتوو نەبوو',
+    authenticationFailed: 'سەلماندنی هەژمار سەرکەوتوو نەبوو',
+    signedOutSuccessfully: 'بە سەرکەوتوویی هاتیتە دەرەوە',
+    signOutFailed: 'هاتنە دەرەوە سەرکەوتوو نەبوو',
+    backupCreatedSuccessfully: 'پاشەکەوت بە سەرکەوتوویی دروست کرا!',
+    localBackupCreatedSuccessfully: 'پاشەکەوتی ناوخۆیی بە سەرکەوتوویی دروست کرا',
+    backupDownloadedSuccessfully: 'پاشەکەوت بە سەرکەوتوویی داگیرکرا',
+    autoBackupToggled: 'ڕێکخستنی پاشەکەوتی خۆکار گۆڕدرا',
+    databaseRestoredFromLocalFile: 'بنکەدراوە بە سەرکەوتوویی لە فایلی ناوخۆییەوە گەڕێنرایەوە!',
     returnNow: 'ئێستا بگەڕێنەرەوە',
+    
+    // Return Modal translations
+    originalPurchase: 'مامەڵەی یەکەم',
+    availableToReturn: 'بەردەست بۆ گەڕاندنەوە',
+    returnCurrency: 'چۆن دەتەوێت پارەکەت وەربگریتەوە؟',
+    allInUSD: 'هەموویان بە دۆلار',
+    allInIQD: 'هەموویان بە دینار',
+    mixedCurrency: 'درۆگمیکس',
+    customAmounts: 'بڕی تایبەت',
+    returnSummary: 'کورتەی گەڕاندنەوە',
+    confirmReturn: 'دووپاتکردنی گەڕاندنەوە',
+    mixed: 'تێکەڵ',
+    confirm: 'دووپاتکردن',
+    
+    // Dashboard returns display
+    todaysReturns: 'گەڕاندنەوەکانی ئەمڕۆ',
     
     // Customer Debts Section
     customerDebtsDesc: 'شوێنکەوتنی پارەی کڕیارەکان پێتان',
@@ -2579,6 +2667,10 @@ const translations = {
     totalPaid: 'إجمالي المدفوع',
     totalRequired: 'إجمالي المطلوب',
     exactAmount: 'المبلغ الدقيق',
+    roundToNearest10k: 'تقريب لأقرب ١٠ آلاف',
+    clear: 'مسح',
+    remaining: 'متبقي',
+    change: 'الباقي',
     
     // Multi-currency debt payment
     deductFrom: 'خصم الدفع من',
@@ -2605,6 +2697,7 @@ const translations = {
     productNotFoundOrInvalid: 'المنتج غير موجود أو غير صالح',
     noProducts: 'لا توجد منتجات.',
     multipleProductsFound: 'تم العثور على عدة منتجات',
+    selectCorrectProduct: 'يرجى اختيار المنتج الصحيح بالمواصفات المطابقة:',
     
     // Stock messages
     outOfStock: 'نفد المخزون',
@@ -2964,7 +3057,45 @@ const translations = {
     itemInformation: 'معلومات العنصر',
     returnConfiguration: 'تكوين الإرجاع',
     totalReturnAmount: 'إجمالي مبلغ الإرجاع',
+    outOfStock: 'نفد المخزون',
+    left: 'متبقي',
+    show: 'إظهار',
+    hide: 'إخفاء',
+    showing: 'عرض',
+    of: 'من',
+    entries: 'إدخالات',
+    refreshData: 'تحديث جميع البيانات',
+    total: 'الإجمالي',
+    passwordsDoNotMatch: 'كلمات المرور غير متطابقة',
+    accountCreatedSuccessfully: 'تم إنشاء الحساب بنجاح!',
+    signUpFailed: 'فشل في التسجيل',
+    signedInSuccessfully: 'تم تسجيل الدخول بنجاح!',
+    signInFailed: 'فشل في تسجيل الدخول',
+    authenticationFailed: 'فشل في المصادقة',
+    signedOutSuccessfully: 'تم تسجيل الخروج بنجاح',
+    signOutFailed: 'فشل في تسجيل الخروج',
+    backupCreatedSuccessfully: 'تم إنشاء النسخة الاحتياطية بنجاح!',
+    localBackupCreatedSuccessfully: 'تم إنشاء النسخة الاحتياطية المحلية بنجاح',
+    backupDownloadedSuccessfully: 'تم تحميل النسخة الاحتياطية بنجاح',
+    autoBackupToggled: 'تم تغيير إعداد النسخ الاحتياطي التلقائي',
+    databaseRestoredFromLocalFile: 'تم استعادة قاعدة البيانات بنجاح من الملف المحلي!',
     returnNow: 'إرجاع الآن',
+    
+    // Return Modal translations
+    originalPurchase: 'المعاملة الأصلية',
+    availableToReturn: 'متاح للإرجاع',
+    returnCurrency: 'كيف تريد استلام المبلغ المسترد؟',
+    allInUSD: 'الكل بالدولار',
+    allInIQD: 'الكل بالدينار',
+    mixedCurrency: 'عملة مختلطة',
+    customAmounts: 'مبالغ مخصصة',
+    returnSummary: 'ملخص الإرجاع',
+    confirmReturn: 'تأكيد الإرجاع',
+    mixed: 'مختلط',
+    confirm: 'تأكيد',
+    
+    // Dashboard returns display
+    todaysReturns: 'إرجاعات اليوم',
     
     // Customer Debts Section
     customerDebtsDesc: 'تتبع الأموال المستحقة لك من العملاء',
@@ -3679,26 +3810,6 @@ const translations = {
 
     // Currency equivalents
     iqdEquivalent: 'ما يعادل الدينار',
-
-    // Missing translations
-    balanceManagement: 'إدارة الرصيد',
-    item: 'عنصر',
-    returnCurrency: 'عملة الإرجاع',
-    purchaseWithItems: 'شراء مع العناصر',
-    originalPurchase: 'الشراء الأصلي',
-    leaveEmptyForFull: 'اتركه فارغاً للإرجاع الكامل',
-    returnSummary: 'ملخص الإرجاع',
-    showAdvanced: 'إظهار متقدم',
-    hideAdvanced: 'إخفاء متقدم',
-    confirmReturn: 'تأكيد الإرجاع',
-    customer_name: 'اسم العميل',
-    expand: 'توسيع',
-    searchDebtsDesc: 'البحث وتصفية الديون حسب اسم العميل أو المبلغ',
-    archivedItemsDescription: 'عرض وإدارة المنتجات والإكسسوارات المؤرشفة',
-    invalidDate: 'تاريخ غير صحيح',
-    max: 'الحد الأقصى',
-    show: 'إظهار',
-    hide: 'إخفاء',
 
   },
 };

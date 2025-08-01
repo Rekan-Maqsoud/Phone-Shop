@@ -21,7 +21,7 @@ const BuyingHistoryTableSimplified = React.memo(function BuyingHistoryTableSimpl
   const [showReturnModal, setShowReturnModal] = useState(false);
   const [returnModalData, setReturnModalData] = useState(null);
   const { isRTL } = useLocale();
-  const { refreshProducts, refreshAccessories } = useData() || {};
+  const { refreshProducts, refreshAccessories, refreshTransactions } = useData() || {};
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 25;
 
@@ -40,17 +40,33 @@ const BuyingHistoryTableSimplified = React.memo(function BuyingHistoryTableSimpl
     historyData.forEach(entry => {
       const currency = entry.currency || 'IQD';
       
-      if (currency === 'MULTI') {
+      if (currency === 'MULTI' || entry.multi_currency_usd !== null || entry.multi_currency_iqd !== null) {
+        // For MULTI currency entries OR entries with multi-currency data, use the actual amounts stored in multi_currency fields
         totalAmountUSD += entry.multi_currency_usd || 0;
         totalAmountIQD += entry.multi_currency_iqd || 0;
       } else {
         const amount = entry.total_price || entry.amount || 0;
         if (currency === 'USD') {
           totalAmountUSD += amount;
-        } else {
+        } else if (currency === 'IQD') {
+          // Ensure IQD amounts are not accidentally converted
           totalAmountIQD += amount;
         }
       }
+    });
+
+    // Add debugging to track total calculations
+    console.log('🔍 [BUYING HISTORY TOTALS DEBUG]:', {
+      totalEntries,
+      totalAmountUSD,
+      totalAmountIQD,
+      entries: historyData.map(entry => ({
+        id: entry.id,
+        currency: entry.currency,
+        total_price: entry.total_price,
+        multi_currency_usd: entry.multi_currency_usd,
+        multi_currency_iqd: entry.multi_currency_iqd
+      }))
     });
 
     return {
@@ -113,11 +129,22 @@ const BuyingHistoryTableSimplified = React.memo(function BuyingHistoryTableSimpl
   const processReturn = useCallback(async (returnInfo) => {
     if (!returnModalData || returnModalData.type !== 'entry') return;
     
+    // Prevent multiple simultaneous calls
+    if (processReturn.isProcessing) {
+      console.log('🚫 Return already in progress, ignoring duplicate call');
+      return;
+    }
+    
+    processReturn.isProcessing = true;
+    
     try {
+      console.log('🔄 Processing return with info:', returnInfo);
       const result = await window.api.returnBuyingHistoryEntry(returnModalData.entry.id, {
         quantity: returnInfo.returnQuantity,
         returnAmounts: returnInfo.returnAmounts
       });
+      
+      console.log('📋 Return result:', result);
       
       if (result.success) {
         let toastMessage = result.isPartialReturn 
@@ -156,11 +183,14 @@ const BuyingHistoryTableSimplified = React.memo(function BuyingHistoryTableSimpl
         // Also refresh products and accessories to show updated stock levels
         if (refreshProducts) await refreshProducts();
         if (refreshAccessories) await refreshAccessories();
+        // CRITICAL: Refresh transactions to update "Today's Returns" in dashboard
+        if (refreshTransactions) await refreshTransactions();
       } else {
+        console.error('❌ Return failed:', result.message);
         admin?.setToast(result.message || t?.returnFailed || 'Failed to return purchase', 'error');
       }
     } catch (error) {
-      console.error('Error returning entry:', error);
+      console.error('❌ Error returning entry:', error);
       // Show more specific error message if available
       const errorMessage = error.message || error.toString();
       if (errorMessage.includes('Invalid return amount') || errorMessage.includes('Maximum refundable')) {
@@ -168,11 +198,22 @@ const BuyingHistoryTableSimplified = React.memo(function BuyingHistoryTableSimpl
       } else {
         admin?.setToast(t?.returnError || 'Error occurred during return', 'error');
       }
+    } finally {
+      processReturn.isProcessing = false;
     }
-  }, [t, refreshBuyingHistory, refreshProducts, refreshAccessories, admin, returnModalData]);
+  }, [t, refreshBuyingHistory, refreshProducts, refreshAccessories, refreshTransactions, admin, returnModalData]);
 
   const executeItemReturn = async (returnInfo) => {
     if (!returnModalData || returnModalData.type !== 'item') return;
+
+    // Prevent multiple simultaneous calls
+    if (executeItemReturn.isProcessing) {
+      console.log('🚫 Item return already in progress, ignoring duplicate call');
+      return;
+    }
+    
+    executeItemReturn.isProcessing = true;
+    console.log('🔄 Starting item return...', returnInfo);
 
     try {
       const result = await window.api.returnBuyingHistoryItem(
@@ -183,6 +224,8 @@ const BuyingHistoryTableSimplified = React.memo(function BuyingHistoryTableSimpl
           returnAmounts: returnInfo.returnAmounts
         }
       );
+      
+      console.log('📤 Item return API result:', result);
       
       if (result.success) {
         let toastMessage = t?.returnSuccess || 'Item returned successfully!';
@@ -205,18 +248,33 @@ const BuyingHistoryTableSimplified = React.memo(function BuyingHistoryTableSimpl
         }
         
         admin?.setToast(toastMessage, result.hasStockIssue ? 'warning' : 'success');
+        
+        // Close modal first
+        setShowReturnModal(false);
+        setReturnModalData(null);
+        
+        // Then refresh data
         refreshBuyingHistory();
         // Also refresh products and accessories to show updated stock levels
         if (refreshProducts) await refreshProducts();
         if (refreshAccessories) await refreshAccessories();
-        setShowReturnModal(false);
-        setReturnModalData(null);
+        // CRITICAL: Refresh transactions to update "Today's Returns" in dashboard
+        if (refreshTransactions) await refreshTransactions();
       } else {
-        admin?.setToast(t?.returnError || `Failed to return item: ${result.message}`, 'error');
+        console.error('❌ Item return failed:', result.message);
+        admin?.setToast(result.message || t?.returnError || 'Failed to return item', 'error');
       }
     } catch (error) {
-      console.error('Error returning item:', error);
-      admin?.setToast(t?.returnError || 'Failed to return item', 'error');
+      console.error('❌ Error returning item:', error);
+      // Show more specific error message if available
+      const errorMessage = error.message || error.toString();
+      if (errorMessage.includes('Invalid return amount') || errorMessage.includes('Maximum refundable')) {
+        admin?.setToast(errorMessage, 'error');
+      } else {
+        admin?.setToast(t?.returnError || 'Error occurred during item return', 'error');
+      }
+    } finally {
+      executeItemReturn.isProcessing = false;
     }
   };
 
@@ -297,7 +355,7 @@ const BuyingHistoryTableSimplified = React.memo(function BuyingHistoryTableSimpl
 
   // Format currency display for entries
   const formatCurrency = (entry, t) => {
-    if (entry.currency === 'MULTI') {
+    if (entry.currency === 'MULTI' || entry.multi_currency_usd !== null || entry.multi_currency_iqd !== null) {
       const parts = [];
       if ((entry.multi_currency_usd || 0) > 0) {
         const formatted = entry.multi_currency_usd.toFixed(2);
@@ -504,7 +562,7 @@ const BuyingHistoryTableSimplified = React.memo(function BuyingHistoryTableSimpl
                       {/* Amount */}
                       <td className="px-6 py-4 text-center">
                         <div className="flex flex-col gap-1">
-                          {entry.currency === 'MULTI' ? (
+                          {(entry.currency === 'MULTI' || entry.multi_currency_usd !== null || entry.multi_currency_iqd !== null) ? (
                             <div className="space-y-1">
                               {(entry.multi_currency_usd || 0) > 0 && (
                                 <div className="bg-orange-50 dark:bg-orange-900/20 px-2 py-1 rounded-lg border-l-2 border-orange-500">

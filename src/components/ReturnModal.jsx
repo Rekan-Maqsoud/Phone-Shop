@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { EXCHANGE_RATES, formatCurrency } from '../utils/exchangeRates';
+import { getCurrentExchangeRate, formatCurrency, loadExchangeRatesFromDB } from '../utils/exchangeRates';
 import { Icon } from '../utils/icons.jsx';
 import ModalBase from './ModalBase';
 
@@ -11,270 +11,289 @@ const ReturnModal = ({
   admin, 
   t 
 }) => {
-  // Determine if this is a full entry return or individual item return
-  const isFullEntryReturn = !returnData?.isItemReturn;
-  
-  // Initialize return quantity based on return type
-  const [returnQuantity, setReturnQuantity] = useState(() => {
-    if (isFullEntryReturn && returnData?.entry) {
-      return returnData.entry.quantity || returnData.maxQuantity || 1;
-    }
-    return 1;
-  });
-  
-  // Initialize return currency based on original purchase currency
-  const [returnCurrency, setReturnCurrency] = useState(() => {
-    if (returnData?.entry) {
-      const entry = returnData.entry;
-      if (entry.currency === 'MULTI') {
-        return 'MULTI'; // Will handle multi-currency specially
-      }
-      return entry.currency || 'USD';
-    }
-    return 'USD';
-  });
-  
-  const [customAmount, setCustomAmount] = useState('');
-  const [allowCustomCurrency, setAllowCustomCurrency] = useState(false);
-  
-  // Calculate maxQuantity early to avoid hoisting issues
-  const maxQuantity = returnData?.maxQuantity || returnData?.entry?.quantity || 1;
-  
-  // Initialize multi-currency based on original purchase
-  const [multiCurrency, setMultiCurrency] = useState(() => {
-    if (isFullEntryReturn && returnData?.entry?.currency === 'MULTI') {
-      return { 
-        enabled: true, 
-        usdAmount: returnData.entry.multi_currency_usd || 0,
-        iqdAmount: returnData.entry.multi_currency_iqd || 0
-      };
-    }
-    return { 
-      enabled: false, 
-      usdAmount: 0, 
-      iqdAmount: 0 
-    };
-  });
+  // State management
+  const [returnQuantity, setReturnQuantity] = useState(1);
+  const [returnCurrency, setReturnCurrency] = useState('USD'); // 'USD', 'IQD', or 'MIXED'
+  const [usdAmount, setUsdAmount] = useState('');
+  const [iqdAmount, setIqdAmount] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
 
-  // Refs for keyboard navigation
+  // Refs for focus management
   const quantityInputRef = useRef(null);
-  const customAmountInputRef = useRef(null);
   const usdInputRef = useRef(null);
   const iqdInputRef = useRef(null);
   const confirmButtonRef = useRef(null);
-  const cancelButtonRef = useRef(null);
 
-  const handleClose = () => {
-    setReturnQuantity(1);
-    setReturnCurrency('USD');
-    setCustomAmount('');
-    setMultiCurrency({ enabled: false, usdAmount: 0, iqdAmount: 0 });
-    setAllowCustomCurrency(false);
-    onClose();
-  };
-
-  // Calculate maximum return amounts based on original purchase
+  // Calculate maximum returnable amounts from original transaction
   const maxReturnAmounts = useMemo(() => {
-    if (!returnData?.entry) return { usd: 0, iqd: 0, total: 0 };
-    
+    if (!returnData?.entry) {
+      return { usd: 0, iqd: 0, totalValueUSD: 0, originalCurrency: 'USD' };
+    }
+
     const entry = returnData.entry;
-    const quantity = returnQuantity || 1;
-    const maxQuantity = returnData.maxQuantity || entry.quantity || 1;
-    
+    const quantity = Math.max(1, Number(returnQuantity) || 1);
+    const maxQuantity = Math.max(1, Number(returnData.maxQuantity) || Number(entry.quantity) || 1);
+    const quantityRatio = Math.min(quantity, maxQuantity) / maxQuantity;
+
+    // Use original exchange rate from the purchase, not current rate
+    let usdToIqd, iqdToUsd;
+    if (entry.exchange_rate_usd_to_iqd && entry.exchange_rate_iqd_to_usd) {
+      // Use the exchange rate from when the purchase was made
+      usdToIqd = entry.exchange_rate_usd_to_iqd;
+      iqdToUsd = entry.exchange_rate_iqd_to_usd;
+      console.log('🔍 [FRONTEND DEBUG] Using ORIGINAL exchange rates:', {
+        usdToIqd,
+        iqdToUsd,
+        source: 'purchase_record'
+      });
+    } else {
+      // Fallback to current rate if original rate not stored
+      usdToIqd = getCurrentExchangeRate('USD', 'IQD');
+      iqdToUsd = getCurrentExchangeRate('IQD', 'USD');
+      console.log('🔍 [FRONTEND DEBUG] Using CURRENT exchange rates:', {
+        usdToIqd,
+        iqdToUsd,
+        source: 'current_settings'
+      });
+    }
+
     // Handle individual item returns
     if (returnData.isItemReturn && returnData.itemData) {
-      const unitPrice = returnData.itemData.unitPrice || 0;
-      const itemCurrency = returnData.currency || 'USD';
+      const unitPrice = Number(returnData.itemData.unitPrice) || 0;
+      const itemCurrency = returnData.currency || entry.currency || 'USD';
+      const returnAmount = unitPrice * quantity;
       
       if (itemCurrency === 'USD') {
         return {
-          usd: unitPrice * quantity,
-          iqd: 0,
-          total: unitPrice * quantity,
-          currency: 'USD'
-        };
-      } else {
-        return {
-          usd: 0,
-          iqd: unitPrice * quantity,
-          total: (unitPrice * quantity) / EXCHANGE_RATES.USD_TO_IQD,
-          currency: 'IQD'
-        };
-      }
-    }
-
-    // Handle full entry returns - check for multi-currency values first
-    const hasMultiCurrencyUSD = (entry.multi_currency_usd || 0) > 0;
-    const hasMultiCurrencyIQD = (entry.multi_currency_iqd || 0) > 0;
-    
-    if (hasMultiCurrencyUSD || hasMultiCurrencyIQD) {
-      // Use multi-currency values
-      const usdPortion = (entry.multi_currency_usd || 0) * (quantity / maxQuantity);
-      const iqdPortion = (entry.multi_currency_iqd || 0) * (quantity / maxQuantity);
-      
-      return {
-        usd: usdPortion,
-        iqd: iqdPortion,
-        total: usdPortion + (iqdPortion / EXCHANGE_RATES.USD_TO_IQD), // Total in USD equivalent
-        currency: (hasMultiCurrencyUSD && hasMultiCurrencyIQD) ? 'MULTI' : (hasMultiCurrencyUSD ? 'USD' : 'IQD')
-      };
-    } else {
-      // Fallback to legacy single currency
-      const totalPrice = entry.total_price || entry.amount || 0;
-      const returnAmount = totalPrice * (quantity / maxQuantity);
-      
-      if (entry.currency === 'USD') {
-        return {
           usd: returnAmount,
           iqd: 0,
-          total: returnAmount,
-          currency: 'USD'
+          totalValueUSD: returnAmount,
+          originalCurrency: 'USD'
         };
       } else {
         return {
           usd: 0,
           iqd: returnAmount,
-          total: returnAmount / EXCHANGE_RATES.USD_TO_IQD,
-          currency: 'IQD'
+          totalValueUSD: returnAmount * iqdToUsd,
+          originalCurrency: 'IQD'
         };
       }
+    }
+
+    // Handle full entry returns
+    const originalCurrency = entry.currency || 'USD';
+    
+    // Multi-currency transactions
+    if (originalCurrency === 'MULTI' || entry.multi_currency_usd || entry.multi_currency_iqd) {
+      const usdPortion = (Number(entry.multi_currency_usd) || 0) * quantityRatio;
+      const iqdPortion = (Number(entry.multi_currency_iqd) || 0) * quantityRatio;
+      
+      const result = {
+        usd: usdPortion,
+        iqd: iqdPortion,
+        totalValueUSD: usdPortion + (iqdPortion * iqdToUsd),
+        originalCurrency: 'MULTI'
+      };
+      
+      console.log('🔍 [FRONTEND DEBUG] Multi-currency calculation:', {
+        entry: { multi_currency_usd: entry.multi_currency_usd, multi_currency_iqd: entry.multi_currency_iqd },
+        quantityRatio,
+        usdPortion,
+        iqdPortion,
+        iqdToUsd,
+        totalValueUSD: result.totalValueUSD,
+        calculation: `${usdPortion} + (${iqdPortion} * ${iqdToUsd}) = ${result.totalValueUSD}`
+      });
+      
+      return result;
+    }
+    
+    // Single currency transactions
+    const totalAmount = (Number(entry.total_price) || Number(entry.amount) || 0) * quantityRatio;
+    
+    if (originalCurrency === 'USD') {
+      const result = {
+        usd: totalAmount,
+        iqd: 0,
+        totalValueUSD: totalAmount,
+        originalCurrency: 'USD'
+      };
+      console.log('🔍 [FRONTEND DEBUG] USD single currency:', { totalAmount, result });
+      return result;
+    } else {
+      const result = {
+        usd: 0,
+        iqd: totalAmount,
+        totalValueUSD: totalAmount * iqdToUsd,
+        originalCurrency: 'IQD'
+      };
+      console.log('🔍 [FRONTEND DEBUG] IQD single currency:', {
+        totalAmount,
+        iqdToUsd,
+        totalValueUSD: result.totalValueUSD,
+        calculation: `${totalAmount} * ${iqdToUsd} = ${result.totalValueUSD}`
+      });
+      return result;
     }
   }, [returnData, returnQuantity]);
 
-  // Calculate return amounts based on user selection
-  const returnAmounts = useMemo(() => {
-    if (!returnData?.entry) return { usd: 0, iqd: 0, exceeded: false };
+  // Calculate current return amounts based on user selection
+  const currentReturnAmounts = useMemo(() => {
+    const maxUSD = maxReturnAmounts.usd;
+    const maxIQD = maxReturnAmounts.iqd;
     
-    if (multiCurrency.enabled) {
-      // Validate multi-currency amounts don't exceed maximum
-      const requestedUSD = multiCurrency.usdAmount || 0;
-      const requestedIQD = multiCurrency.iqdAmount || 0;
-      const totalRequestedUSD = requestedUSD + (requestedIQD / EXCHANGE_RATES.USD_TO_IQD);
-      
-      if (totalRequestedUSD > maxReturnAmounts.total) {
-        return { 
-          usd: Math.min(requestedUSD, maxReturnAmounts.usd), 
-          iqd: Math.min(requestedIQD, maxReturnAmounts.iqd),
-          exceeded: true
-        };
-      }
-      
-      return { usd: requestedUSD, iqd: requestedIQD, exceeded: false };
-    } else if (customAmount) {
-      // Single currency custom amount with validation
-      const amount = parseFloat(customAmount) || 0;
-      
-      // For currency validation, check if requesting currency that wasn't used in purchase
-      if (returnCurrency === 'USD') {
-        // User wants USD refund
-        if (maxReturnAmounts.currency === 'IQD' && maxReturnAmounts.usd === 0) {
-          // Purchase was in IQD only, convert IQD to USD for return
-          const availableUSD = maxReturnAmounts.iqd / EXCHANGE_RATES.USD_TO_IQD;
-          if (amount > availableUSD) {
-            return {
-              usd: availableUSD,
-              iqd: 0,
-              exceeded: true,
-              insufficientCurrency: true,
-              availableAmount: availableUSD,
-              requestedAmount: amount
-            };
-          }
-          return { usd: amount, iqd: 0, exceeded: false };
-        } else {
-          // Purchase had USD component
-          if (amount > maxReturnAmounts.usd) {
-            return {
-              usd: maxReturnAmounts.usd,
-              iqd: 0,
-              exceeded: true,
-              insufficientCurrency: true,
-              availableAmount: maxReturnAmounts.usd,
-              requestedAmount: amount
-            };
-          }
-          return { usd: amount, iqd: 0, exceeded: false };
-        }
-      } else {
-        // User wants IQD refund
-        if (maxReturnAmounts.currency === 'USD' && maxReturnAmounts.iqd === 0) {
-          // Purchase was in USD only, convert USD to IQD for return
-          const availableIQD = maxReturnAmounts.usd * EXCHANGE_RATES.USD_TO_IQD;
-          if (amount > availableIQD) {
-            return {
-              usd: 0,
-              iqd: availableIQD,
-              exceeded: true,
-              insufficientCurrency: true,
-              availableAmount: availableIQD,
-              requestedAmount: amount
-            };
-          }
-          return { usd: 0, iqd: amount, exceeded: false };
-        } else {
-          // Purchase had IQD component
-          if (amount > maxReturnAmounts.iqd) {
-            return {
-              usd: 0,
-              iqd: maxReturnAmounts.iqd,
-              exceeded: true,
-              insufficientCurrency: true,
-              availableAmount: maxReturnAmounts.iqd,
-              requestedAmount: amount
-            };
-          }
-          return { usd: 0, iqd: amount, exceeded: false };
-        }
-      }
+    // Use the same exchange rates as maxReturnAmounts calculation
+    const entry = returnData?.entry;
+    let usdToIqd, iqdToUsd;
+    if (entry?.exchange_rate_usd_to_iqd && entry?.exchange_rate_iqd_to_usd) {
+      // Use original exchange rate from the purchase
+      usdToIqd = entry.exchange_rate_usd_to_iqd;
+      iqdToUsd = entry.exchange_rate_iqd_to_usd;
     } else {
-      // Default: return full amount in selected currency
-      if (returnCurrency === 'USD') {
-        if (maxReturnAmounts.currency === 'USD') {
-          // Purchase was in USD
-          return { usd: maxReturnAmounts.usd, iqd: 0, exceeded: false };
-        } else if (maxReturnAmounts.currency === 'IQD') {
-          // Purchase was in IQD, convert to USD
-          const usdAmount = maxReturnAmounts.iqd / EXCHANGE_RATES.USD_TO_IQD;
-          return { usd: usdAmount, iqd: 0, exceeded: false };
-        } else {
-          // Multi-currency purchase
-          return { usd: maxReturnAmounts.usd, iqd: 0, exceeded: false };
-        }
-      } else {
-        if (maxReturnAmounts.currency === 'IQD') {
-          // Purchase was in IQD
-          return { usd: 0, iqd: maxReturnAmounts.iqd, exceeded: false };
-        } else if (maxReturnAmounts.currency === 'USD') {
-          // Purchase was in USD, convert to IQD
-          const iqdAmount = maxReturnAmounts.usd * EXCHANGE_RATES.USD_TO_IQD;
-          return { usd: 0, iqd: iqdAmount, exceeded: false };
-        } else {
-          // Multi-currency purchase
-          return { usd: 0, iqd: maxReturnAmounts.iqd, exceeded: false };
-        }
-      }
+      // Fallback to current rate if original rate not stored
+      usdToIqd = getCurrentExchangeRate('USD', 'IQD');
+      iqdToUsd = getCurrentExchangeRate('IQD', 'USD');
     }
-  }, [returnData, returnQuantity, returnCurrency, customAmount, multiCurrency, maxReturnAmounts, allowCustomCurrency]);
+    
+    console.log('🔍 [FRONTEND DEBUG] Current return calculation:', {
+      returnCurrency,
+      maxUSD,
+      maxIQD,
+      usdToIqd,
+      iqdToUsd,
+      usdAmount,
+      iqdAmount
+    });
+    
+    if (returnCurrency === 'MIXED') {
+      const requestedUSD = Math.min(parseFloat(usdAmount) || 0, maxUSD);
+      const requestedIQD = Math.min(parseFloat(iqdAmount) || 0, maxIQD);
+      
+      const result = {
+        usd: requestedUSD,
+        iqd: requestedIQD,
+        totalValueUSD: requestedUSD + (requestedIQD * iqdToUsd),
+        isValid: (requestedUSD + requestedIQD) > 0
+      };
+      
+      console.log('🔍 [FRONTEND DEBUG] MIXED return result:', {
+        requestedUSD,
+        requestedIQD,
+        totalValueUSD: result.totalValueUSD,
+        calculation: `${requestedUSD} + (${requestedIQD} * ${iqdToUsd}) = ${result.totalValueUSD}`
+      });
+      
+      return result;
+    } else if (returnCurrency === 'USD') {
+      // Return everything as USD
+      const totalAvailableUSD = maxUSD + (maxIQD * iqdToUsd);
+      const requestedUSD = parseFloat(usdAmount) || totalAvailableUSD;
+      const finalUSD = Math.min(requestedUSD, totalAvailableUSD);
+      
+      const result = {
+        usd: finalUSD,
+        iqd: 0,
+        totalValueUSD: finalUSD,
+        isValid: finalUSD > 0
+      };
+      
+      console.log('🔍 [FRONTEND DEBUG] USD return result:', {
+        totalAvailableUSD,
+        requestedUSD,
+        finalUSD,
+        calculation: `${maxUSD} + (${maxIQD} * ${iqdToUsd}) = ${totalAvailableUSD}`
+      });
+      
+      return result;
+    } else { // IQD
+      // Return everything as IQD
+      const totalAvailableIQD = maxIQD + (maxUSD * usdToIqd);
+      const requestedIQD = parseFloat(iqdAmount) || totalAvailableIQD;
+      const finalIQD = Math.min(requestedIQD, totalAvailableIQD);
+      
+      const result = {
+        usd: 0,
+        iqd: finalIQD,
+        totalValueUSD: finalIQD * iqdToUsd,
+        isValid: finalIQD > 0
+      };
+      
+      console.log('🔍 [FRONTEND DEBUG] IQD return result:', {
+        totalAvailableIQD,
+        requestedIQD,
+        finalIQD,
+        totalValueUSD: result.totalValueUSD,
+        calculation: `${maxIQD} + (${maxUSD} * ${usdToIqd}) = ${totalAvailableIQD}`,
+        usdEquivalent: `${finalIQD} * ${iqdToUsd} = ${result.totalValueUSD}`
+      });
+      
+      return result;
+    }
+  }, [returnCurrency, usdAmount, iqdAmount, maxReturnAmounts]);
 
-  const handleConfirm = () => {
-    // Prevent confirming if amounts are exceeded or invalid
-    if (returnAmounts.exceeded) {
-      return;
+  // Reset form when modal opens
+  useEffect(() => {
+    if (show && returnData?.entry) {
+      // Load current exchange rates from database
+      loadExchangeRatesFromDB().catch(console.error);
+      
+      const maxQuantity = Math.max(1, Number(returnData.maxQuantity) || Number(returnData.entry.quantity) || 1);
+      setReturnQuantity(Math.min(1, maxQuantity));
+      
+      // Set default currency based on original transaction
+      const originalCurrency = returnData.entry.currency || 'USD';
+      if (originalCurrency === 'MULTI') {
+        setReturnCurrency('MIXED');
+      } else {
+        setReturnCurrency(originalCurrency);
+      }
+      
+      setUsdAmount('');
+      setIqdAmount('');
+      setIsProcessing(false);
     }
+  }, [show, returnData]);
+
+  // Handle close
+  const handleClose = () => {
+    if (isProcessing) return;
     
-    // Ensure at least some amount is being returned
-    if (returnAmounts.usd === 0 && returnAmounts.iqd === 0) {
-      return;
+    setReturnQuantity(1);
+    setReturnCurrency('USD');
+    setUsdAmount('');
+    setIqdAmount('');
+    setIsProcessing(false);
+    onClose();
+  };
+  // Handle confirm
+  const handleConfirm = async () => {
+    if (isProcessing || !currentReturnAmounts.isValid) return;
+    
+    setIsProcessing(true);
+    
+    try {
+      const result = {
+        returnQuantity: Math.max(1, Number(returnQuantity) || 1),
+        returnAmounts: {
+          usd: currentReturnAmounts.usd,
+          iqd: currentReturnAmounts.iqd
+        }
+      };
+      
+      await onConfirm(result);
+      handleClose();
+    } catch (error) {
+      console.error('Error in return confirmation:', error);
+      admin?.setToast?.(t?.returnError || 'Error occurred during return', 'error');
+    } finally {
+      setIsProcessing(false);
     }
-    
-    const result = {
-      returnQuantity,
-      returnAmounts: returnAmounts
-    };
-    onConfirm(result);
   };
 
-  // Keyboard event handler
+  // Get max quantity for this return
+  const maxQuantity = Math.max(1, Number(returnData?.maxQuantity) || Number(returnData?.entry?.quantity) || 1);
+
+  // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (!show) return;
@@ -284,61 +303,29 @@ const ReturnModal = ({
           e.preventDefault();
           handleClose();
           break;
-        
         case 'Enter':
-          if (e.ctrlKey || e.metaKey) {
+          if (e.ctrlKey && currentReturnAmounts.isValid) {
             e.preventDefault();
-            if (!returnAmounts.exceeded && (returnAmounts.usd > 0 || returnAmounts.iqd > 0)) {
-              handleConfirm();
-            }
+            handleConfirm();
           }
           break;
-        
-        case 'Tab':
-          // Let Tab work naturally for focus management
-          break;
-        
         case '1':
-          if (e.ctrlKey || e.metaKey) {
+          if (e.ctrlKey) {
             e.preventDefault();
             setReturnCurrency('USD');
           }
           break;
-        
         case '2':
-          if (e.ctrlKey || e.metaKey) {
+          if (e.ctrlKey) {
             e.preventDefault();
             setReturnCurrency('IQD');
           }
           break;
-        
         case 'm':
         case 'M':
-          if (e.ctrlKey || e.metaKey) {
+          if (e.ctrlKey) {
             e.preventDefault();
-            setAllowCustomCurrency(prev => !prev);
-          }
-          break;
-        
-        case 'ArrowUp':
-          if (e.target.type === 'number') {
-            // Let number inputs handle arrows naturally
-            break;
-          }
-          e.preventDefault();
-          if (maxQuantity > 1) {
-            setReturnQuantity(prev => Math.min(prev + 1, maxQuantity));
-          }
-          break;
-        
-        case 'ArrowDown':
-          if (e.target.type === 'number') {
-            // Let number inputs handle arrows naturally
-            break;
-          }
-          e.preventDefault();
-          if (maxQuantity > 1) {
-            setReturnQuantity(prev => Math.max(prev - 1, 1));
+            setReturnCurrency('MIXED');
           }
           break;
       }
@@ -348,25 +335,22 @@ const ReturnModal = ({
       document.addEventListener('keydown', handleKeyDown);
       return () => document.removeEventListener('keydown', handleKeyDown);
     }
-  }, [show, returnAmounts, maxQuantity, handleConfirm, handleClose]);
+  }, [show, currentReturnAmounts.isValid, handleConfirm, handleClose]);
 
   // Auto-focus management
   useEffect(() => {
     if (show) {
-      // Focus first relevant input after modal opens
       setTimeout(() => {
         if (maxQuantity > 1 && quantityInputRef.current) {
           quantityInputRef.current.focus();
-        } else if (multiCurrency.enabled && usdInputRef.current) {
+        } else if (returnCurrency === 'MIXED' && usdInputRef.current) {
           usdInputRef.current.focus();
-        } else if (customAmountInputRef.current) {
-          customAmountInputRef.current.focus();
         } else if (confirmButtonRef.current) {
           confirmButtonRef.current.focus();
         }
       }, 100);
     }
-  }, [show, maxQuantity, multiCurrency.enabled]);
+  }, [show, maxQuantity, returnCurrency]);
 
   if (!show || !returnData?.entry) return null;
 
@@ -382,7 +366,7 @@ const ReturnModal = ({
               {t?.returnItem || 'Return Item'}
             </h2>
             <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-              {entry.item_name || 'Purchase Return'}
+              {entry.item_name || entry.customer_name || 'Transaction Return'}
             </p>
           </div>
           <button 
@@ -395,10 +379,10 @@ const ReturnModal = ({
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
-          {/* Purchase Info */}
+          {/* Original Transaction Info */}
           <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
-            <h3 className="font-medium text-gray-900 dark:text-white mb-2">
-              {t?.originalPurchase || 'Original Purchase'}
+            <h3 className="font-medium text-gray-900 dark:text-white mb-3">
+              {t?.originalPurchase || 'Original Transaction'}
             </h3>
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
@@ -414,7 +398,7 @@ const ReturnModal = ({
                   {t?.currency || 'Currency'}: 
                 </span>
                 <span className="ml-2 font-medium text-gray-900 dark:text-white">
-                  {entry.currency || 'USD'}
+                  {maxReturnAmounts.originalCurrency}
                 </span>
               </div>
               <div className="col-span-2">
@@ -422,10 +406,16 @@ const ReturnModal = ({
                   {t?.amount || 'Amount'}: 
                 </span>
                 <span className="ml-2 font-medium text-gray-900 dark:text-white">
-                  {entry.currency === 'MULTI' ? (
-                    `$${(entry.multi_currency_usd || 0).toFixed(2)} + د.ع${(entry.multi_currency_iqd || 0).toFixed(0)}`
+                  {maxReturnAmounts.originalCurrency === 'MULTI' ? (
+                    <>
+                      {maxReturnAmounts.usd > 0 && `$${maxReturnAmounts.usd.toFixed(2)}`}
+                      {maxReturnAmounts.usd > 0 && maxReturnAmounts.iqd > 0 && ' + '}
+                      {maxReturnAmounts.iqd > 0 && `د.ع${maxReturnAmounts.iqd.toFixed(0)}`}
+                    </>
+                  ) : maxReturnAmounts.originalCurrency === 'USD' ? (
+                    `$${maxReturnAmounts.usd.toFixed(2)}`
                   ) : (
-                    formatCurrency(entry.total_price || entry.amount || 0, entry.currency || 'USD')
+                    `د.ع${maxReturnAmounts.iqd.toFixed(0)}`
                   )}
                 </span>
               </div>
@@ -444,7 +434,10 @@ const ReturnModal = ({
                 min="1"
                 max={maxQuantity}
                 value={returnQuantity}
-                onChange={(e) => setReturnQuantity(Math.max(1, Math.min(maxQuantity, parseInt(e.target.value) || 1)))}
+                onChange={(e) => {
+                  const value = Math.max(1, Math.min(maxQuantity, parseInt(e.target.value) || 1));
+                  setReturnQuantity(value);
+                }}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
               />
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
@@ -453,25 +446,104 @@ const ReturnModal = ({
             </div>
           )}
 
-          {/* Multi-Currency Toggle */}
-          {(entry.currency === 'MULTI' || allowCustomCurrency) && (
-            <div>
-              <label className="flex items-center space-x-2">
+          {/* Available Return Amounts */}
+          <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
+            <h3 className="font-medium text-blue-900 dark:text-blue-100 mb-2">
+              {t?.availableToReturn || 'Available to Return'}
+            </h3>
+            <div className="space-y-1 text-sm">
+              {maxReturnAmounts.usd > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-blue-700 dark:text-blue-300">USD:</span>
+                  <span className="font-medium text-blue-900 dark:text-blue-100">
+                    ${maxReturnAmounts.usd.toFixed(2)}
+                  </span>
+                </div>
+              )}
+              {maxReturnAmounts.iqd > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-blue-700 dark:text-blue-300">IQD:</span>
+                  <span className="font-medium text-blue-900 dark:text-blue-100">
+                    د.ع{maxReturnAmounts.iqd.toFixed(0)}
+                  </span>
+                </div>
+              )}
+              <div className="border-t border-blue-200 dark:border-blue-800 pt-1 mt-2">
+                <div className="flex justify-between">
+                  <span className="text-blue-700 dark:text-blue-300">{t?.totalValue || 'Total Value'}:</span>
+                  <span className="font-medium text-blue-900 dark:text-blue-100">
+                    ${maxReturnAmounts.totalValueUSD.toFixed(2)} USD
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Return Currency Selection */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+              {t?.returnCurrency || 'How would you like to receive the refund?'}
+            </label>
+            <div className="space-y-3">
+              <label className="flex items-center">
                 <input
-                  type="checkbox"
-                  checked={multiCurrency.enabled}
-                  onChange={(e) => setMultiCurrency(prev => ({ ...prev, enabled: e.target.checked }))}
-                  className="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
+                  type="radio"
+                  name="returnCurrency"
+                  value="USD"
+                  checked={returnCurrency === 'USD'}
+                  onChange={(e) => setReturnCurrency(e.target.value)}
+                  className="text-blue-600 border-gray-300 focus:ring-blue-500"
                 />
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  {t?.multiCurrencyReturn || 'Multi-currency return'}
+                <span className="ml-3 text-sm text-gray-700 dark:text-gray-300">
+                  {t?.allInUSD || 'All in USD'} 
+                  <span className="text-gray-500 ml-1">
+                    (${maxReturnAmounts.totalValueUSD.toFixed(2)})
+                  </span>
+                </span>
+              </label>
+              
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  name="returnCurrency"
+                  value="IQD"
+                  checked={returnCurrency === 'IQD'}
+                  onChange={(e) => setReturnCurrency(e.target.value)}
+                  className="text-blue-600 border-gray-300 focus:ring-blue-500"
+                />
+                <span className="ml-3 text-sm text-gray-700 dark:text-gray-300">
+                  {t?.allInIQD || 'All in IQD'} 
+                  <span className="text-gray-500 ml-1">
+                    (د.ع{(() => {
+                      const entry = returnData?.entry;
+                      const rate = entry?.exchange_rate_usd_to_iqd || getCurrentExchangeRate('USD', 'IQD');
+                      return (maxReturnAmounts.totalValueUSD * rate).toFixed(0);
+                    })()})
+                  </span>
+                </span>
+              </label>
+              
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  name="returnCurrency"
+                  value="MIXED"
+                  checked={returnCurrency === 'MIXED'}
+                  onChange={(e) => setReturnCurrency(e.target.value)}
+                  className="text-blue-600 border-gray-300 focus:ring-blue-500"
+                />
+                <span className="ml-3 text-sm text-gray-700 dark:text-gray-300">
+                  {t?.mixedCurrency || 'Mixed Currency'} 
+                  <span className="text-gray-500 ml-1">
+                    ({t?.customAmounts || 'Custom amounts'})
+                  </span>
                 </span>
               </label>
             </div>
-          )}
+          </div>
 
-          {/* Return Amount Selection */}
-          {multiCurrency.enabled ? (
+          {/* Mixed Currency Inputs */}
+          {returnCurrency === 'MIXED' && (
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -483,13 +555,11 @@ const ReturnModal = ({
                   min="0"
                   max={maxReturnAmounts.usd}
                   step="0.01"
-                  value={multiCurrency.usdAmount}
-                  onChange={(e) => setMultiCurrency(prev => ({ ...prev, usdAmount: parseFloat(e.target.value) || 0 }))}
+                  value={usdAmount}
+                  onChange={(e) => setUsdAmount(e.target.value)}
+                  placeholder={`Max: $${maxReturnAmounts.usd.toFixed(2)}`}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
                 />
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  Max: ${maxReturnAmounts.usd.toFixed(2)}
-                </p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -501,157 +571,72 @@ const ReturnModal = ({
                   min="0"
                   max={maxReturnAmounts.iqd}
                   step="1"
-                  value={multiCurrency.iqdAmount}
-                  onChange={(e) => setMultiCurrency(prev => ({ ...prev, iqdAmount: parseFloat(e.target.value) || 0 }))}
+                  value={iqdAmount}
+                  onChange={(e) => setIqdAmount(e.target.value)}
+                  placeholder={`Max: د.ع${maxReturnAmounts.iqd.toFixed(0)}`}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
                 />
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  Max: د.ع{maxReturnAmounts.iqd.toFixed(0)}
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div>
-              {/* Currency Selection */}
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  {t?.returnCurrency || 'Return Currency'}
-                </label>
-                <div className="flex space-x-4">
-                  <label className="flex items-center">
-                    <input
-                      type="radio"
-                      name="returnCurrency"
-                      value="USD"
-                      checked={returnCurrency === 'USD'}
-                      onChange={(e) => setReturnCurrency(e.target.value)}
-                      className="text-blue-600 border-gray-300 focus:ring-blue-500"
-                    />
-                    <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">USD</span>
-                  </label>
-                  <label className="flex items-center">
-                    <input
-                      type="radio"
-                      name="returnCurrency"
-                      value="IQD"
-                      checked={returnCurrency === 'IQD'}
-                      onChange={(e) => setReturnCurrency(e.target.value)}
-                      className="text-blue-600 border-gray-300 focus:ring-blue-500"
-                    />
-                    <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">IQD</span>
-                  </label>
-                </div>
-              </div>
-
-              {/* Custom Amount */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  {t?.returnAmount || 'Return Amount'} ({returnCurrency})
-                </label>
-                <input
-                  ref={customAmountInputRef}
-                  type="number"
-                  min="0"
-                  max={
-                    returnCurrency === 'USD' ? maxReturnAmounts.usd : maxReturnAmounts.iqd
-                  }
-                  step={returnCurrency === 'USD' ? '0.01' : '1'}
-                  value={customAmount}
-                  onChange={(e) => setCustomAmount(e.target.value)}
-                  placeholder={
-                    returnCurrency === 'USD' 
-                      ? `Max: $${maxReturnAmounts.usd.toFixed(2)}`
-                      : `Max: د.ع${maxReturnAmounts.iqd.toFixed(0)}`
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
-                />
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  {t?.leaveEmptyForFull || 'Leave empty to return the full amount in the selected currency'}
-                </p>
               </div>
             </div>
           )}
 
           {/* Return Summary */}
-          <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
-            <h3 className="font-medium text-blue-900 dark:text-blue-100 mb-2">
+          <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4">
+            <h3 className="font-medium text-green-900 dark:text-green-100 mb-2">
               {t?.returnSummary || 'Return Summary'}
             </h3>
             <div className="space-y-1 text-sm">
-              {returnAmounts.usd > 0 && (
+              {currentReturnAmounts.usd > 0 && (
                 <div className="flex justify-between">
-                  <span className="text-blue-700 dark:text-blue-300">USD:</span>
-                  <span className="font-medium text-blue-900 dark:text-blue-100">
-                    ${returnAmounts.usd.toFixed(2)}
+                  <span className="text-green-700 dark:text-green-300">USD:</span>
+                  <span className="font-medium text-green-900 dark:text-green-100">
+                    ${currentReturnAmounts.usd.toFixed(2)}
                   </span>
                 </div>
               )}
-              {returnAmounts.iqd > 0 && (
+              {currentReturnAmounts.iqd > 0 && (
                 <div className="flex justify-between">
-                  <span className="text-blue-700 dark:text-blue-300">IQD:</span>
-                  <span className="font-medium text-blue-900 dark:text-blue-100">
-                    د.ع{returnAmounts.iqd.toFixed(0)}
+                  <span className="text-green-700 dark:text-green-300">IQD:</span>
+                  <span className="font-medium text-green-900 dark:text-green-100">
+                    د.ع{currentReturnAmounts.iqd.toFixed(0)}
                   </span>
                 </div>
               )}
-              {returnAmounts.exceeded && (
-                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 mt-2">
-                  <p className="text-red-600 dark:text-red-400 text-sm font-medium">
-                    {returnAmounts.insufficientCurrency ? (
-                      <>
-                        {t?.insufficientCurrency || 'Insufficient currency amount for return'}
-                        {returnAmounts.availableAmount !== undefined && returnAmounts.requestedAmount !== undefined && (
-                          <span className="block text-xs mt-1">
-                            {t?.available || 'Available'}: {formatCurrency(returnAmounts.availableAmount, returnCurrency)} | 
-                            {t?.requested || 'Requested'}: {formatCurrency(returnAmounts.requestedAmount, returnCurrency)}
-                          </span>
-                        )}
-                      </>
-                    ) : (
-                      t?.amountExceeded || 'Amount exceeds maximum returnable amount'
-                    )}
-                  </p>
-                  {returnAmounts.insufficientCurrency && (
-                    <p className="text-red-500 dark:text-red-400 text-xs mt-2">
-                      {t?.currencyValidationHint || 'The purchase was made in a different currency. You can either return in the original currency or use the multi-currency option.'}
-                    </p>
-                  )}
+              <div className="border-t border-green-200 dark:border-green-800 pt-1 mt-2">
+                <div className="flex justify-between">
+                  <span className="text-green-700 dark:text-green-300">{t?.totalValue || 'Total Value'}:</span>
+                  <span className="font-medium text-green-900 dark:text-green-100">
+                    ${currentReturnAmounts.totalValueUSD.toFixed(2)} USD
+                  </span>
                 </div>
-              )}
+              </div>
             </div>
-          </div>
-
-          {/* Advanced Options Toggle */}
-          <div>
-            <button
-              type="button"
-              onClick={() => setAllowCustomCurrency(!allowCustomCurrency)}
-              className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-medium"
-            >
-              {allowCustomCurrency 
-                ? (t?.hideAdvanced || 'Hide Advanced Options')
-                : (t?.showAdvanced || 'Show Advanced Options')
-              }
-            </button>
           </div>
         </div>
 
         {/* Footer */}
         <div className="flex justify-end space-x-3 p-6 border-t border-gray-200 dark:border-gray-700">
           <button
-            ref={cancelButtonRef}
             onClick={handleClose}
-            className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            disabled={isProcessing}
+            className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {t?.cancel || 'Cancel'}
           </button>
           <button
             ref={confirmButtonRef}
             onClick={handleConfirm}
-            disabled={returnAmounts.exceeded || (returnAmounts.usd === 0 && returnAmounts.iqd === 0)}
+            disabled={isProcessing || !currentReturnAmounts.isValid}
             className="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {t?.confirmReturn || 'Confirm Return'}
+            {isProcessing ? (
+              <div className="flex items-center space-x-2">
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                <span>{t?.processing || 'Processing...'}</span>
+              </div>
+            ) : (
+              t?.confirmReturn || 'Confirm Return'
+            )}
           </button>
         </div>
 
@@ -664,7 +649,7 @@ const ReturnModal = ({
               Ctrl+Enter ({t?.confirm || 'Confirm'}), 
               Ctrl+1 (USD), 
               Ctrl+2 (IQD), 
-              Ctrl+M ({t?.toggleMulti || 'Toggle Multi-currency'})
+              Ctrl+M ({t?.mixed || 'Mixed'})
             </span>
           </p>
         </div>

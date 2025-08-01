@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { formatCurrency } from '../utils/exchangeRates';
+import { getProductSearchString } from '../utils/productUtils';
 
 const ProductTable = React.memo(function ProductTable({
   title,
@@ -15,9 +16,16 @@ const ProductTable = React.memo(function ProductTable({
 
   // Memoize filtered products to prevent recalculation on every render
   const filtered = useMemo(() => 
-    products.filter(p =>
-      p.name && p.name.toLowerCase().includes(search.toLowerCase())
-    ), [products, search]
+    products.filter(p => {
+      if (!p) return false;
+      
+      if (!search) return true;
+      
+      const searchLower = search.toLowerCase();
+      const searchString = getProductSearchString(p);
+      
+      return searchString.includes(searchLower);
+    }), [products, search]
   );
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-8 w-full">

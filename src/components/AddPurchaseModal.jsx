@@ -46,9 +46,10 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
     }
   }, [show, isCompanyDebtMode]);
 
-  // Load current exchange rates when modal opens
+  // Load current exchange rates and balances when modal opens
   useEffect(() => {
     if (show) {
+      // Load exchange rates
       loadExchangeRatesFromDB().then(success => {
         if (success) {
           // Exchange rates were loaded successfully and are now in EXCHANGE_RATES
@@ -62,8 +63,13 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
         // Keep using EXCHANGE_RATES as fallback
         setCurrentExchangeRates({ ...EXCHANGE_RATES });
       });
+
+      // Load current balances to ensure fresh data
+      if (admin?.loadBalances) {
+        admin.loadBalances();
+      }
     }
-  }, [show]);
+  }, [show, admin]);
 
   // Quick exchange rate change handler
   const handleQuickExchangeRateChange = useCallback(async () => {

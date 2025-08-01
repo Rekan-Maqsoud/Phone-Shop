@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { EXCHANGE_RATES, loadExchangeRatesFromDB, updateExchangeRate } from '../utils/exchangeRates';
+import { getCurrentExchangeRate, loadExchangeRatesFromDB, updateExchangeRate } from '../utils/exchangeRates';
 import { Icon } from '../utils/icons.jsx';
 
 export default function ExchangeRateIndicator({ 
@@ -10,7 +10,7 @@ export default function ExchangeRateIndicator({
   onToast = null // Function to show toast messages instead of alerts
 }) {
   const [showExchangeRateModal, setShowExchangeRateModal] = useState(false);
-  const [newExchangeRate, setNewExchangeRate] = useState(EXCHANGE_RATES.USD_TO_IQD.toString());
+  const [newExchangeRate, setNewExchangeRate] = useState('');
   const [isLoadingRate, setIsLoadingRate] = useState(true);
 
   useEffect(() => {
@@ -18,20 +18,24 @@ export default function ExchangeRateIndicator({
       setIsLoadingRate(true);
       await loadExchangeRatesFromDB();
       setIsLoadingRate(false);
-      setNewExchangeRate(EXCHANGE_RATES.USD_TO_IQD.toString());
+      // Set the current rate for editing
+      const currentRate = getCurrentExchangeRate('USD', 'IQD');
+      setNewExchangeRate(currentRate.toString());
     };
     loadRates();
   }, []);
 
   const handleExchangeRateClick = () => {
     if (isLoadingRate) return;
-    setNewExchangeRate(EXCHANGE_RATES.USD_TO_IQD.toString());
+    const currentRate = getCurrentExchangeRate('USD', 'IQD');
+    setNewExchangeRate(currentRate.toString());
     setShowExchangeRateModal(true);
   };
 
   const handleExchangeRateClose = () => {
     setShowExchangeRateModal(false);
-    setNewExchangeRate(EXCHANGE_RATES.USD_TO_IQD.toString());
+    const currentRate = getCurrentExchangeRate('USD', 'IQD');
+    setNewExchangeRate(currentRate.toString());
   };
 
   const handleExchangeRateUpdate = async () => {
@@ -96,7 +100,7 @@ export default function ExchangeRateIndicator({
         ) : (
           <>
             <Icon name="dollar-sign" size={size === 'lg' ? 20 : size === 'md' ? 16 : 14} />
-            1$ = {EXCHANGE_RATES.USD_TO_IQD.toLocaleString()}{t?.iqd || 'IQD'}
+            1$ = {getCurrentExchangeRate('USD', 'IQD').toLocaleString()}{t?.iqd || 'IQD'}
           </>
         )}
       </button>
@@ -110,7 +114,7 @@ export default function ExchangeRateIndicator({
             </h3>
             <div className="mb-4">
               <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
-                {t.currentRate || 'Current Rate'}: 1$ = {EXCHANGE_RATES.USD_TO_IQD}{t?.iqd || 'IQD'}
+                {t.currentRate || 'Current Rate'}: 1$ = {getCurrentExchangeRate('USD', 'IQD')}{t?.iqd || 'IQD'}
               </label>
               <input
                 type="number"

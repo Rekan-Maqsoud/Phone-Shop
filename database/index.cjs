@@ -925,7 +925,7 @@ module.exports = function(dbPath) {
   }
 
   // Return functions
-  function returnSale(saleId) {
+  function returnSale(saleId, options = {}) {
     const transaction = db.transaction(() => {
       // Debug logging
       if (!saleId || isNaN(Number(saleId))) {
@@ -962,8 +962,29 @@ module.exports = function(dbPath) {
       // Update balances for completed sales returns (subtract from balances if it wasn't a debt sale)
       if (!sale.is_debt) {
         // Regular sale return - subtract from balances
-        // Check if this was a multi-currency sale
-        if (sale.is_multi_currency) {
+        // Check if this was a multi-currency sale and if custom return amounts are provided
+        if (sale.is_multi_currency && options.returnAmounts) {
+          // Use custom return amounts for multi-currency sales
+          const refundUSD = Number(options.returnAmounts.usd) || 0;
+          const refundIQD = Number(options.returnAmounts.iqd) || 0;
+          
+          if (refundUSD > 0) {
+            updateBalance('USD', -refundUSD);
+          }
+          if (refundIQD > 0) {
+            updateBalance('IQD', -refundIQD);
+          }
+
+          // Add comprehensive transaction record for the return with custom amounts
+          addTransaction({
+            type: 'sale_return',
+            amount_usd: -refundUSD, // Negative to indicate money leaving balance
+            amount_iqd: -refundIQD, // Negative to indicate money leaving balance
+            description: `Sale return${sale.customer_name ? ` - ${sale.customer_name}` : ''} (Custom amounts: $${refundUSD} + د.ع${refundIQD})`,
+            reference_id: Number(saleId),
+            reference_type: 'sale'
+          });
+        } else if (sale.is_multi_currency) {
           // For multi-currency sales, subtract the actual amounts that were paid
           const paidUSD = Number(sale.paid_amount_usd) || 0;
           const paidIQD = Number(sale.paid_amount_iqd) || 0;
@@ -975,12 +996,12 @@ module.exports = function(dbPath) {
             updateBalance('IQD', -paidIQD);
           }
           
-          // Add transaction record for the multi-currency sale return
+          // Add comprehensive transaction record for the multi-currency sale return
           addTransaction({
             type: 'sale_return',
-            amount_usd: -paidUSD,
-            amount_iqd: -paidIQD,
-            description: `Sale return${sale.customer_name ? ` - ${sale.customer_name}` : ''} (Multi-currency)`,
+            amount_usd: -paidUSD, // Negative to indicate money leaving balance
+            amount_iqd: -paidIQD, // Negative to indicate money leaving balance
+            description: `Sale return${sale.customer_name ? ` - ${sale.customer_name}` : ''} (Multi-currency: $${paidUSD} + د.ع${paidIQD})`,
             reference_id: Number(saleId),
             reference_type: 'sale'
           });
@@ -997,15 +1018,16 @@ module.exports = function(dbPath) {
             updateBalance('USD', -saleTotal);
           }
 
-          // Add transaction record for the single currency sale return
+          // Add comprehensive transaction record for the single currency sale return
           const usdAmount = sale.currency === 'USD' ? -saleTotal : 0;
           const iqdAmount = sale.currency === 'IQD' ? -saleTotal : 0;
+          const currencySymbol = sale.currency === 'USD' ? '$' : 'د.ع';
           
           addTransaction({
             type: 'sale_return',
-            amount_usd: usdAmount,
-            amount_iqd: iqdAmount,
-            description: `Sale return${sale.customer_name ? ` - ${sale.customer_name}` : ''}`,
+            amount_usd: usdAmount, // Negative for money leaving balance
+            amount_iqd: iqdAmount, // Negative for money leaving balance
+            description: `Sale return${sale.customer_name ? ` - ${sale.customer_name}` : ''} (${sale.currency}: ${currencySymbol}${saleTotal})`,
             reference_id: Number(saleId),
             reference_type: 'sale'
           });
@@ -1025,12 +1047,12 @@ module.exports = function(dbPath) {
             updateBalance('IQD', -paidIQD);
           }
           
-          // Add transaction record for the debt sale return
+          // Add comprehensive transaction record for the debt sale return
           addTransaction({
             type: 'debt_sale_return',
-            amount_usd: -paidUSD,
-            amount_iqd: -paidIQD,
-            description: `Debt sale return${sale.customer_name ? ` - ${sale.customer_name}` : ''} (Balance restoration)`,
+            amount_usd: -paidUSD, // Negative to indicate money leaving balance
+            amount_iqd: -paidIQD, // Negative to indicate money leaving balance
+            description: `Debt sale return${sale.customer_name ? ` - ${sale.customer_name}` : ''} (Balance restoration: $${paidUSD} + د.ع${paidIQD})`,
             reference_id: Number(saleId),
             reference_type: 'sale'
           });
@@ -1318,42 +1340,125 @@ module.exports = function(dbPath) {
       let refundUSD = 0;
       let refundIQD = 0;
 
-      // Determine if this is a partial return
-      const originalQuantity = entry.quantity || 1;
-      const returnQuantity = Number(options.quantity) || originalQuantity;
+      // Determine if this is a partial return with better validation
+      const originalQuantity = Math.max(1, Number(entry.quantity) || 1);
+      let returnQuantity = Number(options.quantity) || originalQuantity;
+      
+      // Validate return quantity
+      if (returnQuantity < 1) {
+        throw new Error('Return quantity must be at least 1');
+      }
+      if (returnQuantity > originalQuantity) {
+        throw new Error(`Return quantity (${returnQuantity}) cannot exceed original quantity (${originalQuantity})`);
+      }
+      
       const isPartialReturn = returnQuantity < originalQuantity;
       const quantityRatio = Math.min(returnQuantity / originalQuantity, 1);
 
-      // Handle custom return amounts if provided - with validation
+      // Handle custom return amounts if provided - with improved validation that allows currency conversion
       if (options.returnAmounts && (options.returnAmounts.usd > 0 || options.returnAmounts.iqd > 0)) {
         const requestedUSD = Number(options.returnAmounts.usd) || 0;
         const requestedIQD = Number(options.returnAmounts.iqd) || 0;
         
-        // Validate return amounts don't exceed original purchase
-        let maxRefundUSD = 0;
-        let maxRefundIQD = 0;
+        console.log('🔍 [BACKEND DEBUG] Return request received:', {
+          requestedUSD,
+          requestedIQD,
+          entryId: entry.id,
+          entryCurrency: entry.currency,
+          entryTotalPrice: entry.total_price,
+          entryAmount: entry.amount,
+          entryMultiUSD: entry.multi_currency_usd,
+          entryMultiIQD: entry.multi_currency_iqd,
+          entryExchangeRates: {
+            usdToIqd: entry.exchange_rate_usd_to_iqd,
+            iqdToUsd: entry.exchange_rate_iqd_to_usd
+          }
+        });
+        
+        // Use original exchange rate from the purchase, not current rate
+        let originalExchangeRate, originalIqdToUsd;
+        if (entry.exchange_rate_usd_to_iqd && entry.exchange_rate_iqd_to_usd) {
+          // Use the exchange rate from when the purchase was made
+          originalExchangeRate = entry.exchange_rate_usd_to_iqd;
+          originalIqdToUsd = entry.exchange_rate_iqd_to_usd;
+          console.log('🔍 [BACKEND DEBUG] Using ORIGINAL exchange rates:', {
+            originalExchangeRate,
+            originalIqdToUsd,
+            source: 'purchase_record'
+          });
+        } else {
+          // Fallback to current rate if original rate not stored
+          originalExchangeRate = settings.getExchangeRate(db, 'USD', 'IQD');
+          originalIqdToUsd = 1 / originalExchangeRate;
+          console.log('🔍 [BACKEND DEBUG] Using CURRENT exchange rates:', {
+            originalExchangeRate,
+            originalIqdToUsd,
+            source: 'current_settings'
+          });
+        }
+        
+        // Calculate the total value of the original purchase in USD equivalent
+        let originalValueUSD = 0;
         
         if (entry.currency === 'MULTI' || (entry.multi_currency_usd > 0 && entry.multi_currency_iqd > 0)) {
-          // Multi-currency entry (either marked as MULTI or has both USD and IQD amounts)
-          maxRefundUSD = (entry.multi_currency_usd || 0) * quantityRatio;
-          maxRefundIQD = (entry.multi_currency_iqd || 0) * quantityRatio;
+          // Multi-currency entry - sum both currencies converted to USD
+          const usdPortion = (entry.multi_currency_usd || 0) * quantityRatio;
+          const iqdPortion = (entry.multi_currency_iqd || 0) * quantityRatio;
+          originalValueUSD = usdPortion + (iqdPortion * originalIqdToUsd); // Use original rate
+          
+          console.log('🔍 [BACKEND DEBUG] Multi-currency original value calculation:', {
+            usdPortion,
+            iqdPortion,
+            originalIqdToUsd,
+            originalValueUSD,
+            calculation: `${usdPortion} + (${iqdPortion} * ${originalIqdToUsd}) = ${originalValueUSD}`
+          });
         } else if ((entry.multi_currency_usd || 0) > 0 || (entry.multi_currency_iqd || 0) > 0) {
           // Single currency but stored in multi-currency columns
-          maxRefundUSD = (entry.multi_currency_usd || 0) * quantityRatio;
-          maxRefundIQD = (entry.multi_currency_iqd || 0) * quantityRatio;
+          const usdPortion = (entry.multi_currency_usd || 0) * quantityRatio;
+          const iqdPortion = (entry.multi_currency_iqd || 0) * quantityRatio;
+          originalValueUSD = usdPortion + (iqdPortion * originalIqdToUsd); // Use original rate
+          
+          console.log('🔍 [BACKEND DEBUG] Single currency in multi columns:', {
+            usdPortion,
+            iqdPortion,
+            originalIqdToUsd,
+            originalValueUSD
+          });
         } else {
           // Traditional single currency entry
           const originalAmount = (entry.total_price || entry.amount || 0) * quantityRatio;
           if (entry.currency === 'USD') {
-            maxRefundUSD = originalAmount;
+            originalValueUSD = originalAmount;
+            console.log('🔍 [BACKEND DEBUG] USD single currency:', { originalAmount, originalValueUSD });
           } else {
-            maxRefundIQD = originalAmount;
+            originalValueUSD = originalAmount * originalIqdToUsd; // Use original rate
+            console.log('🔍 [BACKEND DEBUG] IQD single currency:', {
+              originalAmount,
+              originalIqdToUsd,
+              originalValueUSD,
+              calculation: `${originalAmount} * ${originalIqdToUsd} = ${originalValueUSD}`
+            });
           }
         }
         
-        // Check if requested amounts exceed available amounts
-        if (requestedUSD > maxRefundUSD || requestedIQD > maxRefundIQD) {
-          throw new Error(`Invalid return amount. Maximum refundable: $${maxRefundUSD.toFixed(2)} USD, ${maxRefundIQD.toFixed(0)} IQD. Requested: $${requestedUSD.toFixed(2)} USD, ${requestedIQD.toFixed(0)} IQD.`);
+        // Calculate the total value of the requested return in USD equivalent
+        const requestedValueUSD = requestedUSD + (requestedIQD * originalIqdToUsd); // Use original rate
+        
+        console.log('🔍 [BACKEND DEBUG] Return value validation:', {
+          requestedUSD,
+          requestedIQD,
+          originalIqdToUsd,
+          requestedValueUSD,
+          originalValueUSD,
+          calculation: `${requestedUSD} + (${requestedIQD} * ${originalIqdToUsd}) = ${requestedValueUSD}`,
+          isValid: requestedValueUSD <= originalValueUSD + 0.01,
+          tolerance: 0.01
+        });
+        
+        // Check if total requested value exceeds original value (with small tolerance for rounding)
+        if (requestedValueUSD > originalValueUSD + 0.01) {
+          throw new Error(`Invalid return amount. Total return value ($${requestedValueUSD.toFixed(2)} USD equivalent) exceeds original purchase value ($${originalValueUSD.toFixed(2)} USD equivalent).`);
         }
         
         refundUSD = requestedUSD;
@@ -1479,20 +1584,21 @@ module.exports = function(dbPath) {
         settings.updateBalance(db, 'IQD', refundIQD);
       }
 
-      // Create a reverse transaction for tracking
+      // Create a comprehensive transaction record for daily balance tracking
       const transactionStmt = db.prepare(`
         INSERT INTO transactions (type, amount_usd, amount_iqd, description, reference_id, reference_type, created_at) 
         VALUES (?, ?, ?, ?, ?, ?, ?)
       `);
       
       const returnDescription = isPartialReturn ? 
-        `Partial purchase return: ${entry.item_name || 'Multiple items'} (${returnQuantity}x)` :
-        `Purchase return: ${entry.item_name || 'Multiple items'}`;
+        `Partial purchase return: ${entry.item_name || 'Multiple items'} (${returnQuantity}/${originalQuantity})` :
+        `Full purchase return: ${entry.item_name || 'Multiple items'}`;
       
+      // Add the return transaction with positive amounts (money coming back into balance)
       transactionStmt.run(
-        'purchase_return',
-        refundUSD, // Positive to indicate refund/income
-        refundIQD, // Positive to indicate refund/income
+        'buying_history_return',  // More specific transaction type for better tracking
+        refundUSD, // Positive to indicate refund/income for daily balance
+        refundIQD, // Positive to indicate refund/income for daily balance
         returnDescription,
         entry.id,
         'buying_history',
@@ -1500,44 +1606,66 @@ module.exports = function(dbPath) {
       );
 
       if (isPartialReturn) {
-        // For partial returns, update the entry quantities and prices
+        // For partial returns, systematically update the entry quantities and prices
         const remainingQuantity = originalQuantity - returnQuantity;
         const remainingRatio = remainingQuantity / originalQuantity;
         
-        // Update the entry with remaining quantities and adjusted prices
+        // Handle different currency scenarios with precision
         if (entry.currency === 'MULTI' || (entry.multi_currency_usd > 0 && entry.multi_currency_iqd > 0)) {
-          // Multi-currency entry (either marked as MULTI or has both USD and IQD amounts)
-          const newUSD = (entry.multi_currency_usd || 0) * remainingRatio;
-          const newIQD = (entry.multi_currency_iqd || 0) * remainingRatio;
+          // Multi-currency entry - update both USD and IQD portions proportionally
+          const originalUSD = Number(entry.multi_currency_usd) || 0;
+          const originalIQD = Number(entry.multi_currency_iqd) || 0;
+          
+          const newUSD = Math.round((originalUSD * remainingRatio) * 100) / 100; // Round to 2 decimal places
+          const newIQD = Math.round((originalIQD * remainingRatio) * 100) / 100;
+          
+          // Calculate new total price in USD equivalent for consistency
+          const exchangeRate = settings.getExchangeRate(db, 'USD', 'IQD');
+          const newTotalPrice = newUSD + (newIQD / exchangeRate);
           
           db.prepare(`
             UPDATE buying_history 
-            SET quantity = ?, multi_currency_usd = ?, multi_currency_iqd = ?, total_price = ?
+            SET quantity = ?, 
+                multi_currency_usd = ?, 
+                multi_currency_iqd = ?, 
+                total_price = ?
             WHERE id = ?
-          `).run(remainingQuantity, newUSD, newIQD, newUSD + (newIQD / (settings.getExchangeRate(db, 'USD', 'IQD') || 1390)), entry.id);
+          `).run(remainingQuantity, newUSD, newIQD, newTotalPrice, entry.id);
+          
         } else if ((entry.multi_currency_usd || 0) > 0 || (entry.multi_currency_iqd || 0) > 0) {
-          // Single currency but stored in multi-currency columns
-          const newUSD = (entry.multi_currency_usd || 0) * remainingRatio;
-          const newIQD = (entry.multi_currency_iqd || 0) * remainingRatio;
-          const newTotalPrice = (entry.total_price || entry.amount || 0) * remainingRatio;
+          // Single currency stored in multi-currency columns
+          const originalUSD = Number(entry.multi_currency_usd) || 0;
+          const originalIQD = Number(entry.multi_currency_iqd) || 0;
+          
+          const newUSD = Math.round((originalUSD * remainingRatio) * 100) / 100;
+          const newIQD = Math.round((originalIQD * remainingRatio) * 100) / 100;
+          const newTotalPrice = Math.round(((entry.total_price || entry.amount || 0) * remainingRatio) * 100) / 100;
           
           db.prepare(`
             UPDATE buying_history 
-            SET quantity = ?, multi_currency_usd = ?, multi_currency_iqd = ?, total_price = ?, amount = ?
+            SET quantity = ?, 
+                multi_currency_usd = ?, 
+                multi_currency_iqd = ?, 
+                total_price = ?, 
+                amount = ?
             WHERE id = ?
           `).run(remainingQuantity, newUSD, newIQD, newTotalPrice, newTotalPrice, entry.id);
+          
         } else {
-          // Traditional single currency entry
-          const newTotalPrice = (entry.total_price || entry.amount || 0) * remainingRatio;
+          // Traditional single currency entry - maintain precision
+          const originalAmount = Number(entry.total_price || entry.amount) || 0;
+          const newTotalPrice = Math.round((originalAmount * remainingRatio) * 100) / 100;
           
           db.prepare(`
             UPDATE buying_history 
-            SET quantity = ?, total_price = ?, amount = ?
+            SET quantity = ?, 
+                total_price = ?, 
+                amount = ?
             WHERE id = ?
           `).run(remainingQuantity, newTotalPrice, newTotalPrice, entry.id);
         }
       } else {
-        // For full returns, delete the buying history entry
+        // For full returns, delete the buying history entry completely
         db.prepare('DELETE FROM buying_history WHERE id = ?').run(entry.id);
       }
 
@@ -1602,32 +1730,53 @@ module.exports = function(dbPath) {
       const itemReturnValue = (item.unit_price || 0) * returnQty;
       const itemCurrency = item.currency || entry.currency || 'IQD';
       
-      // Handle custom return amounts if provided
+      // Handle custom return amounts with improved validation and currency conversion
       if (options.returnAmounts && (options.returnAmounts.usd > 0 || options.returnAmounts.iqd > 0)) {
-        refundUSD = Number(options.returnAmounts.usd) || 0;
-        refundIQD = Number(options.returnAmounts.iqd) || 0;
+        refundUSD = Math.round((Number(options.returnAmounts.usd) || 0) * 100) / 100;
+        refundIQD = Math.round((Number(options.returnAmounts.iqd) || 0) * 100) / 100;
+        
+        // Get current exchange rates for validation
+        const currentUSDToIQD = settings.getExchangeRate(db, 'USD', 'IQD');
+        const currentIQDToUSD = settings.getExchangeRate(db, 'IQD', 'USD');
+        
+        // Calculate the maximum allowable return value in both currencies for validation
+        let maxReturnUSD = 0;
+        let maxReturnIQD = 0;
+        
+        if (itemCurrency === 'USD') {
+          maxReturnUSD = itemReturnValue;
+          maxReturnIQD = itemReturnValue * currentUSDToIQD; // Convert to IQD for comparison
+        } else {
+          maxReturnIQD = itemReturnValue;
+          maxReturnUSD = itemReturnValue * currentIQDToUSD; // Convert to USD for comparison
+        }
+        
+        // Validate the total return value doesn't exceed the original item value
+        const totalReturnValueUSD = refundUSD + (refundIQD * currentIQDToUSD);
+        const maxReturnValueUSD = itemCurrency === 'USD' ? itemReturnValue : itemReturnValue * currentIQDToUSD;
+        
+        if (totalReturnValueUSD > maxReturnValueUSD + 0.01) { // Small tolerance for floating point
+          throw new Error(`Return amount cannot exceed original item value. Max: $${maxReturnValueUSD.toFixed(2)} USD, Requested: $${totalReturnValueUSD.toFixed(2)} USD`);
+        }
       } else {
         // Default refund calculation based on original purchase
-        if (entry.currency === 'MULTI') {
-          // For multi-currency purchases, calculate proportional refund
-          const totalOriginalUSD = entry.multi_currency_usd || 0;
-          const totalOriginalIQD = entry.multi_currency_iqd || 0;
-          
-          // Get all items to calculate total value
-          const allItems = db.prepare('SELECT * FROM buying_history_items WHERE buying_history_id = ?').all(entryId);
-          const totalOriginalValue = allItems.reduce((sum, i) => sum + ((i.unit_price || 0) * (i.quantity || 1)), 0);
-          
-          if (totalOriginalValue > 0) {
-            const returnRatio = itemReturnValue / totalOriginalValue;
-            refundUSD = totalOriginalUSD * returnRatio;
-            refundIQD = totalOriginalIQD * returnRatio;
+        const isMultiCurrencyPurchase = (entry.multi_currency_usd && entry.multi_currency_usd > 0) || 
+                                        (entry.multi_currency_iqd && entry.multi_currency_iqd > 0) ||
+                                        entry.currency === 'MULTI';
+        
+        if (isMultiCurrencyPurchase) {
+          // For multi-currency purchases, calculate refund based on item's original currency
+          if (itemCurrency === 'USD') {
+            refundUSD = Math.round(itemReturnValue * 100) / 100;
+          } else {
+            refundIQD = Math.round(itemReturnValue * 100) / 100;
           }
         } else {
           // Single currency
           if (itemCurrency === 'USD') {
-            refundUSD = itemReturnValue;
+            refundUSD = Math.round(itemReturnValue * 100) / 100;
           } else {
-            refundIQD = itemReturnValue;
+            refundIQD = Math.round(itemReturnValue * 100) / 100;
           }
         }
       }
@@ -1636,28 +1785,84 @@ module.exports = function(dbPath) {
         // Remove the item completely
         db.prepare('DELETE FROM buying_history_items WHERE id = ?').run(itemId);
       } else {
-        // Update the item quantity and total price
-        const newTotalPrice = item.unit_price * newQuantity;
-        db.prepare('UPDATE buying_history_items SET quantity = ?, total_price = ? WHERE id = ?').run(newQuantity, newTotalPrice, itemId);
+        // Update the item quantity and recalculate total price with precision
+        const newTotalPrice = Math.round((item.unit_price * newQuantity) * 100) / 100;
+        db.prepare('UPDATE buying_history_items SET quantity = ?, total_price = ? WHERE id = ?')
+          .run(newQuantity, newTotalPrice, itemId);
       }
       
-      // Update the buying history entry totals
+      // Systematically update the buying history entry totals
       const remainingItems = db.prepare('SELECT * FROM buying_history_items WHERE buying_history_id = ?').all(entryId);
       
-      if (entry.currency === 'MULTI') {
-        // Update multi-currency totals
-        const newUSDTotal = Math.max(0, (entry.multi_currency_usd || 0) - refundUSD);
-        const newIQDTotal = Math.max(0, (entry.multi_currency_iqd || 0) - refundIQD);
+      // Check if this is a multi-currency purchase by looking at the multi-currency columns
+      const isMultiCurrencyPurchase = (entry.multi_currency_usd && entry.multi_currency_usd > 0) || 
+                                      (entry.multi_currency_iqd && entry.multi_currency_iqd > 0) ||
+                                      entry.currency === 'MULTI';
+      
+      if (isMultiCurrencyPurchase) {
+        // Update multi-currency totals with proper precision
+        const newUSDTotal = Math.round(Math.max(0, (entry.multi_currency_usd || 0) - refundUSD) * 100) / 100;
+        const newIQDTotal = Math.round(Math.max(0, (entry.multi_currency_iqd || 0) - refundIQD) * 100) / 100;
         
-        db.prepare('UPDATE buying_history SET multi_currency_usd = ?, multi_currency_iqd = ?, total_price = ? WHERE id = ?')
-          .run(newUSDTotal, newIQDTotal, newUSDTotal + (newIQDTotal / 1440), entryId);
+        // For multi-currency purchases, calculate total_price as USD equivalent
+        const exchangeRate = settings.getExchangeRate(db, 'USD', 'IQD');
+        const newTotalPrice = Math.round((newUSDTotal + (newIQDTotal / exchangeRate)) * 100) / 100;
+        
+        db.prepare(`
+          UPDATE buying_history 
+          SET multi_currency_usd = ?, 
+              multi_currency_iqd = ?, 
+              total_price = ?,
+              amount = ?
+          WHERE id = ?
+        `).run(newUSDTotal, newIQDTotal, newTotalPrice, newTotalPrice, entryId);
       } else {
-        // Single currency - update total price
-        const newTotal = remainingItems.reduce((sum, item) => sum + item.total_price, 0);
-        db.prepare('UPDATE buying_history SET total_price = ? WHERE id = ?').run(newTotal, entryId);
+        // Single currency purchase with potentially multi-currency return
+        // We need to handle the case where someone returns in a different currency than purchased
+        
+        if (refundUSD > 0 && refundIQD > 0) {
+          // This is a cross-currency return - convert to multi-currency entry
+          const originalAmount = Number(entry.total_price) || Number(entry.amount) || 0;
+          const remainingTotalFromItems = Math.round(remainingItems.reduce((sum, item) => sum + (item.total_price || 0), 0) * 100) / 100;
+          
+          if (entry.currency === 'USD') {
+            // Original was USD, now becoming multi-currency
+            const newUSDTotal = Math.round(Math.max(0, originalAmount - refundUSD) * 100) / 100;
+            const newIQDTotal = Math.round(-refundIQD * 100) / 100; // Track that IQD was returned from USD purchase
+            
+            db.prepare(`
+              UPDATE buying_history 
+              SET currency = 'MULTI',
+                  multi_currency_usd = ?, 
+                  multi_currency_iqd = ?, 
+                  total_price = ?,
+                  amount = ?
+              WHERE id = ?
+            `).run(newUSDTotal, 0, remainingTotalFromItems, remainingTotalFromItems, entryId);
+          } else {
+            // Original was IQD, now becoming multi-currency
+            const newIQDTotal = Math.round(Math.max(0, originalAmount - refundIQD) * 100) / 100;
+            const newUSDTotal = Math.round(-refundUSD * 100) / 100; // Track that USD was returned from IQD purchase
+            
+            db.prepare(`
+              UPDATE buying_history 
+              SET currency = 'MULTI',
+                  multi_currency_usd = ?, 
+                  multi_currency_iqd = ?, 
+                  total_price = ?,
+                  amount = ?
+              WHERE id = ?
+            `).run(0, newIQDTotal, remainingTotalFromItems, remainingTotalFromItems, entryId);
+          }
+        } else {
+          // Single currency return - standard update
+          const newTotal = Math.round(remainingItems.reduce((sum, item) => sum + (item.total_price || 0), 0) * 100) / 100;
+          db.prepare('UPDATE buying_history SET total_price = ?, amount = ? WHERE id = ?')
+            .run(newTotal, newTotal, entryId);
+        }
       }
       
-      // Add transaction record for the partial return
+      // Add comprehensive transaction record for the item return (for daily balance tracking)
       const addTransactionStmt = db.prepare(`
         INSERT INTO transactions (type, amount_usd, amount_iqd, description, reference_id, reference_type, created_at) 
         VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -1665,20 +1870,20 @@ module.exports = function(dbPath) {
       
       addTransactionStmt.run(
         'buying_history_item_return',
-        refundUSD,
-        refundIQD,
-        `Buying history item return: ${item.item_name} (${returnQty}x)`,
+        refundUSD, // Positive amount indicates money coming back to balance
+        refundIQD, // Positive amount indicates money coming back to balance
+        `Item return: ${item.item_name} (${returnQty}/${currentQuantity}) - Entry ID: ${entryId}`,
         entryId,
         'buying_history',
         new Date().toISOString()
       );
 
-      // Add back to balance (refund the purchase)
+      // Refund to balance with proper precision
       if (refundUSD > 0) {
-        updateBalance('USD', refundUSD);
+        settings.updateBalance(db, 'USD', refundUSD);
       }
       if (refundIQD > 0) {
-        updateBalance('IQD', refundIQD);
+        settings.updateBalance(db, 'IQD', refundIQD);
       }
       
       // If no items left, remove the buying history entry entirely

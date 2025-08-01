@@ -13,20 +13,55 @@ function getBuyingHistory(db) {
       enhancedEntry.items = items;
     }
     
-    // For MULTI currency entries, get the actual USD and IQD amounts from transactions
-    if (entry.currency === 'MULTI') {
-      const transaction = db.prepare(`
-        SELECT amount_usd, amount_iqd 
-        FROM transactions 
-        WHERE reference_id = ? AND reference_type = 'buying_history' AND type = 'direct_purchase'
-        ORDER BY created_at DESC 
-        LIMIT 1
-      `).get(entry.id);
-      
-      if (transaction) {
-        // Convert negative transaction amounts (spending) to positive display amounts
-        enhancedEntry.multi_currency_usd = Math.abs(transaction.amount_usd || 0);
-        enhancedEntry.multi_currency_iqd = Math.abs(transaction.amount_iqd || 0);
+    // For MULTI currency entries OR entries with multi-currency column data, prioritize column values, fallback to transaction data
+    if (entry.currency === 'MULTI' || entry.multi_currency_usd !== null || entry.multi_currency_iqd !== null) {
+      // First try to use the direct column values
+      if (entry.multi_currency_usd !== null || entry.multi_currency_iqd !== null) {
+        enhancedEntry.multi_currency_usd = entry.multi_currency_usd || 0;
+        enhancedEntry.multi_currency_iqd = entry.multi_currency_iqd || 0;
+        
+        console.log('🔍 [MULTI CURRENCY DEBUG] Using direct columns for Entry ID:', entry.id, {
+          original_total_price: entry.total_price,
+          currency: entry.currency,
+          column_usd: entry.multi_currency_usd,
+          column_iqd: entry.multi_currency_iqd,
+          display_usd: enhancedEntry.multi_currency_usd,
+          display_iqd: enhancedEntry.multi_currency_iqd
+        });
+      } else if (entry.currency === 'MULTI') {
+        // Fallback to transaction data for older MULTI entries
+        const transaction = db.prepare(`
+          SELECT amount_usd, amount_iqd 
+          FROM transactions 
+          WHERE reference_id = ? AND reference_type = 'buying_history' AND type = 'direct_purchase'
+          ORDER BY created_at DESC 
+          LIMIT 1
+        `).get(entry.id);
+        
+        if (transaction) {
+          // Convert negative transaction amounts (spending) to positive display amounts
+          enhancedEntry.multi_currency_usd = Math.abs(transaction.amount_usd || 0);
+          enhancedEntry.multi_currency_iqd = Math.abs(transaction.amount_iqd || 0);
+          
+          console.log('🔍 [MULTI CURRENCY DEBUG] Using transaction data for Entry ID:', entry.id, {
+            original_total_price: entry.total_price,
+            currency: entry.currency,
+            transaction_usd: transaction.amount_usd,
+            transaction_iqd: transaction.amount_iqd,
+            display_usd: enhancedEntry.multi_currency_usd,
+            display_iqd: enhancedEntry.multi_currency_iqd
+          });
+        }
+      }
+    } else {
+      // For single currency entries, validate the currency is correct
+      if (entry.currency === 'IQD' && entry.total_price) {
+        // Ensure IQD values are not accidentally converted
+        console.log('🔍 [IQD ENTRY DEBUG] Entry ID:', entry.id, {
+          currency: entry.currency,
+          total_price: entry.total_price,
+          supplier: entry.supplier
+        });
       }
     }
     
@@ -303,8 +338,8 @@ function addDirectPurchaseMultiCurrencyWithItems(db, { supplier, date, items, us
     // Create a single buying history entry for the multi-currency purchase
     const result = db.prepare(`
       INSERT INTO buying_history 
-      (item_name, quantity, unit_price, total_price, supplier, date, currency, has_items) 
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      (item_name, quantity, unit_price, total_price, supplier, date, currency, has_items, multi_currency_usd, multi_currency_iqd) 
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       multiCurrencyItemName,
       totalQuantity,
@@ -313,7 +348,9 @@ function addDirectPurchaseMultiCurrencyWithItems(db, { supplier, date, items, us
       supplier,
       purchaseDate,
       'MULTI', // Special currency indicator
-      1 // has_items = true
+      1, // has_items = true
+      total_usd, // Store actual USD amount
+      total_iqd  // Store actual IQD amount
     );
     
     const buyingHistoryId = result.lastInsertRowid;

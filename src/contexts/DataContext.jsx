@@ -322,6 +322,7 @@ export const DataProvider = ({ children }) => {
     
     // Fetch functions
     fetchAllData,
+    refreshAllData: fetchAllData, // Alias for backwards compatibility
     reloadApp,
     refreshProducts,
     refreshAccessories,

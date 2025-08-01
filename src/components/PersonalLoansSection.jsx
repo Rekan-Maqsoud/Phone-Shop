@@ -1,11 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { EXCHANGE_RATES, formatCurrencyWithTranslation } from '../utils/exchangeRates';
+import { EXCHANGE_RATES, formatCurrency } from '../utils/exchangeRates';
 import UniversalPaymentModal from './UniversalPaymentModal';
 import { Icon } from '../utils/icons.jsx';
-
-const formatCurrency = (amount, currency = 'USD', t) => {
-  return formatCurrencyWithTranslation(amount, currency, t);
-};
 
 export default function PersonalLoansSection({ admin, t, showConfirm }) {
   const [loans, setLoans] = useState([]);
@@ -76,8 +72,8 @@ export default function PersonalLoansSection({ admin, t, showConfirm }) {
 
       if (result?.success) {
         const amounts = [];
-        if (usdAmount > 0) amounts.push(formatCurrency(usdAmount, 'USD', t));
-        if (iqdAmount > 0) amounts.push(formatCurrency(iqdAmount, 'IQD', t));
+        if (usdAmount > 0) amounts.push(formatCurrency(usdAmount, 'USD'));
+        if (iqdAmount > 0) amounts.push(formatCurrency(iqdAmount, 'IQD'));
         
         admin.setToast?.(`${t.success || 'Success'}: Loan of ${amounts.join(' + ')} added to ${formData.person_name}`, 'success');
         setFormData({ person_name: '', usd_amount: '', iqd_amount: '', description: '' });
@@ -127,7 +123,7 @@ export default function PersonalLoansSection({ admin, t, showConfirm }) {
 
     // Validate payment doesn't exceed remaining amounts
     if (usdPayment > remainingUSD) {
-      admin.setToast?.(`${t.error || 'Error'}: ${t?.usd || 'USD'} payment of $${usdPayment} exceeds remaining balance of $${remainingUSD}`, 'error');
+      admin.setToast?.(`${t.error || 'Error'}: ${t?.usd || 'USD'} payment of ${formatCurrency(usdPayment, 'USD')} exceeds remaining balance of ${formatCurrency(remainingUSD, 'USD')}`, 'error');
       return;
     }
     if (iqdPayment > remainingIQD) {
@@ -148,8 +144,8 @@ export default function PersonalLoansSection({ admin, t, showConfirm }) {
 
       if (result?.success) {
         const amounts = [];
-        if (usdPayment > 0) amounts.push(formatCurrency(usdPayment, 'USD', t));
-        if (iqdPayment > 0) amounts.push(formatCurrency(iqdPayment, 'IQD', t));
+        if (usdPayment > 0) amounts.push(formatCurrency(usdPayment, 'USD'));
+        if (iqdPayment > 0) amounts.push(formatCurrency(iqdPayment, 'IQD'));
         
         admin.setToast?.(`${t.success || 'Success'}: Loan payment of ${amounts.join(' + ')} received from ${selectedLoan.person_name}`, 'success');
         fetchLoans();
@@ -198,8 +194,11 @@ export default function PersonalLoansSection({ admin, t, showConfirm }) {
         groups[personName].paidUSD += loan.usd_amount || 0;
         groups[personName].paidIQD += loan.iqd_amount || 0;
       } else {
-        groups[personName].unpaidUSD += loan.usd_amount || 0;
-        groups[personName].unpaidIQD += loan.iqd_amount || 0;
+        // Calculate remaining amounts after partial payments
+        const remainingUSD = (loan.usd_amount || 0) - (loan.payment_usd_amount || 0);
+        const remainingIQD = (loan.iqd_amount || 0) - (loan.payment_iqd_amount || 0);
+        groups[personName].unpaidUSD += remainingUSD;
+        groups[personName].unpaidIQD += remainingIQD;
       }
     });
 
@@ -219,8 +218,8 @@ export default function PersonalLoansSection({ admin, t, showConfirm }) {
     });
   }, [groupedLoans, searchTerm, showPaidLoans]);
 
-  const totalUnpaidUSD = loans.filter(l => !l.paid_at).reduce((sum, l) => sum + (l.usd_amount || 0), 0);
-  const totalUnpaidIQD = loans.filter(l => !l.paid_at).reduce((sum, l) => sum + (l.iqd_amount || 0), 0);
+  const totalUnpaidUSD = loans.filter(l => !l.paid_at).reduce((sum, l) => sum + ((l.usd_amount || 0) - (l.payment_usd_amount || 0)), 0);
+  const totalUnpaidIQD = loans.filter(l => !l.paid_at).reduce((sum, l) => sum + ((l.iqd_amount || 0) - (l.payment_iqd_amount || 0)), 0);
 
   const togglePersonExpanded = (personName) => {
     setExpandedPersons(prev => {
@@ -300,7 +299,7 @@ export default function PersonalLoansSection({ admin, t, showConfirm }) {
               </svg>
               <span className="text-green-100 text-sm">{t?.outstandingUSD || 'Outstanding USD'}</span>
             </div>
-            <div className="text-3xl font-bold">{formatCurrency(totalUnpaidUSD, 'USD', t)}</div>
+            <div className="text-3xl font-bold">{formatCurrency(totalUnpaidUSD, 'USD')}</div>
             <div className="text-green-100 text-sm">{t?.totalLoaned || 'Total Loaned'}</div>
           </div>
 
@@ -309,7 +308,7 @@ export default function PersonalLoansSection({ admin, t, showConfirm }) {
               <Icon name="dollar-sign" size={24} className="text-white" />
               <span className="text-orange-100 text-sm">{t?.outstandingIQD || 'Outstanding IQD'}</span>
             </div>
-            <div className="text-3xl font-bold">{formatCurrency(totalUnpaidIQD, 'IQD', t)}</div>
+            <div className="text-3xl font-bold">{formatCurrency(totalUnpaidIQD, 'IQD')}</div>
             <div className="text-orange-100 text-sm">{t?.totalLoaned || 'Total Loaned'}</div>
           </div>
 
@@ -321,10 +320,10 @@ export default function PersonalLoansSection({ admin, t, showConfirm }) {
               <span className="text-blue-100 text-sm">{t?.currentBalance || 'Current Balance'}</span>
             </div>
             <div className="text-lg font-bold">
-              {formatCurrency(balances.usd_balance, 'USD', t)}
+              {formatCurrency(balances.usd_balance, 'USD')}
             </div>
             <div className="text-lg font-bold">
-              {formatCurrency(balances.iqd_balance, 'IQD', t)}
+              {formatCurrency(balances.iqd_balance, 'IQD')}
             </div>
           </div>
         </div>
@@ -382,12 +381,12 @@ export default function PersonalLoansSection({ admin, t, showConfirm }) {
                           <div>
                             {group.unpaidUSD > 0 && (
                               <div className="text-lg font-bold text-purple-600 dark:text-purple-400">
-                                <Icon name="dollar-sign" className="inline mr-1" size={16} />{formatCurrency(group.unpaidUSD, 'USD')}
+                                {formatCurrency(group.unpaidUSD, 'USD')}
                               </div>
                             )}
                             {group.unpaidIQD > 0 && (
                               <div className="text-lg font-bold text-purple-600 dark:text-purple-400">
-                                <Icon name="dollar-sign" className="inline mr-1" size={16} />{formatCurrency(group.unpaidIQD, 'IQD')}
+                                {formatCurrency(group.unpaidIQD, 'IQD')}
                               </div>
                             )}
                           </div>
@@ -558,12 +557,12 @@ export default function PersonalLoansSection({ admin, t, showConfirm }) {
                   </div>
                   {formData.usd_amount && (
                     <div className="text-xs text-blue-700 dark:text-blue-300">
-                      ${formData.usd_amount} ≈ {(parseFloat(formData.usd_amount || 0) * EXCHANGE_RATES.USD_TO_IQD).toLocaleString()} IQD
+                      {formatCurrency(parseFloat(formData.usd_amount || 0), 'USD')} ≈ {(parseFloat(formData.usd_amount || 0) * EXCHANGE_RATES.USD_TO_IQD).toLocaleString()} IQD
                     </div>
                   )}
                   {formData.iqd_amount && (
                     <div className="text-xs text-blue-700 dark:text-blue-300">
-                      {parseFloat(formData.iqd_amount || 0).toLocaleString()} IQD ≈ ${(parseFloat(formData.iqd_amount || 0) * EXCHANGE_RATES.IQD_TO_USD).toFixed(2)}
+                      {parseFloat(formData.iqd_amount || 0).toLocaleString()} IQD ≈ {formatCurrency((parseFloat(formData.iqd_amount || 0) * EXCHANGE_RATES.IQD_TO_USD), 'USD')}
                     </div>
                   )}
                 </div>

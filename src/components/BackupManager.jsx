@@ -92,27 +92,27 @@ export default function BackupManager({ show, onClose, t, showConfirm = null }) 
     try {
       if (isSignUp) {
         if (authForm.password !== authForm.confirmPassword) {
-          showMessage('Passwords do not match', 'error');
+          showMessage(t?.passwordsDoNotMatch || 'Passwords do not match', 'error');
           return;
         }
         const result = await cloudAuthService.signUp(authForm.email, authForm.password, authForm.name);
         if (result.success) {
-          showMessage('Account created successfully!', 'success');
+          showMessage(t?.accountCreatedSuccessfully || 'Account created successfully!', 'success');
           setAuthForm({ email: '', password: '', name: '', confirmPassword: '' });
         } else {
-          showMessage(result.message || 'Sign up failed', 'error');
+          showMessage(result.message || t?.signUpFailed || 'Sign up failed', 'error');
         }
       } else {
         const result = await cloudAuthService.signIn(authForm.email, authForm.password);
         if (result.success) {
-          showMessage('Signed in successfully!', 'success');
+          showMessage(t?.signedInSuccessfully || 'Signed in successfully!', 'success');
           setAuthForm({ email: '', password: '', name: '', confirmPassword: '' });
         } else {
-          showMessage(result.message || 'Sign in failed', 'error');
+          showMessage(result.message || t?.signInFailed || 'Sign in failed', 'error');
         }
       }
     } catch (error) {
-      showMessage(error.message || 'Authentication failed', 'error');
+      showMessage(error.message || t?.authenticationFailed || 'Authentication failed', 'error');
     } finally {
       setLoading(false);
     }
@@ -123,12 +123,12 @@ export default function BackupManager({ show, onClose, t, showConfirm = null }) 
     try {
       const result = await cloudAuthService.signOut();
       if (result.success) {
-        showMessage('Signed out successfully', 'success');
+        showMessage(t?.signedOutSuccessfully || 'Signed out successfully', 'success');
       } else {
-        showMessage(result.message || 'Sign out failed', 'error');
+        showMessage(result.message || t?.signOutFailed || 'Sign out failed', 'error');
       }
     } catch (error) {
-      showMessage('Sign out failed', 'error');
+      showMessage(t?.signOutFailed || 'Sign out failed', 'error');
     } finally {
       setLoading(false);
     }
@@ -140,7 +140,7 @@ export default function BackupManager({ show, onClose, t, showConfirm = null }) 
       const description = `Manual backup created at ${new Date().toLocaleString()}`;
       const result = await window.api?.createCloudBackup(description);
       if (result?.success) {
-        showMessage('Backup created successfully!', 'success');
+        showMessage(t?.backupCreatedSuccessfully || 'Backup created successfully!', 'success');
         loadBackups();
       } else {
         showMessage(result?.message || t?.failedToCreateBackup || 'Failed to create backup', 'error');
@@ -157,7 +157,7 @@ export default function BackupManager({ show, onClose, t, showConfirm = null }) 
     try {
       const result = await window.api?.createBackup();
       if (result?.success) {
-        showMessage(`Local backup created successfully at: ${result.path}`, 'success');
+        showMessage(t?.localBackupCreatedSuccessfully || `Local backup created successfully at: ${result.path}`, 'success');
       } else {
         showMessage(result?.message || t?.failedToCreateLocalBackup || 'Failed to create local backup', 'error');
       }
@@ -220,10 +220,10 @@ export default function BackupManager({ show, onClose, t, showConfirm = null }) 
           }
         }
       } else {
-        showMessage(result?.message || 'Failed to download backup', 'error');
+        showMessage(result?.message || t?.failedToDownloadBackup || 'Failed to download backup', 'error');
       }
     } catch (error) {
-      showMessage('Failed to download backup', 'error');
+      showMessage(t?.failedToDownloadBackup || 'Failed to download backup', 'error');
     } finally {
       setLoading(false);
     }
@@ -234,7 +234,7 @@ export default function BackupManager({ show, onClose, t, showConfirm = null }) 
     try {
       const result = await window.api?.downloadCloudBackupFile(backup.$id);
       if (result?.success) {
-        showMessage(`Backup downloaded successfully to: ${result.downloadPath}`, 'success');
+        showMessage(t?.backupDownloadedSuccessfully || `Backup downloaded successfully to: ${result.downloadPath}`, 'success');
       } else {
         showMessage(result?.message || t?.failedToDownloadBackup || 'Failed to download backup', 'error');
       }
@@ -281,7 +281,7 @@ export default function BackupManager({ show, onClose, t, showConfirm = null }) 
       const result = await window.api?.setAutoBackup(newState);
       if (result?.success) {
         setAutoBackupEnabled(newState);
-        showMessage(`Auto backup ${newState ? 'enabled' : 'disabled'}`, 'success');
+        showMessage(t?.autoBackupToggled || `Auto backup ${newState ? 'enabled' : 'disabled'}`, 'success');
       } else {
         showMessage(t?.failedToChangeAutoBackupSetting || 'Failed to change auto backup setting', 'error');
       }
@@ -294,9 +294,9 @@ export default function BackupManager({ show, onClose, t, showConfirm = null }) 
     try {
       const result = await window.api?.selectAndRestoreBackup();
       if (result?.success) {
-        showMessage('Database restored successfully from local file!', 'success');
+        showMessage(t?.databaseRestoredFromLocalFile || 'Database restored successfully from local file!', 'success');
         if (result.requiresRestart) {
-          const message = 'The application needs to restart to apply changes. Restart now?';
+          const message = t?.appNeedsRestartToApplyChanges || 'The application needs to restart to apply changes. Restart now?';
           
           const handleRestart = () => {
             window.api?.restartApp();

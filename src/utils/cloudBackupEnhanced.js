@@ -31,7 +31,7 @@ export const setGlobalBackupProgress = (progressInstance) => {
 export const triggerCloudBackup = async () => {
   // Prevent multiple simultaneous backups
   if (isBackupInProgress) {
-    return { success: false, message: 'Backup already in progress' };
+    return { success: false, message: 'Backup already in progress' }; // This is internal, no translation needed
   }
 
   const backupProgress = getBackupProgress();
@@ -41,23 +41,23 @@ export const triggerCloudBackup = async () => {
     
     // Show progress indicator
     if (backupProgress) {
-      backupProgress.showProgress('Starting cloud backup...');
+      backupProgress.showProgress('Starting cloud backup...'); // Progress messages are internal, keep in English
     }
     
     if (typeof window !== 'undefined' && window.api?.triggerCloudBackup) {
       // Update progress during backup
       if (backupProgress) {
-        backupProgress.updateProgress(20, 'Preparing backup...');
+        backupProgress.updateProgress(20, 'Preparing backup...'); // Progress messages are internal, keep in English
         
         setTimeout(() => {
           if (backupProgress && isBackupInProgress) {
-            backupProgress.updateProgress(60, 'Uploading to cloud...');
+            backupProgress.updateProgress(60, 'Uploading to cloud...'); // Progress messages are internal, keep in English
           }
         }, 300);
         
         setTimeout(() => {
           if (backupProgress && isBackupInProgress) {
-            backupProgress.updateProgress(85, 'Finalizing backup...');
+            backupProgress.updateProgress(85, 'Finalizing backup...'); // Progress messages are internal, keep in English
           }
         }, 800);
       }
@@ -67,11 +67,11 @@ export const triggerCloudBackup = async () => {
       // Complete progress
       if (backupProgress) {
         if (result.success) {
-          backupProgress.completeBackup('Backup completed successfully!');
+          backupProgress.completeBackup('Backup completed successfully!'); // Progress messages are internal, keep in English
         } else {
           // Only show failure if not a silent failure (network issues, etc)
           if (!result.silent) {
-            backupProgress.updateProgress(100, 'Backup failed');
+            backupProgress.updateProgress(100, 'Backup failed'); // Progress messages are internal, keep in English
             setTimeout(() => backupProgress.hideProgress(), 3000);
           } else {
             backupProgress.hideProgress();
@@ -85,7 +85,7 @@ export const triggerCloudBackup = async () => {
       if (backupProgress) {
         backupProgress.hideProgress();
       }
-      return { success: false, message: 'Cloud backup API not available' };
+      return { success: false, message: 'Cloud backup API not available' }; // This is internal, no translation needed
     }
   } catch (error) {
     console.error('[triggerCloudBackup] Error:', error);
@@ -106,7 +106,7 @@ export const triggerCloudBackupAsync = () => {
   });
   
   // Return immediately
-  return { success: true, message: 'Backup started in background' };
+  return { success: true, message: 'Backup started in background' }; // This is internal, no translation needed
 };
 
 export default { triggerCloudBackup, triggerCloudBackupAsync, setGlobalBackupProgress };

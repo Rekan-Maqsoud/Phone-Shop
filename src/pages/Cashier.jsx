@@ -8,6 +8,8 @@ import useCart from '../components/hooks/useCart';
 import useAdmin from '../components/useAdmin';
 import useOnlineStatus from '../components/hooks/useOnlineStatus';
 import useCashierKeyboard from '../components/hooks/useCashierKeyboard';
+import { searchProducts } from '../utils/productUtils';
+import { getProductSpecKey } from '../utils/productUtils';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLocale } from '../contexts/LocaleContext';
 import { useData } from '../contexts/DataContext';
@@ -83,16 +85,17 @@ export default function Cashier() {
     return allAccessories.filter(a => a && !a.archived);
   }, [allAccessories]);
   
-  // Add unique identifiers to differentiate products and accessories
+  // Add unique identifiers to differentiate products and accessories based on specifications
   const allItems = useMemo(() => {
     const productItems = products.map((p, index) => {
-      // Create a robust unique ID even if p.id is missing
+      // Create a specification-based unique ID to differentiate variants
       const safeId = p.id || `temp_product_${index}_${p.name?.replace(/\s+/g, '_').toLowerCase()}`;
+      const specKey = getProductSpecKey(p);
       const item = {
         ...p, 
         itemType: 'product', 
         category: p.category || 'phones', 
-        uniqueId: `product_${safeId}`,
+        uniqueId: `product_${safeId}_${specKey.replace(/\|/g, '_')}`,
         // Ensure we have an ID for the product
         id: p.id || safeId
       };
@@ -165,11 +168,8 @@ export default function Cashier() {
     
     setLoading(l => ({ ...l, price: true }));
     
-    // Name search (case-insensitive, partial match)
-    let matches = allItems.filter(p => 
-      p.stock > 0 && 
-      p.name.toLowerCase().includes(search.toLowerCase())
-    );
+    // Use enhanced search function
+    const matches = searchProducts(allItems, search);
     
     setLoading(l => ({ ...l, price: false }));
     
@@ -290,11 +290,12 @@ export default function Cashier() {
         
         // Validate all items before creating sale
         const saleItems = items.map(item => {
-          // Get the original product from allItems to get the real database ID
+          // Get the original product from allItems using specification-based matching
+          // First try by uniqueId (most reliable), then by ID, then by comprehensive specs
           const originalProduct = allItems.find(p => 
             p.uniqueId === item.uniqueId || 
             p.id === item.id || 
-            (p.name === item.name && p.itemType === item.itemType)
+            (p.itemType === item.itemType && getProductSpecKey(p) === getProductSpecKey(item))
           );
           
           const validatedItem = {
@@ -381,10 +382,7 @@ export default function Cashier() {
       }
       
       const safeProducts = Array.isArray(allItems) ? allItems : [];
-      let matches = safeProducts.filter(p => 
-        p.stock > 0 && 
-        p.name.toLowerCase().includes(search.toLowerCase())
-      );
+      let matches = searchProducts(safeProducts, search);
       
       if (active) {
         setSuggestions(matches.slice(0, 7));

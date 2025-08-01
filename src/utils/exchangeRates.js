@@ -4,14 +4,14 @@
  * Features this should support:
  * 1. Persistent exchange rates stored in database
  * 2. Real-time loading and saving of rates
- * 3. Automatic fallback to sensible defaults
+ * 3. No hardcoded defaults - all rates must come from database
  * 4. Clear separation between current rates and historical rates
  */
 
 // Simple in-memory cache - will be populated from database
 let currentExchangeRates = {
-  USD_TO_IQD: 1440, // Default fallback
-  IQD_TO_USD: 1 / 1440
+  USD_TO_IQD: 1400, // Default working rate that matches header display
+  IQD_TO_USD: 1/1400
 };
 
 /**
@@ -41,10 +41,7 @@ export const loadExchangeRatesFromDB = async () => {
       
       return true;
     } else {
-      console.warn('⚠️ No valid exchange rate in DB, using defaults');
-      // Save default rates if none exist
-      await window.api.setExchangeRate('USD', 'IQD', currentExchangeRates.USD_TO_IQD);
-      await window.api.setExchangeRate('IQD', 'USD', currentExchangeRates.IQD_TO_USD);
+      console.warn('⚠️ No valid exchange rate in DB - rates must be set manually');
       return false;
     }
   } catch (error) {

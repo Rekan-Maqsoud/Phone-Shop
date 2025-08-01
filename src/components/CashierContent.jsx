@@ -617,76 +617,252 @@ export default function CashierContent({
                         <div className="font-semibold text-lg text-slate-800 dark:text-white mb-1">
                           {item.name || product?.name || t.unknown}
                         </div>
+                        {/* Product specifications display */}
+                        <div className="flex items-center gap-2 mb-2 text-sm">
+                          {(item.ram || product?.ram) && (
+                            <span className="px-2 py-1 bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 rounded-full text-xs font-medium">
+                              RAM: {item.ram || product?.ram}
+                            </span>
+                          )}
+                          {(item.storage || product?.storage) && (
+                            <span className="px-2 py-1 bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 rounded-full text-xs font-medium">
+                              Storage: {item.storage || product?.storage}
+                            </span>
+                          )}
+                          {(item.model || product?.model) && (
+                            <span className="text-xs text-slate-600 dark:text-slate-400">
+                              Model: {item.model || product?.model}
+                            </span>
+                          )}
+                        </div>
                         <div className="flex items-center gap-3 mb-2">
                           <div className="flex items-center gap-2">
                             <label className="text-sm font-medium text-slate-600 dark:text-slate-400">Qty:</label>
-                            <input
-                              type="number"
-                              value={item.quantity}
-                              min="1"
-                              max={product?.stock || 999}
-                              onChange={(e) => {
-                                const newQuantity = Number(e.target.value) || 1;
-                                const maxQuantity = product?.stock || 999;
-                                const finalQuantity = Math.min(Math.max(1, newQuantity), maxQuantity);
-                                const updatedItems = items.map((cartItem, i) => 
-                                  i === index ? { ...cartItem, quantity: finalQuantity } : cartItem
-                                );
-                                setItems(updatedItems);
-                                if (newQuantity > maxQuantity) {
-                                  showToast(`Maximum available stock: ${maxQuantity}`, 'warning');
-                                }
-                              }}
-                              className="w-16 px-2 py-1 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-600 text-center font-medium text-slate-800 dark:text-white"
-                            />
+                            <div className="flex items-center border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-600 overflow-hidden">
+                              <button
+                                onClick={() => {
+                                  const newQuantity = Math.max(1, item.quantity - 1);
+                                  const updatedItems = items.map((cartItem, i) => 
+                                    i === index ? { ...cartItem, quantity: newQuantity } : cartItem
+                                  );
+                                  setItems(updatedItems);
+                                  playSound('action');
+                                }}
+                                className="px-2 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 transition-colors"
+                                disabled={item.quantity <= 1}
+                              >
+                                -
+                              </button>
+                              <input
+                                type="text"
+                                value={item.quantity}
+                                onChange={(e) => {
+                                  const value = e.target.value.replace(/[^0-9]/g, '');
+                                  if (value === '') return;
+                                  const newQuantity = parseInt(value);
+                                  if (isNaN(newQuantity)) return;
+                                  const maxQuantity = product?.stock || 999;
+                                  const finalQuantity = Math.min(Math.max(1, newQuantity), maxQuantity);
+                                  const updatedItems = items.map((cartItem, i) => 
+                                    i === index ? { ...cartItem, quantity: finalQuantity } : cartItem
+                                  );
+                                  setItems(updatedItems);
+                                  if (newQuantity > maxQuantity) {
+                                    showToast(`Maximum available stock: ${maxQuantity}`, 'warning');
+                                  }
+                                }}
+                                className="w-12 px-1 py-1 text-center font-medium text-slate-800 dark:text-white bg-transparent border-none outline-none"
+                              />
+                              <button
+                                onClick={() => {
+                                  const maxQuantity = product?.stock || 999;
+                                  const newQuantity = Math.min(item.quantity + 1, maxQuantity);
+                                  if (newQuantity > item.quantity) {
+                                    const updatedItems = items.map((cartItem, i) => 
+                                      i === index ? { ...cartItem, quantity: newQuantity } : cartItem
+                                    );
+                                    setItems(updatedItems);
+                                    playSound('action');
+                                  } else {
+                                    showToast(`Maximum available stock: ${maxQuantity}`, 'warning');
+                                  }
+                                }}
+                                className="px-2 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 transition-colors"
+                              >
+                                +
+                              </button>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <label className="text-sm font-medium text-slate-600 dark:text-slate-400">Price:</label>
-                            <input
-                              type="number"
-                              value={(() => {
-                                // Show price in payment currency
+                          <div className="flex flex-col">
+                            <div className="flex items-center gap-2">
+                              <label className="text-sm font-medium text-slate-600 dark:text-slate-400">Price:</label>
+                              <input
+                                type="text"
+                                value={(() => {
+                                  // Show price in payment currency
+                                  const itemCurrency = item.currency || product?.currency || 'USD';
+                                  let displayPrice = item.selling_price;
+                                  
+                                  if (currency === 'IQD' && itemCurrency === 'USD') {
+                                    displayPrice = item.selling_price * EXCHANGE_RATES.USD_TO_IQD;
+                                  } else if (currency === 'USD' && itemCurrency === 'IQD') {
+                                    displayPrice = item.selling_price * EXCHANGE_RATES.IQD_TO_USD;
+                                  }
+                                  
+                                  // Format to appropriate precision
+                                  return currency === 'IQD' ? Math.round(displayPrice).toString() : Number(displayPrice.toFixed(2)).toString();
+                                })()}
+                                onChange={(e) => {
+                                  const inputValue = e.target.value;
+                                  // Allow numbers, decimal point for USD
+                                  const allowedPattern = currency === 'USD' ? /^[0-9]*\.?[0-9]*$/ : /^[0-9]*$/;
+                                  
+                                  if (!allowedPattern.test(inputValue) && inputValue !== '') return;
+                                  
+                                  const inputPrice = parseFloat(inputValue) || 0;
+                                  const itemCurrency = item.currency || product?.currency || 'USD';
+                                  let storedPrice = inputPrice;
+                                  
+                                  // Convert input price back to item's native currency
+                                  if (currency === 'IQD' && itemCurrency === 'USD') {
+                                    storedPrice = inputPrice * EXCHANGE_RATES.IQD_TO_USD;
+                                  } else if (currency === 'USD' && itemCurrency === 'IQD') {
+                                    storedPrice = inputPrice * EXCHANGE_RATES.USD_TO_IQD;
+                                  }
+                                  
+                                  // Round to appropriate precision for storage
+                                  if (itemCurrency === 'IQD') {
+                                    // Round IQD to nearest 1000 to eliminate smaller denominations
+                                    storedPrice = Math.round(storedPrice / 1000) * 1000;
+                                  } else {
+                                    storedPrice = Math.round(storedPrice * 100) / 100;
+                                  }
+                                  
+                                  const updatedItems = items.map((cartItem, i) => 
+                                    i === index ? { ...cartItem, selling_price: storedPrice } : cartItem
+                                  );
+                                  setItems(updatedItems);
+                                }}
+                                className="w-24 px-2 py-1 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-600 text-center font-bold text-lg text-slate-800 dark:text-white"
+                              />
+                              <span className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                                {currency}
+                              </span>
+                            </div>
+                            
+                            {/* Quick Price Adjustment Buttons - under price */}
+                            <div className="mt-1">
+                              {(() => {
                                 const itemCurrency = item.currency || product?.currency || 'USD';
-                                let displayPrice = item.selling_price;
+                                const displayCurrency = currency; // Currency being displayed
                                 
-                                if (currency === 'IQD' && itemCurrency === 'USD') {
-                                  displayPrice = item.selling_price * EXCHANGE_RATES.USD_TO_IQD;
-                                } else if (currency === 'USD' && itemCurrency === 'IQD') {
-                                  displayPrice = item.selling_price * EXCHANGE_RATES.IQD_TO_USD;
-                                }
+                                const adjustPrice = (amount) => {
+                                  const currentDisplayPrice = (() => {
+                                    let displayPrice = item.selling_price;
+                                    if (currency === 'IQD' && itemCurrency === 'USD') {
+                                      displayPrice = item.selling_price * EXCHANGE_RATES.USD_TO_IQD;
+                                    } else if (currency === 'USD' && itemCurrency === 'IQD') {
+                                      displayPrice = item.selling_price * EXCHANGE_RATES.IQD_TO_USD;
+                                    }
+                                    return currency === 'IQD' ? Math.round(displayPrice) : Number(displayPrice.toFixed(2));
+                                  })();
+                                  
+                                  const newDisplayPrice = Math.max(0, currentDisplayPrice + amount);
+                                  let storedPrice = newDisplayPrice;
+                                  
+                                  // Convert back to item's native currency
+                                  if (currency === 'IQD' && itemCurrency === 'USD') {
+                                    storedPrice = newDisplayPrice * EXCHANGE_RATES.IQD_TO_USD;
+                                  } else if (currency === 'USD' && itemCurrency === 'IQD') {
+                                    storedPrice = newDisplayPrice * EXCHANGE_RATES.USD_TO_IQD;
+                                  }
+                                  
+                                  // Round to appropriate precision for storage
+                                  if (itemCurrency === 'IQD') {
+                                    // Round IQD to nearest 1000 to eliminate smaller denominations
+                                    storedPrice = Math.round(storedPrice / 1000) * 1000;
+                                  } else {
+                                    storedPrice = Math.round(storedPrice * 100) / 100;
+                                  }
+                                  
+                                  const updatedItems = items.map((cartItem, i) => 
+                                    i === index ? { ...cartItem, selling_price: storedPrice } : cartItem
+                                  );
+                                  setItems(updatedItems);
+                                  playSound('action');
+                                };
                                 
-                                // Format to appropriate precision
-                                return currency === 'IQD' ? Math.round(displayPrice) : Number(displayPrice.toFixed(2));
-                              })()}
-                              onChange={(e) => {
-                                const inputPrice = Number(e.target.value) || 0;
-                                const itemCurrency = item.currency || product?.currency || 'USD';
-                                let storedPrice = inputPrice;
-                                
-                                // Convert input price back to item's native currency
-                                if (currency === 'IQD' && itemCurrency === 'USD') {
-                                  storedPrice = inputPrice * EXCHANGE_RATES.IQD_TO_USD;
-                                } else if (currency === 'USD' && itemCurrency === 'IQD') {
-                                  storedPrice = inputPrice * EXCHANGE_RATES.USD_TO_IQD;
-                                }
-                                
-                                // Round to appropriate precision for storage
-                                if (itemCurrency === 'IQD') {
-                                  storedPrice = Math.round(storedPrice);
+                                if (displayCurrency === 'IQD') {
+                                  // Quick IQD amounts - in two rows
+                                  const decreaseAmounts = [1000, 5000, 10000];
+                                  const increaseAmounts = [1000, 5000, 10000];
+                                  return (
+                                    <div className="flex flex-col gap-1">
+                                      {/* Decrease row */}
+                                      <div className="flex gap-1">
+                                        {decreaseAmounts.map(amount => (
+                                          <button
+                                            key={`minus-${amount}`}
+                                            onClick={() => adjustPrice(-amount)}
+                                            className="px-1.5 py-0.5 bg-red-500 hover:bg-red-600 text-white text-xs rounded transition-colors"
+                                            title={`Decrease by ${amount.toLocaleString()}`}
+                                          >
+                                            -{amount/1000}k
+                                          </button>
+                                        ))}
+                                      </div>
+                                      {/* Increase row */}
+                                      <div className="flex gap-1">
+                                        {increaseAmounts.map(amount => (
+                                          <button
+                                            key={`plus-${amount}`}
+                                            onClick={() => adjustPrice(amount)}
+                                            className="px-1.5 py-0.5 bg-blue-500 hover:bg-blue-600 text-white text-xs rounded transition-colors"
+                                            title={`Increase by ${amount.toLocaleString()}`}
+                                          >
+                                            +{amount/1000}k
+                                          </button>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  );
                                 } else {
-                                  storedPrice = Math.round(storedPrice * 100) / 100;
+                                  // Quick USD amounts - in two rows
+                                  const decreaseAmounts = [1, 5, 10];
+                                  const increaseAmounts = [1, 5, 10];
+                                  return (
+                                    <div className="flex flex-col gap-1">
+                                      {/* Decrease row */}
+                                      <div className="flex gap-1">
+                                        {decreaseAmounts.map(amount => (
+                                          <button
+                                            key={`minus-${amount}`}
+                                            onClick={() => adjustPrice(-amount)}
+                                            className="px-1.5 py-0.5 bg-red-500 hover:bg-red-600 text-white text-xs rounded transition-colors"
+                                            title={`Decrease by $${amount}`}
+                                          >
+                                            -${amount}
+                                          </button>
+                                        ))}
+                                      </div>
+                                      {/* Increase row */}
+                                      <div className="flex gap-1">
+                                        {increaseAmounts.map(amount => (
+                                          <button
+                                            key={`plus-${amount}`}
+                                            onClick={() => adjustPrice(amount)}
+                                            className="px-1.5 py-0.5 bg-green-500 hover:bg-green-600 text-white text-xs rounded transition-colors"
+                                            title={`Increase by $${amount}`}
+                                          >
+                                            +${amount}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  );
                                 }
-                                
-                                const updatedItems = items.map((cartItem, i) => 
-                                  i === index ? { ...cartItem, selling_price: storedPrice } : cartItem
-                                );
-                                setItems(updatedItems);
-                              }}
-                              className="w-24 px-2 py-1 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-600 text-center font-bold text-lg text-slate-800 dark:text-white"
-                            />
-                            <span className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                              {currency}
-                            </span>
+                              })()}
+                            </div>
                           </div>
                         </div>
                         <div className="flex items-center gap-3 text-sm">
@@ -957,41 +1133,109 @@ export default function CashierContent({
                   {t.usdAmount}
                 </label>
                 <input
-                  type="number"
+                  type="text"
                   value={multiCurrency.usdAmount}
                   onChange={(e) => {
-                    const value = Number(e.target.value) || 0;
-                    setMultiCurrency(prev => ({ ...prev, usdAmount: value }));
+                    const value = e.target.value;
+                    // Only allow numbers and decimal point
+                    if (!/^[0-9]*\.?[0-9]*$/.test(value) && value !== '') return;
+                    const numValue = parseFloat(value) || 0;
+                    setMultiCurrency(prev => ({ ...prev, usdAmount: numValue }));
                   }}
-                  placeholder="0"
-                  step="0.01"
-                  min="0"
+                  placeholder="0.00"
                   className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
                 />
+                {/* Quick USD buttons */}
+                <div className="flex gap-1 mt-2">
+                  {[5, 10, 20, 50, 100].map(amount => (
+                    <button
+                      key={amount}
+                      onClick={() => {
+                        setMultiCurrency(prev => ({ ...prev, usdAmount: prev.usdAmount + amount }));
+                        playSound('action');
+                      }}
+                      className="flex-1 py-1 px-2 bg-green-500 hover:bg-green-600 text-white text-xs rounded transition-colors"
+                    >
+                      +${amount}
+                    </button>
+                  ))}
+                </div>
               </div>
               <div>
                 <label className="block text-sm text-slate-600 dark:text-slate-300 mb-1">
                   {t.iqdAmount}
                 </label>
                 <input
-                  type="number"
+                  type="text"
                   value={multiCurrency.iqdAmount}
                   onChange={(e) => {
-                    const value = Number(e.target.value) || 0;
-                    setMultiCurrency(prev => ({ ...prev, iqdAmount: value }));
+                    const value = e.target.value;
+                    // Only allow numbers
+                    if (!/^[0-9]*$/.test(value) && value !== '') return;
+                    const numValue = parseInt(value) || 0;
+                    setMultiCurrency(prev => ({ ...prev, iqdAmount: numValue }));
                   }}
                   onBlur={(e) => {
-                    const value = Number(e.target.value) || 0;
+                    const value = parseInt(e.target.value) || 0;
                     const roundedValue = roundIQDToNearestBill(value);
                     setMultiCurrency(prev => ({ ...prev, iqdAmount: roundedValue }));
                   }}
                   placeholder="0"
-                  step="250"
-                  min="0"
                   className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
                 />
                 <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
                   {IQD_ROUNDING_MESSAGE}
+                </div>
+                {/* Quick IQD buttons */}
+                <div className="flex gap-1 mt-2 flex-wrap">
+                  <div className="flex gap-1 w-full">
+                    {[1000, 5000, 10000].map(amount => (
+                      <button
+                        key={amount}
+                        onClick={() => {
+                          setMultiCurrency(prev => ({ 
+                            ...prev, 
+                            iqdAmount: roundIQDToNearestBill(prev.iqdAmount + amount)
+                          }));
+                          playSound('action');
+                        }}
+                        className="flex-1 py-1 px-2 bg-blue-500 hover:bg-blue-600 text-white text-xs rounded transition-colors"
+                      >
+                        +{amount.toLocaleString()}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex gap-1 w-full mt-1">
+                    {[25000, 50000, 100000].map(amount => (
+                      <button
+                        key={amount}
+                        onClick={() => {
+                          setMultiCurrency(prev => ({ 
+                            ...prev, 
+                            iqdAmount: roundIQDToNearestBill(prev.iqdAmount + amount)
+                          }));
+                          playSound('action');
+                        }}
+                        className="flex-1 py-1 px-2 bg-purple-500 hover:bg-purple-600 text-white text-xs rounded transition-colors"
+                      >
+                        +{(amount/1000)}k
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    onClick={() => {
+                      // Round to nearest 10k
+                      const current = multiCurrency.iqdAmount;
+                      const rounded = Math.ceil(current / 10000) * 10000;
+                      if (rounded > current) {
+                        setMultiCurrency(prev => ({ ...prev, iqdAmount: rounded }));
+                        playSound('action');
+                      }
+                    }}
+                    className="w-full mt-1 py-1 px-2 bg-orange-500 hover:bg-orange-600 text-white text-xs rounded transition-colors"
+                  >
+                    Round to nearest 10k
+                  </button>
                 </div>
               </div>
               <div className="flex gap-2">
@@ -1006,6 +1250,16 @@ export default function CashierContent({
                   className="flex-1 py-2 bg-green-500 hover:bg-green-600 text-white text-sm rounded-lg transition-colors"
                 >
                   IQD → USD
+                </button>
+                <button
+                  onClick={() => {
+                    setMultiCurrency(prev => ({ ...prev, usdAmount: 0, iqdAmount: 0 }));
+                    playSound('system');
+                  }}
+                  className="px-3 py-2 bg-red-500 hover:bg-red-600 text-white text-sm rounded-lg transition-colors"
+                  title="Clear amounts"
+                >
+                  Clear
                 </button>
               </div>
               
@@ -1181,13 +1435,42 @@ export default function CashierContent({
               )}
             </div>
             <div className="flex gap-2">
-              <input
-                type="number"
-                value={quantity}
-                onChange={handleQuantityInput}
-                min="1"
-                className="w-20 p-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
-              />
+              <div className="flex items-center border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 overflow-hidden">
+                <button
+                  onClick={() => {
+                    const newQuantity = Math.max(1, quantity - 1);
+                    handleQuantityInput({ target: { value: newQuantity.toString() } });
+                    playSound('action');
+                  }}
+                  className="px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-600 dark:hover:bg-slate-500 text-slate-700 dark:text-slate-300 transition-colors"
+                  disabled={quantity <= 1}
+                >
+                  -
+                </button>
+                <input
+                  type="text"
+                  value={quantity}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/[^0-9]/g, '');
+                    if (value === '') return;
+                    const numValue = parseInt(value);
+                    if (!isNaN(numValue) && numValue >= 1) {
+                      handleQuantityInput({ target: { value: numValue.toString() } });
+                    }
+                  }}
+                  className="w-16 p-2 text-center text-slate-800 dark:text-white bg-transparent border-none outline-none"
+                />
+                <button
+                  onClick={() => {
+                    const newQuantity = quantity + 1;
+                    handleQuantityInput({ target: { value: newQuantity.toString() } });
+                    playSound('action');
+                  }}
+                  className="px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-600 dark:hover:bg-slate-500 text-slate-700 dark:text-slate-300 transition-colors"
+                >
+                  +
+                </button>
+              </div>
               <button
                 type="submit"
                 disabled={loading.price}

@@ -26,7 +26,7 @@ const BuyingHistoryTable = React.memo(function BuyingHistoryTable({
   const [confirmModal, setConfirmModal] = useState(null);
   
   // Import refresh functions from data context
-  const { refreshProducts, refreshAccessories } = useData() || {};
+  const { refreshProducts, refreshAccessories, refreshTransactions } = useData() || {};
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 50; // Performance optimization: limit to 50 items per page
 
@@ -165,7 +165,7 @@ const BuyingHistoryTable = React.memo(function BuyingHistoryTable({
         window.showToast(t?.returnError || 'Error occurred during return', 'error');
       }
     }
-  }, [t, refreshBuyingHistory, refreshProducts, refreshAccessories]);
+  }, [t, refreshBuyingHistory, refreshProducts, refreshAccessories, refreshTransactions]);
 
   // Handle return item with quantity
   const handleReturnItem = useCallback((entryId, itemId, itemName, currentQuantity, unitPrice, currency = 'IQD') => {
@@ -231,10 +231,21 @@ const BuyingHistoryTable = React.memo(function BuyingHistoryTable({
         if (window.showToast) {
           window.showToast(toastMessage, result.hasStockIssue ? 'warning' : 'success');
         }
-        refreshBuyingHistory();
+        
+        // Force comprehensive refresh to ensure UI updates immediately
+        await refreshBuyingHistory();
+        
         // Also refresh products and accessories to show updated stock levels
         if (refreshProducts) await refreshProducts();
         if (refreshAccessories) await refreshAccessories();
+        // CRITICAL: Refresh transactions to update "Today's Returns" in dashboard
+        if (refreshTransactions) await refreshTransactions();
+        
+        // Force refresh all data to ensure dashboard updates
+        if (refreshAllData) {
+          await refreshAllData();
+        }
+        
         setShowReturnModal(false);
         setReturnModalData(null);
       } else {

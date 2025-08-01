@@ -25,7 +25,6 @@ import AdminLoadingFallback from '../components/AdminLoadingFallback';
 import ExchangeRateIndicator from '../components/ExchangeRateIndicator';
 import MonthlyReport from '../components/MonthlyReport';
 import BackupSettingsSection from '../components/BackupSettingsSection';
-import KeyboardShortcutsModal from '../components/KeyboardShortcutsModal';
 import { Icon } from '../utils/icons.jsx';
 
 export default function Admin() {
@@ -47,7 +46,6 @@ export default function Admin() {
   const [loading, setLoading] = useState(false);
   const [showBackupManager, setShowBackupManager] = useState(false);
   const [showAddPurchase, setShowAddPurchase] = useState(false);
-  const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
   // isCompanyDebtMode is now handled in useAdmin
 
   // ALL HOOKS MOVED TO TOP LEVEL - FIXES HOOKS RULE VIOLATION
@@ -269,8 +267,6 @@ export default function Admin() {
     shortcuts['ctrl+shift+b'] = () => setShowBackupManager(true);
     shortcuts['ctrl+r'] = () => handleRefreshAll();
     shortcuts['f5'] = () => handleRefreshAll();
-    shortcuts['f1'] = () => setShowKeyboardShortcuts(true);
-    shortcuts['ctrl+shift+k'] = () => setShowKeyboardShortcuts(true);
     
     return shortcuts;
   }, [navItems, section, navigate, handleRefreshAll]);
@@ -358,7 +354,7 @@ export default function Admin() {
                 <button
                   onClick={handleRefreshAll}
                   className="p-2 text-gray-400 hover:text-gray-500 dark:hover:text-gray-300 rounded-lg transition-colors"
-                  title="Refresh All Data (Ctrl+R)"
+                  title={t?.refreshData || 'Refresh All Data'}
                   disabled={loading}
                 >
                   <Icon name={loading ? "loading" : "refresh"} size={20} className={loading ? "animate-spin" : ""} />
@@ -366,18 +362,17 @@ export default function Admin() {
                 <button
                   onClick={() => setShowSettingsModal(true)}
                   className="p-2 text-gray-400 hover:text-gray-500 dark:hover:text-gray-300 rounded-lg transition-colors"
-                  title="Settings (Ctrl+Shift+S)"
+                  title={t?.settings || 'Settings'}
                 >
                   <Icon name="settings" size={20} />
                 </button>
                 <button
                   onClick={() => navigate('/cashier')}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-                  title="Go to Cashier (Ctrl+Shift+C)"
+                  title={t?.goToCashier || 'Go to Cashier'}
                 >
                   <Icon name="shopping-cart" size={16} />
                   {t.toCashier}
-                  <span className="text-xs opacity-75">Ctrl+Shift+C</span>
                 </button>
               </div>
             </div>
@@ -399,7 +394,7 @@ export default function Admin() {
                       className={`w-full text-left px-4 py-2 rounded-lg transition-colors flex items-center gap-3 ${
                         getColorClasses(item.color, section === item.key)
                       } ${section === item.key ? 'ring-2 ring-offset-1 ring-offset-white dark:ring-offset-gray-800' : ''}`}
-                      title={`${item.label} - Ctrl+${item.shortcut}`}
+                      title={item.label}
                     >
                       <Icon name={item.icon} size={18} />
                       <span className="flex-1 text-sm">{item.label}</span>
@@ -408,7 +403,7 @@ export default function Admin() {
                           <Icon name="check" size={12} className="text-current" />
                         )}
                         <span className="text-xs opacity-70 bg-black/10 dark:bg-white/10 px-1.5 py-0.5 rounded">
-                          Ctrl+{item.shortcut}
+                          {item.shortcut}
                         </span>
                       </div>
                     </button>
@@ -709,13 +704,6 @@ export default function Admin() {
             onClose={() => admin.setToast(null)}
           />
         )}
-
-        {/* Keyboard Shortcuts Modal */}
-        <KeyboardShortcutsModal
-          show={showKeyboardShortcuts}
-          onClose={() => setShowKeyboardShortcuts(false)}
-          t={t}
-        />
       </div>
     );
   } catch (renderError) {

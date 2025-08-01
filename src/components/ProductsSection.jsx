@@ -3,6 +3,7 @@ import ProductTable from './ProductTable';
 import QuickAddProduct from './QuickAddProduct';
 import ExchangeRateIndicator from './ExchangeRateIndicator';
 import { useData } from '../contexts/DataContext';
+import { searchProducts, getProductSearchString } from '../utils/productUtils';
 import { Icon } from '../utils/icons.jsx';
 
 export default function ProductsSection({ t, admin, handleEditProduct, handleArchiveToggle, loading }) {
@@ -12,18 +13,27 @@ export default function ProductsSection({ t, admin, handleEditProduct, handleArc
   
   // Filter products based on search term and brand
   const filteredProducts = useMemo(() => {
-    return products.filter(product => {
+    let filtered = products.filter(product => {
       if (!product || product.archived) return false;
-      
-      const matchesSearch = !searchTerm || 
-        (product.name && product.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (product.model && product.model.toLowerCase().includes(searchTerm.toLowerCase()));
       
       const matchesBrand = !brandFilter || 
         (product.brand && product.brand.toLowerCase().includes(brandFilter.toLowerCase()));
       
-      return matchesSearch && matchesBrand;
+      return matchesBrand;
     });
+    
+    // Apply search using the enhanced search function
+    if (searchTerm) {
+      // Use the enhanced search but modify it to include archived filter
+      filtered = filtered.filter(product => {
+        const searchLower = searchTerm.toLowerCase();
+        const searchString = getProductSearchString(product);
+        
+        return searchString.includes(searchLower);
+      });
+    }
+    
+    return filtered;
   }, [products, searchTerm, brandFilter]);
 
   // Get unique brands for filter dropdown
