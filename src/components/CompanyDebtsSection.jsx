@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useData } from '../contexts/DataContext';
+import PaymentHistory from './PaymentHistory';
 import { formatCurrency, EXCHANGE_RATES } from '../utils/exchangeRates';
 import { Icon } from '../utils/icons.jsx';
 import { useLocale } from '../contexts/LocaleContext';
@@ -12,29 +13,36 @@ const CompanyDebtsSection = ({
   openAddPurchaseModal
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [expandedPaymentHistories, setExpandedPaymentHistories] = useState(new Set());
   const { companyDebts, refreshCompanyDebts, refreshBuyingHistory } = useData();
   const { isRTL } = useLocale();
 
-  // Helper function to format debt amount with proper currency handling
+  // Helper function to format REMAINING debt amount with proper currency handling
   const formatDebtAmount = (debt) => {
     if (debt.currency === 'MULTI') {
-      // Multi-currency debt
-      const usdPart = debt.usd_amount || 0;
-      const iqdPart = debt.iqd_amount || 0;
+      // Multi-currency debt - show remaining amounts
+      const remainingUSD = (debt.usd_amount || 0) - (debt.payment_usd_amount || 0);
+      const remainingIQD = (debt.iqd_amount || 0) - (debt.payment_iqd_amount || 0);
       
-      if (usdPart > 0 && iqdPart > 0) {
-        return `${formatCurrency(usdPart, 'USD')} + ${formatCurrency(iqdPart, 'IQD')}`;
-      } else if (usdPart > 0) {
-        return formatCurrency(usdPart, 'USD');
-      } else if (iqdPart > 0) {
-        return formatCurrency(iqdPart, 'IQD');
+      if (remainingUSD > 0 && remainingIQD > 0) {
+        return `${formatCurrency(remainingUSD, 'USD')} + ${formatCurrency(remainingIQD, 'IQD')}`;
+      } else if (remainingUSD > 0) {
+        return formatCurrency(remainingUSD, 'USD');
+      } else if (remainingIQD > 0) {
+        return formatCurrency(remainingIQD, 'IQD');
       } else {
         return formatCurrency(0, 'USD');
       }
     } else {
-      // Single currency debt
+      // Single currency debt - show remaining amount
       const currency = debt.currency || 'IQD'; // Default to IQD if not specified
-      return formatCurrency(debt.amount || 0, currency);
+      if (currency === 'USD') {
+        const remaining = (debt.amount || 0) - (debt.payment_usd_amount || 0);
+        return formatCurrency(remaining, 'USD');
+      } else {
+        const remaining = (debt.amount || 0) - (debt.payment_iqd_amount || 0);
+        return formatCurrency(remaining, 'IQD');
+      }
     }
   };
 
@@ -55,6 +63,16 @@ const CompanyDebtsSection = ({
         isMulti: false
       };
     }
+  };
+
+  const togglePaymentHistory = (debtId) => {
+    const newExpanded = new Set(expandedPaymentHistories);
+    if (newExpanded.has(debtId)) {
+      newExpanded.delete(debtId);
+    } else {
+      newExpanded.add(debtId);
+    }
+    setExpandedPaymentHistories(newExpanded);
   };
 
   return (
@@ -134,15 +152,19 @@ const CompanyDebtsSection = ({
 
         // Sort companies by unpaid debt amount (highest first), then alphabetically (case-insensitive)
         const sortedCompanies = Object.values(groupedDebts).sort((a, b) => {
-          // Calculate unpaid amounts for comparison (convert to USD for comparison)
+          // Calculate REMAINING unpaid amounts for comparison (convert to USD for comparison)
           const calculateUnpaidUSDValue = (debts) => {
             return debts.filter(d => !d.paid_at).reduce((sum, d) => {
               if (d.currency === 'MULTI') {
-                return sum + (d.usd_amount || 0) + ((d.iqd_amount || 0) * EXCHANGE_RATES.IQD_TO_USD);
+                const remainingUSD = (d.usd_amount || 0) - (d.payment_usd_amount || 0);
+                const remainingIQD = (d.iqd_amount || 0) - (d.payment_iqd_amount || 0);
+                return sum + remainingUSD + (remainingIQD * EXCHANGE_RATES.IQD_TO_USD);
               } else if (d.currency === 'USD') {
-                return sum + (d.amount || 0);
+                const remaining = (d.amount || 0) - (d.payment_usd_amount || 0);
+                return sum + remaining;
               } else {
-                return sum + ((d.amount || 0) * EXCHANGE_RATES.IQD_TO_USD);
+                const remaining = (d.amount || 0) - (d.payment_iqd_amount || 0);
+                return sum + (remaining * EXCHANGE_RATES.IQD_TO_USD);
               }
             }, 0);
           };
@@ -159,15 +181,33 @@ const CompanyDebtsSection = ({
           return bUnpaidTotal - aUnpaidTotal;
         });
 
-        // Calculate total unpaid debt by currency
+        // Calculate total REMAINING debt by currency with 250 IQD threshold
         const totals = filteredDebts.filter(d => !d.paid_at).reduce((acc, d) => {
           if (d.currency === 'MULTI') {
-            acc.usd += (d.usd_amount || 0);
-            acc.iqd += (d.iqd_amount || 0);
+            const remainingUSD = (d.usd_amount || 0) - (d.payment_usd_amount || 0);
+            const remainingIQD = (d.iqd_amount || 0) - (d.payment_iqd_amount || 0);
+            
+            // Check 250 IQD threshold
+            const totalRemainingIQDEquivalent = remainingIQD + (remainingUSD * 1440);
+            if (totalRemainingIQDEquivalent >= 250) {
+              acc.usd += Math.max(0, remainingUSD);
+              acc.iqd += Math.max(0, remainingIQD);
+            }
           } else if (d.currency === 'USD') {
-            acc.usd += (d.amount || 0);
+            const remaining = (d.amount || 0) - (d.payment_usd_amount || 0);
+            
+            // Check 250 IQD threshold
+            const remainingIQDEquivalent = remaining * 1440;
+            if (remainingIQDEquivalent >= 250 && remaining > 0) {
+              acc.usd += remaining;
+            }
           } else {
-            acc.iqd += (d.amount || 0);
+            const remaining = (d.amount || 0) - (d.payment_iqd_amount || 0);
+            
+            // Check 250 IQD threshold
+            if (remaining >= 250) {
+              acc.iqd += remaining;
+            }
           }
           return acc;
         }, { usd: 0, iqd: 0 });
@@ -217,16 +257,20 @@ const CompanyDebtsSection = ({
                   return new Date(b.created_at) - new Date(a.created_at);
                 });
                 
-                // Calculate total unpaid debt for this company
+                // Calculate total REMAINING debt for this company
                 const unpaidDebts = sortedCompanyDebts.filter(d => !d.paid_at);
                 const totalUnpaidForCompany = unpaidDebts.reduce((acc, d) => {
                   if (d.currency === 'MULTI') {
-                    acc.usd += (d.usd_amount || 0);
-                    acc.iqd += (d.iqd_amount || 0);
+                    const remainingUSD = (d.usd_amount || 0) - (d.payment_usd_amount || 0);
+                    const remainingIQD = (d.iqd_amount || 0) - (d.payment_iqd_amount || 0);
+                    acc.usd += remainingUSD;
+                    acc.iqd += remainingIQD;
                   } else if (d.currency === 'USD') {
-                    acc.usd += (d.amount || 0);
+                    const remaining = (d.amount || 0) - (d.payment_usd_amount || 0);
+                    acc.usd += remaining;
                   } else {
-                    acc.iqd += (d.amount || 0);
+                    const remaining = (d.amount || 0) - (d.payment_iqd_amount || 0);
+                    acc.iqd += remaining;
                   }
                   return acc;
                 }, { usd: 0, iqd: 0 });
@@ -301,6 +345,47 @@ const CompanyDebtsSection = ({
                                 {debt.paid_at && (
                                   <div className="text-green-600 dark:text-green-400">
                                     {t.paidOn || 'Paid on'}: {new Date(debt.paid_at).toLocaleDateString()} {new Date(debt.paid_at).toLocaleTimeString()}
+                                    {(debt.payment_usd_amount > 0 || debt.payment_iqd_amount > 0) && (
+                                      <span className="ml-2">
+                                        (
+                                        {debt.payment_usd_amount > 0 && formatCurrency(debt.payment_usd_amount, 'USD')}
+                                        {debt.payment_usd_amount > 0 && debt.payment_iqd_amount > 0 && ' + '}
+                                        {debt.payment_iqd_amount > 0 && formatCurrency(debt.payment_iqd_amount, 'IQD')}
+                                        )
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                                
+                                {/* Show partial payment status for unpaid debts */}
+                                {!debt.paid_at && (debt.payment_usd_amount > 0 || debt.payment_iqd_amount > 0) && (
+                                  <div className="text-blue-600 dark:text-blue-400 mt-1">
+                                    <Icon name="clock" size={12} className="text-blue-600" />
+                                    {t.partiallyPaid || 'Partially Paid'}: 
+                                    {debt.payment_usd_amount > 0 && ` ${formatCurrency(debt.payment_usd_amount, 'USD')}`}
+                                    {debt.payment_usd_amount > 0 && debt.payment_iqd_amount > 0 && ' + '}
+                                    {debt.payment_iqd_amount > 0 && ` ${formatCurrency(debt.payment_iqd_amount, 'IQD')}`}
+                                    <br />
+                                    {t.remaining || 'Remaining'}: 
+                                    {(() => {
+                                      if (debt.currency === 'MULTI') {
+                                        const remainingUSD = (debt.usd_amount || 0) - (debt.payment_usd_amount || 0);
+                                        const remainingIQD = (debt.iqd_amount || 0) - (debt.payment_iqd_amount || 0);
+                                        return (
+                                          <>
+                                            {remainingUSD > 0 && ` ${formatCurrency(remainingUSD, 'USD')}`}
+                                            {remainingUSD > 0 && remainingIQD > 0 && ' + '}
+                                            {remainingIQD > 0 && ` ${formatCurrency(remainingIQD, 'IQD')}`}
+                                          </>
+                                        );
+                                      } else if (debt.currency === 'USD') {
+                                        const remaining = (debt.amount || 0) - (debt.payment_usd_amount || 0);
+                                        return remaining > 0 ? ` ${formatCurrency(remaining, 'USD')}` : '';
+                                      } else {
+                                        const remaining = (debt.amount || 0) - (debt.payment_iqd_amount || 0);
+                                        return remaining > 0 ? ` ${formatCurrency(remaining, 'IQD')}` : '';
+                                      }
+                                    })()}
                                   </div>
                                 )}
                               </div>
@@ -330,6 +415,29 @@ const CompanyDebtsSection = ({
                                 </button>
                               )}
                             </div>
+                            
+                            {/* Payment History Section */}
+                            {(debt.payment_usd_amount > 0 || debt.payment_iqd_amount > 0 || debt.paid_at) && (
+                              <div className="mt-3">
+                                <button
+                                  onClick={() => togglePaymentHistory(debt.id)}
+                                  className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition"
+                                >
+                                  <Icon name="history" size={14} />
+                                  {t?.paymentHistory || 'Payment History'}
+                                  <Icon 
+                                    name={expandedPaymentHistories.has(debt.id) ? "chevron-up" : "chevron-down"} 
+                                    size={14} 
+                                  />
+                                </button>
+                                <PaymentHistory
+                                  debtId={debt.id}
+                                  debtType="company"
+                                  t={t}
+                                  isVisible={expandedPaymentHistories.has(debt.id)}
+                                />
+                              </div>
+                            )}
                           </div>
                         </div>
                       ))}

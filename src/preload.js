@@ -120,6 +120,7 @@ contextBridge.exposeInMainWorld('api', {
   getMonthlyDashboardData: (month, year) => ipcRenderer.invoke('getMonthlyDashboardData', month, year),
   recalculateBalances: () => ipcRenderer.invoke('recalculateBalances'),
   getTransactions: (limit) => ipcRenderer.invoke('getTransactions', limit),
+  getTransactionsByReference: (reference_type, reference_id) => ipcRenderer.invoke('getTransactionsByReference', reference_type, reference_id),
   
   // Secret admin balance management (only available via console commands)
   setBalance: (currency, amount) => ipcRenderer.invoke('setBalance', currency, amount),

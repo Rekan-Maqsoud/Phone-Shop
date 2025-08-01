@@ -1122,6 +1122,15 @@ ipcMain.handle('getTransactions', async (event, limit = 50) => {
   }
 });
 
+ipcMain.handle('getTransactionsByReference', async (event, reference_type, reference_id) => {
+  try {
+    return db.getTransactionsByReference(reference_type, reference_id);
+  } catch (error) {
+    console.error('[IPC] getTransactionsByReference error:', error);
+    return [];
+  }
+});
+
 // Secret balance management handlers (admin only)
 ipcMain.handle('setBalance', async (event, currency, amount) => {
   try {

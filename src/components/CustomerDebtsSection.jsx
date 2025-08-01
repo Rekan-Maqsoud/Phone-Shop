@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useData } from '../contexts/DataContext';
 import CustomerDebtPaymentModal from './CustomerDebtPaymentModal';
 import UniversalPaymentModal from './UniversalPaymentModal';
+import PaymentHistory from './PaymentHistory';
 import { Icon } from '../utils/icons.jsx';
 import { useLocale } from '../contexts/LocaleContext';
 import { getSeparator, getTextAlign, formatCompoundText } from '../utils/rtlUtils';
@@ -24,6 +25,7 @@ const CustomerDebtsSection = ({
   const [expandedCustomers, setExpandedCustomers] = useState(new Set());
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedDebt, setSelectedDebt] = useState(null);
+  const [expandedPaymentHistories, setExpandedPaymentHistories] = useState(new Set());
 
   const toggleCustomerExpanded = (customer) => {
     const newExpanded = new Set(expandedCustomers);
@@ -35,7 +37,82 @@ const CustomerDebtsSection = ({
     setExpandedCustomers(newExpanded);
   };
 
-  const formatCurrency = (amount) => `$${amount.toFixed(2)}`;
+  const togglePaymentHistory = (debtId) => {
+    const newExpanded = new Set(expandedPaymentHistories);
+    if (newExpanded.has(debtId)) {
+      newExpanded.delete(debtId);
+    } else {
+      newExpanded.add(debtId);
+    }
+    setExpandedPaymentHistories(newExpanded);
+  };
+
+  const formatCurrency = (amount, currency = 'USD') => {
+    if (currency === 'USD') {
+      return `$${amount.toFixed(2)}`;
+    } else {
+      return `د.ع${amount.toFixed(2)}`;
+    }
+  };
+
+  // Helper function to calculate REMAINING debt amount for a customer debt
+  const calculateRemainingDebt = (sale, debt) => {
+    if (!debt) {
+      // No debt record means full amount is owed
+      return {
+        amount: sale.total,
+        currency: sale.currency || 'USD'
+      };
+    }
+
+    if (debt.paid_at) {
+      // Fully paid
+      return {
+        amount: 0,
+        currency: sale.currency || 'USD'
+      };
+    }
+
+    // Calculate remaining amount after partial payments
+    const originalTotal = sale.total;
+    const currency = sale.currency || 'USD';
+    
+    if (currency === 'USD') {
+      const paidAmount = debt.payment_usd_amount || 0;
+      return {
+        amount: Math.max(0, originalTotal - paidAmount),
+        currency: 'USD'
+      };
+    } else {
+      const paidAmount = debt.payment_iqd_amount || 0;
+      return {
+        amount: Math.max(0, originalTotal - paidAmount),
+        currency: 'IQD'
+      };
+    }
+  };
+
+  // Helper function to calculate the display amount based on paid/unpaid status
+  const calculateDisplayAmount = (sale, debt, showingPaid) => {
+    if (showingPaid && debt?.paid_at) {
+      // For paid debts, show the amount that was actually paid
+      const currency = sale.currency || 'USD';
+      if (currency === 'USD') {
+        return {
+          amount: debt.payment_usd_amount || sale.total,
+          currency: 'USD'
+        };
+      } else {
+        return {
+          amount: debt.payment_iqd_amount || sale.total,
+          currency: 'IQD'
+        };
+      }
+    } else {
+      // For unpaid debts, show remaining amount
+      return calculateRemainingDebt(sale, debt);
+    }
+  };
 
   const handleMarkDebtPaid = async (debt, sale, originalCustomer) => {
     setSelectedDebt({ debt, sale, originalCustomer });
@@ -164,11 +241,15 @@ const CustomerDebtsSection = ({
           }
           
           grouped[customer].sales.push({ sale, debt, originalCustomer });
-          if (currency === 'USD') {
-            grouped[customer].totalAmountUSD += sale.total;
+          
+          // Calculate display amounts based on paid/unpaid status
+          const displayAmount = calculateDisplayAmount(sale, debt, showPaidDebts);
+          if (displayAmount.currency === 'USD') {
+            grouped[customer].totalAmountUSD += displayAmount.amount;
           } else {
-            grouped[customer].totalAmountIQD += sale.total;
+            grouped[customer].totalAmountIQD += displayAmount.amount;
           }
+          
           grouped[customer].totalTransactions += 1;
           
           if (sale.created_at > grouped[customer].latestDate) {
@@ -248,7 +329,7 @@ const CustomerDebtsSection = ({
               <div className="grid grid-cols-4 gap-4">
                 <div className="text-left">
                   <div className="text-lg font-bold text-red-600 dark:text-red-400">
-                    ${totalAmountUSD.toFixed(2)}
+                    {formatCurrency(totalAmountUSD, 'USD')}
                   </div>
                   <div className="text-sm text-gray-600 dark:text-gray-400">
                     {showPaidDebts ? (t.totalPaidUSD || 'Total Paid USD') : (t.totalOutstandingUSD || 'Total Outstanding USD')}
@@ -256,7 +337,7 @@ const CustomerDebtsSection = ({
                 </div>
                 <div className="text-center md:text-left">
                   <div className="text-lg font-bold text-red-600 dark:text-red-400">
-                    د.ع{totalAmountIQD.toFixed(2)}
+                    {formatCurrency(totalAmountIQD, 'IQD')}
                   </div>
                   <div className="text-sm text-gray-600 dark:text-gray-400">
                     {showPaidDebts ? (t.totalPaidIQD || 'Total Paid IQD') : (t.totalOutstandingIQD || 'Total Outstanding IQD')}
@@ -318,8 +399,8 @@ const CustomerDebtsSection = ({
                           <div className={getTextAlign(isRTL, 'right')}>
                             <div className={`text-lg font-bold ${showPaidDebts ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                               {formatCompoundText(isRTL, [
-                                data.totalAmountUSD > 0 ? `$${data.totalAmountUSD.toFixed(2)}` : '',
-                                data.totalAmountIQD > 0 ? `د.ع${data.totalAmountIQD.toFixed(2)}` : ''
+                                data.totalAmountUSD > 0 ? formatCurrency(data.totalAmountUSD, 'USD') : '',
+                                data.totalAmountIQD > 0 ? formatCurrency(data.totalAmountIQD, 'IQD') : ''
                               ].filter(Boolean))}
                             </div>
                             <div className="text-sm text-gray-600 dark:text-gray-400">
@@ -394,14 +475,60 @@ const CustomerDebtsSection = ({
                                 </div>
                                 
                                 <div className="font-semibold text-gray-800 dark:text-gray-100 mb-1 flex flex-col">
-                                  <div>{(sale.currency === 'USD' ? '$' : 'د.ع')}{sale.total.toFixed(2)}</div>
+                                  <div>
+                                    {(() => {
+                                      const displayAmount = calculateDisplayAmount(sale, debt, showPaidDebts);
+                                      return formatCurrency(displayAmount.amount, displayAmount.currency);
+                                    })()}
+                                  </div>
+                                  {/* Show original amount if different from displayed amount */}
+                                  {(() => {
+                                    const displayAmount = calculateDisplayAmount(sale, debt, showPaidDebts);
+                                    const original = sale.total;
+                                    if (displayAmount.amount !== original && debt && (debt.payment_usd_amount > 0 || debt.payment_iqd_amount > 0)) {
+                                      return (
+                                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                                          {t.originalAmount || 'Original'}: {formatCurrency(original, sale.currency || 'USD')}
+                                        </div>
+                                      );
+                                    }
+                                    return null;
+                                  })()}
                                   <div className="text-sm opacity-75">{sale.items?.length || 0} {t.itemsCount || 'items'}</div>
                                 </div>
                                 
                                 {debt?.paid_at && (
                                   <div className="text-xs text-green-600 dark:text-green-400">
                                     <Icon name="check" size={12} className="text-green-600" />
-                                    {t.paidOn || 'Paid on'} {new Date(debt.paid_at).toLocaleDateString()} at {new Date(debt.paid_at).toLocaleTimeString()}
+                                    {t.paidOn || 'Paid on'} {new Date(debt.paid_at).toLocaleDateString()} {new Date(debt.paid_at).toLocaleTimeString()}
+                                    {(debt.payment_usd_amount > 0 || debt.payment_iqd_amount > 0) && (
+                                      <span className="ml-2">
+                                        (
+                                        {debt.payment_usd_amount > 0 && formatCurrency(debt.payment_usd_amount, 'USD')}
+                                        {debt.payment_usd_amount > 0 && debt.payment_iqd_amount > 0 && ' + '}
+                                        {debt.payment_iqd_amount > 0 && formatCurrency(debt.payment_iqd_amount, 'IQD')}
+                                        )
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                                
+                                {/* Show partial payment status for unpaid debts */}
+                                {!debt?.paid_at && debt && (debt.payment_usd_amount > 0 || debt.payment_iqd_amount > 0) && (
+                                  <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                                    <Icon name="clock" size={12} className="text-blue-600" />
+                                    {t.partiallyPaid || 'Partially Paid'}: 
+                                    {debt.payment_usd_amount > 0 && ` ${formatCurrency(debt.payment_usd_amount, 'USD')}`}
+                                    {debt.payment_usd_amount > 0 && debt.payment_iqd_amount > 0 && ' + '}
+                                    {debt.payment_iqd_amount > 0 && ` ${formatCurrency(debt.payment_iqd_amount, 'IQD')}`}
+                                    <br />
+                                    {t.remaining || 'Remaining'}: 
+                                    {(() => {
+                                      const remaining = calculateRemainingDebt(sale, debt);
+                                      return remaining.amount > 0 ? 
+                                        ` ${formatCurrency(remaining.amount, remaining.currency)}` : 
+                                        ' Fully Paid';
+                                    })()}
                                   </div>
                                 )}
                               </div>
@@ -466,6 +593,29 @@ const CustomerDebtsSection = ({
                                   </>
                                 )}
                               </div>
+                              
+                              {/* Payment History Section */}
+                              {debt && (debt.payment_usd_amount > 0 || debt.payment_iqd_amount > 0 || debt.paid_at) && (
+                                <div className="mt-3">
+                                  <button
+                                    onClick={() => togglePaymentHistory(debt.id)}
+                                    className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition"
+                                  >
+                                    <Icon name="history" size={14} />
+                                    {t?.paymentHistory || 'Payment History'}
+                                    <Icon 
+                                      name={expandedPaymentHistories.has(debt.id) ? "chevron-up" : "chevron-down"} 
+                                      size={14} 
+                                    />
+                                  </button>
+                                  <PaymentHistory
+                                    debtId={debt.id}
+                                    debtType="customer"
+                                    t={t}
+                                    isVisible={expandedPaymentHistories.has(debt.id)}
+                                  />
+                                </div>
+                              )}
                             </div>
                           ))}
                         </div>

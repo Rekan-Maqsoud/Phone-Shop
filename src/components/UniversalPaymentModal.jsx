@@ -24,19 +24,51 @@ const UniversalPaymentModal = ({
     if (!debtData) return 0;
     
     if (paymentType === 'customer') {
-      return debtData.sale?.currency === 'USD' 
-        ? debtData.sale.total 
-        : debtData.sale.total / EXCHANGE_RATES.USD_TO_IQD;
-    } else if (paymentType === 'company') {
-      // Company debts are stored in their original currency, need to convert based on currency field
-      if (debtData.currency === 'USD') {
-        return debtData.amount || 0;
-      } else if (debtData.currency === 'MULTI') {
-        return (debtData.usd_amount || 0) + ((debtData.iqd_amount || 0) / EXCHANGE_RATES.USD_TO_IQD);
-      } else {
-        // IQD or unknown currency - convert from IQD to USD
-        return (debtData.amount || 0) / EXCHANGE_RATES.USD_TO_IQD;
+      // Calculate remaining amount for customer debts with partial payment support
+      if (!debtData.debt) {
+        // No debt record means full amount is owed
+        return debtData.sale?.currency === 'USD' 
+          ? debtData.sale.total 
+          : debtData.sale.total / EXCHANGE_RATES.USD_TO_IQD;
       }
+      
+      if (debtData.debt.paid_at) {
+        // Already paid
+        return 0;
+      }
+      
+      // Calculate remaining amount after partial payments
+      const originalTotal = debtData.sale.total;
+      const currency = debtData.sale.currency || 'USD';
+      
+      if (currency === 'USD') {
+        const paidAmount = debtData.debt.payment_usd_amount || 0;
+        const remaining = Math.max(0, originalTotal - paidAmount);
+        return remaining;
+      } else {
+        const paidAmount = debtData.debt.payment_iqd_amount || 0;
+        const remaining = Math.max(0, originalTotal - paidAmount);
+        return remaining / EXCHANGE_RATES.USD_TO_IQD; // Convert to USD for calculation
+      }
+    } else if (paymentType === 'company') {
+      // Calculate remaining amount for company debts with partial payment support
+      let remainingUSD = 0;
+      let remainingIQD = 0;
+      
+      if (debtData.currency === 'MULTI') {
+        remainingUSD = (debtData.usd_amount || 0) - (debtData.payment_usd_amount || 0);
+        remainingIQD = (debtData.iqd_amount || 0) - (debtData.payment_iqd_amount || 0);
+      } else if (debtData.currency === 'USD') {
+        remainingUSD = (debtData.amount || 0) - (debtData.payment_usd_amount || 0);
+        remainingIQD = 0;
+      } else {
+        // IQD or unknown currency
+        remainingUSD = 0;
+        remainingIQD = (debtData.amount || 0) - (debtData.payment_iqd_amount || 0);
+      }
+      
+      // Convert to USD equivalent for consistent calculation
+      return remainingUSD + (remainingIQD / EXCHANGE_RATES.USD_TO_IQD);
     } else if (paymentType === 'personal') {
       // For personal loans, calculate remaining amount
       const remainingUSD = (debtData.usd_amount || 0) - (debtData.payment_usd_amount || 0);
@@ -229,7 +261,11 @@ const UniversalPaymentModal = ({
         if (paymentData.payment_usd_amount > 0) amounts.push(formatCurrency(paymentData.payment_usd_amount, 'USD'));
         if (paymentData.payment_iqd_amount > 0) amounts.push(formatCurrency(paymentData.payment_iqd_amount, 'IQD'));
         
-        admin.setToast?.(`Payment received: ${amounts.join(' + ')}`, 'success');
+        // Determine if this was a full or partial payment
+        const isFullPayment = result?.isFullyPaid ?? true; // Default to true for backward compatibility
+        const paymentTypeText = isFullPayment ? (t?.fullPayment || 'Full payment') : (t?.partialPayment || 'Partial payment');
+        
+        admin.setToast?.(`${paymentTypeText} received: ${amounts.join(' + ')}`, 'success');
         
         if (onPaymentComplete) {
           await onPaymentComplete();
@@ -304,18 +340,25 @@ const UniversalPaymentModal = ({
                 {paymentType === 'company' ? (
                   debtData.currency === 'IQD' ? (
                     <>
-                      {formatCurrency(debtData.amount || 0, 'IQD')}
+                      {formatCurrency((debtData.amount || 0) - (debtData.payment_iqd_amount || 0), 'IQD')}
                       <div className="text-sm text-gray-500">
                         (≈ {formatCurrency(debtAmountUSD, 'USD')})
                       </div>
                     </>
                   ) : debtData.currency === 'MULTI' ? (
                     <>
-                      {formatCurrency(debtData.usd_amount || 0, 'USD')} + {formatCurrency(debtData.iqd_amount || 0, 'IQD')}
+                      {(() => {
+                        const remainingUSD = (debtData.usd_amount || 0) - (debtData.payment_usd_amount || 0);
+                        const remainingIQD = (debtData.iqd_amount || 0) - (debtData.payment_iqd_amount || 0);
+                        const parts = [];
+                        if (remainingUSD > 0) parts.push(formatCurrency(remainingUSD, 'USD'));
+                        if (remainingIQD > 0) parts.push(formatCurrency(remainingIQD, 'IQD'));
+                        return parts.join(' + ') || formatCurrency(0, 'USD');
+                      })()}
                     </>
                   ) : (
                     <>
-                      {formatCurrency(debtData.amount || 0, 'USD')}
+                      {formatCurrency((debtData.amount || 0) - (debtData.payment_usd_amount || 0), 'USD')}
                       <div className="text-sm text-gray-500">
                         (≈ {formatCurrency(debtAmountUSD * EXCHANGE_RATES.USD_TO_IQD, 'IQD')})
                       </div>

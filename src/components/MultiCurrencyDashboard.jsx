@@ -209,22 +209,59 @@ function MultiCurrencyDashboard({ admin, t, onRefresh }) {
     const unpaidUSDDebts = unpaidDebtSalesUSD.reduce((sum, sale) => sum + (sale.total || 0), 0);
     const unpaidIQDDebts = unpaidDebtSalesIQD.reduce((sum, sale) => sum + (sale.total || 0), 0);
 
-    // Outstanding company debts by currency
+    // Outstanding company debts by currency - account for partial payments and 250 IQD threshold
     const unpaidCompanyDebts = (companyDebts || []).filter(debt => !debt.paid_at);
     const unpaidCompanyUSDDebts = unpaidCompanyDebts.reduce((sum, d) => {
       if (d.currency === 'MULTI') {
-        return sum + (d.usd_amount || 0);
-      } else if (d.currency === 'USD' || !d.currency) {
-        return sum + (d.amount || 0);
+        // For multi-currency debts, subtract partial payments
+        const remainingUSD = (d.usd_amount || 0) - (d.payment_usd_amount || 0);
+        const remainingIQD = (d.iqd_amount || 0) - (d.payment_iqd_amount || 0);
+        
+        // Check 250 IQD threshold: if total remaining is less than 250 IQD equivalent, ignore
+        const totalRemainingIQDEquivalent = remainingIQD + (remainingUSD * 1440); // Convert USD to IQD
+        if (totalRemainingIQDEquivalent < 250) {
+          return sum; // Don't count this debt
+        }
+        
+        return sum + Math.max(0, remainingUSD);
+      } else if (d.currency === 'USD') {
+        const remaining = (d.amount || 0) - (d.payment_usd_amount || 0);
+        
+        // Check 250 IQD threshold for USD debts
+        const remainingIQDEquivalent = remaining * 1440; // Convert USD to IQD
+        if (remainingIQDEquivalent < 250) {
+          return sum; // Don't count this debt
+        }
+        
+        return sum + Math.max(0, remaining);
       }
+      // Don't include IQD debts in USD total
       return sum;
     }, 0);
     const unpaidCompanyIQDDebts = unpaidCompanyDebts.reduce((sum, d) => {
       if (d.currency === 'MULTI') {
-        return sum + (d.iqd_amount || 0);
+        // For multi-currency debts, subtract partial payments
+        const remainingUSD = (d.usd_amount || 0) - (d.payment_usd_amount || 0);
+        const remainingIQD = (d.iqd_amount || 0) - (d.payment_iqd_amount || 0);
+        
+        // Check 250 IQD threshold: if total remaining is less than 250 IQD equivalent, ignore
+        const totalRemainingIQDEquivalent = remainingIQD + (remainingUSD * 1440); // Convert USD to IQD
+        if (totalRemainingIQDEquivalent < 250) {
+          return sum; // Don't count this debt
+        }
+        
+        return sum + Math.max(0, remainingIQD);
       } else if (d.currency === 'IQD') {
-        return sum + (d.amount || 0);
+        const remaining = (d.amount || 0) - (d.payment_iqd_amount || 0);
+        
+        // Check 250 IQD threshold
+        if (remaining < 250) {
+          return sum; // Don't count this debt
+        }
+        
+        return sum + Math.max(0, remaining);
       }
+      // Don't include USD debts in IQD total
       return sum;
     }, 0);
 

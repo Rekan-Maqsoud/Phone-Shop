@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { EXCHANGE_RATES, formatCurrency } from '../utils/exchangeRates';
 import UniversalPaymentModal from './UniversalPaymentModal';
+import PaymentHistory from './PaymentHistory';
 import { Icon } from '../utils/icons.jsx';
 
 export default function PersonalLoansSection({ admin, t, showConfirm }) {
@@ -16,6 +17,7 @@ export default function PersonalLoansSection({ admin, t, showConfirm }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [showPaidLoans, setShowPaidLoans] = useState(false);
   const [expandedPersons, setExpandedPersons] = useState(new Set());
+  const [expandedPaymentHistories, setExpandedPaymentHistories] = useState(new Set());
   const [formData, setFormData] = useState({
     person_name: '',
     usd_amount: '',
@@ -228,6 +230,18 @@ export default function PersonalLoansSection({ admin, t, showConfirm }) {
         newSet.delete(personName);
       } else {
         newSet.add(personName);
+      }
+      return newSet;
+    });
+  };
+
+  const togglePaymentHistory = (loanId) => {
+    setExpandedPaymentHistories(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(loanId)) {
+        newSet.delete(loanId);
+      } else {
+        newSet.add(loanId);
       }
       return newSet;
     });
@@ -474,6 +488,29 @@ export default function PersonalLoansSection({ admin, t, showConfirm }) {
                               </button>
                             )}
                           </div>
+                          
+                          {/* Payment History Section */}
+                          {(loan.payment_usd_amount > 0 || loan.payment_iqd_amount > 0 || loan.paid_at) && (
+                            <div className="mt-3">
+                              <button
+                                onClick={() => togglePaymentHistory(loan.id)}
+                                className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition"
+                              >
+                                <Icon name="history" size={14} />
+                                {t?.paymentHistory || 'Payment History'}
+                                <Icon 
+                                  name={expandedPaymentHistories.has(loan.id) ? "chevron-up" : "chevron-down"} 
+                                  size={14} 
+                                />
+                              </button>
+                              <PaymentHistory
+                                debtId={loan.id}
+                                debtType="personal"
+                                t={t}
+                                isVisible={expandedPaymentHistories.has(loan.id)}
+                              />
+                            </div>
+                          )}
                         </div>
                       ))
                     }
