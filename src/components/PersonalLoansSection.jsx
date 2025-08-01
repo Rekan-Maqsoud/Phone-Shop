@@ -3,8 +3,10 @@ import { EXCHANGE_RATES, formatCurrency } from '../utils/exchangeRates';
 import UniversalPaymentModal from './UniversalPaymentModal';
 import PaymentHistory from './PaymentHistory';
 import { Icon } from '../utils/icons.jsx';
+import { useData } from '../contexts/DataContext';
 
 export default function PersonalLoansSection({ admin, t, showConfirm }) {
+  const { refreshTransactions, refreshPersonalLoans } = useData(); // Add access to refresh functions
   const [loans, setLoans] = useState([]);
   const [balances, setBalances] = useState({ usd_balance: 0, iqd_balance: 0 });
   const [showModal, setShowModal] = useState(false);
@@ -82,6 +84,14 @@ export default function PersonalLoansSection({ admin, t, showConfirm }) {
         setShowModal(false);
         fetchLoans();
         fetchBalances(); // Refresh balances after adding loan
+        
+        // CRITICAL: Refresh data so dashboard sees the new loan
+        if (refreshTransactions) {
+          await refreshTransactions();
+        }
+        if (refreshPersonalLoans) {
+          await refreshPersonalLoans();
+        }
       } else {
         admin.setToast?.(`${t.error || 'Error'}: ${t?.failedToAddLoan || 'Failed to add loan'}: ` + (result?.message || result?.error || t?.unknownError || 'Unknown error'), 'error');
       }
@@ -152,6 +162,15 @@ export default function PersonalLoansSection({ admin, t, showConfirm }) {
         admin.setToast?.(`${t.success || 'Success'}: Loan payment of ${amounts.join(' + ')} received from ${selectedLoan.person_name}`, 'success');
         fetchLoans();
         fetchBalances(); // Refresh balances after payment
+        
+        // CRITICAL: Refresh data so dashboard sees the new payment 
+        if (refreshTransactions) {
+          await refreshTransactions();
+        }
+        if (refreshPersonalLoans) {
+          await refreshPersonalLoans();
+        }
+        
         setShowPaymentModal(false);
         setSelectedLoan(null);
       } else {

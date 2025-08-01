@@ -18,6 +18,7 @@ export const DataProvider = ({ children }) => {
   const [debts, setDebts] = useState([]);
   const [debtSales, setDebtSales] = useState([]);
   const [companyDebts, setCompanyDebts] = useState([]);
+  const [personalLoans, setPersonalLoans] = useState([]);
   const [buyingHistory, setBuyingHistory] = useState([]);
   const [monthlyReports, setMonthlyReports] = useState([]);
   const [incentives, setIncentives] = useState([]);
@@ -103,6 +104,7 @@ export const DataProvider = ({ children }) => {
       promises.push(createDataFetch('getDebts', setDebts, 'debts'));
       promises.push(createDataFetch('getDebtSales', setDebtSales, 'debt sales'));
       promises.push(createDataFetch('getCompanyDebts', setCompanyDebts, 'company debts'));
+      promises.push(createDataFetch('getPersonalLoans', setPersonalLoans, 'personal loans'));
       promises.push(createDataFetch('getBuyingHistoryWithItems', setBuyingHistory, 'buying history'));
       promises.push(createDataFetch('getMonthlyReports', setMonthlyReports, 'monthly reports'));
       promises.push(createDataFetch('getIncentives', setIncentives, 'incentives'));
@@ -234,6 +236,16 @@ export const DataProvider = ({ children }) => {
       console.error('❌ DataContext: Error refreshing transactions:', error);
     }
   }, [apiReady]);
+
+  const refreshPersonalLoans = useCallback(async () => {
+    if (!apiReady || !window.api?.getPersonalLoans) return;
+    try {
+      const data = await window.api.getPersonalLoans();
+      setPersonalLoans(data || []);
+    } catch (error) {
+      console.error('❌ DataContext: Error refreshing personal loans:', error);
+    }
+  }, [apiReady]);
   
   const refreshBuyingHistory = useCallback(async () => {
     if (!apiReady || !window.api?.getBuyingHistoryWithItems) return;
@@ -301,6 +313,7 @@ export const DataProvider = ({ children }) => {
     debts,
     debtSales,
     companyDebts,
+    personalLoans,
     buyingHistory,
     monthlyReports,
     incentives,
@@ -315,6 +328,7 @@ export const DataProvider = ({ children }) => {
     setDebts,
     setDebtSales,
     setCompanyDebts,
+    setPersonalLoans,
     setBuyingHistory,
     setMonthlyReports,
     setIncentives,
@@ -330,6 +344,7 @@ export const DataProvider = ({ children }) => {
     refreshDebts,
     refreshDebtSales,
     refreshCompanyDebts,
+    refreshPersonalLoans,
     refreshBuyingHistory,
     refreshMonthlyReports,
     refreshIncentives,

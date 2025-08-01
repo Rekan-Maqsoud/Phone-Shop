@@ -40,7 +40,7 @@ ChartJS.register(
 );
 
 function MultiCurrencyDashboard({ admin, t, onRefresh }) {
-  const { products, accessories, sales, debts, buyingHistory, companyDebts, incentives, transactions, refreshAllData, refreshDebts } = useData();
+  const { products, accessories, sales, debts, buyingHistory, companyDebts, incentives, transactions, personalLoans, refreshAllData, refreshDebts } = useData();
   const [balances, setBalances] = useState({ usd_balance: 0, iqd_balance: 0 });
   const [dashboardData, setDashboardData] = useState(null);
   const [personalLoans, setPersonalLoans] = useState([]);
@@ -165,6 +165,40 @@ function MultiCurrencyDashboard({ admin, t, onRefresh }) {
       const incentiveDate = new Date(incentive.created_at);
       return incentiveDate.toDateString() === today && (incentive.currency === 'IQD' || !incentive.currency);
     }).reduce((sum, incentive) => sum + (incentive.amount || 0), 0);
+
+    // Today's customer debt payments (partial and full) - these add to balance
+    const todaysCustomerDebtPaymentsUSD = (transactions || []).filter(transaction => {
+      if (!transaction.created_at) return false;
+      const transactionDate = new Date(transaction.created_at);
+      return transactionDate.toDateString() === today && 
+             (transaction.type === 'customer_debt_payment_partial' || transaction.type === 'customer_debt_payment_final') && 
+             transaction.amount_usd > 0;
+    }).reduce((sum, transaction) => sum + transaction.amount_usd, 0);
+
+    const todaysCustomerDebtPaymentsIQD = (transactions || []).filter(transaction => {
+      if (!transaction.created_at) return false;
+      const transactionDate = new Date(transaction.created_at);
+      return transactionDate.toDateString() === today && 
+             (transaction.type === 'customer_debt_payment_partial' || transaction.type === 'customer_debt_payment_final') && 
+             transaction.amount_iqd > 0;
+    }).reduce((sum, transaction) => sum + transaction.amount_iqd, 0);
+
+    // Today's partial debt payments only (for daily balance display)
+    const todaysPartialDebtPaymentsUSD = (transactions || []).filter(transaction => {
+      if (!transaction.created_at) return false;
+      const transactionDate = new Date(transaction.created_at);
+      return transactionDate.toDateString() === today && 
+             transaction.type === 'customer_debt_payment_partial' && 
+             transaction.amount_usd > 0;
+    }).reduce((sum, transaction) => sum + transaction.amount_usd, 0);
+
+    const todaysPartialDebtPaymentsIQD = (transactions || []).filter(transaction => {
+      if (!transaction.created_at) return false;
+      const transactionDate = new Date(transaction.created_at);
+      return transactionDate.toDateString() === today && 
+             transaction.type === 'customer_debt_payment_partial' && 
+             transaction.amount_iqd > 0;
+    }).reduce((sum, transaction) => sum + transaction.amount_iqd, 0);
 
     // This week's sales by currency - exclude unpaid debt sales
     const oneWeekAgo = new Date();
@@ -432,20 +466,38 @@ function MultiCurrencyDashboard({ admin, t, onRefresh }) {
       const transactionDate = new Date(transaction.created_at);
       return transactionDate.toDateString() === today && 
              transaction.type === 'personal_loan' && 
-             transaction.amount_usd > 0; // Positive means money going out (loan given)
-    }).reduce((sum, transaction) => sum + transaction.amount_usd, 0);
+             transaction.amount_usd < 0; // Negative means money going out (loan given)
+    }).reduce((sum, transaction) => sum + Math.abs(transaction.amount_usd), 0); // Use absolute value for display
 
     const todaysPersonalLoanPaymentsIQD = (transactions || []).filter(transaction => {
       if (!transaction.created_at) return false;
       const transactionDate = new Date(transaction.created_at);
       return transactionDate.toDateString() === today && 
              transaction.type === 'personal_loan' && 
-             transaction.amount_iqd > 0; // Positive means money going out (loan given)
+             transaction.amount_iqd < 0; // Negative means money going out (loan given)
+    }).reduce((sum, transaction) => sum + Math.abs(transaction.amount_iqd), 0); // Use absolute value for display
+
+    // Add today's personal debt payments received (money coming in)
+    const todaysPersonalDebtPaymentsUSD = (transactions || []).filter(transaction => {
+      if (!transaction.created_at) return false;
+      const transactionDate = new Date(transaction.created_at);
+      return transactionDate.toDateString() === today && 
+             transaction.type === 'loan_payment' && 
+             transaction.amount_usd > 0; // Positive means money coming in (debt payment received)
+    }).reduce((sum, transaction) => sum + transaction.amount_usd, 0);
+
+    const todaysPersonalDebtPaymentsIQD = (transactions || []).filter(transaction => {
+      if (!transaction.created_at) return false;
+      const transactionDate = new Date(transaction.created_at);
+      return transactionDate.toDateString() === today && 
+             transaction.type === 'loan_payment' && 
+             transaction.amount_iqd > 0; // Positive means money coming in (debt payment received)
     }).reduce((sum, transaction) => sum + transaction.amount_iqd, 0);
 
-    // Total spending includes purchases, debt payments, personal loans, and other outgoing transactions, minus returns
-    const totalTodaysSpendingUSD = todaysSpendingUSD + todaysCompanyDebtPaymentsUSD + todaysTransactionSpendingUSD + todaysPersonalLoanPaymentsUSD - todaysReturnsUSD;
-    const totalTodaysSpendingIQD = todaysSpendingIQD + todaysCompanyDebtPaymentsIQD + todaysTransactionSpendingIQD + todaysPersonalLoanPaymentsIQD - todaysReturnsIQD;
+    // Total spending includes purchases, debt payments, and other outgoing transactions, minus returns
+    // NOTE: Personal loans are now tracked separately and should NOT be included in general spending
+    const totalTodaysSpendingUSD = todaysSpendingUSD + todaysCompanyDebtPaymentsUSD + todaysTransactionSpendingUSD - todaysReturnsUSD;
+    const totalTodaysSpendingIQD = todaysSpendingIQD + todaysCompanyDebtPaymentsIQD + todaysTransactionSpendingIQD - todaysReturnsIQD;
 
     // Debug logging for balance calculations
     console.log('🔍 [DASHBOARD DEBUG] Daily balance calculation:', {
@@ -454,6 +506,7 @@ function MultiCurrencyDashboard({ admin, t, onRefresh }) {
         companyDebtPayments: todaysCompanyDebtPaymentsUSD,
         transactionSpending: todaysTransactionSpendingUSD,
         personalLoanPayments: todaysPersonalLoanPaymentsUSD,
+        personalDebtPaymentsReceived: todaysPersonalDebtPaymentsUSD,
         returns: todaysReturnsUSD,
         totalSpending: totalTodaysSpendingUSD,
         calculation: `${todaysSpendingUSD} + ${todaysCompanyDebtPaymentsUSD} + ${todaysTransactionSpendingUSD} + ${todaysPersonalLoanPaymentsUSD} - ${todaysReturnsUSD} = ${totalTodaysSpendingUSD}`
@@ -463,33 +516,38 @@ function MultiCurrencyDashboard({ admin, t, onRefresh }) {
         companyDebtPayments: todaysCompanyDebtPaymentsIQD,
         transactionSpending: todaysTransactionSpendingIQD,
         personalLoanPayments: todaysPersonalLoanPaymentsIQD,
+        personalDebtPaymentsReceived: todaysPersonalDebtPaymentsIQD,
         returns: todaysReturnsIQD,
         totalSpending: totalTodaysSpendingIQD,
         calculation: `${todaysSpendingIQD} + ${todaysCompanyDebtPaymentsIQD} + ${todaysTransactionSpendingIQD} + ${todaysPersonalLoanPaymentsIQD} - ${todaysReturnsIQD} = ${totalTodaysSpendingIQD}`
       }
     });
 
-    // Net performance: USD = native USD sales + incentives - USD spending
-    const netPerformanceUSD = todaysUSDSales + todaysIncentivesUSD - totalTodaysSpendingUSD;
+    // Net performance: USD = native USD sales + incentives + debt payments + personal debt payments received - USD spending
+    const netPerformanceUSD = todaysUSDSales + todaysIncentivesUSD + todaysCustomerDebtPaymentsUSD + todaysPersonalDebtPaymentsUSD - totalTodaysSpendingUSD;
     
-    // Net performance: IQD = native IQD sales + incentives - IQD spending (no conversion mixing)
-    const netPerformanceIQD = todaysIQDSales + todaysIncentivesIQD - totalTodaysSpendingIQD;
+    // Net performance: IQD = native IQD sales + incentives + debt payments + personal debt payments received - IQD spending (no conversion mixing)
+    const netPerformanceIQD = todaysIQDSales + todaysIncentivesIQD + todaysCustomerDebtPaymentsIQD + todaysPersonalDebtPaymentsIQD - totalTodaysSpendingIQD;
 
     // Debug logging for net performance calculations
     console.log('🔍 [DASHBOARD DEBUG] Net performance calculation:', {
       USD: {
         sales: todaysUSDSales,
         incentives: todaysIncentivesUSD,
+        customerDebtPayments: todaysCustomerDebtPaymentsUSD,
+        personalDebtPayments: todaysPersonalDebtPaymentsUSD,
         totalSpending: totalTodaysSpendingUSD,
         netPerformance: netPerformanceUSD,
-        calculation: `${todaysUSDSales} + ${todaysIncentivesUSD} - ${totalTodaysSpendingUSD} = ${netPerformanceUSD}`
+        calculation: `${todaysUSDSales} + ${todaysIncentivesUSD} + ${todaysCustomerDebtPaymentsUSD} + ${todaysPersonalDebtPaymentsUSD} - ${totalTodaysSpendingUSD} = ${netPerformanceUSD}`
       },
       IQD: {
         sales: todaysIQDSales,
         incentives: todaysIncentivesIQD,
+        customerDebtPayments: todaysCustomerDebtPaymentsIQD,
+        personalDebtPayments: todaysPersonalDebtPaymentsIQD,
         totalSpending: totalTodaysSpendingIQD,
         netPerformance: netPerformanceIQD,
-        calculation: `${todaysIQDSales} + ${todaysIncentivesIQD} - ${totalTodaysSpendingIQD} = ${netPerformanceIQD}`
+        calculation: `${todaysIQDSales} + ${todaysIncentivesIQD} + ${todaysCustomerDebtPaymentsIQD} + ${todaysPersonalDebtPaymentsIQD} - ${totalTodaysSpendingIQD} = ${netPerformanceIQD}`
       }
     });
 
@@ -528,6 +586,14 @@ function MultiCurrencyDashboard({ admin, t, onRefresh }) {
       totalTodaysSpendingIQD,
       todaysIncentivesUSD,
       todaysIncentivesIQD,
+      todaysCustomerDebtPaymentsUSD,
+      todaysCustomerDebtPaymentsIQD,
+      todaysPersonalDebtPaymentsUSD,
+      todaysPersonalDebtPaymentsIQD,
+      todaysPersonalLoanPaymentsUSD,
+      todaysPersonalLoanPaymentsIQD,
+      todaysPartialDebtPaymentsUSD,
+      todaysPartialDebtPaymentsIQD,
       todaysReturnsUSD, // Add return amounts for display
       todaysReturnsIQD, // Add return amounts for display
       totalTransactions: todaysSales.length,
@@ -655,7 +721,7 @@ function MultiCurrencyDashboard({ admin, t, onRefresh }) {
             <div className="space-y-3 text-white/90">
               <div className="flex justify-between items-center">
                 <span>{t?.openingBalance || 'Opening Balance'}:</span>
-                <span className="font-bold">{formatCurrencyWithTranslation(balances.usd_balance - metrics.todaysUSDSales - metrics.todaysIncentivesUSD + metrics.totalTodaysSpendingUSD, 'USD', t)}</span>
+                <span className="font-bold">{formatCurrencyWithTranslation(balances.usd_balance - metrics.todaysUSDSales - metrics.todaysIncentivesUSD - metrics.todaysCustomerDebtPaymentsUSD - metrics.todaysPersonalDebtPaymentsUSD + metrics.totalTodaysSpendingUSD, 'USD', t)}</span>
               </div>
               <div className="flex justify-between items-center text-green-300">
                 <span>+ {t?.todaysSales || "Today's Sales"}:</span>
@@ -667,10 +733,35 @@ function MultiCurrencyDashboard({ admin, t, onRefresh }) {
                   <span className="font-bold">{formatCurrencyWithTranslation(metrics.todaysIncentivesUSD, 'USD', t)}</span>
                 </div>
               )}
+              {metrics.todaysCustomerDebtPaymentsUSD > 0 && (
+                <div className="flex justify-between items-center text-yellow-300">
+                  <span>+ {t?.debtsReturned || "Debts Returned Today"}:</span>
+                  <span className="font-bold">
+                    {formatCurrencyWithTranslation(metrics.todaysCustomerDebtPaymentsUSD, 'USD', t)}
+                    {metrics.todaysPartialDebtPaymentsUSD > 0 && (
+                      <span className="text-xs ml-1">
+                        (${formatCurrencyWithTranslation(metrics.todaysPartialDebtPaymentsUSD, 'USD', t)} partial)
+                      </span>
+                    )}
+                  </span>
+                </div>
+              )}
+              {metrics.todaysPersonalDebtPaymentsUSD > 0 && (
+                <div className="flex justify-between items-center text-purple-300">
+                  <span>+ {t?.personalDebtPayments || "Personal Debt Payments"}:</span>
+                  <span className="font-bold">{formatCurrencyWithTranslation(metrics.todaysPersonalDebtPaymentsUSD, 'USD', t)}</span>
+                </div>
+              )}
               {metrics.todaysReturnsUSD > 0 && (
                 <div className="flex justify-between items-center text-cyan-300">
                   <span>+ {t?.todaysReturns || "Today's Returns"}:</span>
                   <span className="font-bold">{formatCurrencyWithTranslation(metrics.todaysReturnsUSD, 'USD', t)}</span>
+                </div>
+              )}
+              {metrics.todaysPersonalLoanPaymentsUSD > 0 && (
+                <div className="flex justify-between items-center text-red-300">
+                  <span>- {t?.personalLoansGiven || "Personal Loans Given"}:</span>
+                  <span className="font-bold">{formatCurrencyWithTranslation(metrics.todaysPersonalLoanPaymentsUSD, 'USD', t)}</span>
                 </div>
               )}
               <div className="flex justify-between items-center text-red-300">
@@ -714,7 +805,7 @@ function MultiCurrencyDashboard({ admin, t, onRefresh }) {
             <div className="space-y-3 text-white/90">
               <div className="flex justify-between items-center">
                 <span>{t?.openingBalance || 'Opening Balance'}:</span>
-                <span className="font-bold">{formatCurrencyWithTranslation(balances.iqd_balance - metrics.todaysIQDSales - metrics.todaysIncentivesIQD + metrics.totalTodaysSpendingIQD, 'IQD', t)}</span>
+                <span className="font-bold">{formatCurrencyWithTranslation(balances.iqd_balance - metrics.todaysIQDSales - metrics.todaysIncentivesIQD - metrics.todaysCustomerDebtPaymentsIQD - metrics.todaysPersonalDebtPaymentsIQD + metrics.totalTodaysSpendingIQD, 'IQD', t)}</span>
               </div>
               <div className="flex justify-between items-center text-green-300">
                 <span>+ {t?.todaysSales || "Today's Sales"}:</span>
@@ -726,10 +817,35 @@ function MultiCurrencyDashboard({ admin, t, onRefresh }) {
                   <span className="font-bold">{formatCurrencyWithTranslation(metrics.todaysIncentivesIQD, 'IQD', t)}</span>
                 </div>
               )}
+              {metrics.todaysCustomerDebtPaymentsIQD > 0 && (
+                <div className="flex justify-between items-center text-yellow-300">
+                  <span>+ {t?.debtsReturned || "Debts Returned Today"}:</span>
+                  <span className="font-bold">
+                    {formatCurrencyWithTranslation(metrics.todaysCustomerDebtPaymentsIQD, 'IQD', t)}
+                    {metrics.todaysPartialDebtPaymentsIQD > 0 && (
+                      <span className="text-xs ml-1">
+                        ({formatCurrencyWithTranslation(metrics.todaysPartialDebtPaymentsIQD, 'IQD', t)} partial)
+                      </span>
+                    )}
+                  </span>
+                </div>
+              )}
+              {metrics.todaysPersonalDebtPaymentsIQD > 0 && (
+                <div className="flex justify-between items-center text-purple-300">
+                  <span>+ {t?.personalDebtPayments || "Personal Debt Payments"}:</span>
+                  <span className="font-bold">{formatCurrencyWithTranslation(metrics.todaysPersonalDebtPaymentsIQD, 'IQD', t)}</span>
+                </div>
+              )}
               {metrics.todaysReturnsIQD > 0 && (
                 <div className="flex justify-between items-center text-cyan-300">
                   <span>+ {t?.todaysReturns || "Today's Returns"}:</span>
                   <span className="font-bold">{formatCurrencyWithTranslation(metrics.todaysReturnsIQD, 'IQD', t)}</span>
+                </div>
+              )}
+              {metrics.todaysPersonalLoanPaymentsIQD > 0 && (
+                <div className="flex justify-between items-center text-red-300">
+                  <span>- {t?.personalLoansGiven || "Personal Loans Given"}:</span>
+                  <span className="font-bold">{formatCurrencyWithTranslation(metrics.todaysPersonalLoanPaymentsIQD, 'IQD', t)}</span>
                 </div>
               )}
               <div className="flex justify-between items-center text-red-300">

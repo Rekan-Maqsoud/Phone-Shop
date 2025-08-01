@@ -151,13 +151,15 @@ function markCustomerDebtPaid(db, id, paymentData) {
       );
       
       // Record transaction - track the actual payment amounts made
+      // Use different transaction types for partial vs full payments
+      const transactionType = isFullyPaid ? 'customer_debt_payment_final' : 'customer_debt_payment_partial';
       const addTransactionStmt = db.prepare(`
         INSERT INTO transactions (type, amount_usd, amount_iqd, description, reference_id, reference_type, created_at) 
         VALUES (?, ?, ?, ?, ?, ?, ?)
       `);
       
       addTransactionStmt.run(
-        'customer_debt_payment',
+        transactionType,
         finalUSDAmount || 0,
         finalIQDAmount || 0,
         `Customer debt payment ${isFullyPaid ? '(FINAL)' : '(PARTIAL)'}: ${debtInfo.customer_name} - ${debtInfo.description || 'Payment'}`,
@@ -172,41 +174,44 @@ function markCustomerDebtPaid(db, id, paymentData) {
       const debtRecord = findSaleStmt.get(id);
       
       if (debtRecord && debtRecord.sale_id) {
-        // Update the sale record with actual payment information
-        // Use the currency that was actually paid, not the original debt currency
-        const updateSaleStmt = db.prepare(`
-          UPDATE sales 
-          SET paid_amount_usd = ?, 
-              paid_amount_iqd = ?,
-              is_multi_currency = ?,
-              currency = ?,
-              total = ?
-          WHERE id = ?
-        `);
-        
-        const isMultiCurrencyPayment = finalUSDAmount > 0 && finalIQDAmount > 0;
-        const actualPaymentCurrency = isMultiCurrencyPayment ? 'MULTI' : 
-                                      (finalUSDAmount > 0 ? 'USD' : 'IQD');
-        
-        // Calculate the actual total paid (what customer paid, not original debt amount)
-        let actualTotalPaid = 0;
-        if (isMultiCurrencyPayment) {
-          // For multi-currency, use USD equivalent
-          actualTotalPaid = finalUSDAmount + (finalIQDAmount / 1440); // Convert IQD to USD
-        } else if (finalUSDAmount > 0) {
-          actualTotalPaid = finalUSDAmount;
-        } else {
-          actualTotalPaid = finalIQDAmount;
+        if (isFullyPaid) {
+          // ONLY update sale record when debt is FULLY paid
+          // This moves it to sales history for profit/revenue calculation
+          const updateSaleStmt = db.prepare(`
+            UPDATE sales 
+            SET paid_amount_usd = ?, 
+                paid_amount_iqd = ?,
+                is_multi_currency = ?,
+                currency = ?,
+                total = ?
+            WHERE id = ?
+          `);
+          
+          const isMultiCurrencyPayment = newTotalPaidUSD > 0 && newTotalPaidIQD > 0;
+          const actualPaymentCurrency = isMultiCurrencyPayment ? 'MULTI' : 
+                                        (newTotalPaidUSD > 0 ? 'USD' : 'IQD');
+          
+          // Use the total payments made (for multi-currency, convert to consistent currency)
+          let actualTotalPaid = 0;
+          if (isMultiCurrencyPayment) {
+            // For multi-currency, use USD equivalent
+            actualTotalPaid = newTotalPaidUSD + (newTotalPaidIQD / currentUSDToIQD);
+          } else if (newTotalPaidUSD > 0) {
+            actualTotalPaid = newTotalPaidUSD;
+          } else {
+            actualTotalPaid = newTotalPaidIQD;
+          }
+          
+          updateSaleStmt.run(
+            newTotalPaidUSD || 0,
+            newTotalPaidIQD || 0,
+            isMultiCurrencyPayment ? 1 : 0,
+            actualPaymentCurrency,
+            actualTotalPaid,
+            debtRecord.sale_id
+          );
         }
-        
-        updateSaleStmt.run(
-          finalUSDAmount || 0,
-          finalIQDAmount || 0,
-          isMultiCurrencyPayment ? 1 : 0,
-          actualPaymentCurrency, // Update currency to reflect actual payment currency
-          actualTotalPaid, // Update total to reflect actual amount paid
-          debtRecord.sale_id
-        );
+        // If partially paid, DON'T update sales - keep it as debt until fully paid
       }
       
       // Add to the user's balance based on the actual payment amounts received
@@ -869,6 +874,23 @@ function addPersonalLoan(db, { person_name, usd_amount = 0, iqd_amount = 0, desc
       updateBalance(db, 'IQD', -iqd_amount);
     }
 
+    // Record transaction for daily tracking - track the loan given as outgoing money (NEGATIVE amounts)
+    const loanDescription = `Personal loan given to ${person_name}${description ? ` - ${description}` : ''}`;
+    const addTransactionStmt = db.prepare(`
+      INSERT INTO transactions (type, amount_usd, amount_iqd, description, reference_id, reference_type, created_at) 
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+    
+    addTransactionStmt.run(
+      'personal_loan',
+      -(usd_amount || 0), // Negative because money is going OUT
+      -(iqd_amount || 0), // Negative because money is going OUT
+      loanDescription,
+      result.lastInsertRowid,
+      'personal_loan',
+      now
+    );
+
     return result;
   });
 
@@ -983,14 +1005,15 @@ function markPersonalLoanPaid(db, id, paymentData) {
         return { success: false, message: 'Failed to update loan or loan not found' };
       }
 
-      // Add the payment amounts to the current balance (using final converted amounts)
-      if (finalPaymentUSD > 0) {
+      // Add the payment amounts to the current balance - USE ORIGINAL PAYMENT AMOUNTS, NOT CONVERTED ONES!
+      // This is crucial: if customer pays in IQD, add to IQD balance, if USD, add to USD balance
+      if (payment_usd_amount > 0) {
         const settings = require('./settings.cjs');
-        settings.updateBalance(db, 'USD', finalPaymentUSD);
+        settings.updateBalance(db, 'USD', payment_usd_amount); // Add actual USD paid
       }
-      if (finalPaymentIQD > 0) {
+      if (payment_iqd_amount > 0) {
         const settings = require('./settings.cjs');
-        settings.updateBalance(db, 'IQD', finalPaymentIQD);
+        settings.updateBalance(db, 'IQD', payment_iqd_amount); // Add actual IQD paid
       }
       
       // Record transaction - track the actual payment amounts received (original amounts paid by customer)

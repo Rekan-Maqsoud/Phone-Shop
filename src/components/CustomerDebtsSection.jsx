@@ -73,20 +73,29 @@ const CustomerDebtsSection = ({
       };
     }
 
-    // Calculate remaining amount after partial payments
+    // Calculate remaining amount after partial payments with currency conversion
     const originalTotal = sale.total;
     const currency = sale.currency || 'USD';
+    const currentUSDToIQD = 1440; // Exchange rate
     
     if (currency === 'USD') {
-      const paidAmount = debt.payment_usd_amount || 0;
+      // For USD debts, convert all payments to USD equivalent
+      const paidUSD = debt.payment_usd_amount || 0;
+      const paidIQD = debt.payment_iqd_amount || 0;
+      const totalPaidUSDEquivalent = paidUSD + (paidIQD / currentUSDToIQD);
+      
       return {
-        amount: Math.max(0, originalTotal - paidAmount),
+        amount: Math.max(0, originalTotal - totalPaidUSDEquivalent),
         currency: 'USD'
       };
     } else {
-      const paidAmount = debt.payment_iqd_amount || 0;
+      // For IQD debts, convert all payments to IQD equivalent
+      const paidUSD = debt.payment_usd_amount || 0;
+      const paidIQD = debt.payment_iqd_amount || 0;
+      const totalPaidIQDEquivalent = paidIQD + (paidUSD * currentUSDToIQD);
+      
       return {
-        amount: Math.max(0, originalTotal - paidAmount),
+        amount: Math.max(0, originalTotal - totalPaidIQDEquivalent),
         currency: 'IQD'
       };
     }
