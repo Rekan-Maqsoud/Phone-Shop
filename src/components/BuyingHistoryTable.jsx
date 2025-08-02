@@ -1,11 +1,9 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { useLocale } from '../contexts/LocaleContext';
 import { useData } from '../contexts/DataContext';
 import HistorySearchFilter from './HistorySearchFilter';
 import ConfirmModal from './ConfirmModal';
 import ReturnModal from './ReturnModal';
 import { Icon } from '../utils/icons.jsx';
-import { getTextAlign } from '../utils/rtlUtils';
 
 // Enhanced table for buying history with item details support - Memoized for performance
 const BuyingHistoryTable = React.memo(function BuyingHistoryTable({ 
@@ -14,16 +12,13 @@ const BuyingHistoryTable = React.memo(function BuyingHistoryTable({
   onAddPurchase, 
   refreshBuyingHistory, 
   getBrandFromBuyingHistory, 
-  showBrandFilter = true,
-  admin 
+  showBrandFilter = true
 }) {
   const [expandedEntries, setExpandedEntries] = useState(new Set());
   const [filteredHistory, setFilteredHistory] = useState([]);
-  const [totals, setTotals] = useState(null);
   const [showReturnModal, setShowReturnModal] = useState(false);
-  const { isRTL } = useLocale();
   const [returnModalData, setReturnModalData] = useState(null);
-  const [confirmModal, setConfirmModal] = useState(null);
+  const [confirmModal, _setConfirmModal] = useState(null);
   
   // Import refresh functions from data context
   const { refreshProducts, refreshAccessories, refreshTransactions } = useData() || {};
@@ -87,9 +82,8 @@ const BuyingHistoryTable = React.memo(function BuyingHistoryTable({
   }, [getBrandFromBuyingHistory]);
 
   // Handle filtered data change from search component - wrapped with useCallback to prevent infinite re-renders
-  const handleFilteredDataChange = useCallback((filtered, calculatedTotals) => {
+  const handleFilteredDataChange = useCallback((filtered) => {
     setFilteredHistory(filtered);
-    setTotals(calculatedTotals);
   }, []);
 
   // Memoize toggleExpanded to prevent unnecessary re-renders
@@ -165,7 +159,7 @@ const BuyingHistoryTable = React.memo(function BuyingHistoryTable({
         window.showToast(t?.returnError || 'Error occurred during return', 'error');
       }
     }
-  }, [t, refreshBuyingHistory, refreshProducts, refreshAccessories, refreshTransactions]);
+  }, [t, refreshBuyingHistory, refreshProducts, refreshAccessories]);
 
   // Handle return item with quantity
   const handleReturnItem = useCallback((entryId, itemId, itemName, currentQuantity, unitPrice, currency = 'IQD') => {
@@ -242,8 +236,8 @@ const BuyingHistoryTable = React.memo(function BuyingHistoryTable({
         if (refreshTransactions) await refreshTransactions();
         
         // Force refresh all data to ensure dashboard updates
-        if (refreshAllData) {
-          await refreshAllData();
+        if (refreshBuyingHistory) {
+          await refreshBuyingHistory();
         }
         
         setShowReturnModal(false);
@@ -512,7 +506,7 @@ const BuyingHistoryTable = React.memo(function BuyingHistoryTable({
                     </td>
                     <td className="px-3 py-2 border-r border-gray-200/30 dark:border-gray-600/30">
                       <div className="flex justify-center">
-                        {!!entry.has_items ? (
+                        {entry.has_items ? (
                           <span className="px-2 py-1 rounded-lg text-xs font-bold bg-gradient-to-r from-emerald-500 to-green-500 text-white shadow-lg shadow-green-200 dark:shadow-green-800 flex items-center gap-1">
                             <Icon name="package" size={12} /> {t?.withItems || 'With Items'}
                           </span>

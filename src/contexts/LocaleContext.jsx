@@ -2313,25 +2313,7 @@ const translations = {
     oldestFirst: 'کۆنترین یەکەم',
     highestAmount: 'زۆرترین بڕ',
     lowestAmount: 'کەمترین بڕ',
-    customerAZ: 'کڕیار A-Z',
-    customerZA: 'کڕیار Z-A',
-    paidDebts: 'قەرزە پارەدراوەکان',
-    outstandingDebts: 'قەرزە ماوەکان',
-    noCustomerDebtsFound: 'هیچ قەرزێکی کڕیار بۆ ئەم گەڕانە نەدۆزرایەوە',
-    tryDifferentSearch: 'تەرمی گەڕانی جیاواز تاقی بکەوە یان فلتەرەکە پاک بکەوە',
-    singleTransaction: 'مامەڵە',
-    paidAmount: 'بڕی پارەدراو',
-    outstandingAmount: 'ماوە',
     payDebt: 'پارەدانی قەرز',
-    itemsCount: 'شتەکان',
-    paidOn: 'پارەدراوە لە',
-    remaining: 'ماوە',
-    noCustomerDebts: 'هیچ قەرزێکی کڕیار نەدۆزرایەوە',
-    noCustomerDebtsDesc: 'هەموو کڕیارەکان قەرزەکانیان پارەداوە یان هیچ فرۆشتنێکی قەرز نەکراوە',
-    noCompanyDebts: 'هیچ قەرزێکی کۆمپانیا نییە',
-    unpaid: 'پارەنەدراو',
-    transactions: 'مامەڵەکان',
-    customers: 'کڕیارەکان',
     
     // Monthly Reports
     advancedAnalyticsInsights: 'شیکردنەوەی پێشکەوتوو و تێڕوانین بۆ شوێنکەوتنی کاراییی بازرگانی',
@@ -2398,7 +2380,6 @@ const translations = {
     notConnected: 'گرێنەدراو',
     readyForBackup: 'ئامادەیە بۆ پاشەکەوت',
     connectToCloud: 'گرێدان بۆ چالاککردنی پاشەکەوتی کلاود',
-    signIn: 'چوونەژوورەوە',
     manualBackup: 'پاشەکەوتی دەستی',
     manualBackupDesc: 'پاشەکەوتێکی دەستبەجێ لە زانیارییەکانتە دروست بکە بۆ کلاود. ئەمە هەموو فرۆشتن، کۆگا، قەرز و ڕێکخستنەکان لەخۆ دەگرێت.',
     backingUp: 'پاشەکەوت دەکرێت...',
@@ -2412,15 +2393,12 @@ const translations = {
     needMoreOptions: 'پێویستت بە هەڵبژاردە زیاترە؟',
     advancedSettingsDesc: 'دەستڕاگەیشتن بە ڕێکخستنە پێشکەوتووەکانی پاشەکەوت لەوانە هەڵبژاردەکانی گەڕاندنەوە، مێژووی پاشەکەوت، و شیکردنەوەی ورد.',
     advancedBackupSettings: 'ڕێکخستنە پێشکەوتووەکانی پاشەکەوت',
-    active: 'چالاک',
     inactive: 'ناچالاک',
     cloudStatus: 'بارودۆخی کلاود',
     
     // Business Analytics
     businessAnalytics: 'شیکاری بازرگانی',
     practicalInsights: 'تێڕوانینی پراکتیکی بۆ بەڕێوەبردنی بازرگانی ڕۆژانە',
-    last7Days: 'دوایین ٧ ڕۆژ',
-    last30Days: 'دوایین ٣٠ ڕۆژ',
     last90Days: 'دوایین ٩٠ ڕۆژ',
     overview: 'کورتە',
     productsView: 'بەرهەمەکان',
@@ -2430,12 +2408,10 @@ const translations = {
     avg: 'ناوەند',
     revenueTrend: 'ئاڕاستەی داهات',
     transactionVolume: 'قەبارەی مامەڵە',
-    topSellingProducts: 'بەرهەمە زۆر فرۆشراوەکان',
     productPerformance: 'کاراییی بەرهەم',
     noLowStock: 'هەموو بەرهەمەکان بە باشی کۆگاناکراون!',
     noBrand: 'بە مارکە',
     units: 'یەکە',
-    left: 'ماوە',
     financialBreakdown: 'دابەشکردنی دارایی',
     currentPosition: 'شوێنی ئێستا',
     cashOnHand: 'پارەی دەست',
@@ -2481,7 +2457,6 @@ const translations = {
     cashCows: 'مانگاکانی پارە',
     questionMarks: 'نیشانە پرسیارەکان',
     dogs: 'سەگەکان',
-    products: 'بەرهەمەکان',
     topPerformingProducts: 'بەرهەمە باشکارەکان',
     
     // Market Basket Analysis
@@ -2509,7 +2484,6 @@ const translations = {
     
     // Financial Metrics
     totalRevenue: 'کۆی داهات',
-    transactions: 'مامەڵەکان',
     profitMargin: 'مەودای سوود',
     keyFinancialMetrics: 'پیوەرە دارایی گرنگەکان',
     netProfit: 'سوودی پاک',
@@ -2518,7 +2492,6 @@ const translations = {
     // Chart titles
     dailyRevenueTrends: 'ئاڕاستەی داهات و مامەڵەی ڕۆژانە',
     financialHealthAssessment: 'هەڵسەنگاندنی تەندروستی دارایی',
-    sold: 'فرۆشراو',
     marketShare: 'بەشی بازاڕ',
 
     // Error Messages & System
@@ -2528,7 +2501,6 @@ const translations = {
     tryAgain: 'دووبارە هەوڵبدەوە',
     reloadApplication: 'دووبارە بارکردنەوەی بەرنامە',
     goToHome: 'بڕۆ بۆ سەرەتا',
-    errorDetails: 'وردەکاری هەڵە',
     errorDetailsDev: 'وردەکاری هەڵە (تەنها بۆ گەشەپێدان)',
     errorLabel: 'هەڵە:',
     componentStack: 'کۆمەڵەی پێکهاتەکان:',
@@ -2542,21 +2514,10 @@ const translations = {
     online: 'ئۆنلاین',
     offline: 'ئۆفلاین',
 
-    // Categories & Product Types
-    phones: 'مۆبایلەکان',
     tablets: 'تابلێتەکان',
-    accessories: 'ئەکسێسۆرییەکان',
-
-    // Theme Options
-    system: 'سیستەم',
-    light: 'ڕووناک',
-    dark: 'تاریک',
     english: 'ئینگلیزی',
 
     // Time Periods
-    last7Days: 'دوایین ٧ ڕۆژ',
-    last30Days: 'دوایین ٣٠ ڕۆژ',
-    last90Days: 'دوایین ٩٠ ڕۆژ',
     lastYear: 'ساڵی ڕابردوو',
     allTime: 'هەموو کات',
     daily: 'ڕۆژانە',
@@ -2565,11 +2526,9 @@ const translations = {
 
     // Analytics & Reports
     totalSales: 'کۆی فرۆشتن',
-    totalProfit: 'کۆی سوود',
     totalSpending: 'کۆی خەرجکردن',
     netGrowth: 'گەشەی پاک',
     vsLastPeriod: 'بەراورد بە ماوەی پێشوو',
-    margin: 'سوود',
     salesVsSpending: 'فرۆشتن دژ بە خەرجکردن',
     profitAnalysis: 'شیکردنەوەی سوود',
     productsVsAccessories: 'بەرهەمەکان دژ بە ئەکسێسۆرییەکان',
@@ -2596,31 +2555,13 @@ const translations = {
     mobileRoma: 'مۆبایل ڕۆما',
 
     // Menu & Navigation Labels
-    dashboard: 'داشبۆرد',
     analytics: 'شیکردنەوە',
-    products: 'بەرهەمەکان',
-    accessories: 'ئەکسێسۆرییەکان',
-    archived: 'ئەرشیفکراو',
-    sales: 'فرۆشتن',
-    buyingHistory: 'مێژووی کڕین',
-    customerDebts: 'قەرزی کڕیار',
-    companyDebts: 'قەرزی کۆمپانیا',
-    incentives: 'پاداشەکان',
-    personalLoans: 'قەرزی کەسی',
     reports: 'ڕاپۆرتەکان',
     backup: 'پاشەکەوتکردن',
-    settings: 'ڕێکخستنەکان',
-    logout: 'دەرچوون',
 
     // Action Labels
-    add: 'زیادکردن',
-    edit: 'دەستکاریکردن',
-    delete: 'سڕینەوە',
-    search: 'گەڕان',
-    filter: 'فلتەر',
-    refresh: 'نوێکردنەوە',
+
     save: 'پاشەکەوتکردن',
-    download: 'داگرتن',
     upload: 'بارکردن',
 
     // Status Labels
@@ -2628,22 +2569,10 @@ const translations = {
     error: 'هەڵە',
     warning: 'ئاگاداری',
     info: 'زانیاری',
-    loading: 'بارکردن',
     cannotEditWithoutId: 'ناتوانرێت بەبێ ناسنامە بەرهەم دەستکاری بکرێت',
-    cannotOpenAddPurchaseModal: 'ناتوانرێت مۆدالی زیادکردنی کڕین بکرێتەوە',
     itemHasNoIdCannotUnarchive: 'بابەت ناسنامەی نییە، ناتوانرێت لە ئەرشیفەوە دەربهێنرێت',
-
-    // Additional Specific Terms
-    multiCurrency: 'فرە-دراو',
-    ram: 'RAM',
-    storage: 'بیرگە',
-    fromBalance: 'لە باڵانسی {currency}ەوە',
-    businessAnalytics: 'شیکردنەوەی بازرگانی',
-
     // Tooltips and Title Attributes
     cloudBackupEnabled: 'پاشەکەوتکردنی هەوری چالاکە',
-    resetZoom: 'ڕیسێتکردنی زووم',
-    exportChart: 'ناردنی چارت',
     printLastReceipt: 'چاپکردنی دوایین وەسڵ',
     showCurrencyBreakdown: 'پیشاندانی دابەشکردنی دراو',
 
@@ -2654,17 +2583,9 @@ const translations = {
     chartGuideExport: 'دەرهێنان: کلیک لە دوگمەی داگرتن بۆ پاشکەوتکردن وەک PNG',
     chartGuideTooltip: 'نیشاندەر: ماوس بخەرە سەر خاڵەکانی داتا بۆ وردەکاری',
 
-    // Balance labels
-    usdBalance: 'باڵانسی دۆلار',
-    iqdBalance: 'باڵانسی دینار',
-
     // Stats labels
     totalProducts: 'کۆی بەرهەمەکان',
     totalAccessories: 'کۆی ئەکسسوارەکان',
-    totalSales: 'کۆی فرۆشتنەکان',
-
-    // Error handling
-    errorDetails: 'وردەکاری هەڵە',
 
     // Currency equivalents
     iqdEquivalent: 'هاوتای دینار',
@@ -2672,22 +2593,14 @@ const translations = {
     // Missing translations
     balanceManagement: 'بەڕێوەبردنی بالانس',
     item: 'ئایتم',
-    returnCurrency: 'دراوی گەڕاندنەوە',
-    purchaseWithItems: 'کڕین لەگەڵ ئایتمەکان',
-    originalPurchase: 'کڕینی سەرەتایی',
     leaveEmptyForFull: 'بەتاڵی بهێڵە بۆ گەڕاندنەوەی تەواو',
-    returnSummary: 'کورتەی گەڕاندنەوە',
     showAdvanced: 'پیشاندانی پێشکەوتوو',
     hideAdvanced: 'شاردنەوەی پێشکەوتوو',
-    confirmReturn: 'دڵنیایی لە گەڕاندنەوە',
     customer_name: 'ناوی کڕیار',
     expand: 'فراوانکردن',
-    searchDebtsDesc: 'گەڕان و فلتەرکردنی قەرزەکان بەپێی ناوی کڕیار یان بڕ',
     archivedItemsDescription: 'بینین و بەڕێوەبردنی بەرهەم و ئەکسسوارە ئەرشیڤکراوەکان',
     invalidDate: 'بەرواری نادروست',
     max: 'زۆرترین',
-    show: 'نیشاندان',
-    hide: 'شاردنەوە',
 
   },
   ar: {
@@ -2805,8 +2718,6 @@ const translations = {
     remove: 'إزالة',
     logout: 'تسجيل الخروج',
     searching: 'البحث...',
-    remaining: 'المتبقي',
-    change: 'تغيير',
     enterNewExchangeRate: 'أدخل سعر الصرف الجديد',
     
     // Product messages
@@ -2882,16 +2793,6 @@ const translations = {
     totalAccessoryProfit: 'إجمالي ربح الإكسسوارات',
     outstandingOfMonth: 'المبلغ المستحق للشهر',
     useArrowKeysToNavigate: 'استخدم ↑↓ للتنقل، Enter/Tab للاختيار، Esc للإغلاق',
-    monthlyReport: 'التقرير الشهري',
-    monthlyReportDesc: 'نظرة شاملة على الأعمال الشهرية',
-    selectMonth: 'اختر الشهر',
-    selectMonthToView: 'اختر شهراً لعرض التقرير',
-    selectMonthDesc: 'اختر شهراً من القائمة المنسدلة أعلاه لرؤية التقرير الشهري المفصل',
-    totalProductsSold: 'إجمالي المنتجات المباعة',
-    totalAccessoriesSold: 'إجمالي الإكسسوارات المباعة',
-    totalProductProfit: 'إجمالي ربح المنتجات',
-    totalAccessoryProfit: 'إجمالي ربح الإكسسوارات',
-    outstandingOfMonth: 'المستحقات للشهر',
     cloudBackup: 'النسخ الاحتياطي السحابي',
     settings: 'الإعدادات',
     personalLoans: 'القروض الشخصية',
@@ -2915,8 +2816,6 @@ const translations = {
     financialOverview: 'النظرة المالية العامة',
     customerOutstandingOfMonth: 'مستحقات العملاء للشهر',
     companyOutstandingOfMonth: 'مستحقات الشركة للشهر',
-    usd: 'دولار',
-    iqd: 'دينار',
     
     // Admin Dashboard - Today's Performance
     adminDashboard: 'لوحة تحكم الإدارة',
@@ -2954,7 +2853,6 @@ const translations = {
     businessOverview: 'نظرة عامة على الأعمال',
     dashboardWelcome: 'مرحباً بك في لوحة تحكم أعمالك',
     addPurchase: 'إضافة مشتريات',
-    reloadApp: 'إعادة تحميل بيانات التطبيق',
     reloading: 'جاري إعادة التحميل...',
     reload: 'إعادة التحميل',
     today: 'اليوم',
@@ -3009,7 +2907,6 @@ const translations = {
     
     // Quick add product
     company: 'الشركة',
-    other: 'أخرى',
     ramPlaceholder: 'RAM (مثال: 8GB)',
     storagePlaceholder: 'التخزين (مثال: 128GB)',
     addProduct: 'إضافة منتج',
@@ -3174,16 +3071,11 @@ const translations = {
     itemInformation: 'معلومات العنصر',
     returnConfiguration: 'تكوين الإرجاع',
     totalReturnAmount: 'إجمالي مبلغ الإرجاع',
-    outOfStock: 'نفد المخزون',
-    left: 'متبقي',
     show: 'إظهار',
     hide: 'إخفاء',
-    showing: 'عرض',
-    of: 'من',
     entries: 'إدخالات',
     refreshData: 'تحديث جميع البيانات',
     refreshingData: 'جاري تحديث البيانات...',
-    total: 'الإجمالي',
     passwordsDoNotMatch: 'كلمات المرور غير متطابقة',
     accountCreatedSuccessfully: 'تم إنشاء الحساب بنجاح!',
     signUpFailed: 'فشل في التسجيل',
@@ -3242,8 +3134,6 @@ const translations = {
     // Monthly Reports Section
     noReports: 'لا توجد تقارير شهرية بعد',
     totalTransactions: 'إجمالي المعاملات',
-    totalProductsSold: 'إجمالي المنتجات المباعة',
-    totalAccessoriesSold: 'إجمالي الإكسسوارات المباعة',
     totalSpent: 'إجمالي المصروف',
     
     // Settings Modal
@@ -3262,21 +3152,16 @@ const translations = {
     searchAndFilter: 'البحث والتصفية',
     searchFilterDesc: 'تصفية البيانات حسب الاسم أو التاريخ أو النطاق',
     searchByName: 'البحث بالاسم...',
-    brand: 'العلامة التجارية',
-    allBrands: 'جميع العلامات التجارية',
     searchType: 'نوع البحث',
     selectPeriod: 'اختر الفترة',
     quickSelect: 'اختيار سريع',
     singleDate: 'تاريخ واحد',
     weekRange: 'نطاق الأسبوع',
     customRange: 'نطاق مخصص',
-    today: 'اليوم',
     yesterday: 'أمس',
     last7Days: 'آخر 7 أيام',
-    thisWeek: 'هذا الأسبوع',
     lastWeek: 'الأسبوع الماضي',
     last30Days: 'آخر 30 يوم',
-    thisMonth: 'هذا الشهر',
     lastMonth: 'الشهر الماضي',
     selectDate: 'اختر التاريخ',
     day: 'يوم',
@@ -3286,10 +3171,7 @@ const translations = {
     to: 'إلى',
     dateRange: 'نطاق التاريخ',
     from: 'من',
-    clearFilters: 'مسح',
     showingResults: 'عرض',
-    of: 'من',
-    entries: 'إدخالات',
 
     // Refresh functionality
     dataRefreshed: 'تم تحديث البيانات بنجاح!',
@@ -3403,7 +3285,6 @@ const translations = {
     addProductFailed: 'فشل في إضافة المنتج.',
     errorAddingProduct: 'خطأ في إضافة المنتج',
     errorAddingAccessory: 'خطأ في إضافة الإكسسوار',
-    errorMarkingDebtPaid: 'خطأ في تمييز الدين كمدفوع',
     
     // BackupManager translations
     databaseRestoredSuccessfully: 'تم استعادة قاعدة البيانات بنجاح!',
@@ -3415,29 +3296,21 @@ const translations = {
     confirmRestoreBackup: 'هل أنت متأكد من أنك تريد الاستعادة من هذه النسخة الاحتياطية؟ سيتم استبدال البيانات الحالية.',
     
     // Admin page translations
-    dataRefreshed: 'تم تحديث جميع البيانات بنجاح!',
-    refreshError: 'خطأ في تحديث البيانات',
     errorDetails: 'تفاصيل الخطأ',
     accessoryArchived: 'تم أرشفة الإكسسوار',
     accessoryUnarchived: 'تم إلغاء أرشفة الإكسسوار',
-    archiveFailed: 'فشل في الأرشفة',
-    unarchiveFailed: 'فشل في إلغاء الأرشفة',
     
     // IncentivesSection translations
     operationFailed: 'فشلت العملية',
     incentiveRemoved: 'تم إزالة الحافز بنجاح',
     
     // AdminModals translations
-    errorAddingPurchase: 'خطأ في إضافة الشراء',
     purchaseAddedWithMixedCurrency: 'تم إضافة الشراء بنجاح! تم اكتشاف العملات المختلطة والتعامل معها تلقائياً.',
-    purchaseAddedSuccessfully: 'تم إضافة الشراء بنجاح!',
     
     // useAdmin translations
     productAdded: 'تم إضافة المنتج:',
     accessoryAdded: 'تم إضافة الإكسسوار:',
     
-    // Product table translations
-    inventoryValue: 'قيمة المخزون',
     
     // Financial Summary Modal Translations (Arabic)
     financialSummary: 'الملخص المالي',
@@ -3460,19 +3333,16 @@ const translations = {
     failedToDownloadBackup: 'فشل في تحميل النسخة الاحتياطية',
     failedToChangeAutoBackupSetting: 'فشل في تغيير إعداد النسخ الاحتياطي التلقائي',
     failedToRestoreFromLocalFile: 'فشل في الاستعادة من الملف المحلي',
-    unknownError: 'خطأ غير معروف',
     failedToReturnItem: 'فشل في إرجاع العنصر',
     failedToReturnSale: 'فشل في إرجاع البيع',
     failedToAddLoan: 'فشل في إضافة القرض',
     failedToMarkLoanAsPaid: 'فشل في تمييز القرض كمدفوع',
     errorAddingLoan: 'خطأ في إضافة القرض',
-    totalCompanyDebtIQD: 'إجمالي دين الشركة IQD',
     noOutstandingDebts: 'لا توجد ديون شركات مستحقة',
     unpaidDebts: 'ديون غير مدفوعة',
     paidCompanyDebts: 'ديون مدفوعة',
     
     // Multi-currency dashboard
-    multiCurrencyDashboard: 'لوحة العملات المتعددة',
     realTimeBusinessMetrics: 'مقاييس الأعمال في الوقت الفعلي عبر USD و IQD',
     currentBalance: 'الرصيد الحالي',
     usdBalance: 'رصيد USD',
@@ -3486,7 +3356,6 @@ const translations = {
     iraqiDinars: 'الدينار العراقي',
     
     // Personal loans
-    personalLoans: 'القروض الشخصية',
     loanAmount: 'مبلغ القرض',
     personName: 'اسم الشخص',
     addLoan: 'إضافة قرض',
@@ -3505,17 +3374,10 @@ const translations = {
     loanPaidSuccessfully: 'تم سداد القرض بنجاح!',
     failedToPayLoan: 'فشل في سداد القرض',
     loanAddedSuccessfully: 'تم إضافة القرض بنجاح!',
-    failedToAddLoan: 'فشل في إضافة القرض',
     remainingAmount: 'المبلغ المتبقي',
     originalLoan: 'القرض الأصلي',
     
     // Advanced Analytics
-    advancedAnalytics: 'التحليلات المتقدمة',
-    dailyBalanceCheck: 'فحص الرصيد اليومي',
-    openingBalance: 'الرصيد الافتتاحي',
-    todaysSpending: 'مصروفات اليوم',
-    expectedBalance: 'الرصيد المتوقع',
-    physicalMoneyCheck: 'احسب أموالك الفعلية وقارن مع هذا المبلغ',
     analytics: 'التحليلات',
     dataAnalysis: 'تحليل البيانات',
     businessInsights: 'رؤى الأعمال',
@@ -3529,7 +3391,6 @@ const translations = {
     
     // Additional missing translations
     searchAndFilters: 'البحث والفلاتر',
-    todaysSales: "مبيعات اليوم",
     weeklySales: "مبيعات الأسبوع",
     payWithIQD: 'الدفع بالدينار',
     payWithUSD: 'الدفع بالدولار',
@@ -3541,7 +3402,6 @@ const translations = {
     nearest10000: 'أقرب 10000',
     quickAmounts: 'المبالغ السريعة',
     paymentOptions: 'خيارات الدفع',
-    customAmount: 'مبلغ مخصص (دينار)',
     paymentSummary: 'ملخص الدفع',
     multicurrency: 'متعدد العملات',
     currentBalances: 'الأرصدة الحالية',
@@ -3555,10 +3415,6 @@ const translations = {
     loansIQD: 'قروض دينار',
     netPerformanceUSD: 'الأداء الصافي دولار',
     netPerformanceIQD: 'الأداء الصافي دينار',
-    inventoryValueUSD: 'قيمة المخزون دولار',
-    totalInventoryValue: 'إجمالي قيمة المخزون',
-    inventoryValueIQD: 'قيمة المخزون دينار',
-    productsInventory: 'مخزون المنتجات',
     accessoriesInventory: 'مخزون الإكسسوارات',
     uniqueAccessories: 'إكسسوارات فريدة',
     totalInventorySummary: 'ملخص إجمالي المخزون',
@@ -3569,7 +3425,6 @@ const translations = {
     usdEquivalent: 'معادل الدولار',
     balanceOverview: 'نظرة عامة على الرصيد',
     recentTransactions: 'المعاملات الأخيرة',
-    multiCurrency: 'متعدد العملات',
     topSellingProducts: 'المنتجات الأكثر مبيعاً',
     monthlyProfitTrends: 'اتجاهات الربح الشهرية',
     lowStockAlerts: 'تنبيهات المخزون المنخفض',
@@ -3580,7 +3435,6 @@ const translations = {
     addToCart: 'أضف إلى السلة',
     filter: 'تصفية',
     uniqueProducts: 'منتجات فريدة',
-    percentage: 'نسبة مئوية',
     admin: 'مدير',
     roundedToNearestBill: 'مقرب لأقرب فئة',
     suggestMixedPayment: 'اقتراح دفع مختلط',
@@ -3610,7 +3464,6 @@ const translations = {
     loan: 'قرض',
     enterBorrowerName: 'أدخل اسم المقترض',
     multiCurrencyLoanSupport: 'دعم القروض متعددة العملات - أدخل المبالغ بالدولار و/أو الدينار',
-    lastMonth: 'الشهر الماضي',
     
     // Payment History & Partial Payment translations
     paymentHistory: 'تاريخ الدفع',
@@ -3630,37 +3483,10 @@ const translations = {
     payments: 'دفعات',
     latest: 'الأحدث',
     paymentsWillAppearHere: 'ستظهر معاملات الدفع هنا',
-    markAsPaid: 'تمييز كمدفوع',
     totalPaidUSD: 'إجمالي مدفوع دولار',
     totalPaidIQD: 'إجمالي مدفوع دينار',
-    totalOutstandingUSD: 'إجمالي مستحق دولار',
-    totalOutstandingIQD: 'إجمالي مستحق دينار',
-    searchAndFilters: 'البحث والفلاتر',
     searchDebtsDesc: 'البحث وتصفية ديون العملاء',
-    searchCustomer: 'البحث في العملاء...',
-    newestFirst: 'الأحدث أولاً',
-    oldestFirst: 'الأقدم أولاً',
-    highestAmount: 'أعلى مبلغ',
-    lowestAmount: 'أقل مبلغ',
-    customerAZ: 'العميل أ-ي',
-    customerZA: 'العميل ي-أ',
-    paidDebts: 'الديون المدفوعة',
-    outstandingDebts: 'الديون المستحقة',
-    noCustomerDebtsFound: 'لم يتم العثور على ديون عملاء لهذا البحث',
-    tryDifferentSearch: 'جرب مصطلح بحث مختلف أو امسح الفلتر',
-    singleTransaction: 'معاملة',
-    paidAmount: 'المبلغ المدفوع',
-    outstandingAmount: 'المستحق',
     payDebt: 'دفع الدين',
-    itemsCount: 'عناصر',
-    paidOn: 'مدفوع في',
-    remaining: 'المتبقي',
-    noCustomerDebts: 'لم يتم العثور على ديون عملاء',
-    noCustomerDebtsDesc: 'جميع العملاء سددوا ديونهم أو لم يتم عمل مبيعات بالدين',
-    noCompanyDebts: 'لا توجد ديون شركات',
-    unpaid: 'غير مدفوع',
-    transactions: 'المعاملات',
-    customers: 'العملاء',
     
     // Monthly Reports
     advancedAnalyticsInsights: 'تحليلات متقدمة ورؤى لتتبع أداء الأعمال',
@@ -3727,7 +3553,6 @@ const translations = {
     notConnected: 'غير متصل',
     readyForBackup: 'جاهز للنسخ الاحتياطي',
     connectToCloud: 'اتصل لتفعيل النسخ الاحتياطي السحابي',
-    signIn: 'تسجيل الدخول',
     manualBackup: 'نسخ احتياطي يدوي',
     manualBackupDesc: 'إنشاء نسخة احتياطية فورية من بياناتك إلى السحابة. يتضمن ذلك جميع المبيعات والمخزون والديون والإعدادات.',
     backingUp: 'جاري النسخ الاحتياطي...',
@@ -3741,15 +3566,12 @@ const translations = {
     needMoreOptions: 'تحتاج المزيد من الخيارات؟',
     advancedSettingsDesc: 'الوصول إلى إعدادات النسخ الاحتياطي المتقدمة بما في ذلك خيارات الاستعادة وسجل النسخ الاحتياطية والتكوين المفصل.',
     advancedBackupSettings: 'إعدادات النسخ الاحتياطي المتقدمة',
-    active: 'نشط',
     inactive: 'غير نشط',
     cloudStatus: 'حالة السحابة',
     
     // Business Analytics
     businessAnalytics: 'تحليلات الأعمال',
     practicalInsights: 'رؤى عملية لإدارة الأعمال اليومية',
-    last7Days: 'آخر 7 أيام',
-    last30Days: 'آخر 30 يوماً',
     last90Days: 'آخر 90 يوماً',
     overview: 'نظرة عامة',
     productsView: 'المنتجات',
@@ -3759,12 +3581,10 @@ const translations = {
     avg: 'متوسط',
     revenueTrend: 'اتجاه الإيرادات',
     transactionVolume: 'حجم المعاملات',
-    topSellingProducts: 'المنتجات الأكثر مبيعاً',
     productPerformance: 'أداء المنتج',
     noLowStock: 'جميع المنتجات مخزونة جيداً!',
     noBrand: 'لا ماركة',
     units: 'وحدات',
-    left: 'متبقي',
     financialBreakdown: 'التفصيل المالي',
     currentPosition: 'الوضع الحالي',
     cashOnHand: 'النقد في اليد',
@@ -3810,7 +3630,6 @@ const translations = {
     cashCows: 'البقر النقدي',
     questionMarks: 'علامات الاستفهام',
     dogs: 'الكلاب',
-    products: 'المنتجات',
     topPerformingProducts: 'أفضل المنتجات أداءً',
     
     // Market Basket Analysis
@@ -3838,7 +3657,6 @@ const translations = {
     
     // Financial Metrics
     totalRevenue: 'إجمالي الإيرادات',
-    transactions: 'المعاملات',
     profitMargin: 'هامش الربح',
     keyFinancialMetrics: 'المقاييس المالية الرئيسية',
     netProfit: 'صافي الربح',
@@ -3847,7 +3665,6 @@ const translations = {
     // Chart titles
     dailyRevenueTrends: 'اتجاهات الإيرادات والمعاملات اليومية',
     financialHealthAssessment: 'تقييم الصحة المالية',
-    sold: 'مُباع',
     marketShare: 'حصة السوق',
 
     // Error Messages & System
@@ -3857,7 +3674,6 @@ const translations = {
     tryAgain: 'حاول مرة أخرى',
     reloadApplication: 'إعادة تحميل التطبيق',
     goToHome: 'اذهب للرئيسية',
-    errorDetails: 'تفاصيل الخطأ',
     errorDetailsDev: 'تفاصيل الخطأ (للتطوير فقط)',
     errorLabel: 'خطأ:',
     componentStack: 'مكدس المكونات:',
@@ -3870,22 +3686,9 @@ const translations = {
     checking: 'جاري التحقق...',
     online: 'متصل',
     offline: 'غير متصل',
-
-    // Categories & Product Types
-    phones: 'هواتف',
     tablets: 'أجهزة لوحية',
-    accessories: 'إكسسوارات',
-
-    // Theme Options
-    system: 'النظام',
-    light: 'فاتح',
-    dark: 'داكن',
     english: 'إنجليزي',
-
     // Time Periods
-    last7Days: 'آخر ٧ أيام',
-    last30Days: 'آخر ٣٠ يوم',
-    last90Days: 'آخر ٩٠ يوم',
     lastYear: 'السنة الماضية',
     allTime: 'كل الوقت',
     daily: 'يومي',
@@ -3893,14 +3696,10 @@ const translations = {
     monthly: 'شهري',
 
     // Analytics & Reports
-    totalSales: 'إجمالي المبيعات',
-    totalProfit: 'إجمالي الربح',
     totalSpending: 'إجمالي الإنفاق',
     netGrowth: 'النمو الصافي',
     vsLastPeriod: 'مقارنة بالفترة السابقة',
-    margin: 'الهامش',
     salesVsSpending: 'المبيعات مقابل الإنفاق',
-    profitAnalysis: 'تحليل الربح',
     productsVsAccessories: 'المنتجات مقابل الإكسسوارات',
     netGrowthAnalysis: 'تحليل النمو الصافي',
     currencyBreakdown: 'تفصيل العملات',
@@ -3925,57 +3724,24 @@ const translations = {
     mobileRoma: 'موبايل روما',
 
     // Menu & Navigation Labels
-    dashboard: 'لوحة التحكم',
-    analytics: 'التحليلات',
-    products: 'المنتجات',
-    accessories: 'الإكسسوارات',
-    archived: 'المؤرشف',
-    sales: 'المبيعات',
-    buyingHistory: 'تاريخ الشراء',
-    customerDebts: 'ديون العملاء',
-    companyDebts: 'ديون الشركة',
-    incentives: 'الحوافز',
-    personalLoans: 'القروض الشخصية',
     reports: 'التقارير',
     backup: 'النسخ الاحتياطي',
-    settings: 'الإعدادات',
-    logout: 'تسجيل الخروج',
-
+   
     // Action Labels
-    add: 'إضافة',
-    edit: 'تعديل',
-    delete: 'حذف',
-    search: 'بحث',
-    filter: 'تصفية',
-    refresh: 'تحديث',
+   
     save: 'حفظ',
-    download: 'تحميل',
     upload: 'رفع',
     
     // Navigation shortcuts
     goToCashier: 'الذهاب للكاشير',
-    toCashier: 'للكاشير',
-    refresh: 'تحديث',
-    save: 'حفظ',
-    download: 'تحميل',
-    upload: 'رفع',
-
     // Status Labels
     success: 'نجح',
     error: 'خطأ',
     warning: 'تحذير',
     info: 'معلومات',
-    loading: 'جاري التحميل',
     cannotEditWithoutId: 'لا يمكن تعديل المنتج بدون معرف',
-    cannotOpenAddPurchaseModal: 'لا يمكن فتح نافذة إضافة الشراء',
+ 
     itemHasNoIdCannotUnarchive: 'العنصر ليس لديه معرف، لا يمكن إلغاء أرشفته',
-
-    // Additional Specific Terms
-    multiCurrency: 'متعدد العملات',
-    ram: 'RAM',
-    storage: 'التخزين',
-    fromBalance: 'من رصيد {currency}',
-    businessAnalytics: 'تحليلات الأعمال',
 
     // Tooltips and Title Attributes
     cloudBackupEnabled: 'النسخ الاحتياطي السحابي مُفعل',

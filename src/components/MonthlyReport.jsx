@@ -1,12 +1,10 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useData } from '../contexts/DataContext';
-import { useTheme } from '../contexts/ThemeContext';
 import { EXCHANGE_RATES, formatCurrencyWithTranslation } from '../utils/exchangeRates';
 import { Icon } from '../utils/icons.jsx';
 
-const MonthlyReport = ({ admin, t }) => {
+const MonthlyReport = ({ t }) => {
   const { sales, products, accessories, debts, buyingHistory, companyDebts, incentives, transactions } = useData();
-  const { theme } = useTheme();
   const [selectedMonth, setSelectedMonth] = useState('');
 
   // Get available months from sales data
@@ -74,11 +72,6 @@ const MonthlyReport = ({ admin, t }) => {
     const monthSales = sales.filter(sale => {
       const saleDate = new Date(sale.created_at);
       return saleDate >= startDate && saleDate <= endDate;
-    });
-
-    const monthPurchases = buyingHistory.filter(purchase => {
-      const purchaseDate = new Date(purchase.created_at);
-      return purchaseDate >= startDate && purchaseDate <= endDate;
     });
 
     // Calculate total sales
@@ -337,13 +330,11 @@ const MonthlyReport = ({ admin, t }) => {
       outstanding,
       companyOutstanding
     };
-  }, [selectedMonth, sales, buyingHistory, debts, products, accessories, companyDebts]);
+  }, [selectedMonth, sales, buyingHistory, debts, products, accessories, companyDebts, incentives, transactions]);
 
   const formatCurrency = (amount, currency = 'USD') => {
     return formatCurrencyWithTranslation(amount, currency, t);
   };
-
-  const isDarkMode = theme === 'dark' || (theme === 'system' && document.documentElement.classList.contains('dark'));
 
   return (
     <div className="p-6 space-y-6">

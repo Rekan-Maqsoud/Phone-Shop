@@ -128,7 +128,7 @@ function AppContent() {
     const initializeAuth = async () => {
       try {
         // Initialize CloudAuthService
-        const isAuthenticated = await cloudAuthService.initializeAuth();
+        await cloudAuthService.initializeAuth();
         
         // Give it a bit more time to ensure proper initialization
         await new Promise(resolve => setTimeout(resolve, 500));
@@ -207,7 +207,7 @@ function AppContent() {
     }
   }, [authInitialized, dataInitialized, appReady]);
 
-  // Expose global toast setter and navigation helper
+  // Expose global toast setter
   useEffect(() => {
     window.showGlobalToast = (msg, type = 'info', duration = 3000) => {
       setGlobalToast({ msg, type, duration });
@@ -215,7 +215,6 @@ function AppContent() {
     
     return () => {
       window.showGlobalToast = undefined;
-      window.debugNavigation = undefined;
     };
   }, []);
 

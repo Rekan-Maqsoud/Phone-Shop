@@ -351,7 +351,7 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
         return;
       }
 
-      const invalidItems = items.filter((item, index) => {
+      const invalidItems = items.filter((item) => {
         // For products: require brand, model, quantity, price
         if (item.item_type === 'product') {
           const validations = {

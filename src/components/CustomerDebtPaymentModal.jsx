@@ -133,9 +133,6 @@ const CustomerDebtPaymentModal = ({
       
       if (multiCurrency.enabled) {
         // Custom payment amounts with change handling
-        const debtAmountUSD = sale.currency === 'USD' ? sale.total : sale.total / EXCHANGE_RATES.USD_TO_IQD;
-        const totalPaidUSD = multiCurrency.usdAmount + (multiCurrency.iqdAmount / EXCHANGE_RATES.USD_TO_IQD);
-        
         let netUSD = multiCurrency.usdAmount;
         let netIQD = multiCurrency.iqdAmount;
         

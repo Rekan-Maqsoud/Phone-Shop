@@ -15,7 +15,6 @@ const CustomerDebtsSection = ({
   showPaidDebts, 
   setShowPaidDebts, 
   showConfirm,
-  setConfirm,
   triggerCloudBackup 
 }) => {
   const { refreshDebts, refreshDebtSales, refreshSales, refreshTransactions } = useData();
@@ -227,7 +226,6 @@ const CustomerDebtsSection = ({
           const debt = debtMap[sale.id];
           const originalCustomer = debt?.customer_name || sale.customer_name || 'Unknown Customer';
           const customer = originalCustomer.toLowerCase(); // Normalize for grouping
-          const currency = sale.currency || 'USD';
           
           // Check paid status correctly - a debt sale is unpaid if:
           // 1. There's no debt record, OR

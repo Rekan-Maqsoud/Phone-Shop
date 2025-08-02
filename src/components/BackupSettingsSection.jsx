@@ -8,7 +8,7 @@ export default function BackupSettingsSection({ admin, t, setShowBackupManager }
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [lastBackup, setLastBackup] = useState(null);
+  const [lastBackup] = useState(null);
   const [autoBackupEnabled, setAutoBackupEnabled] = useState(true);
 
   // Check authentication and backup status

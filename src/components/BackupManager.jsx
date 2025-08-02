@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import cloudAuthService from '../services/CloudAuthService';
 import ModalBase from './ModalBase';
 import { Icon } from '../utils/icons.jsx';
@@ -10,7 +10,6 @@ export default function BackupManager({ show, onClose, t, showConfirm = null }) 
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState('success');
-  const [autoBackupEnabled, setAutoBackupEnabled] = useState(true);
 
   // Auth form state
   const [showAuthForm, setShowAuthForm] = useState(false);
@@ -28,6 +27,24 @@ export default function BackupManager({ show, onClose, t, showConfirm = null }) 
     setTimeout(() => setMessage(''), 5000);
   };
 
+  const loadBackups = useCallback(async () => {
+    if (!isAuthenticated) return;
+    
+    setLoading(true);
+    try {
+      const result = await window.api?.listCloudBackups();
+      if (result?.success) {
+        setBackups(result.backups || []);
+      } else {
+        showMessage(result?.message || t?.failedToLoadBackups || 'Failed to load backups', 'error');
+      }
+    } catch {
+      showMessage(t?.failedToLoadBackups || 'Failed to load backups', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [isAuthenticated, t]);
+
   // Check authentication status
   useEffect(() => {
     const checkAuth = async () => {
@@ -39,16 +56,13 @@ export default function BackupManager({ show, onClose, t, showConfirm = null }) 
       }
       
       // Load auto backup setting
-      const autoBackupResult = await window.api?.getAutoBackup();
-      if (autoBackupResult?.success) {
-        setAutoBackupEnabled(autoBackupResult.enabled);
-      }
+      // (Auto backup functionality removed for cleanup)
     };
 
     if (show) {
       checkAuth();
     }
-  }, [show]);
+  }, [show, loadBackups]);
 
   // Add auth listener
   useEffect(() => {
@@ -65,25 +79,7 @@ export default function BackupManager({ show, onClose, t, showConfirm = null }) 
 
     cloudAuthService.addAuthListener(authListener);
     return () => cloudAuthService.removeAuthListener(authListener);
-  }, []);
-
-  const loadBackups = async () => {
-    if (!isAuthenticated) return;
-    
-    setLoading(true);
-    try {
-      const result = await window.api?.listCloudBackups();
-      if (result?.success) {
-        setBackups(result.backups || []);
-      } else {
-        showMessage(result?.message || t?.failedToLoadBackups || 'Failed to load backups', 'error');
-      }
-    } catch (error) {
-      showMessage(t?.failedToLoadBackups || 'Failed to load backups', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [loadBackups]);
 
   const handleAuth = async (e) => {
     e.preventDefault();
@@ -111,8 +107,8 @@ export default function BackupManager({ show, onClose, t, showConfirm = null }) 
           showMessage(result.message || t?.signInFailed || 'Sign in failed', 'error');
         }
       }
-    } catch (error) {
-      showMessage(error.message || t?.authenticationFailed || 'Authentication failed', 'error');
+    } catch {
+      showMessage(t?.authenticationFailed || 'Authentication failed', 'error');
     } finally {
       setLoading(false);
     }
@@ -127,7 +123,7 @@ export default function BackupManager({ show, onClose, t, showConfirm = null }) 
       } else {
         showMessage(result.message || t?.signOutFailed || 'Sign out failed', 'error');
       }
-    } catch (error) {
+    } catch {
       showMessage(t?.signOutFailed || 'Sign out failed', 'error');
     } finally {
       setLoading(false);
@@ -145,7 +141,7 @@ export default function BackupManager({ show, onClose, t, showConfirm = null }) 
       } else {
         showMessage(result?.message || t?.failedToCreateBackup || 'Failed to create backup', 'error');
       }
-    } catch (error) {
+    } catch {
       showMessage(t?.failedToCreateBackup || 'Failed to create backup', 'error');
     } finally {
       setLoading(false);
@@ -161,7 +157,7 @@ export default function BackupManager({ show, onClose, t, showConfirm = null }) 
       } else {
         showMessage(result?.message || t?.failedToCreateLocalBackup || 'Failed to create local backup', 'error');
       }
-    } catch (error) {
+    } catch {
       showMessage(t?.failedToCreateLocalBackup || 'Failed to create local backup', 'error');
     } finally {
       setLoading(false);
@@ -174,7 +170,7 @@ export default function BackupManager({ show, onClose, t, showConfirm = null }) 
       if (!result?.success) {
         showMessage(result?.message || t?.failedToOpenBackupFolder || 'Failed to open backup folder', 'error');
       }
-    } catch (error) {
+    } catch {
       showMessage(t?.failedToOpenBackupFolder || 'Failed to open backup folder', 'error');
     }
   };
@@ -222,7 +218,7 @@ export default function BackupManager({ show, onClose, t, showConfirm = null }) 
       } else {
         showMessage(result?.message || t?.failedToDownloadBackup || 'Failed to download backup', 'error');
       }
-    } catch (error) {
+    } catch {
       showMessage(t?.failedToDownloadBackup || 'Failed to download backup', 'error');
     } finally {
       setLoading(false);
@@ -238,7 +234,7 @@ export default function BackupManager({ show, onClose, t, showConfirm = null }) 
       } else {
         showMessage(result?.message || t?.failedToDownloadBackup || 'Failed to download backup', 'error');
       }
-    } catch (error) {
+    } catch {
       showMessage(t?.failedToDownloadBackup || 'Failed to download backup', 'error');
     } finally {
       setLoading(false);
@@ -258,7 +254,7 @@ export default function BackupManager({ show, onClose, t, showConfirm = null }) 
         } else {
           showMessage(result?.message || t?.failedToDeleteBackup || 'Failed to delete backup', 'error');
         }
-      } catch (error) {
+      } catch {
         showMessage(t?.failedToDeleteBackup || 'Failed to delete backup', 'error');
       } finally {
         setLoading(false);
@@ -272,21 +268,6 @@ export default function BackupManager({ show, onClose, t, showConfirm = null }) 
       if (confirmed) {
         await performDelete();
       }
-    }
-  };
-
-  const toggleAutoBackup = async () => {
-    try {
-      const newState = !autoBackupEnabled;
-      const result = await window.api?.setAutoBackup(newState);
-      if (result?.success) {
-        setAutoBackupEnabled(newState);
-        showMessage(t?.autoBackupToggled || `Auto backup ${newState ? 'enabled' : 'disabled'}`, 'success');
-      } else {
-        showMessage(t?.failedToChangeAutoBackupSetting || 'Failed to change auto backup setting', 'error');
-      }
-    } catch (error) {
-      showMessage(t?.failedToChangeAutoBackupSetting || 'Failed to change auto backup setting', 'error');
     }
   };
 
@@ -314,7 +295,7 @@ export default function BackupManager({ show, onClose, t, showConfirm = null }) 
       } else {
         showMessage(result?.message || t?.failedToRestoreFromLocalFile || 'Failed to restore from local file', 'error');
       }
-    } catch (error) {
+    } catch {
       showMessage(t?.failedToRestoreFromLocalFile || 'Failed to restore from local file', 'error');
     }
   };

@@ -17,7 +17,7 @@ const BuyingHistoryTableSimplified = React.memo(function BuyingHistoryTableSimpl
 }) {
   const [expandedEntries, setExpandedEntries] = useState(new Set());
   const [filteredHistory, setFilteredHistory] = useState([]);
-  const [confirmModal, setConfirmModal] = useState(null);
+  const [confirmModal, _setConfirmModal] = useState(null);
   const [showReturnModal, setShowReturnModal] = useState(false);
   const [returnModalData, setReturnModalData] = useState(null);
   const { isRTL } = useLocale();
@@ -77,7 +77,7 @@ const BuyingHistoryTableSimplified = React.memo(function BuyingHistoryTableSimpl
   }, []);
 
   // Handle filtered data change from search component
-  const handleFilteredDataChange = useCallback((filtered, calculatedTotals) => {
+  const handleFilteredDataChange = useCallback((filtered) => {
     setFilteredHistory(filtered);
   }, []);
 
@@ -278,122 +278,8 @@ const BuyingHistoryTableSimplified = React.memo(function BuyingHistoryTableSimpl
     }
   };
 
-  // Process complete entry return
-  const processEntryReturn = async (entry) => {
-    try {
-      const result = await window.api.returnBuyingHistoryEntry(entry.id);
-      
-      if (result.success) {
-        let message = t?.returnSuccess || 'Purchase returned successfully!';
-        if (result.refundedUSD > 0) {
-          const formatted = result.refundedUSD.toFixed(2);
-          const cleanFormatted = formatted.endsWith('.00') ? formatted.slice(0, -3) : formatted;
-          message += `\n${t?.refundedUSD || 'Refunded USD'}: $${cleanFormatted}`;
-        }
-        if (result.refundedIQD > 0) {
-          message += `\n${t?.refundedIQD || 'Refunded IQD'}: د.ع${Math.round(result.refundedIQD).toLocaleString()}`;
-        }
-        if (result.itemsReturned > 0) {
-          message += `\n${t?.itemsReturned || 'Items returned to stock'}: ${result.itemsReturned}`;
-        }
-        
-        admin?.setToast(message, 'success', 5000);
-        
-        // Refresh data
-        refreshBuyingHistory();
-        if (refreshProducts) await refreshProducts();
-        if (refreshAccessories) await refreshAccessories();
-      } else {
-        admin?.setToast(result.message || (t?.returnFailed || 'Failed to return purchase'), 'error');
-      }
-    } catch (error) {
-      console.error('Error returning entry:', error);
-      admin?.setToast(t?.returnError || 'Error occurred during return', 'error');
-    }
-    
-    setConfirmModal(null);
-  };
-
-  // Process individual item return
-  const processItemReturn = async (entry, item, quantity = 1) => {
-    try {
-      const result = await window.api.returnBuyingHistoryItem(entry.id, item.id, quantity);
-      
-      if (result.success) {
-        let message = t?.returnSuccess || 'Item returned successfully!';
-        if (result.refundedUSD > 0) {
-          const formatted = result.refundedUSD.toFixed(2);
-          const cleanFormatted = formatted.endsWith('.00') ? formatted.slice(0, -3) : formatted;
-          message += `\n${t?.refundedUSD || 'Refunded USD'}: $${cleanFormatted}`;
-        }
-        if (result.refundedIQD > 0) {
-          message += `\n${t?.refundedIQD || 'Refunded IQD'}: د.ع${Math.round(result.refundedIQD).toLocaleString()}`;
-        }
-        
-        admin?.setToast(message, 'success', 5000);
-        
-        // Refresh data
-        refreshBuyingHistory();
-        if (refreshProducts) await refreshProducts();
-        if (refreshAccessories) await refreshAccessories();
-      } else {
-        admin?.setToast(result.message || (t?.returnFailed || 'Failed to return item'), 'error');
-      }
-    } catch (error) {
-      console.error('Error returning item:', error);
-      // Show more specific error message if available
-      const errorMessage = error.message || error.toString();
-      if (errorMessage.includes('Invalid return amount') || errorMessage.includes('Maximum refundable')) {
-        admin?.setToast(errorMessage, 'error');
-      } else {
-        admin?.setToast(t?.returnError || 'Error occurred during return', 'error');
-      }
-    }
-    
-    setConfirmModal(null);
-  };
-
-  // Format currency display for entries
-  const formatCurrency = (entry, t) => {
-    // Check if this is truly a multi-currency purchase with actual amounts
-    const hasUSD = (entry.multi_currency_usd || 0) > 0;
-    const hasIQD = (entry.multi_currency_iqd || 0) > 0;
-    
-    // Only treat as multi-currency if it has amounts in both currencies OR is explicitly marked as MULTI
-    if ((entry.currency === 'MULTI' && (hasUSD || hasIQD)) || (hasUSD && hasIQD)) {
-      const parts = [];
-      if (hasUSD) {
-        const formatted = entry.multi_currency_usd.toFixed(2);
-        const cleanFormatted = formatted.endsWith('.00') ? formatted.slice(0, -3) : formatted;
-        parts.push(`$${cleanFormatted}`);
-      }
-      if (hasIQD) {
-        parts.push(`د.ع${Math.round(entry.multi_currency_iqd).toLocaleString()}`);
-      }
-      return parts.length > 0 ? parts.join(' + ') : (t?.multiCurrency || 'Multi-currency');
-    } else if (hasUSD && !hasIQD) {
-      // Single currency USD purchase stored in multi_currency_usd
-      const formatted = entry.multi_currency_usd.toFixed(2);
-      const cleanFormatted = formatted.endsWith('.00') ? formatted.slice(0, -3) : formatted;
-      return `$${cleanFormatted}`;
-    } else if (hasIQD && !hasUSD) {
-      // Single currency IQD purchase stored in multi_currency_iqd
-      return `د.ع${Math.round(entry.multi_currency_iqd).toLocaleString()}`;
-    } else {
-      // Regular single currency purchase
-      const amount = entry.total_price || entry.amount || 0;
-      if (entry.currency === 'USD') {
-        const formatted = amount.toFixed(2);
-        const cleanFormatted = formatted.endsWith('.00') ? formatted.slice(0, -3) : formatted;
-        return `$${cleanFormatted}`;
-      } else {
-        return `د.ع${Math.round(amount).toLocaleString()}`;
-      }
-    }
-  };
-
   // Format currency display for individual items
-  const formatItemCurrency = (item, t) => {
+  const formatItemCurrency = (item) => {
     const totalPrice = (item.quantity || 1) * (item.unit_price || 0);
     if (item.currency === 'USD') {
       const formatted = totalPrice.toFixed(2);
@@ -580,7 +466,6 @@ const BuyingHistoryTableSimplified = React.memo(function BuyingHistoryTableSimpl
                             // Check if this is truly a multi-currency purchase with actual amounts in both currencies
                             const hasUSD = (entry.multi_currency_usd || 0) > 0;
                             const hasIQD = (entry.multi_currency_iqd || 0) > 0;
-                            const isMultiCurrency = entry.currency === 'MULTI' || (hasUSD && hasIQD);
                             
                             // If it has multi-currency data with at least one positive amount, show multi-currency layout
                             if ((entry.currency === 'MULTI' || entry.multi_currency_usd !== null || entry.multi_currency_iqd !== null) && (hasUSD || hasIQD)) {

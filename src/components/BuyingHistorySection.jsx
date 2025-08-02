@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import BuyingHistoryTableSimplified from './BuyingHistoryTableSimplified';
 import { useData } from '../contexts/DataContext';
 import { Icon } from '../utils/icons.jsx';

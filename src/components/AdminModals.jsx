@@ -228,8 +228,6 @@ export default function AdminModals({
                   // Detect if items have mixed currencies automatically
                   const currencies = [...new Set(purchaseData.items.map(item => item.currency || 'IQD'))];
                   const hasMixedCurrencies = currencies.length > 1;
-                  const hasUSD = currencies.includes('USD');
-                  const hasIQD = currencies.includes('IQD');
                   
                   // Check if payment currency differs from item currencies (important for currency display fix)
                   const paymentCurrency = purchaseData.currency || 'IQD';
@@ -431,7 +429,7 @@ export default function AdminModals({
           }}
           admin={{
             ...admin,
-            setToast: (msg, type) => setToast(msg)
+            setToast: (msg) => setToast(msg)
           }}
           t={t}
         />

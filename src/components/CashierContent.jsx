@@ -10,22 +10,7 @@ import OfflineIndicator from './OfflineIndicator';
 import UnderCostWarning from './UnderCostWarning';
 import { KeyboardShortcutHint } from './KeyboardShortcutsModal';
 import { Icon } from '../utils/icons.jsx';
-import useOnlineStatus from './hooks/useOnlineStatus';
 import { useSound } from '../contexts/SoundContext';
-import { playActionSound } from '../utils/sounds';
-
-// Helper function for precise currency formatting
-const formatCurrencyPrecise = (amount, currency) => {
-  const symbol = currency === 'USD' ? '$' : 'د.ع';
-  
-  if (currency === 'IQD') {
-    const rounded = Math.round(amount);
-    return `${rounded.toLocaleString()}${symbol}`;
-  }
-  
-  // For USD: always show 2 decimals for precise amounts
-  return `${symbol}${Number(amount).toFixed(2)}`;
-};
 
 export default function CashierContent({
   t,
@@ -44,7 +29,6 @@ export default function CashierContent({
   handleQuantityInput,
   handleSearchSubmit,
   handleSuggestionClick,
-  setShowSuggestions,
   setIsDebt,
   setCustomerName,
   setItems,
@@ -54,13 +38,11 @@ export default function CashierContent({
   addOrUpdateItem,
   currency,
   setCurrency,
-  setDiscount,
   multiCurrency,
   setMultiCurrency,
   refreshProducts,
   refreshAccessories
 }) {
-  const [discount, setLocalDiscount] = useState({ type: 'none', value: 0 });
   const [showExchangeRateModal, setShowExchangeRateModal] = useState(false);
   const [newExchangeRate, setNewExchangeRate] = useState(EXCHANGE_RATES.USD_TO_IQD.toString());
   const [isLoadingRate, setIsLoadingRate] = useState(true);
@@ -74,7 +56,6 @@ export default function CashierContent({
   const [underCostWarningVisible, setUnderCostWarningVisible] = useState(false);
   const inputRef = useRef();
   const { soundSettings } = useSound();
-  const { isOnline } = useOnlineStatus();
 
   // Function to play sounds based on settings
   const playSound = (type) => {
@@ -148,39 +129,10 @@ export default function CashierContent({
     }
   }, [items, currency]);
 
-  // Calculate discounted total
+  // Use converted total directly (no discount system)
   const discountedTotal = useMemo(() => {
-    const baseTotal = convertedTotal;
-    const effectiveCurrency = currency;
-    
-    if (discount.type === 'none' || !discount.value || discount.value <= 0) {
-      return effectiveCurrency === 'IQD' ? getRoundedTotal(baseTotal, effectiveCurrency) : baseTotal;
-    }
-    
-    let finalTotal;
-    if (discount.type === 'percentage') {
-      const validPercentage = Math.min(Math.max(0, discount.value), 100);
-      finalTotal = baseTotal * (1 - validPercentage / 100);
-    } else {
-      finalTotal = Math.max(0, baseTotal - discount.value);
-    }
-    
-    return effectiveCurrency === 'IQD' ? getRoundedTotal(finalTotal, effectiveCurrency) : finalTotal;
-  }, [convertedTotal, discount, currency]);
-
-  // Calculate actual discount amount for display
-  const discountAmount = useMemo(() => {
-    if (discount.type === 'none' || !discount.value || discount.value <= 0) {
-      return 0;
-    }
-    
-    if (discount.type === 'percentage') {
-      const validPercentage = Math.min(Math.max(0, discount.value), 100);
-      return convertedTotal * (validPercentage / 100);
-    } else {
-      return Math.min(discount.value, convertedTotal);
-    }
-  }, [convertedTotal, discount]);
+    return currency === 'IQD' ? getRoundedTotal(convertedTotal, currency) : convertedTotal;
+  }, [convertedTotal, currency]);
 
   // Payment amount tracking removed - no longer needed
 
@@ -269,10 +221,7 @@ export default function CashierContent({
       };
       
       handleCompleteSale(
-        discount.type !== 'none' && discount.value > 0 ? { 
-          discount_type: discount.type, 
-          discount_value: discount.value 
-        } : null,
+        null, // No discount system
         discountedTotal,
         finalPayment
       );
@@ -351,10 +300,7 @@ export default function CashierContent({
     }
     
     handleCompleteSale(
-      discount.type !== 'none' && discount.value > 0 ? { 
-        discount_type: discount.type, 
-        discount_value: discount.value 
-      } : null,
+      null, // No discount system
       discountedTotal,
       finalPayment
     );
@@ -391,11 +337,11 @@ export default function CashierContent({
         setNewExchangeRate(EXCHANGE_RATES.USD_TO_IQD.toString());
         setIsLoadingRate(false);
       })
-      .catch(error => {
+      .catch(() => {
         setIsLoadingRate(false);
         showToast(t.failedToLoadExchangeRate || 'Failed to load exchange rates', 'error');
       });
-  }, []);
+  }, [showToast, t.failedToLoadExchangeRate]);
 
   const handleExchangeRateClick = () => {
     if (isLoadingRate) {
@@ -414,12 +360,6 @@ export default function CashierContent({
   };
 
   const handleExchangeRateUpdate = async () => {
-    if (!isOnline) {
-      showToast(t.offlineWarning || 'Cannot update exchange rate while offline', 'error');
-      playSound('system');
-      return;
-    }
-
     if (isLoadingRate) {
       showToast(t.loadingExchangeRate || 'Loading exchange rate...', 'info');
       return;
@@ -453,25 +393,6 @@ export default function CashierContent({
     }
   };
 
-  // Auto-sync discount changes with parent component
-  useEffect(() => {
-    if (discount.type === 'none') {
-      setDiscount({ discount_type: 'none', discount_value: 0 });
-    } else if (discount.type === 'percentage') {
-      const validPercentage = Math.min(Math.max(0, discount.value), 100);
-      setDiscount({ 
-        discount_type: 'percentage', 
-        discount_value: validPercentage 
-      });
-    } else {
-      const validAmount = Math.max(0, discount.value);
-      setDiscount({ 
-        discount_type: 'fixed', 
-        discount_value: validAmount 
-      });
-    }
-  }, [discount.type, discount.value, setDiscount]);
-
   // Auto-enable multi-currency when both amounts are entered
   useEffect(() => {
     if (multiCurrency.usdAmount > 0 && multiCurrency.iqdAmount > 0 && !multiCurrency.enabled) {
@@ -496,7 +417,7 @@ export default function CashierContent({
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [showExchangeRateModal, items.length, loading.sale]);
+  }, [showExchangeRateModal, items.length, loading.sale, processPayment]);
 
   const clearFilters = () => {
     setFilters({
@@ -505,15 +426,6 @@ export default function CashierContent({
       priceMin: '',
       priceMax: ''
     });
-  };
-
-  // Enhanced currency formatting
-  const formatCurrencyPrecise = (amount, currencyType) => {
-    if (currencyType === 'IQD') {
-      return `${Math.round(amount).toLocaleString()}د.ع`;
-    } else {
-      return `$${Number(amount).toFixed(2)}`;
-    }
   };
 
   return (
@@ -1037,62 +949,6 @@ export default function CashierContent({
           </div>
         )}
 
-        {/* Discount Section */}
-        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg p-4">
-          <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-3">
-            {t.discount}
-          </h3>
-          <div className="space-y-3">
-            <div className="flex gap-2">
-              <select
-                value={discount.type}
-                onChange={(e) => setLocalDiscount(prev => ({ ...prev, type: e.target.value }))}
-                className="flex-1 p-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
-              >
-                <option value="none">{t.noDiscount}</option>
-                <option value="percentage">{t.percentage}</option>
-                <option value="fixed">{t.fixedAmount}</option>
-              </select>
-              {discount.type !== 'none' && (
-                <input
-                  type="number"
-                  value={discount.value}
-                  onChange={(e) => {
-                    const value = Number(e.target.value);
-                    // Validate input based on discount type
-                    if (discount.type === 'percentage') {
-                      // Limit percentage to 0-100
-                      if (value >= 0 && value <= 100) {
-                        setLocalDiscount(prev => ({ ...prev, value }));
-                      }
-                    } else {
-                      // For fixed amount, don't allow negative values
-                      if (value >= 0) {
-                        setLocalDiscount(prev => ({ ...prev, value }));
-                      }
-                    }
-                  }}
-                  placeholder={discount.type === 'percentage' ? '0-100%' : formatCurrency(0, currency)}
-                  min="0"
-                  max={discount.type === 'percentage' ? "100" : undefined}
-                  step={discount.type === 'percentage' ? "0.1" : "0.01"}
-                  className="w-28 p-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
-                />
-              )}
-            </div>
-            {discount.type !== 'none' && (
-              <div className="text-sm text-green-600 text-center">
-                {discount.value > 0 && discountAmount > 0 && (
-                  <>
-                    {t.discount}: -{formatCurrency(discountAmount, currency)}
-                    {discount.type === 'percentage' && ` (${discount.value}%)`}
-                  </>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-
         {/* Multi-Currency Payment - disabled for debt sales */}
         {!isDebt && (
           <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg p-4">
@@ -1353,15 +1209,6 @@ export default function CashierContent({
                 {formatCurrency(convertedTotal, currency)}
               </span>
             </div>
-            {discount.type !== 'none' && discount.value > 0 && discountAmount > 0 && (
-              <div className="flex justify-between text-sm text-green-600">
-                <span>{t.discount}:</span>
-                <span>
-                  -{formatCurrency(discountAmount, currency)}
-                  {discount.type === 'percentage' && ` (${discount.value}%)`}
-                </span>
-              </div>
-            )}
             <div className="flex justify-between text-xl font-bold border-t border-slate-200 dark:border-slate-700 pt-2">
               <span className="text-slate-800 dark:text-white">{t.total}:</span>
               <span className="text-slate-800 dark:text-white">
@@ -1702,7 +1549,6 @@ export default function CashierContent({
         items={items}
         allItems={allItems}
         t={t}
-        discount={discount}
         currency={currency}
         onWarningChange={setUnderCostWarningVisible}
       />

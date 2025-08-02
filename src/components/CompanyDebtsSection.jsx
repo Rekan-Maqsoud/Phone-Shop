@@ -4,17 +4,16 @@ import PaymentHistory from './PaymentHistory';
 import { formatCurrency, EXCHANGE_RATES } from '../utils/exchangeRates';
 import { Icon } from '../utils/icons.jsx';
 import { useLocale } from '../contexts/LocaleContext';
-import { getSeparator, getTextAlign, formatCompoundText, getFlexDirection } from '../utils/rtlUtils';
+import { getSeparator, getTextAlign, getFlexDirection } from '../utils/rtlUtils';
 
 const CompanyDebtsSection = ({ 
   t, 
-  admin, 
-  openEnhancedCompanyDebtModal, 
+  admin,
   openAddPurchaseModal
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedPaymentHistories, setExpandedPaymentHistories] = useState(new Set());
-  const { companyDebts, refreshCompanyDebts, refreshBuyingHistory } = useData();
+  const { companyDebts } = useData();
   const { isRTL } = useLocale();
 
   // Helper function to format REMAINING debt amount with proper currency handling
@@ -43,25 +42,6 @@ const CompanyDebtsSection = ({
         const remaining = (debt.amount || 0) - (debt.payment_iqd_amount || 0);
         return formatCurrency(remaining, 'IQD');
       }
-    }
-  };
-
-  // Helper function to calculate total debt amount for display
-  const getDebtTotalValue = (debt) => {
-    if (debt.currency === 'MULTI') {
-      // For multi-currency, return both amounts as an object
-      return {
-        usd: debt.usd_amount || 0,
-        iqd: debt.iqd_amount || 0,
-        isMulti: true
-      };
-    } else {
-      // Single currency debt
-      return {
-        amount: debt.amount || 0,
-        currency: debt.currency || 'IQD',
-        isMulti: false
-      };
     }
   };
 
@@ -94,15 +74,10 @@ const CompanyDebtsSection = ({
           <button
             onClick={() => {
               try {
-                if (openAddPurchaseModal) {
-                  openAddPurchaseModal(true); // Pass true for company debt mode
-                } else {
-                  console.error('Add Purchase Modal function not available');
-                  admin.setToast?.(t?.cannotOpenAddPurchaseModal || 'Error: Cannot open add purchase modal', 'error', 5000);
-                }
+                openAddPurchaseModal(true);
               } catch (error) {
                 console.error('Error opening Add Purchase Modal:', error);
-                admin.setToast?.(t?.errorOpeningPurchaseModal || 'Error opening purchase modal', 'error', 5000);
+                admin?.setToast?.(t?.errorOpeningPurchaseModal || 'Error opening purchase modal', 'error', 5000);
               }
             }}
             className="flex items-center gap-2 px-6 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 transition font-semibold shadow-lg"

@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import ProductTable from './ProductTable';
-import { useData } from '../contexts/DataContext';
 import { Icon } from '../utils/icons.jsx';
 
-export default function ArchivedItemsSection({ t, admin, handleArchiveToggle }) {
+export default function ArchivedItemsSection({ t, admin }) {
   const [archivedProducts, setArchivedProducts] = useState([]);
   const [archivedAccessories, setArchivedAccessories] = useState([]);
   const [loading, setLoading] = useState(false);
