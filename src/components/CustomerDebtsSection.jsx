@@ -18,7 +18,7 @@ const CustomerDebtsSection = ({
   setConfirm,
   triggerCloudBackup 
 }) => {
-  const { refreshDebts, refreshDebtSales, refreshSales } = useData();
+  const { refreshDebts, refreshDebtSales, refreshSales, refreshTransactions } = useData();
   const { isRTL } = useLocale();
   const [sortBy, setSortBy] = useState('date'); // 'date', 'amount', 'customer'
   const [sortOrder, setSortOrder] = useState('desc'); // 'asc', 'desc'
@@ -133,7 +133,8 @@ const CustomerDebtsSection = ({
     await Promise.all([
       refreshDebts(),
       refreshDebtSales(),
-      refreshSales()
+      refreshSales(),
+      refreshTransactions() // Add transactions refresh for dashboard update
     ]);
    
     triggerCloudBackup();

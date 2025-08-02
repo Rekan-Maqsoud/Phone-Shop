@@ -674,6 +674,14 @@ export default function PersonalLoansSection({ admin, t, showConfirm }) {
         onPaymentComplete={async () => {
           fetchLoans();
           fetchBalances();
+          
+          // CRITICAL: Refresh data so dashboard sees the payment
+          if (refreshTransactions) {
+            await refreshTransactions();
+          }
+          if (refreshPersonalLoans) {
+            await refreshPersonalLoans();
+          }
         }}
         admin={admin}
         t={t}

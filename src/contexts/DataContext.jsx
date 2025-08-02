@@ -121,6 +121,7 @@ export const DataProvider = ({ children }) => {
       setDebts([]);
       setDebtSales([]);
       setCompanyDebts([]);
+      setPersonalLoans([]);
       setBuyingHistory([]);
       setMonthlyReports([]);
       setIncentives([]);

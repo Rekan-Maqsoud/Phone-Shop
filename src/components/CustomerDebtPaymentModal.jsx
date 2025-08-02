@@ -22,8 +22,31 @@ const CustomerDebtPaymentModal = ({
   const paymentSummary = useMemo(() => {
     if (!selectedDebt || !selectedDebt.sale) return null;
     
-    const { sale } = selectedDebt;
-    const debtAmountUSD = sale.currency === 'USD' ? sale.total : sale.total / EXCHANGE_RATES.USD_TO_IQD;
+    const { sale, debt } = selectedDebt;
+    
+    // Calculate remaining debt amount after partial payments
+    let debtAmountUSD = 0;
+    if (!debt) {
+      // No debt record means full amount is owed
+      debtAmountUSD = sale.currency === 'USD' ? sale.total : sale.total / EXCHANGE_RATES.USD_TO_IQD;
+    } else if (debt.paid_at) {
+      // Already fully paid
+      debtAmountUSD = 0;
+    } else {
+      // Calculate remaining amount after partial payments
+      const originalTotal = sale.total;
+      const currency = sale.currency || 'USD';
+      
+      if (currency === 'USD') {
+        const paidAmount = debt.payment_usd_amount || 0;
+        const remaining = Math.max(0, originalTotal - paidAmount);
+        debtAmountUSD = remaining;
+      } else {
+        const paidAmount = debt.payment_iqd_amount || 0;
+        const remaining = Math.max(0, originalTotal - paidAmount);
+        debtAmountUSD = remaining / EXCHANGE_RATES.USD_TO_IQD; // Convert to USD for calculation
+      }
+    }
     
     if (multiCurrency.enabled) {
       const totalPaidUSD = multiCurrency.usdAmount + (multiCurrency.iqdAmount / EXCHANGE_RATES.USD_TO_IQD);
@@ -76,6 +99,35 @@ const CustomerDebtPaymentModal = ({
     
     const { debt, sale, originalCustomer } = selectedDebt;
     
+    // Check if debt is already fully paid
+    if (debt && debt.paid_at) {
+      admin.setToast?.('This debt has already been fully paid', 'error');
+      return;
+    }
+    
+    // Calculate remaining debt amount for validation
+    const remainingDebt = (() => {
+      if (!debt) {
+        return sale.currency === 'USD' ? sale.total : sale.total;
+      } else {
+        const originalTotal = sale.total;
+        const currency = sale.currency || 'USD';
+        
+        if (currency === 'USD') {
+          const paidAmount = debt.payment_usd_amount || 0;
+          return Math.max(0, originalTotal - paidAmount);
+        } else {
+          const paidAmount = debt.payment_iqd_amount || 0;
+          return Math.max(0, originalTotal - paidAmount);
+        }
+      }
+    })();
+    
+    if (remainingDebt <= 0) {
+      admin.setToast?.('This debt has been fully paid', 'error');
+      return;
+    }
+    
     try {
       let paymentData = null;
       
@@ -104,33 +156,63 @@ const CustomerDebtPaymentModal = ({
           deductIQD: netIQD  // What we actually keep after change
         };
       } else {
-        // Default payment based on selected payment currency
+        // Default payment based on selected payment currency - use REMAINING debt amount
+        const remainingDebtInfo = (() => {
+          if (!debt) {
+            // No debt record means full amount is owed
+            return {
+              usdAmount: sale.currency === 'USD' ? sale.total : (sale.total / EXCHANGE_RATES.USD_TO_IQD),
+              iqdAmount: sale.currency === 'IQD' ? sale.total : (sale.total * EXCHANGE_RATES.USD_TO_IQD)
+            };
+          } else if (debt.paid_at) {
+            // Already fully paid
+            return { usdAmount: 0, iqdAmount: 0 };
+          } else {
+            // Calculate remaining amount after partial payments
+            const originalTotal = sale.total;
+            const currency = sale.currency || 'USD';
+            
+            if (currency === 'USD') {
+              const paidAmount = debt.payment_usd_amount || 0;
+              const remaining = Math.max(0, originalTotal - paidAmount);
+              return {
+                usdAmount: remaining,
+                iqdAmount: remaining * EXCHANGE_RATES.USD_TO_IQD
+              };
+            } else {
+              const paidAmount = debt.payment_iqd_amount || 0;
+              const remaining = Math.max(0, originalTotal - paidAmount);
+              return {
+                usdAmount: remaining / EXCHANGE_RATES.USD_TO_IQD,
+                iqdAmount: remaining
+              };
+            }
+          }
+        })();
+        
         if (paymentCurrency === 'USD') {
-          // Pay with USD regardless of debt currency
-          const usdAmount = sale.currency === 'USD' ? sale.total : (sale.total / EXCHANGE_RATES.USD_TO_IQD);
+          // Pay with USD - use remaining USD amount
           paymentData = {
-            usdAmount: usdAmount,
+            usdAmount: remainingDebtInfo.usdAmount,
             iqdAmount: 0,
-            deductUSD: usdAmount,
+            deductUSD: remainingDebtInfo.usdAmount,
             deductIQD: 0
           };
         } else if (paymentCurrency === 'IQD') {
-          // Pay with IQD regardless of debt currency
-          const iqdAmount = sale.currency === 'IQD' ? sale.total : (sale.total * EXCHANGE_RATES.USD_TO_IQD);
+          // Pay with IQD - use remaining IQD amount
           paymentData = {
             usdAmount: 0,
-            iqdAmount: iqdAmount,
+            iqdAmount: remainingDebtInfo.iqdAmount,
             deductUSD: 0,
-            deductIQD: iqdAmount
+            deductIQD: remainingDebtInfo.iqdAmount
           };
         } else {
-          // Fallback - use IQD
-          const iqdAmount = sale.currency === 'IQD' ? sale.total : (sale.total * EXCHANGE_RATES.USD_TO_IQD);
+          // Fallback - use remaining IQD amount
           paymentData = {
             usdAmount: 0,
-            iqdAmount: iqdAmount,
+            iqdAmount: remainingDebtInfo.iqdAmount,
             deductUSD: 0,
-            deductIQD: iqdAmount
+            deductIQD: remainingDebtInfo.iqdAmount
           };
         }
       }
@@ -183,7 +265,13 @@ const CustomerDebtPaymentModal = ({
         }
       }
       if (result && result.changes > 0) {
-        admin.setToast?.(`Debt marked as paid: ${(sale.currency === 'USD' ? '$' : 'د.ع')}${sale.total.toFixed(2)} for ${originalCustomer}`, 'success');
+        const isFullyPaid = result.isFullyPaid;
+        const paymentType = isFullyPaid ? 'Full payment' : 'Partial payment';
+        const amounts = [];
+        if (paymentData.usdAmount > 0) amounts.push(`$${paymentData.usdAmount.toFixed(2)}`);
+        if (paymentData.iqdAmount > 0) amounts.push(`د.ع${paymentData.iqdAmount.toFixed(2)}`);
+        
+        admin.setToast?.(`${paymentType} received: ${amounts.join(' + ')} for ${originalCustomer}`, 'success');
         
         // Refresh balances to show updated amounts
         if (admin.loadBalances) {
@@ -242,7 +330,30 @@ const CustomerDebtPaymentModal = ({
                 {t.debtAmount || 'Debt Amount'}
               </h4>
               <p className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                {(sale.currency === 'USD' ? '$' : 'د.ع')}{sale.total.toFixed(2)}
+                {(() => {
+                  // Calculate remaining debt amount for display
+                  if (!debt) {
+                    // No debt record means full amount is owed
+                    return (sale.currency === 'USD' ? '$' : 'د.ع') + sale.total.toFixed(2);
+                  } else if (debt.paid_at) {
+                    // Already fully paid
+                    return (sale.currency === 'USD' ? '$' : 'د.ع') + '0.00';
+                  } else {
+                    // Calculate remaining amount after partial payments
+                    const originalTotal = sale.total;
+                    const currency = sale.currency || 'USD';
+                    
+                    if (currency === 'USD') {
+                      const paidAmount = debt.payment_usd_amount || 0;
+                      const remaining = Math.max(0, originalTotal - paidAmount);
+                      return '$' + remaining.toFixed(2);
+                    } else {
+                      const paidAmount = debt.payment_iqd_amount || 0;
+                      const remaining = Math.max(0, originalTotal - paidAmount);
+                      return 'د.ع' + remaining.toFixed(2);
+                    }
+                  }
+                })()}
               </p>
             </div>
           </div>
@@ -311,16 +422,58 @@ const CustomerDebtPaymentModal = ({
                 <div className="text-sm text-blue-700 dark:text-blue-300">
                   {paymentCurrency === 'USD' ? (
                     <div>
-                      <div>Pay with USD: ${sale.currency === 'USD' ? sale.total.toFixed(2) : (sale.total / EXCHANGE_RATES.USD_TO_IQD).toFixed(2)}</div>
+                      <div>Pay with USD: ${(() => {
+                        // Calculate remaining debt amount in USD
+                        if (!debt) {
+                          return sale.currency === 'USD' ? sale.total.toFixed(2) : (sale.total / EXCHANGE_RATES.USD_TO_IQD).toFixed(2);
+                        } else if (debt.paid_at) {
+                          return '0.00';
+                        } else {
+                          const originalTotal = sale.total;
+                          const currency = sale.currency || 'USD';
+                          
+                          if (currency === 'USD') {
+                            const paidAmount = debt.payment_usd_amount || 0;
+                            const remaining = Math.max(0, originalTotal - paidAmount);
+                            return remaining.toFixed(2);
+                          } else {
+                            const paidAmount = debt.payment_iqd_amount || 0;
+                            const remaining = Math.max(0, originalTotal - paidAmount);
+                            return (remaining / EXCHANGE_RATES.USD_TO_IQD).toFixed(2);
+                          }
+                        }
+                      })()}</div>
                       <div className="text-xs mt-1 text-blue-600 dark:text-blue-400">
-                        {sale.currency === 'IQD' && `Equivalent to د.ع${sale.total.toFixed(2)} debt`}
+                        {sale.currency === 'IQD' && debt && (debt.payment_iqd_amount > 0 || debt.payment_usd_amount > 0) && 
+                          `Remaining from original د.ع${sale.total.toFixed(2)} debt`}
                       </div>
                     </div>
                   ) : (
                     <div>
-                      <div>Pay with IQD: د.ع{sale.currency === 'IQD' ? sale.total.toFixed(2) : (sale.total * EXCHANGE_RATES.USD_TO_IQD).toFixed(2)}</div>
+                      <div>Pay with IQD: د.ع{(() => {
+                        // Calculate remaining debt amount in IQD
+                        if (!debt) {
+                          return sale.currency === 'IQD' ? sale.total.toFixed(2) : (sale.total * EXCHANGE_RATES.USD_TO_IQD).toFixed(2);
+                        } else if (debt.paid_at) {
+                          return '0.00';
+                        } else {
+                          const originalTotal = sale.total;
+                          const currency = sale.currency || 'USD';
+                          
+                          if (currency === 'USD') {
+                            const paidAmount = debt.payment_usd_amount || 0;
+                            const remaining = Math.max(0, originalTotal - paidAmount);
+                            return (remaining * EXCHANGE_RATES.USD_TO_IQD).toFixed(2);
+                          } else {
+                            const paidAmount = debt.payment_iqd_amount || 0;
+                            const remaining = Math.max(0, originalTotal - paidAmount);
+                            return remaining.toFixed(2);
+                          }
+                        }
+                      })()}</div>
                       <div className="text-xs mt-1 text-blue-600 dark:text-blue-400">
-                        {sale.currency === 'USD' && `Equivalent to $${sale.total.toFixed(2)} debt`}
+                        {sale.currency === 'USD' && debt && (debt.payment_iqd_amount > 0 || debt.payment_usd_amount > 0) && 
+                          `Remaining from original $${sale.total.toFixed(2)} debt`}
                       </div>
                       <div className="text-xs mt-1 text-orange-600 dark:text-orange-400">
                         Change less than 250 IQD will be ignored

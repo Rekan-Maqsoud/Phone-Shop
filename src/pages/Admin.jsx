@@ -25,6 +25,7 @@ import AdminLoadingFallback from '../components/AdminLoadingFallback';
 import ExchangeRateIndicator from '../components/ExchangeRateIndicator';
 import MonthlyReport from '../components/MonthlyReport';
 import BackupSettingsSection from '../components/BackupSettingsSection';
+import FinancialSummaryModal from '../components/FinancialSummaryModal';
 import { Icon } from '../utils/icons.jsx';
 
 export default function Admin() {
@@ -42,10 +43,12 @@ export default function Admin() {
   const navigate = useNavigate();
   const [section, setSection] = useState('multiCurrencyDashboard');
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showFinancialSummaryModal, setShowFinancialSummaryModal] = useState(false);
   const { theme, setTheme, setAppTheme } = useTheme();
   const [loading, setLoading] = useState(false);
   const [showBackupManager, setShowBackupManager] = useState(false);
   const [showAddPurchase, setShowAddPurchase] = useState(false);
+  const [balances, setBalances] = useState({ usd_balance: 0, iqd_balance: 0 });
   // isCompanyDebtMode is now handled in useAdmin
 
   // ALL HOOKS MOVED TO TOP LEVEL - FIXES HOOKS RULE VIOLATION
@@ -62,6 +65,21 @@ export default function Admin() {
   // Load exchange rates from database on mount
   useEffect(() => {
     loadExchangeRatesFromDB().catch(console.error);
+  }, []);
+
+  // Load balances on mount
+  useEffect(() => {
+    const loadBalances = async () => {
+      try {
+        if (window.api?.getBalances) {
+          const balanceData = await window.api.getBalances();
+          setBalances(balanceData || { usd_balance: 0, iqd_balance: 0 });
+        }
+      } catch (error) {
+        console.error('Error loading balances:', error);
+      }
+    };
+    loadBalances();
   }, []);
   
   // Low stock notification - memoized to prevent infinite re-renders
@@ -358,6 +376,16 @@ export default function Admin() {
                   disabled={loading}
                 >
                   <Icon name={loading ? "loading" : "refresh"} size={20} className={loading ? "animate-spin" : ""} />
+                </button>
+                <button
+                  onClick={() => {
+                    setShowFinancialSummaryModal(true);
+                    playModalOpenSound();
+                  }}
+                  className="p-2 text-gray-400 hover:text-gray-500 dark:hover:text-gray-300 rounded-lg transition-colors"
+                  title={t?.financialSummary || 'Financial Summary'}
+                >
+                  <Icon name="calculator" size={20} />
                 </button>
                 <button
                   onClick={() => setShowSettingsModal(true)}
@@ -704,6 +732,16 @@ export default function Admin() {
             onClose={() => admin.setToast(null)}
           />
         )}
+
+        {/* Financial Summary Modal */}
+        <FinancialSummaryModal
+          isOpen={showFinancialSummaryModal}
+          onClose={() => {
+            setShowFinancialSummaryModal(false);
+            playModalCloseSound();
+          }}
+          t={t}
+        />
       </div>
     );
   } catch (renderError) {

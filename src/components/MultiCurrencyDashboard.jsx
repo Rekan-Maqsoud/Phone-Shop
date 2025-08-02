@@ -4,7 +4,6 @@ import {
   Chart as ChartJS,
   CategoryScale,
   LinearScale,
-  BarElement,
   LineElement,
   PointElement,
   Title,
@@ -12,7 +11,7 @@ import {
   Legend,
   ArcElement,
 } from 'chart.js';
-import { Bar, Line, Doughnut } from 'react-chartjs-2';
+import { Line, Doughnut } from 'react-chartjs-2';
 
 // Import shared utilities
 import { EXCHANGE_RATES, formatCurrencyWithTranslation } from '../utils/exchangeRates';
@@ -24,13 +23,11 @@ import {
   getCommonChartOptions,
   CHART_COLORS
 } from '../utils/chartUtils';
-import { formatProductDisplayName } from '../utils/productUtils';
 import { Icon } from '../utils/icons.jsx';
 
 ChartJS.register(
   CategoryScale,
   LinearScale,
-  BarElement,
   LineElement,
   PointElement,
   Title,
@@ -43,7 +40,6 @@ function MultiCurrencyDashboard({ admin, t, onRefresh }) {
   const { products, accessories, sales, debts, buyingHistory, companyDebts, incentives, transactions, personalLoans, refreshAllData, refreshDebts } = useData();
   const [balances, setBalances] = useState({ usd_balance: 0, iqd_balance: 0 });
   const [dashboardData, setDashboardData] = useState(null);
-  const [personalLoans, setPersonalLoans] = useState([]);
 
   // Memoize fetchBalanceData to prevent unnecessary API calls
   const fetchBalanceData = useCallback(async () => {
@@ -55,11 +51,6 @@ function MultiCurrencyDashboard({ admin, t, onRefresh }) {
       } else {
         // Fallback to default values
         setBalances({ usd_balance: 0, iqd_balance: 0 });
-      }
-      
-      if (window.api?.getPersonalLoans) {
-        const loansData = await window.api.getPersonalLoans();
-        setPersonalLoans(loansData || []);
       }
 
       // Force refresh customer debts to ensure sync
@@ -107,32 +98,28 @@ function MultiCurrencyDashboard({ admin, t, onRefresh }) {
     fetchBalanceData();
   }, [fetchBalanceData]);
 
-  // Refresh data when sales, buyingHistory, debts, companyDebts, or transactions change
+  // Refresh data when sales, buyingHistory, debts, companyDebts, personalLoans, or transactions change
   // Use a debounced effect to prevent excessive refreshes
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       fetchBalanceData();
-    }, 300); // Reduced debounce for faster response to returns
+    }, 300); // Reduced debounce for faster response to debt payments and transactions
     
     return () => clearTimeout(timeoutId);
-  }, [sales, buyingHistory, debts, companyDebts, transactions, fetchBalanceData]);
+  }, [sales, buyingHistory, debts, companyDebts, personalLoans, transactions, fetchBalanceData]);
 
-  // Additional effect to refresh when buying history changes (for immediate return feedback)
-  useEffect(() => {
-    if (buyingHistory) {
-      const timeoutId = setTimeout(() => {
-        fetchBalanceData();
-      }, 100); // Quick refresh for buying history changes
-      
-      return () => clearTimeout(timeoutId);
-    }
-  }, [buyingHistory, fetchBalanceData]);
-  
-  // Force refresh when transactions change (critical for Today's Returns)
+  // Additional effect to refresh when transactions change (critical for debt payments)
   useEffect(() => {
     if (transactions && transactions.length > 0) {
-      // Immediate refresh when transactions data changes (no debounce for returns)
-      fetchBalanceData();
+      // Check if the latest transaction is a debt payment
+      const latestTransaction = transactions[0]; // Assuming transactions are sorted by date desc
+      if (latestTransaction && 
+          (latestTransaction.type?.includes('debt_payment') || 
+           latestTransaction.type?.includes('loan_payment') || 
+           latestTransaction.type?.includes('company_debt_payment'))) {
+        // Immediate refresh for debt payment transactions (no debounce)
+        fetchBalanceData();
+      }
     }
   }, [transactions, fetchBalanceData]);
 
@@ -146,12 +133,18 @@ function MultiCurrencyDashboard({ admin, t, onRefresh }) {
     const currentDate = new Date();
     const today = currentDate.toDateString();
 
-    // Today's sales by currency - exclude unpaid debt sales
-    const todaysSales = filterPaidSales(sales, debts, today);
+    // Today's NON-DEBT sales by currency (for daily balance check - to avoid double counting)
+    const todaysNonDebtSales = (sales || []).filter(sale => {
+      const isTargetDate = new Date(sale.created_at).toDateString() === today;
+      if (!isTargetDate) return false;
+      
+      // EXCLUDE debt sales to prevent double-counting with debt payments line
+      return !sale.is_debt;
+    });
     
-    // Calculate USD and IQD revenue using shared utility
-    const todaysUSDSales = calculateRevenueByCurrency(todaysSales, 'USD');
-    const todaysIQDSales = calculateRevenueByCurrency(todaysSales, 'IQD');
+    // Calculate USD and IQD revenue from NON-DEBT sales only
+    const todaysUSDSales = calculateRevenueByCurrency(todaysNonDebtSales, 'USD');
+    const todaysIQDSales = calculateRevenueByCurrency(todaysNonDebtSales, 'IQD');
 
     // Add today's incentives as income (but don't affect opening balance)
     const todaysIncentivesUSD = (incentives || []).filter(incentive => {
@@ -499,57 +492,11 @@ function MultiCurrencyDashboard({ admin, t, onRefresh }) {
     const totalTodaysSpendingUSD = todaysSpendingUSD + todaysCompanyDebtPaymentsUSD + todaysTransactionSpendingUSD - todaysReturnsUSD;
     const totalTodaysSpendingIQD = todaysSpendingIQD + todaysCompanyDebtPaymentsIQD + todaysTransactionSpendingIQD - todaysReturnsIQD;
 
-    // Debug logging for balance calculations
-    console.log('🔍 [DASHBOARD DEBUG] Daily balance calculation:', {
-      USD: {
-        basicSpending: todaysSpendingUSD,
-        companyDebtPayments: todaysCompanyDebtPaymentsUSD,
-        transactionSpending: todaysTransactionSpendingUSD,
-        personalLoanPayments: todaysPersonalLoanPaymentsUSD,
-        personalDebtPaymentsReceived: todaysPersonalDebtPaymentsUSD,
-        returns: todaysReturnsUSD,
-        totalSpending: totalTodaysSpendingUSD,
-        calculation: `${todaysSpendingUSD} + ${todaysCompanyDebtPaymentsUSD} + ${todaysTransactionSpendingUSD} + ${todaysPersonalLoanPaymentsUSD} - ${todaysReturnsUSD} = ${totalTodaysSpendingUSD}`
-      },
-      IQD: {
-        basicSpending: todaysSpendingIQD,
-        companyDebtPayments: todaysCompanyDebtPaymentsIQD,
-        transactionSpending: todaysTransactionSpendingIQD,
-        personalLoanPayments: todaysPersonalLoanPaymentsIQD,
-        personalDebtPaymentsReceived: todaysPersonalDebtPaymentsIQD,
-        returns: todaysReturnsIQD,
-        totalSpending: totalTodaysSpendingIQD,
-        calculation: `${todaysSpendingIQD} + ${todaysCompanyDebtPaymentsIQD} + ${todaysTransactionSpendingIQD} + ${todaysPersonalLoanPaymentsIQD} - ${todaysReturnsIQD} = ${totalTodaysSpendingIQD}`
-      }
-    });
-
     // Net performance: USD = native USD sales + incentives + debt payments + personal debt payments received - USD spending
     const netPerformanceUSD = todaysUSDSales + todaysIncentivesUSD + todaysCustomerDebtPaymentsUSD + todaysPersonalDebtPaymentsUSD - totalTodaysSpendingUSD;
     
     // Net performance: IQD = native IQD sales + incentives + debt payments + personal debt payments received - IQD spending (no conversion mixing)
     const netPerformanceIQD = todaysIQDSales + todaysIncentivesIQD + todaysCustomerDebtPaymentsIQD + todaysPersonalDebtPaymentsIQD - totalTodaysSpendingIQD;
-
-    // Debug logging for net performance calculations
-    console.log('🔍 [DASHBOARD DEBUG] Net performance calculation:', {
-      USD: {
-        sales: todaysUSDSales,
-        incentives: todaysIncentivesUSD,
-        customerDebtPayments: todaysCustomerDebtPaymentsUSD,
-        personalDebtPayments: todaysPersonalDebtPaymentsUSD,
-        totalSpending: totalTodaysSpendingUSD,
-        netPerformance: netPerformanceUSD,
-        calculation: `${todaysUSDSales} + ${todaysIncentivesUSD} + ${todaysCustomerDebtPaymentsUSD} + ${todaysPersonalDebtPaymentsUSD} - ${totalTodaysSpendingUSD} = ${netPerformanceUSD}`
-      },
-      IQD: {
-        sales: todaysIQDSales,
-        incentives: todaysIncentivesIQD,
-        customerDebtPayments: todaysCustomerDebtPaymentsIQD,
-        personalDebtPayments: todaysPersonalDebtPaymentsIQD,
-        totalSpending: totalTodaysSpendingIQD,
-        netPerformance: netPerformanceIQD,
-        calculation: `${todaysIQDSales} + ${todaysIncentivesIQD} + ${todaysCustomerDebtPaymentsIQD} + ${todaysPersonalDebtPaymentsIQD} - ${totalTodaysSpendingIQD} = ${netPerformanceIQD}`
-      }
-    });
 
     // Calculate inventory values
     const inventoryValueUSD = (products || [])
@@ -596,7 +543,7 @@ function MultiCurrencyDashboard({ admin, t, onRefresh }) {
       todaysPartialDebtPaymentsIQD,
       todaysReturnsUSD, // Add return amounts for display
       todaysReturnsIQD, // Add return amounts for display
-      totalTransactions: todaysSales.length,
+      totalTransactions: todaysNonDebtSales.length,
       totalDebtCount: unpaidDebtSalesUSD.length + unpaidDebtSalesIQD.length + unpaidCompanyDebts.length,
       totalLoanCount: unpaidLoans.length,
       unpaidCompanyUSDDebts,
@@ -1067,47 +1014,7 @@ function MultiCurrencyDashboard({ admin, t, onRefresh }) {
         )}
       </div>
 
-      {/* Additional Analytics Section */}
-      <div className="grid grid-cols-2 gap-6">
-        {/* Top Selling Products */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg border border-gray-200 dark:border-gray-700">
-          <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
-            <Icon name="award" size={20} />
-            {t?.topSellingProducts || 'Top Selling Products'}
-          </h3>
-          <TopSellingProductsChart sales={sales} t={t} />
-        </div>
 
-        {/* Monthly Profit Trends */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg border border-gray-200 dark:border-gray-700">
-          <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
-            <Icon name="barChart3" size={20} />
-            {t?.monthlyProfitTrends || 'Monthly Profit Trends'}
-          </h3>
-          <MonthlyProfitChart sales={sales} t={t} />
-        </div>
-      </div>
-
-      {/* Inventory Alerts and Summary */}
-      <div className="grid grid-cols-2 gap-6">
-        {/* Low Stock Alerts */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg border border-gray-200 dark:border-gray-700">
-          <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
-            <Icon name="alertTriangle" size={20} />
-            {t?.lowStockAlerts || 'Low Stock Alerts'}
-          </h3>
-          <LowStockAlerts products={products} accessories={accessories} t={t} />
-        </div>
-
-        {/* Quick Stats */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg border border-gray-200 dark:border-gray-700">
-          <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
-            <Icon name="trendingUp" size={20} />
-            {t?.quickStats || 'Quick Stats'}
-          </h3>
-          <QuickStatsDisplay sales={sales} products={products} accessories={accessories} t={t} />
-        </div>
-      </div>
 
     </div>
   );
@@ -1319,315 +1226,4 @@ const BalanceChart = React.memo(({
   );
 });
 
-// Top Selling Products Chart Component - Optimized
-const TopSellingProductsChart = React.memo(({ sales, t }) => {
-  const chartData = useMemo(() => {
-    const productSales = {};
-    
-    (sales || []).forEach(sale => {
-      if (sale.items && sale.items.length > 0) {
-        sale.items.forEach(item => {
-          // Use full product display name including specifications to avoid confusion
-          const productName = formatProductDisplayName(item, true);
-          const qty = item.quantity || 1;
-          
-          productSales[productName] = (productSales[productName] || 0) + qty;
-        });
-      }
-    });
-    
-    // Get top 5 products
-    const topProducts = Object.entries(productSales)
-      .sort(([,a], [,b]) => b - a)
-      .slice(0, 5);
-    
-    if (topProducts.length === 0) {
-      return {
-        labels: [t?.noSalesData || 'No sales data'],
-        datasets: [{
-          data: [1],
-          backgroundColor: [CHART_COLORS.USD.secondary],
-          borderColor: [CHART_COLORS.USD.primary],
-          borderWidth: 1,
-        }]
-      };
-    }
-    
-    return {
-      labels: topProducts.map(([name]) => name.length > 20 ? name.substring(0, 20) + '...' : name),
-      datasets: [{
-        label: t?.unitsSold || 'Units Sold',
-        data: topProducts.map(([, quantity]) => quantity),
-        backgroundColor: [
-          CHART_COLORS.USD.secondary,
-          CHART_COLORS.profit.secondary,
-          CHART_COLORS.IQD.secondary,
-          CHART_COLORS.danger.secondary,
-          'rgba(245, 158, 11, 0.6)',
-        ],
-        borderColor: [
-          CHART_COLORS.USD.primary,
-          CHART_COLORS.profit.primary,
-          CHART_COLORS.IQD.primary,
-          CHART_COLORS.danger.primary,
-          'rgba(245, 158, 11, 1)',
-        ],
-        borderWidth: 2,
-      }]
-    };
-  }, [sales, t]);
 
-  const options = useMemo(() => ({
-    ...getCommonChartOptions(),
-    plugins: {
-      legend: { display: false },
-      tooltip: {
-        callbacks: {
-          label: function(context) {
-            return `${context.label}: ${context.parsed.y} ${t?.unitsSold || 'units sold'}`;
-          }
-        }
-      }
-    },
-    scales: {
-      y: {
-        beginAtZero: true,
-        ticks: { precision: 0 }
-      }
-    }
-  }), [t]);
-
-  return (
-    <div style={{ height: '250px' }}>
-      <Bar data={chartData} options={options} />
-    </div>
-  );
-});
-
-// Monthly Profit Chart Component - Fixed USD calculation
-const MonthlyProfitChart = React.memo(({ sales, t }) => {
-  const { debts, incentives } = useData(); // Get debts and incentives data
-
-  const chartData = useMemo(() => {
-    const last6Months = Array.from({ length: 6 }, (_, i) => {
-      const date = new Date();
-      date.setMonth(date.getMonth() - i);
-      return {
-        month: date.toISOString().substring(0, 7), // YYYY-MM format
-        label: `${date.getMonth() + 1}/${date.getFullYear().toString().slice(-2)}` // Use numbers like "1/25" instead of "Jan 2025"
-      };
-    }).reverse();
-
-    const monthlyProfits = last6Months.map(({ month }) => {
-      // Calculate profit from sales
-      const salesProfit = (sales || [])
-        .filter(sale => {
-          // Filter by month
-          if (sale.created_at?.substring(0, 7) !== month) return false;
-          
-          // For debt sales, only include if the debt is paid
-          if (sale.is_debt) {
-            const debt = (debts || []).find(d => d.sale_id === sale.id);
-            return debt && (debt.paid_at || debt.paid);
-          }
-          
-          return true;
-        })
-        .reduce((totalProfit, sale) => {
-          if (!sale.items || sale.items.length === 0) return totalProfit;
-          
-          // FIXED: Use the stored profit values from sale_items table
-          // These already account for discounts, exchange rates, and currency conversions
-          let saleProfitInUSD = 0;
-          
-          sale.items.forEach(item => {
-            // Use profit_in_sale_currency which is correctly calculated during sale
-            const itemProfit = Number(item.profit_in_sale_currency) || Number(item.profit) || 0;
-            
-            // Convert to USD for chart consistency
-            if (sale.currency === 'USD') {
-              saleProfitInUSD += itemProfit;
-            } else if (sale.currency === 'IQD') {
-              saleProfitInUSD += itemProfit * EXCHANGE_RATES.IQD_TO_USD;
-            }
-          });
-          
-          return totalProfit + saleProfitInUSD;
-        }, 0);
-
-      // Calculate incentives for this month
-      const incentivesProfit = (incentives || [])
-        .filter(incentive => {
-          return incentive.created_at?.substring(0, 7) === month;
-        })
-        .reduce((totalIncentives, incentive) => {
-          const amount = Number(incentive.amount) || 0;
-          // Convert to USD for chart consistency
-          if (incentive.currency === 'IQD') {
-            return totalIncentives + (amount * EXCHANGE_RATES.IQD_TO_USD);
-          }
-          return totalIncentives + amount;
-        }, 0);
-
-      return salesProfit + incentivesProfit;
-    });
-
-    return {
-      labels: last6Months.map(({ label }) => label),
-      datasets: [{
-        label: t?.monthlyProfitUSD || 'Monthly Profit (USD equivalent)',
-        data: monthlyProfits,
-        backgroundColor: CHART_COLORS.profit.background,
-        borderColor: CHART_COLORS.profit.primary,
-        borderWidth: 3,
-        fill: true,
-        tension: 0.4,
-      }]
-    };
-  }, [sales, debts, incentives, t]);
-
-  const options = useMemo(() => ({
-    ...getCommonChartOptions(),
-    plugins: {
-      legend: { display: false },
-      tooltip: {
-        callbacks: {
-          label: function(context) {
-            return `${t?.profit || 'Profit'}: ${formatCurrency(context.parsed.y, 'USD')}`;
-          }
-        }
-      }
-    },
-    scales: {
-      y: {
-        beginAtZero: true,
-        ticks: {
-          callback: function(value) {
-            return formatCurrency(value, 'USD');
-          }
-        }
-      }
-    }
-  }), [t]);
-
-  return (
-    <div style={{ height: '250px' }}>
-      <Line data={chartData} options={options} />
-    </div>
-  );
-});
-
-// Low Stock Alerts Component
-const LowStockAlerts = React.memo(({ products, accessories, t }) => {
-  const lowStockItems = useMemo(() => {
-    const items = [];
-    
-    // Check products
-    (products || []).forEach(product => {
-      if (product.stock <= 5 && product.stock >= 0) {
-        items.push({
-          name: product.name,
-          stock: product.stock,
-          type: 'product',
-          urgency: product.stock === 0 ? 'critical' : product.stock <= 2 ? 'high' : 'medium'
-        });
-      }
-    });
-    
-    // Check accessories
-    (accessories || []).forEach(accessory => {
-      if (accessory.stock <= 5 && accessory.stock >= 0) {
-        items.push({
-          name: accessory.name,
-          stock: accessory.stock,
-          type: 'accessory',
-          urgency: accessory.stock === 0 ? 'critical' : accessory.stock <= 2 ? 'high' : 'medium'
-        });
-      }
-    });
-    
-    return items.sort((a, b) => a.stock - b.stock);
-  }, [products, accessories]);
-
-  return (
-    <div className="space-y-3 max-h-64 overflow-y-auto">
-      {lowStockItems.length === 0 ? (
-        <div className="text-center py-4 text-gray-500 dark:text-gray-400">
-          <div className="text-2xl mb-2 flex justify-center">
-            <Icon name="checkCircle" size={24} />
-          </div>
-          <p>{t?.allStockGood || 'All items in stock'}</p>
-        </div>
-      ) : (
-        lowStockItems.map((item, idx) => (
-          <div key={idx} className={`p-3 rounded-lg border-l-4 ${
-            item.urgency === 'critical' ? 'bg-red-50 dark:bg-red-900/20 border-red-500' :
-            item.urgency === 'high' ? 'bg-orange-50 dark:bg-orange-900/20 border-orange-500' :
-            'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-500'
-          }`}>
-            <div className="flex justify-between items-center">
-              <div>
-                <div className="font-medium text-sm text-gray-900 dark:text-gray-100">
-                  {item.name}
-                </div>
-                <div className="text-xs text-gray-500 dark:text-gray-400 capitalize">
-                  {item.type}
-                </div>
-              </div>
-              <div className={`text-sm font-bold ${
-                item.urgency === 'critical' ? 'text-red-600 dark:text-red-400' :
-                item.urgency === 'high' ? 'text-orange-600 dark:text-orange-400' :
-                'text-yellow-600 dark:text-yellow-400'
-              }`}>
-                {item.stock === 0 ? (t?.outOfStock || 'OUT OF STOCK') : `${item.stock} ${t?.left || 'left'}`}
-              </div>
-            </div>
-          </div>
-        ))
-      )}
-    </div>
-  );
-});
-
-// Quick Stats Display Component
-const QuickStatsDisplay = React.memo(({ sales, products, accessories, t }) => {
-  const stats = useMemo(() => {
-    const totalProducts = (products || []).length;
-    const totalAccessories = (accessories || []).length;
-    const totalSales = (sales || []).length;
-    const todaySales = (sales || []).filter(sale => 
-      new Date(sale.created_at).toDateString() === new Date().toDateString()
-    ).length;
-    
-    return {
-      totalProducts,
-      totalAccessories,
-      totalSales,
-      todaySales
-    };
-  }, [sales, products, accessories]);
-
-  return (
-    <div className="space-y-4">
-      <div className="flex justify-between items-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-        <div className="text-sm text-gray-600 dark:text-gray-400">{t?.totalProducts || 'Total Products'}</div>
-        <div className="text-lg font-bold text-blue-600 dark:text-blue-400">{stats.totalProducts}</div>
-      </div>
-      
-      <div className="flex justify-between items-center p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-        <div className="text-sm text-gray-600 dark:text-gray-400">{t?.totalAccessories || 'Total Accessories'}</div>
-        <div className="text-lg font-bold text-purple-600 dark:text-purple-400">{stats.totalAccessories}</div>
-      </div>
-      
-      <div className="flex justify-between items-center p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-        <div className="text-sm text-gray-600 dark:text-gray-400">{t?.totalSales || 'Total Sales'}</div>
-        <div className="text-lg font-bold text-green-600 dark:text-green-400">{stats.totalSales}</div>
-      </div>
-      
-      <div className="flex justify-between items-center p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
-        <div className="text-sm text-gray-600 dark:text-gray-400">{t?.todaysSales || "Today's Sales"}</div>
-        <div className="text-lg font-bold text-orange-600 dark:text-orange-400">{stats.todaySales}</div>
-      </div>
-    </div>
-  );
-});

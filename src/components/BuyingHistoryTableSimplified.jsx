@@ -355,18 +355,32 @@ const BuyingHistoryTableSimplified = React.memo(function BuyingHistoryTableSimpl
 
   // Format currency display for entries
   const formatCurrency = (entry, t) => {
-    if (entry.currency === 'MULTI' || entry.multi_currency_usd !== null || entry.multi_currency_iqd !== null) {
+    // Check if this is truly a multi-currency purchase with actual amounts
+    const hasUSD = (entry.multi_currency_usd || 0) > 0;
+    const hasIQD = (entry.multi_currency_iqd || 0) > 0;
+    
+    // Only treat as multi-currency if it has amounts in both currencies OR is explicitly marked as MULTI
+    if ((entry.currency === 'MULTI' && (hasUSD || hasIQD)) || (hasUSD && hasIQD)) {
       const parts = [];
-      if ((entry.multi_currency_usd || 0) > 0) {
+      if (hasUSD) {
         const formatted = entry.multi_currency_usd.toFixed(2);
         const cleanFormatted = formatted.endsWith('.00') ? formatted.slice(0, -3) : formatted;
         parts.push(`$${cleanFormatted}`);
       }
-      if ((entry.multi_currency_iqd || 0) > 0) {
+      if (hasIQD) {
         parts.push(`د.ع${Math.round(entry.multi_currency_iqd).toLocaleString()}`);
       }
       return parts.length > 0 ? parts.join(' + ') : (t?.multiCurrency || 'Multi-currency');
+    } else if (hasUSD && !hasIQD) {
+      // Single currency USD purchase stored in multi_currency_usd
+      const formatted = entry.multi_currency_usd.toFixed(2);
+      const cleanFormatted = formatted.endsWith('.00') ? formatted.slice(0, -3) : formatted;
+      return `$${cleanFormatted}`;
+    } else if (hasIQD && !hasUSD) {
+      // Single currency IQD purchase stored in multi_currency_iqd
+      return `د.ع${Math.round(entry.multi_currency_iqd).toLocaleString()}`;
     } else {
+      // Regular single currency purchase
       const amount = entry.total_price || entry.amount || 0;
       if (entry.currency === 'USD') {
         const formatted = amount.toFixed(2);
@@ -562,38 +576,57 @@ const BuyingHistoryTableSimplified = React.memo(function BuyingHistoryTableSimpl
                       {/* Amount */}
                       <td className="px-6 py-4 text-center">
                         <div className="flex flex-col gap-1">
-                          {(entry.currency === 'MULTI' || entry.multi_currency_usd !== null || entry.multi_currency_iqd !== null) ? (
-                            <div className="space-y-1">
-                              {(entry.multi_currency_usd || 0) > 0 && (
-                                <div className="bg-orange-50 dark:bg-orange-900/20 px-2 py-1 rounded-lg border-l-2 border-orange-500">
-                                  <span className="text-orange-700 dark:text-orange-400 font-bold text-sm">
-                                    ${(() => {
-                                      const formatted = entry.multi_currency_usd.toFixed(2);
-                                      return formatted.endsWith('.00') ? formatted.slice(0, -3) : formatted;
-                                    })()}
-                                  </span>
+                          {(() => {
+                            // Check if this is truly a multi-currency purchase with actual amounts in both currencies
+                            const hasUSD = (entry.multi_currency_usd || 0) > 0;
+                            const hasIQD = (entry.multi_currency_iqd || 0) > 0;
+                            const isMultiCurrency = entry.currency === 'MULTI' || (hasUSD && hasIQD);
+                            
+                            // If it has multi-currency data with at least one positive amount, show multi-currency layout
+                            if ((entry.currency === 'MULTI' || entry.multi_currency_usd !== null || entry.multi_currency_iqd !== null) && (hasUSD || hasIQD)) {
+                              return (
+                                <div className="space-y-1">
+                                  {hasUSD && (
+                                    <div className="bg-orange-50 dark:bg-orange-900/20 px-2 py-1 rounded-lg border-l-2 border-orange-500">
+                                      <span className="text-orange-700 dark:text-orange-400 font-bold text-sm">
+                                        ${(() => {
+                                          const formatted = entry.multi_currency_usd.toFixed(2);
+                                          return formatted.endsWith('.00') ? formatted.slice(0, -3) : formatted;
+                                        })()}
+                                      </span>
+                                    </div>
+                                  )}
+                                  {hasIQD && (
+                                    <div className="bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded-lg border-l-2 border-blue-500">
+                                      <span className="text-blue-700 dark:text-blue-400 font-bold text-sm">
+                                        د.ع{Math.round(entry.multi_currency_iqd).toLocaleString()}
+                                      </span>
+                                    </div>
+                                  )}
                                 </div>
-                              )}
-                              {(entry.multi_currency_iqd || 0) > 0 && (
-                                <div className="bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded-lg border-l-2 border-blue-500">
-                                  <span className="text-blue-700 dark:text-blue-400 font-bold text-sm">
-                                    د.ع{Math.round(entry.multi_currency_iqd).toLocaleString()}
-                                  </span>
+                              );
+                            } else {
+                              // Single currency purchase - use regular amount/total_price
+                              const amount = entry.total_price || entry.amount || 0;
+                              const currency = entry.currency || 'IQD';
+                              
+                              return (
+                                <div className={`px-2 py-1 rounded-lg font-bold text-sm ${
+                                  currency === 'USD' 
+                                    ? 'bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 border-l-2 border-orange-500'
+                                    : 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 border-l-2 border-blue-500'
+                                }`}>
+                                  {currency === 'USD' 
+                                    ? (() => {
+                                        const formatted = amount.toFixed(2);
+                                        return `$${formatted.endsWith('.00') ? formatted.slice(0, -3) : formatted}`;
+                                      })()
+                                    : `د.ع${Math.round(amount).toLocaleString()}`
+                                  }
                                 </div>
-                              )}
-                              {(entry.multi_currency_usd || 0) === 0 && (entry.multi_currency_iqd || 0) === 0 && (
-                                <span className="text-gray-500 italic text-sm">{t?.multiCurrency || 'Multi-currency'}</span>
-                              )}
-                            </div>
-                          ) : (
-                            <div className={`px-2 py-1 rounded-lg font-bold text-sm ${
-                              entry.currency === 'USD' 
-                                ? 'bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 border-l-2 border-orange-500'
-                                : 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 border-l-2 border-blue-500'
-                            }`}>
-                              {formatCurrency(entry, t)}
-                            </div>
-                          )}
+                              );
+                            }
+                          })()}
                         </div>
                       </td>
 

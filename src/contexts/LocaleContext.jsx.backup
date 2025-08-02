@@ -367,7 +367,6 @@ const translations = {
     calculationFormula: 'Balance + Customer Debts + Personal Loans + Inventory - Company Debts',
     balanceFormula: 'Balance + Customer Debts + Personal Loans + Inventory - Company Debts',
     exchangeRateNote: 'Exchange Rate: 1 USD = {rate} IQD',
-    adjustmentNote: 'Adjusted for paid debts to prevent double-counting',
 
     // Sales totals and metrics
     totalProfitUSD: 'Total Profit USD',
@@ -694,7 +693,6 @@ const translations = {
     of: 'of',
     entries: 'entries',
     refreshData: 'Refresh All Data',
-    refreshingData: 'Refreshing data...',
     total: 'total',
     passwordsDoNotMatch: 'Passwords do not match',
     accountCreatedSuccessfully: 'Account created successfully!',
@@ -1924,7 +1922,6 @@ const translations = {
     of: 'لە',
     entries: 'بابەت',
     refreshData: 'نوێکردنەوەی هەموو زانیارییەکان',
-    refreshingData: 'نوێکردنەوەی زانیارییەکان...',
     passwordsDoNotMatch: 'وشەی نهێنییەکان یەک ناگرنەوە',
     accountCreatedSuccessfully: 'هەژمار بە سەرکەوتوویی دروست کرا!',
     signUpFailed: 'تۆمارکردن سەرکەوتوو نەبوو',
@@ -3182,7 +3179,6 @@ const translations = {
     of: 'من',
     entries: 'إدخالات',
     refreshData: 'تحديث جميع البيانات',
-    refreshingData: 'جاري تحديث البيانات...',
     total: 'الإجمالي',
     passwordsDoNotMatch: 'كلمات المرور غير متطابقة',
     accountCreatedSuccessfully: 'تم إنشاء الحساب بنجاح!',
@@ -3448,7 +3444,6 @@ const translations = {
     calculationFormula: 'الرصيد + ديون العملاء + القروض الشخصية + قيمة المخزون - ديون الشركة',
     balanceFormula: 'الرصيد + ديون العملاء + القروض الشخصية + قيمة المخزون - ديون الشركة',
     exchangeRateNote: 'سعر الصرف: 1 دولار = {rate} دينار',
-    adjustmentNote: 'تم التعديل للديون المدفوعة لمنع العد المزدوج',
     
     // Additional missing translations
     addAccessoryFailed: 'فشل في إضافة الإكسسوار.',
