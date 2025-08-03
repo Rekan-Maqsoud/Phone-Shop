@@ -442,41 +442,30 @@ export default function AdminModals({
           debtData={selectedCompanyDebt}
           paymentType="company"
           onPaymentComplete={async () => {
-            // Multiple refresh cycles with increasing delays to ensure database is fully updated
+            // Simplified refresh logic to prevent performance issues
             try {
               // Clear the current state first to force a fresh fetch
               if (admin.setCompanyDebts) {
                 admin.setCompanyDebts([]);
               }
               
-              // Initial immediate refresh
+              // Single refresh with shorter delay to ensure database write completion
+              await new Promise(resolve => setTimeout(resolve, 200)); // Reduced from 400ms
               await refreshCompanyDebts();
               
-              // Second refresh after short delay
-              await new Promise(resolve => setTimeout(resolve, 200));
-              await refreshCompanyDebts();
-              
-              // Third refresh after longer delay
-              await new Promise(resolve => setTimeout(resolve, 300));
-              await refreshCompanyDebts();
-              
-              // Refresh related data
+              // Refresh related data once
               await refreshBuyingHistory();
               await refreshTransactions();
               
-              // Also refresh any balance data to ensure UI consistency
+              // Refresh balance data if available
               if (admin.loadBalances) {
                 await admin.loadBalances();
               }
-              
-              // Trigger full data refresh to ensure everything is in sync
-              await new Promise(resolve => setTimeout(resolve, 100));
-              await refreshAllData();
             } catch (error) {
               console.error('Error during data refresh after payment:', error);
-              // Even if refresh fails, still try one more time
+              // Simple retry without additional complexity
               try {
-                await new Promise(resolve => setTimeout(resolve, 500));
+                await new Promise(resolve => setTimeout(resolve, 300));
                 await refreshCompanyDebts();
               } catch (retryError) {
                 console.error('Retry refresh also failed:', retryError);

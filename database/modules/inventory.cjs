@@ -210,62 +210,56 @@ function addDirectPurchaseWithItems(db, { supplier, date, items, currency = 'IQD
         item.currency || currency
       );
       
-      // Add stock to products or accessories
+      // Add stock to products or accessories using proper merging logic
       if (item.item_type === 'product') {
-        // Check if product exists, if not create it
-        const existingProduct = db.prepare(`
-          SELECT id FROM products 
-          WHERE brand = ? AND model = ? AND COALESCE(ram, '') = ? AND COALESCE(storage, '') = ?
-        `).get(item.brand || '', item.model || '', item.ram || '', item.storage || '');
+        // Use the products module's addProduct function which handles price averaging
+        const { addProduct } = require('./products.cjs');
+        const productData = {
+          name: item.item_name || [item.brand, item.model].filter(Boolean).join(' '),
+          brand: item.brand || '',
+          model: item.model || '',
+          ram: item.ram || null,
+          storage: item.storage || null,
+          buying_price: item.unit_price,
+          stock: item.quantity,
+          currency: item.currency || currency,
+          category: 'phones',
+          archived: 0
+        };
         
-        if (existingProduct) {
-          // Update existing product stock and unarchive if archived
-          db.prepare(`UPDATE products SET stock = stock + ?, archived = 0 WHERE id = ?`)
-            .run(item.quantity, existingProduct.id);
-        } else {
-          // Create new product
-          db.prepare(`INSERT INTO products 
-            (name, brand, model, ram, storage, buying_price, stock, currency, category, archived) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-            .run(
-              item.item_name || [item.brand, item.model].filter(Boolean).join(' '),
-              item.brand || '',
-              item.model || '',
-              item.ram || null,
-              item.storage || null,
-              item.unit_price,
-              item.quantity,
-              item.currency || currency,
-              'phones',
-              0
-            );
+        try {
+          const result = addProduct(db, productData);
+          console.log('✅ [inventory.cjs] Product processed with price averaging:', { 
+            merged: result.merged, 
+            productId: result.productId 
+          });
+        } catch (error) {
+          console.error('❌ [inventory.cjs] Error adding product:', error);
+          throw error;
         }
       } else if (item.item_type === 'accessory') {
-        // Check if accessory exists, if not create it
-        const existingAccessory = db.prepare(`
-          SELECT id FROM accessories 
-          WHERE brand = ? AND model = ? AND COALESCE(type, '') = ?
-        `).get(item.brand || '', item.model || '', item.type || '');
+        // Use the accessories module's addAccessory function which handles price averaging
+        const { addAccessory } = require('./accessories.cjs');
+        const accessoryData = {
+          name: item.item_name || [item.brand, item.model].filter(Boolean).join(' '),
+          brand: item.brand || '',
+          model: item.model || '',
+          type: item.type || null,
+          buying_price: item.unit_price,
+          stock: item.quantity,
+          currency: item.currency || currency,
+          archived: 0
+        };
         
-        if (existingAccessory) {
-          // Update existing accessory stock and unarchive if archived
-          db.prepare(`UPDATE accessories SET stock = stock + ?, archived = 0 WHERE id = ?`)
-            .run(item.quantity, existingAccessory.id);
-        } else {
-          // Create new accessory
-          db.prepare(`INSERT INTO accessories 
-            (name, brand, model, type, buying_price, stock, currency, archived) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
-            .run(
-              item.item_name || [item.brand, item.model].filter(Boolean).join(' '),
-              item.brand || '',
-              item.model || '',
-              item.type || null,
-              item.unit_price,
-              item.quantity,
-              item.currency || currency,
-              0
-            );
+        try {
+          const result = addAccessory(db, accessoryData);
+          console.log('✅ [inventory.cjs] Accessory processed with price averaging:', { 
+            merged: result.merged, 
+            accessoryId: result.accessoryId 
+          });
+        } catch (error) {
+          console.error('❌ [inventory.cjs] Error adding accessory:', error);
+          throw error;
         }
       }
     });
@@ -380,62 +374,56 @@ function addDirectPurchaseMultiCurrencyWithItems(db, { supplier, date, items, us
         item.currency || 'IQD'
       );
       
-      // Add stock to products or accessories
+      // Add stock to products or accessories using proper merging logic
       if (item.item_type === 'product') {
-        // Check if product exists, if not create it
-        const existingProduct = db.prepare(`
-          SELECT id FROM products 
-          WHERE brand = ? AND model = ? AND COALESCE(ram, '') = ? AND COALESCE(storage, '') = ?
-        `).get(item.brand || '', item.model || '', item.ram || '', item.storage || '');
+        // Use the products module's addProduct function which handles price averaging
+        const { addProduct } = require('./products.cjs');
+        const productData = {
+          name: item.item_name || [item.brand, item.model].filter(Boolean).join(' '),
+          brand: item.brand || '',
+          model: item.model || '',
+          ram: item.ram || null,
+          storage: item.storage || null,
+          buying_price: item.unit_price,
+          stock: item.quantity,
+          currency: item.currency || 'IQD',
+          category: 'phones',
+          archived: 0
+        };
         
-        if (existingProduct) {
-          // Update existing product stock and unarchive if archived
-          db.prepare(`UPDATE products SET stock = stock + ?, archived = 0 WHERE id = ?`)
-            .run(item.quantity, existingProduct.id);
-        } else {
-          // Create new product
-          db.prepare(`INSERT INTO products 
-            (name, brand, model, ram, storage, buying_price, stock, currency, category, archived) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-            .run(
-              item.item_name || [item.brand, item.model].filter(Boolean).join(' '),
-              item.brand || '',
-              item.model || '',
-              item.ram || null,
-              item.storage || null,
-              item.unit_price,
-              item.quantity,
-              item.currency || 'IQD',
-              'phones',
-              0
-            );
+        try {
+          const result = addProduct(db, productData);
+          console.log('✅ [inventory.cjs] Product processed with price averaging:', { 
+            merged: result.merged, 
+            productId: result.productId 
+          });
+        } catch (error) {
+          console.error('❌ [inventory.cjs] Error adding product:', error);
+          throw error;
         }
       } else if (item.item_type === 'accessory') {
-        // Check if accessory exists, if not create it
-        const existingAccessory = db.prepare(`
-          SELECT id FROM accessories 
-          WHERE brand = ? AND model = ? AND COALESCE(type, '') = ?
-        `).get(item.brand || '', item.model || '', item.type || '');
+        // Use the accessories module's addAccessory function which handles price averaging
+        const { addAccessory } = require('./accessories.cjs');
+        const accessoryData = {
+          name: item.item_name || [item.brand, item.model].filter(Boolean).join(' '),
+          brand: item.brand || '',
+          model: item.model || '',
+          type: item.type || null,
+          buying_price: item.unit_price,
+          stock: item.quantity,
+          currency: item.currency || 'IQD',
+          archived: 0
+        };
         
-        if (existingAccessory) {
-          // Update existing accessory stock and unarchive if archived
-          db.prepare(`UPDATE accessories SET stock = stock + ?, archived = 0 WHERE id = ?`)
-            .run(item.quantity, existingAccessory.id);
-        } else {
-          // Create new accessory
-          db.prepare(`INSERT INTO accessories 
-            (name, brand, model, type, buying_price, stock, currency, archived) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
-            .run(
-              item.item_name || [item.brand, item.model].filter(Boolean).join(' '),
-              item.brand || '',
-              item.model || '',
-              item.type || null,
-              item.unit_price,
-              item.quantity,
-              item.currency || 'IQD',
-              0
-            );
+        try {
+          const result = addAccessory(db, accessoryData);
+          console.log('✅ [inventory.cjs] Accessory processed with price averaging:', { 
+            merged: result.merged, 
+            accessoryId: result.accessoryId 
+          });
+        } catch (error) {
+          console.error('❌ [inventory.cjs] Error adding accessory:', error);
+          throw error;
         }
       }
     });

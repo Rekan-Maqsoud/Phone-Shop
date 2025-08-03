@@ -19,16 +19,15 @@ function addAccessory(db, { name, buying_price, stock, archived = 0, brand, mode
   const normalizedCurrency = (currency || 'IQD').toString().trim();
   
   // Check if accessory with same specifications already exists
+  // Match by core identifying attributes (brand, model, type, currency)
   const existingAccessory = db.prepare(`
     SELECT * FROM accessories 
-    WHERE LOWER(TRIM(COALESCE(name, ''))) = LOWER(?) 
-    AND LOWER(TRIM(COALESCE(brand, ''))) = LOWER(?) 
+    WHERE LOWER(TRIM(COALESCE(brand, ''))) = LOWER(?) 
     AND LOWER(TRIM(COALESCE(model, ''))) = LOWER(?) 
     AND LOWER(TRIM(COALESCE(type, ''))) = LOWER(?) 
     AND LOWER(TRIM(COALESCE(currency, 'IQD'))) = LOWER(?) 
     AND archived = 0
   `).get(
-    normalizedName, 
     normalizedBrand, 
     normalizedModel, 
     normalizedType, 

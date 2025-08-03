@@ -328,27 +328,38 @@ const CustomerDebtPaymentModal = ({
               </h4>
               <p className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                 {(() => {
-                  // Calculate remaining debt amount for display
+                  // Calculate remaining debt amount for display with proper conversion
+                  let remainingAmount = 0;
+                  let currency = '';
+                  
                   if (!debt) {
                     // No debt record means full amount is owed
-                    return (sale.currency === 'USD' ? '$' : 'د.ع') + sale.total.toFixed(2);
+                    remainingAmount = sale.total;
+                    currency = sale.currency || 'USD';
                   } else if (debt.paid_at) {
                     // Already fully paid
                     return (sale.currency === 'USD' ? '$' : 'د.ع') + '0.00';
                   } else {
                     // Calculate remaining amount after partial payments
                     const originalTotal = sale.total;
-                    const currency = sale.currency || 'USD';
+                    currency = sale.currency || 'USD';
                     
                     if (currency === 'USD') {
                       const paidAmount = debt.payment_usd_amount || 0;
-                      const remaining = Math.max(0, originalTotal - paidAmount);
-                      return '$' + remaining.toFixed(2);
+                      remainingAmount = Math.max(0, originalTotal - paidAmount);
                     } else {
                       const paidAmount = debt.payment_iqd_amount || 0;
-                      const remaining = Math.max(0, originalTotal - paidAmount);
-                      return 'د.ع' + remaining.toFixed(2);
+                      remainingAmount = Math.max(0, originalTotal - paidAmount);
                     }
+                  }
+                  
+                  // Display remaining amount with conversion
+                  if (currency === 'USD') {
+                    const convertedIQD = (remainingAmount * EXCHANGE_RATES.USD_TO_IQD).toFixed(0);
+                    return `$${remainingAmount.toFixed(2)} (= د.ع${convertedIQD})`;
+                  } else {
+                    const convertedUSD = (remainingAmount / EXCHANGE_RATES.USD_TO_IQD).toFixed(2);
+                    return `د.ع${remainingAmount.toFixed(0)} (= $${convertedUSD})`;
                   }
                 })()}
               </p>

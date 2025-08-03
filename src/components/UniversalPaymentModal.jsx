@@ -268,7 +268,7 @@ const UniversalPaymentModal = ({
         admin.setToast?.(`${paymentTypeText} received: ${amounts.join(' + ')}`, 'success');
         
         // Force a small delay to ensure database write is complete before triggering callbacks
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise(resolve => setTimeout(resolve, 50)); // Reduced from 100ms
         
         if (onPaymentComplete) {
           await onPaymentComplete();

@@ -237,6 +237,30 @@ CREATE TABLE IF NOT EXISTS incentives (
   created_at DATETIME NOT NULL,
   currency TEXT DEFAULT 'IQD'
 );
+
+CREATE TABLE IF NOT EXISTS returns (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  product_id INTEGER,
+  accessory_id INTEGER,
+  item_name TEXT NOT NULL,
+  item_type TEXT DEFAULT 'product',
+  brand TEXT,
+  model TEXT,
+  ram TEXT,
+  storage TEXT,
+  quantity INTEGER NOT NULL,
+  return_price REAL NOT NULL,
+  original_price REAL NOT NULL,
+  supplier TEXT,
+  reason TEXT,
+  date DATETIME NOT NULL,
+  currency TEXT DEFAULT 'IQD',
+  buying_history_id INTEGER,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY(product_id) REFERENCES products(id),
+  FOREIGN KEY(accessory_id) REFERENCES accessories(id),
+  FOREIGN KEY(buying_history_id) REFERENCES buying_history(id)
+);
 `;
   
   // Execute initial schema
@@ -264,6 +288,10 @@ CREATE TABLE IF NOT EXISTS incentives (
       CREATE INDEX IF NOT EXISTS idx_incentives_company_name ON incentives(company_name);
       CREATE INDEX IF NOT EXISTS idx_incentives_created_at ON incentives(created_at);
       CREATE INDEX IF NOT EXISTS idx_incentives_currency ON incentives(currency);
+      CREATE INDEX IF NOT EXISTS idx_returns_product_id ON returns(product_id);
+      CREATE INDEX IF NOT EXISTS idx_returns_accessory_id ON returns(accessory_id);
+      CREATE INDEX IF NOT EXISTS idx_returns_date ON returns(date);
+      CREATE INDEX IF NOT EXISTS idx_returns_item_type ON returns(item_type);
       CREATE INDEX IF NOT EXISTS idx_transactions_type ON transactions(type);
       CREATE INDEX IF NOT EXISTS idx_transactions_created_at ON transactions(created_at);
       CREATE INDEX IF NOT EXISTS idx_buying_history_date ON buying_history(date);

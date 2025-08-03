@@ -24,17 +24,16 @@ function addProduct(db, { name, buying_price, stock, archived = 0, ram, storage,
   const normalizedCurrency = (currency || 'IQD').toString().trim();
   
   // Check if product with same specifications already exists
+  // First, try to match by core identifying attributes (brand, model, ram, storage, currency)
   const existingProduct = db.prepare(`
     SELECT * FROM products 
-    WHERE LOWER(TRIM(COALESCE(name, ''))) = LOWER(?) 
-    AND LOWER(TRIM(COALESCE(brand, ''))) = LOWER(?) 
+    WHERE LOWER(TRIM(COALESCE(brand, ''))) = LOWER(?) 
     AND LOWER(TRIM(COALESCE(model, ''))) = LOWER(?) 
     AND LOWER(TRIM(COALESCE(ram, ''))) = LOWER(?) 
     AND LOWER(TRIM(COALESCE(storage, ''))) = LOWER(?) 
     AND LOWER(TRIM(COALESCE(currency, 'IQD'))) = LOWER(?) 
     AND archived = 0
   `).get(
-    normalizedName, 
     normalizedBrand, 
     normalizedModel, 
     normalizedRam, 

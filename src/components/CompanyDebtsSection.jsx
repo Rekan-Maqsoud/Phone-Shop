@@ -6,7 +6,7 @@ import { Icon } from '../utils/icons.jsx';
 import { useLocale } from '../contexts/LocaleContext';
 import { getSeparator, getTextAlign, getFlexDirection } from '../utils/rtlUtils';
 
-const CompanyDebtsSection = ({ 
+const CompanyDebtsSection = React.memo(({ 
   t, 
   admin,
   openAddPurchaseModal
@@ -16,23 +16,13 @@ const CompanyDebtsSection = ({
   const { companyDebts, refreshCompanyDebts } = useData();
   const { isRTL } = useLocale();
 
-  // Force refresh when component mounts to ensure latest data
+  // Force refresh when component mounts ONCE to ensure latest data
   useEffect(() => {
     const refreshData = async () => {
       await refreshCompanyDebts();
     };
     refreshData();
-  }, [refreshCompanyDebts]);
-
-  // Add effect to refresh when companyDebts change to ensure calculations are updated
-  useEffect(() => {
-    // Trigger a re-render when companyDebts data changes
-    // This ensures calculations are updated with the latest payment data
-    // Force re-calculation of memoized values by clearing any cached state
-    if (companyDebts.length > 0) {
-      // Data updated, calculations will be refreshed automatically via useMemo
-    }
-  }, [companyDebts]);
+  }, []); // Remove refreshCompanyDebts dependency to prevent infinite re-renders
 
   // Memoize the filtered and calculated debts to ensure they update when data changes
   const { filteredDebts, totals } = useMemo(() => {
@@ -474,6 +464,6 @@ const CompanyDebtsSection = ({
       </div>
     </div>
   );
-};
+});
 
 export default CompanyDebtsSection;

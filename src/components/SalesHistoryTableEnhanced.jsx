@@ -33,101 +33,6 @@ const SalesHistoryTableEnhanced = React.memo(function SalesHistoryTableEnhanced(
     return `${symbol}${cleanFormatted}`;
   };
 
-  // Calculate totals for filtered sales
-  const calculateTotals = useCallback((salesData) => {
-    let totalRevenueUSD = 0;
-    let totalRevenueIQD = 0;
-    let totalProfitUSD = 0;
-    let totalProfitIQD = 0;
-    let totalSales = salesData.length;
-    let totalProducts = 0;
-
-    salesData.forEach(sale => {
-      // Calculate revenue based on actual payment
-      if (sale.multi_currency_payment) {
-        totalRevenueUSD += sale.multi_currency_payment.usd_amount || 0;
-        totalRevenueIQD += sale.multi_currency_payment.iqd_amount || 0;
-      } else {
-        const saleTotal = sale.total || 0;
-        if (sale.currency === 'USD') {
-          totalRevenueUSD += saleTotal;
-        } else {
-          totalRevenueIQD += saleTotal;
-        }
-      }
-
-      // FIXED: Use the profit values stored in sale_items table instead of recalculating
-      // These values already account for discounts, exchange rates, and multi-currency transactions
-      if (sale.items && Array.isArray(sale.items)) {
-        sale.items.forEach(item => {
-          const qty = item.quantity || 1;
-          // Use the profit_in_sale_currency which is correctly calculated during sale
-          const itemProfit = Number(item.profit_in_sale_currency) || Number(item.profit) || 0;
-          
-          if (sale.currency === 'USD') {
-            totalProfitUSD += itemProfit;
-          } else if (sale.currency === 'IQD') {
-            totalProfitIQD += itemProfit;
-          }
-        });
-        totalProducts += sale.items.reduce((sum, item) => sum + (item.quantity || 1), 0);
-      }
-    });
-
-    return {
-      totalProfitUSD,
-      totalProfitIQD,
-      totalRevenueUSD,
-      totalRevenueIQD,
-      totalSales,
-      totalProducts
-    };
-  }, []);
-
-  // Extract brand from sales history entry
-  const getBrandFromSalesHistory = useCallback((sale) => {
-    if (sale.items && Array.isArray(sale.items)) {
-      const brands = sale.items
-        .map(item => item.brand)
-        .filter(brand => brand && brand.trim())
-        .join(', ');
-      if (brands) return brands;
-    }
-    return sale.brand || null;
-  }, []);
-
-  // Handle filtered data change from search component
-  const handleFilteredDataChange = useCallback((filtered, calculatedTotals) => {
-    setFilteredSales(filtered);
-    setTotals(calculatedTotals);
-  }, []);
-
-  // Sort filtered sales
-  const sortedSales = useMemo(() => {
-    return [...filteredSales].sort((a, b) => {
-      const dateA = new Date(a.created_at);
-      const dateB = new Date(b.created_at);
-      return sortOrder === 'desc' ? dateB - dateA : dateA - dateB;
-    });
-  }, [filteredSales, sortOrder]);
-
-  // Pagination calculations for performance
-  const totalPages = Math.ceil(sortedSales.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const paginatedSales = sortedSales.slice(startIndex, endIndex);
-
-  // Toggle sale expansion
-  const toggleSaleExpansion = (saleId) => {
-    const newExpanded = new Set(expandedSales);
-    if (newExpanded.has(saleId)) {
-      newExpanded.delete(saleId);
-    } else {
-      newExpanded.add(saleId);
-    }
-    setExpandedSales(newExpanded);
-  };
-
   // Calculate currency breakdown for each sale with proper profit accounting for discounts
   const getSaleCurrencyBreakdown = (sale) => {
     let usdData = {
@@ -220,6 +125,95 @@ const SalesHistoryTableEnhanced = React.memo(function SalesHistoryTableEnhanced(
       iqd: { ...iqdData, paid: iqdPaid, actualProfit: actualIqdProfit }
     };
     return breakdown;
+  };
+
+  // Calculate totals for filtered sales
+  const calculateTotals = useCallback((salesData) => {
+    let totalRevenueUSD = 0;
+    let totalRevenueIQD = 0;
+    let totalProfitUSD = 0;
+    let totalProfitIQD = 0;
+    let totalSales = salesData.length;
+    let totalProducts = 0;
+
+    salesData.forEach(sale => {
+      // Calculate revenue based on actual payment
+      if (sale.multi_currency_payment) {
+        totalRevenueUSD += sale.multi_currency_payment.usd_amount || 0;
+        totalRevenueIQD += sale.multi_currency_payment.iqd_amount || 0;
+      } else {
+        const saleTotal = sale.total || 0;
+        if (sale.currency === 'USD') {
+          totalRevenueUSD += saleTotal;
+        } else {
+          totalRevenueIQD += saleTotal;
+        }
+      }
+
+      // Calculate profit correctly for both single and multi-currency sales
+      // Use the same logic as getSaleCurrencyBreakdown
+      const breakdown = getSaleCurrencyBreakdown(sale);
+      totalProfitUSD += breakdown.usd.actualProfit;
+      totalProfitIQD += breakdown.iqd.actualProfit;
+
+      // Count total products
+      if (sale.items && Array.isArray(sale.items)) {
+        totalProducts += sale.items.reduce((sum, item) => sum + (item.quantity || 1), 0);
+      }
+    });
+
+    return {
+      totalProfitUSD,
+      totalProfitIQD,
+      totalRevenueUSD,
+      totalRevenueIQD,
+      totalSales,
+      totalProducts
+    };
+  }, []);
+
+  // Extract brand from sales history entry
+  const getBrandFromSalesHistory = useCallback((sale) => {
+    if (sale.items && Array.isArray(sale.items)) {
+      const brands = sale.items
+        .map(item => item.brand)
+        .filter(brand => brand && brand.trim())
+        .join(', ');
+      if (brands) return brands;
+    }
+    return sale.brand || null;
+  }, []);
+
+  // Handle filtered data change from search component
+  const handleFilteredDataChange = useCallback((filtered, calculatedTotals) => {
+    setFilteredSales(filtered);
+    setTotals(calculatedTotals);
+  }, []);
+
+  // Sort filtered sales
+  const sortedSales = useMemo(() => {
+    return [...filteredSales].sort((a, b) => {
+      const dateA = new Date(a.created_at);
+      const dateB = new Date(b.created_at);
+      return sortOrder === 'desc' ? dateB - dateA : dateA - dateB;
+    });
+  }, [filteredSales, sortOrder]);
+
+  // Pagination calculations for performance
+  const totalPages = Math.ceil(sortedSales.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedSales = sortedSales.slice(startIndex, endIndex);
+
+  // Toggle sale expansion
+  const toggleSaleExpansion = (saleId) => {
+    const newExpanded = new Set(expandedSales);
+    if (newExpanded.has(saleId)) {
+      newExpanded.delete(saleId);
+    } else {
+      newExpanded.add(saleId);
+    }
+    setExpandedSales(newExpanded);
   };
 
   return (

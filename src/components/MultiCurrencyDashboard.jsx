@@ -100,34 +100,18 @@ function MultiCurrencyDashboard({ admin, t, onRefresh }) {
     fetchBalanceData();
   }, [fetchBalanceData]);
 
-  // Refresh data when sales, buyingHistory, debts, companyDebts, personalLoans, or transactions change
-  // Use a debounced effect to prevent excessive refreshes
+  // Single debounced effect to refresh data when any relevant data changes
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       fetchBalanceData();
-    }, 300); // Reduced debounce for faster response to debt payments and transactions
+    }, 500); // Increased debounce to reduce excessive refreshes
     
     return () => clearTimeout(timeoutId);
   }, [sales, buyingHistory, debts, companyDebts, personalLoans, transactions, fetchBalanceData]);
 
-  // Additional effect to refresh when transactions change (critical for debt payments)
+  // Set up periodic refresh every 2 minutes (increased from 60 seconds)
   useEffect(() => {
-    if (transactions && transactions.length > 0) {
-      // Check if the latest transaction is a debt payment
-      const latestTransaction = transactions[0]; // Assuming transactions are sorted by date desc
-      if (latestTransaction && 
-          (latestTransaction.type?.includes('debt_payment') || 
-           latestTransaction.type?.includes('loan_payment') || 
-           latestTransaction.type?.includes('company_debt_payment'))) {
-        // Immediate refresh for debt payment transactions (no debounce)
-        fetchBalanceData();
-      }
-    }
-  }, [transactions, fetchBalanceData]);
-
-  // Set up periodic refresh every 60 seconds (reduced from 30)
-  useEffect(() => {
-    const interval = setInterval(fetchBalanceData, 60000);
+    const interval = setInterval(fetchBalanceData, 120000);
     return () => clearInterval(interval);
   }, [fetchBalanceData]);
 
