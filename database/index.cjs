@@ -304,6 +304,31 @@ module.exports = function(dbPath) {
     return inventory.addDirectPurchaseMultiCurrencyWithItems(db, purchaseData);
   }
 
+  // Returns functionality
+  function addReturn(returnData) {
+    return inventory.addReturn(db, returnData);
+  }
+
+  function getReturns() {
+    return inventory.getReturns(db);
+  }
+
+  function getReturnsByDateRange(startDate, endDate) {
+    return inventory.getReturnsByDateRange(db, startDate, endDate);
+  }
+
+  function getReturnsByProduct(product_id) {
+    return inventory.getReturnsByProduct(db, product_id);
+  }
+
+  function getReturnsByAccessory(accessory_id) {
+    return inventory.getReturnsByAccessory(db, accessory_id);
+  }
+
+  function deleteReturn(id) {
+    return inventory.deleteReturn(db, id);
+  }
+
   function deleteBuyingHistory(id) {
     return inventory.deleteBuyingHistory(db, id);
   }
@@ -1360,41 +1385,16 @@ module.exports = function(dbPath) {
         const requestedUSD = Number(options.returnAmounts.usd) || 0;
         const requestedIQD = Number(options.returnAmounts.iqd) || 0;
         
-        console.log('🔍 [BACKEND DEBUG] Return request received:', {
-          requestedUSD,
-          requestedIQD,
-          entryId: entry.id,
-          entryCurrency: entry.currency,
-          entryTotalPrice: entry.total_price,
-          entryAmount: entry.amount,
-          entryMultiUSD: entry.multi_currency_usd,
-          entryMultiIQD: entry.multi_currency_iqd,
-          entryExchangeRates: {
-            usdToIqd: entry.exchange_rate_usd_to_iqd,
-            iqdToUsd: entry.exchange_rate_iqd_to_usd
-          }
-        });
-        
         // Use original exchange rate from the purchase, not current rate
         let originalExchangeRate, originalIqdToUsd;
         if (entry.exchange_rate_usd_to_iqd && entry.exchange_rate_iqd_to_usd) {
           // Use the exchange rate from when the purchase was made
           originalExchangeRate = entry.exchange_rate_usd_to_iqd;
           originalIqdToUsd = entry.exchange_rate_iqd_to_usd;
-          console.log('🔍 [BACKEND DEBUG] Using ORIGINAL exchange rates:', {
-            originalExchangeRate,
-            originalIqdToUsd,
-            source: 'purchase_record'
-          });
         } else {
           // Fallback to current rate if original rate not stored
           originalExchangeRate = settings.getExchangeRate(db, 'USD', 'IQD');
           originalIqdToUsd = 1 / originalExchangeRate;
-          console.log('🔍 [BACKEND DEBUG] Using CURRENT exchange rates:', {
-            originalExchangeRate,
-            originalIqdToUsd,
-            source: 'current_settings'
-          });
         }
         
         // Calculate the total value of the original purchase in USD equivalent
@@ -1406,55 +1406,24 @@ module.exports = function(dbPath) {
           const iqdPortion = (entry.multi_currency_iqd || 0) * quantityRatio;
           originalValueUSD = usdPortion + (iqdPortion * originalIqdToUsd); // Use original rate
           
-          console.log('🔍 [BACKEND DEBUG] Multi-currency original value calculation:', {
-            usdPortion,
-            iqdPortion,
-            originalIqdToUsd,
-            originalValueUSD,
-            calculation: `${usdPortion} + (${iqdPortion} * ${originalIqdToUsd}) = ${originalValueUSD}`
-          });
         } else if ((entry.multi_currency_usd || 0) > 0 || (entry.multi_currency_iqd || 0) > 0) {
           // Single currency but stored in multi-currency columns
           const usdPortion = (entry.multi_currency_usd || 0) * quantityRatio;
           const iqdPortion = (entry.multi_currency_iqd || 0) * quantityRatio;
           originalValueUSD = usdPortion + (iqdPortion * originalIqdToUsd); // Use original rate
           
-          console.log('🔍 [BACKEND DEBUG] Single currency in multi columns:', {
-            usdPortion,
-            iqdPortion,
-            originalIqdToUsd,
-            originalValueUSD
-          });
         } else {
           // Traditional single currency entry
           const originalAmount = (entry.total_price || entry.amount || 0) * quantityRatio;
           if (entry.currency === 'USD') {
             originalValueUSD = originalAmount;
-            console.log('🔍 [BACKEND DEBUG] USD single currency:', { originalAmount, originalValueUSD });
           } else {
             originalValueUSD = originalAmount * originalIqdToUsd; // Use original rate
-            console.log('🔍 [BACKEND DEBUG] IQD single currency:', {
-              originalAmount,
-              originalIqdToUsd,
-              originalValueUSD,
-              calculation: `${originalAmount} * ${originalIqdToUsd} = ${originalValueUSD}`
-            });
           }
         }
         
         // Calculate the total value of the requested return in USD equivalent
         const requestedValueUSD = requestedUSD + (requestedIQD * originalIqdToUsd); // Use original rate
-        
-        console.log('🔍 [BACKEND DEBUG] Return value validation:', {
-          requestedUSD,
-          requestedIQD,
-          originalIqdToUsd,
-          requestedValueUSD,
-          originalValueUSD,
-          calculation: `${requestedUSD} + (${requestedIQD} * ${originalIqdToUsd}) = ${requestedValueUSD}`,
-          isValid: requestedValueUSD <= originalValueUSD + 0.01,
-          tolerance: 0.01
-        });
         
         // Check if total requested value exceeds original value (with small tolerance for rounding)
         if (requestedValueUSD > originalValueUSD + 0.01) {
@@ -1498,19 +1467,32 @@ module.exports = function(dbPath) {
           if (itemReturnQty > 0) {
             try {
               if (item.item_type === 'accessory') {
-                // Add back to accessories stock
+                // Remove from accessories stock (returning to supplier)
+                const beforeAccessory = db.prepare('SELECT stock FROM accessories WHERE name = ?').get(item.item_name);
+                
                 db.prepare(`
                   UPDATE accessories 
-                  SET stock = stock + ? 
+                  SET stock = stock - ? 
                   WHERE name = ?
                 `).run(itemReturnQty, item.item_name);
+                
+                const afterAccessory = db.prepare('SELECT stock FROM accessories WHERE name = ?').get(item.item_name);
               } else {
-                // Add back to products stock
+                // Remove from products stock (returning to supplier)
+                const beforeProduct = db.prepare('SELECT stock, name, model, ram, storage FROM products WHERE name = ? AND model = ? AND ram = ? AND storage = ?').get(item.item_name, item.model || '', item.ram || '', item.storage || '');
+                if (beforeProduct) {
+                }
+                
                 db.prepare(`
                   UPDATE products 
-                  SET stock = stock + ? 
+                  SET stock = stock - ? 
                   WHERE name = ? AND model = ? AND ram = ? AND storage = ?
                 `).run(itemReturnQty, item.item_name, item.model || '', item.ram || '', item.storage || '');
+                
+                const afterProduct = db.prepare('SELECT stock, name, model, ram, storage FROM products WHERE name = ? AND model = ? AND ram = ? AND storage = ?').get(item.item_name, item.model || '', item.ram || '', item.storage || '');
+                if (afterProduct) {
+                } else {
+                }
               }
               
               successfulReturns.push({
@@ -1545,12 +1527,12 @@ module.exports = function(dbPath) {
           db.prepare('DELETE FROM buying_history_items WHERE buying_history_id = ?').run(entry.id);
         }
       } else {
-        // Simple purchase - add back to stock if product/accessory exists
+        // Simple purchase - remove from stock if product/accessory exists (returns decrease stock)
         try {
           // Check if it's a product
           const product = db.prepare('SELECT id FROM products WHERE name = ?').get(entry.item_name);
           if (product) {
-            db.prepare('UPDATE products SET stock = stock + ? WHERE name = ?').run(returnQuantity, entry.item_name);
+            db.prepare('UPDATE products SET stock = stock - ? WHERE name = ?').run(returnQuantity, entry.item_name);
             successfulReturns.push({
               name: entry.item_name,
               quantity: returnQuantity,
@@ -1560,12 +1542,13 @@ module.exports = function(dbPath) {
             // Check if it's an accessory
             const accessory = db.prepare('SELECT id FROM accessories WHERE name = ?').get(entry.item_name);
             if (accessory) {
-              db.prepare('UPDATE accessories SET stock = stock + ? WHERE name = ?').run(returnQuantity, entry.item_name);
+              db.prepare('UPDATE accessories SET stock = stock - ? WHERE name = ?').run(returnQuantity, entry.item_name);
               successfulReturns.push({
                 name: entry.item_name,
                 quantity: returnQuantity,
                 type: 'accessory'
               });
+            } else {
             }
           }
         } catch (error) {
@@ -1710,13 +1693,13 @@ module.exports = function(dbPath) {
         throw new Error('Invalid return quantity');
       }
 
-      // Add item back to stock (since it's a return, we give the item back)
+      // Remove item from stock (since it's a return, we're giving the item back to supplier)
       if (item.item_type === 'accessory') {
-        db.prepare('UPDATE accessories SET stock = stock + ? WHERE name = ?').run(returnQty, item.item_name);
+        db.prepare('UPDATE accessories SET stock = stock - ? WHERE name = ?').run(returnQty, item.item_name);
       } else {
         const productUpdate = db.prepare(`
           UPDATE products 
-          SET stock = stock + ? 
+          SET stock = stock - ? 
           WHERE name = ? AND model = ? AND ram = ? AND storage = ?
         `);
         productUpdate.run(returnQty, item.item_name, item.model || '', item.ram || '', item.storage || '');
@@ -1930,7 +1913,7 @@ module.exports = function(dbPath) {
         }
       }
 
-      // Return items to stock if this purchase has items
+      // Remove items from stock if this purchase has items (returning to supplier)
       if (entry.has_items) {
         const items = db.prepare('SELECT * FROM buying_history_items WHERE buying_history_id = ?').all(entry.id);
         
@@ -1938,17 +1921,17 @@ module.exports = function(dbPath) {
           const qty = Number(item.quantity) || 1;
           
           if (item.item_type === 'accessory') {
-            // Add back to accessories stock
+            // Remove from accessories stock
             db.prepare(`
               UPDATE accessories 
-              SET stock = stock + ? 
+              SET stock = stock - ? 
               WHERE name = ?
             `).run(qty, item.item_name);
           } else {
-            // Add back to products stock
+            // Remove from products stock
             db.prepare(`
               UPDATE products 
-              SET stock = stock + ? 
+              SET stock = stock - ? 
               WHERE name = ? AND model = ? AND ram = ? AND storage = ?
             `).run(qty, item.item_name, item.model || '', item.ram || '', item.storage || '');
           }
@@ -1959,19 +1942,19 @@ module.exports = function(dbPath) {
         // Delete items from buying_history_items
         db.prepare('DELETE FROM buying_history_items WHERE buying_history_id = ?').run(entry.id);
       } else {
-        // Simple purchase - try to add back to stock if product/accessory exists
+        // Simple purchase - try to remove from stock if product/accessory exists (returning to supplier)
         const qty = Number(entry.quantity) || 1;
         
         // Check if it's a product
         const product = db.prepare('SELECT id FROM products WHERE name = ?').get(entry.item_name);
         if (product) {
-          db.prepare('UPDATE products SET stock = stock + ? WHERE name = ?').run(qty, entry.item_name);
+          db.prepare('UPDATE products SET stock = stock - ? WHERE name = ?').run(qty, entry.item_name);
           itemsReturned += qty;
         } else {
           // Check if it's an accessory
           const accessory = db.prepare('SELECT id FROM accessories WHERE name = ?').get(entry.item_name);
           if (accessory) {
-            db.prepare('UPDATE accessories SET stock = stock + ? WHERE name = ?').run(qty, entry.item_name);
+            db.prepare('UPDATE accessories SET stock = stock - ? WHERE name = ?').run(qty, entry.item_name);
             itemsReturned += qty;
           }
         }
@@ -2041,13 +2024,13 @@ module.exports = function(dbPath) {
         refundedIQD = itemTotal;
       }
 
-      // Return item to stock
+      // Remove item from stock (return to supplier)
       if (item.item_type === 'accessory') {
-        db.prepare('UPDATE accessories SET stock = stock + ? WHERE name = ?').run(qty, item.item_name);
+        db.prepare('UPDATE accessories SET stock = stock - ? WHERE name = ?').run(qty, item.item_name);
       } else {
         db.prepare(`
           UPDATE products 
-          SET stock = stock + ? 
+          SET stock = stock - ? 
           WHERE name = ? AND model = ? AND ram = ? AND storage = ?
         `).run(qty, item.item_name, item.model || '', item.ram || '', item.storage || '');
       }
@@ -2269,6 +2252,15 @@ module.exports = function(dbPath) {
     addDirectPurchaseMultiCurrency,
     addDirectPurchaseMultiCurrencyWithItems,
     deleteBuyingHistory,
+    
+    // Returns functionality
+    addReturn,
+    getReturns,
+    getReturnsByDateRange,
+    getReturnsByProduct,
+    getReturnsByAccessory,
+    deleteReturn,
+    
     updateBuyingHistory,
     getBuyingHistoryInDateRange,
     getTotalBuyingCostForPeriod,
@@ -2326,7 +2318,6 @@ module.exports = function(dbPath) {
     saveSale,
     returnSale,
     returnSaleItem,
-    returnBuyingHistoryEntry,
     returnBuyingHistoryItem,
     returnBuyingHistoryEntrySimplified,
     returnBuyingHistoryItemSimplified,

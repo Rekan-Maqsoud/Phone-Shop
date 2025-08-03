@@ -19,15 +19,6 @@ function getBuyingHistory(db) {
       if (entry.multi_currency_usd !== null || entry.multi_currency_iqd !== null) {
         enhancedEntry.multi_currency_usd = entry.multi_currency_usd || 0;
         enhancedEntry.multi_currency_iqd = entry.multi_currency_iqd || 0;
-        
-        console.log('🔍 [MULTI CURRENCY DEBUG] Using direct columns for Entry ID:', entry.id, {
-          original_total_price: entry.total_price,
-          currency: entry.currency,
-          column_usd: entry.multi_currency_usd,
-          column_iqd: entry.multi_currency_iqd,
-          display_usd: enhancedEntry.multi_currency_usd,
-          display_iqd: enhancedEntry.multi_currency_iqd
-        });
       } else if (entry.currency === 'MULTI') {
         // Fallback to transaction data for older MULTI entries
         const transaction = db.prepare(`
@@ -42,26 +33,7 @@ function getBuyingHistory(db) {
           // Convert negative transaction amounts (spending) to positive display amounts
           enhancedEntry.multi_currency_usd = Math.abs(transaction.amount_usd || 0);
           enhancedEntry.multi_currency_iqd = Math.abs(transaction.amount_iqd || 0);
-          
-          console.log('🔍 [MULTI CURRENCY DEBUG] Using transaction data for Entry ID:', entry.id, {
-            original_total_price: entry.total_price,
-            currency: entry.currency,
-            transaction_usd: transaction.amount_usd,
-            transaction_iqd: transaction.amount_iqd,
-            display_usd: enhancedEntry.multi_currency_usd,
-            display_iqd: enhancedEntry.multi_currency_iqd
-          });
         }
-      }
-    } else {
-      // For single currency entries, validate the currency is correct
-      if (entry.currency === 'IQD' && entry.total_price) {
-        // Ensure IQD values are not accidentally converted
-        console.log('🔍 [IQD ENTRY DEBUG] Entry ID:', entry.id, {
-          currency: entry.currency,
-          total_price: entry.total_price,
-          supplier: entry.supplier
-        });
       }
     }
     
@@ -214,52 +186,137 @@ function addDirectPurchaseWithItems(db, { supplier, date, items, currency = 'IQD
       if (item.item_type === 'product') {
         // Use the products module's addProduct function which handles price averaging
         const { addProduct } = require('./products.cjs');
-        const productData = {
-          name: item.item_name || [item.brand, item.model].filter(Boolean).join(' '),
-          brand: item.brand || '',
-          model: item.model || '',
-          ram: item.ram || null,
-          storage: item.storage || null,
-          buying_price: item.unit_price,
-          stock: item.quantity,
-          currency: item.currency || currency,
-          category: 'phones',
-          archived: 0
-        };
         
-        try {
-          const result = addProduct(db, productData);
-          console.log('✅ [inventory.cjs] Product processed with price averaging:', { 
-            merged: result.merged, 
-            productId: result.productId 
-          });
-        } catch (error) {
-          console.error('❌ [inventory.cjs] Error adding product:', error);
-          throw error;
+        // For returns (negative quantities), we need to handle them differently
+        if (item.quantity < 0) {
+          
+          // Find the product to update
+          const existingProducts = db.prepare('SELECT * FROM products WHERE archived = 0').all();
+          const matchingProduct = existingProducts.find(p => 
+            (p.brand || '').toLowerCase() === (item.brand || '').toLowerCase() &&
+            (p.model || '').toLowerCase() === (item.model || '').toLowerCase() &&
+            (p.ram || '').toLowerCase() === (item.ram || '').toLowerCase() &&
+            (p.storage || '').toLowerCase() === (item.storage || '').toLowerCase()
+          );
+          
+          if (matchingProduct) {
+            const currentStock = Number(matchingProduct.stock) || 0;
+            const currentPrice = Number(matchingProduct.buying_price) || 0;
+            const returnQuantity = Math.abs(item.quantity); // Make positive for calculation
+            const returnPrice = item.unit_price;
+            
+            // Calculate new stock (decrease by return quantity)
+            const newStock = Math.max(0, currentStock - returnQuantity);
+            
+            // Calculate new price using return formula
+            let newPrice = currentPrice;
+            if (newStock > 0) {
+              const oldTotal = currentStock * currentPrice;
+              const returnValue = returnQuantity * returnPrice;
+              newPrice = (oldTotal - returnValue) / newStock;
+              
+              // Round appropriately based on currency
+              if ((item.currency || currency).toUpperCase() === 'USD') {
+                newPrice = Math.round(newPrice * 100) / 100;
+              } else {
+                newPrice = Math.round(newPrice);
+              }
+              
+              newPrice = Math.max(0, newPrice);
+            }
+            
+            // Update the product directly
+            db.prepare('UPDATE products SET stock = ?, buying_price = ? WHERE id = ?')
+              .run(newStock, newPrice, matchingProduct.id);
+          }
+        } else {
+          // Normal purchase - add stock
+          const productData = {
+            name: item.item_name || [item.brand, item.model].filter(Boolean).join(' '),
+            brand: item.brand || '',
+            model: item.model || '',
+            ram: item.ram || null,
+            storage: item.storage || null,
+            buying_price: item.unit_price,
+            stock: item.quantity,
+            currency: item.currency || currency,
+            category: 'phones',
+            archived: 0
+          };
+          
+          try {
+            const result = addProduct(db, productData);
+            
+          } catch (error) {
+            console.error('❌ [inventory.cjs] Error adding product:', error);
+            throw error;
+          }
         }
       } else if (item.item_type === 'accessory') {
         // Use the accessories module's addAccessory function which handles price averaging
         const { addAccessory } = require('./accessories.cjs');
-        const accessoryData = {
-          name: item.item_name || [item.brand, item.model].filter(Boolean).join(' '),
-          brand: item.brand || '',
-          model: item.model || '',
-          type: item.type || null,
-          buying_price: item.unit_price,
-          stock: item.quantity,
-          currency: item.currency || currency,
-          archived: 0
-        };
         
-        try {
-          const result = addAccessory(db, accessoryData);
-          console.log('✅ [inventory.cjs] Accessory processed with price averaging:', { 
-            merged: result.merged, 
-            accessoryId: result.accessoryId 
-          });
-        } catch (error) {
-          console.error('❌ [inventory.cjs] Error adding accessory:', error);
-          throw error;
+        // For returns (negative quantities), handle them differently
+        if (item.quantity < 0) {
+          
+          // Find the accessory to update
+          const existingAccessories = db.prepare('SELECT * FROM accessories WHERE archived = 0').all();
+          const matchingAccessory = existingAccessories.find(a => 
+            (a.brand || '').toLowerCase() === (item.brand || '').toLowerCase() &&
+            (a.model || '').toLowerCase() === (item.model || '').toLowerCase() &&
+            (a.type || '').toLowerCase() === (item.type || '').toLowerCase()
+          );
+          
+          if (matchingAccessory) {
+            const currentStock = Number(matchingAccessory.stock) || 0;
+            const currentPrice = Number(matchingAccessory.buying_price) || 0;
+            const returnQuantity = Math.abs(item.quantity); // Make positive for calculation
+            const returnPrice = item.unit_price;
+            
+            // Calculate new stock (decrease by return quantity)
+            const newStock = Math.max(0, currentStock - returnQuantity);
+            
+            // Calculate new price using return formula
+            let newPrice = currentPrice;
+            if (newStock > 0) {
+              const oldTotal = currentStock * currentPrice;
+              const returnValue = returnQuantity * returnPrice;
+              newPrice = (oldTotal - returnValue) / newStock;
+              
+              // Round appropriately based on currency
+              if ((item.currency || currency).toUpperCase() === 'USD') {
+                newPrice = Math.round(newPrice * 100) / 100;
+              } else {
+                newPrice = Math.round(newPrice);
+              }
+              
+              newPrice = Math.max(0, newPrice);
+            }
+            
+            
+            // Update the accessory directly
+            db.prepare('UPDATE accessories SET stock = ?, buying_price = ? WHERE id = ?')
+              .run(newStock, newPrice, matchingAccessory.id);
+          }
+        } else {
+          // Normal purchase - add stock
+          const accessoryData = {
+            name: item.item_name || [item.brand, item.model].filter(Boolean).join(' '),
+            brand: item.brand || '',
+            model: item.model || '',
+            type: item.type || null,
+            buying_price: item.unit_price,
+            stock: item.quantity,
+            currency: item.currency || currency,
+            archived: 0
+          };
+          
+          try {
+            const result = addAccessory(db, accessoryData);
+          } catch (error) {
+            console.error('❌ [inventory.cjs] Error adding accessory:', error);
+            throw error;
+          }
         }
       }
     });
@@ -378,52 +435,139 @@ function addDirectPurchaseMultiCurrencyWithItems(db, { supplier, date, items, us
       if (item.item_type === 'product') {
         // Use the products module's addProduct function which handles price averaging
         const { addProduct } = require('./products.cjs');
-        const productData = {
-          name: item.item_name || [item.brand, item.model].filter(Boolean).join(' '),
-          brand: item.brand || '',
-          model: item.model || '',
-          ram: item.ram || null,
-          storage: item.storage || null,
-          buying_price: item.unit_price,
-          stock: item.quantity,
-          currency: item.currency || 'IQD',
-          category: 'phones',
-          archived: 0
-        };
         
-        try {
-          const result = addProduct(db, productData);
-          console.log('✅ [inventory.cjs] Product processed with price averaging:', { 
-            merged: result.merged, 
-            productId: result.productId 
-          });
-        } catch (error) {
-          console.error('❌ [inventory.cjs] Error adding product:', error);
-          throw error;
+        // For returns (negative quantities), we need to handle them differently
+        if (item.quantity < 0) {
+          
+          // Find the product to update
+          const existingProducts = db.prepare('SELECT * FROM products WHERE archived = 0').all();
+          const matchingProduct = existingProducts.find(p => 
+            (p.brand || '').toLowerCase() === (item.brand || '').toLowerCase() &&
+            (p.model || '').toLowerCase() === (item.model || '').toLowerCase() &&
+            (p.ram || '').toLowerCase() === (item.ram || '').toLowerCase() &&
+            (p.storage || '').toLowerCase() === (item.storage || '').toLowerCase()
+          );
+          
+          if (matchingProduct) {
+            const currentStock = Number(matchingProduct.stock) || 0;
+            const currentPrice = Number(matchingProduct.buying_price) || 0;
+            const returnQuantity = Math.abs(item.quantity); // Make positive for calculation
+            const returnPrice = item.unit_price;
+            
+            // Calculate new stock (decrease by return quantity)
+            const newStock = Math.max(0, currentStock - returnQuantity);
+            
+            // Calculate new price using return formula
+            let newPrice = currentPrice;
+            if (newStock > 0) {
+              const oldTotal = currentStock * currentPrice;
+              const returnValue = returnQuantity * returnPrice;
+              newPrice = (oldTotal - returnValue) / newStock;
+              
+              // Round appropriately based on currency
+              if ((item.currency || 'IQD').toUpperCase() === 'USD') {
+                newPrice = Math.round(newPrice * 100) / 100;
+              } else {
+                newPrice = Math.round(newPrice);
+              }
+              
+              newPrice = Math.max(0, newPrice);
+            }
+     
+            
+            // Update the product directly
+            db.prepare('UPDATE products SET stock = ?, buying_price = ? WHERE id = ?')
+              .run(newStock, newPrice, matchingProduct.id);
+          }
+        } else {
+          // Normal purchase - add stock
+          const productData = {
+            name: item.item_name || [item.brand, item.model].filter(Boolean).join(' '),
+            brand: item.brand || '',
+            model: item.model || '',
+            ram: item.ram || null,
+            storage: item.storage || null,
+            buying_price: item.unit_price,
+            stock: item.quantity,
+            currency: item.currency || 'IQD',
+            category: 'phones',
+            archived: 0
+          };
+          
+          try {
+            const result = addProduct(db, productData);
+      
+          } catch (error) {
+            console.error('❌ [inventory.cjs] Error adding product:', error);
+            throw error;
+          }
         }
       } else if (item.item_type === 'accessory') {
         // Use the accessories module's addAccessory function which handles price averaging
         const { addAccessory } = require('./accessories.cjs');
-        const accessoryData = {
-          name: item.item_name || [item.brand, item.model].filter(Boolean).join(' '),
-          brand: item.brand || '',
-          model: item.model || '',
-          type: item.type || null,
-          buying_price: item.unit_price,
-          stock: item.quantity,
-          currency: item.currency || 'IQD',
-          archived: 0
-        };
         
-        try {
-          const result = addAccessory(db, accessoryData);
-          console.log('✅ [inventory.cjs] Accessory processed with price averaging:', { 
-            merged: result.merged, 
-            accessoryId: result.accessoryId 
-          });
-        } catch (error) {
-          console.error('❌ [inventory.cjs] Error adding accessory:', error);
-          throw error;
+        // For returns (negative quantities), handle them differently
+        if (item.quantity < 0) {
+  
+          
+          // Find the accessory to update
+          const existingAccessories = db.prepare('SELECT * FROM accessories WHERE archived = 0').all();
+          const matchingAccessory = existingAccessories.find(a => 
+            (a.brand || '').toLowerCase() === (item.brand || '').toLowerCase() &&
+            (a.model || '').toLowerCase() === (item.model || '').toLowerCase() &&
+            (a.type || '').toLowerCase() === (item.type || '').toLowerCase()
+          );
+          
+          if (matchingAccessory) {
+            const currentStock = Number(matchingAccessory.stock) || 0;
+            const currentPrice = Number(matchingAccessory.buying_price) || 0;
+            const returnQuantity = Math.abs(item.quantity); // Make positive for calculation
+            const returnPrice = item.unit_price;
+            
+            // Calculate new stock (decrease by return quantity)
+            const newStock = Math.max(0, currentStock - returnQuantity);
+            
+            // Calculate new price using return formula
+            let newPrice = currentPrice;
+            if (newStock > 0) {
+              const oldTotal = currentStock * currentPrice;
+              const returnValue = returnQuantity * returnPrice;
+              newPrice = (oldTotal - returnValue) / newStock;
+              
+              // Round appropriately based on currency
+              if ((item.currency || 'IQD').toUpperCase() === 'USD') {
+                newPrice = Math.round(newPrice * 100) / 100;
+              } else {
+                newPrice = Math.round(newPrice);
+              }
+              
+              newPrice = Math.max(0, newPrice);
+            }
+            
+            // Update the accessory directly
+            db.prepare('UPDATE accessories SET stock = ?, buying_price = ? WHERE id = ?')
+              .run(newStock, newPrice, matchingAccessory.id);
+          }
+        } else {
+          // Normal purchase - add stock
+          const accessoryData = {
+            name: item.item_name || [item.brand, item.model].filter(Boolean).join(' '),
+            brand: item.brand || '',
+            model: item.model || '',
+            type: item.type || null,
+            buying_price: item.unit_price,
+            stock: item.quantity,
+            currency: item.currency || 'IQD',
+            archived: 0
+          };
+          
+          try {
+            const result = addAccessory(db, accessoryData);
+          
+          } catch (error) {
+            console.error('❌ [inventory.cjs] Error adding accessory:', error);
+            throw error;
+          }
         }
       }
     });
@@ -729,6 +873,155 @@ function getBuyingHistoryWithItems(db) {
   return combined;
 }
 
+// Returns functionality
+function addReturn(db, { product_id, accessory_id, item_name, item_type = 'product', brand, model, ram, storage, quantity, return_price, original_price, supplier, reason, date, currency = 'IQD', buying_history_id }) {
+  const returnDate = date || new Date().toISOString();
+  
+  const transaction = db.transaction(() => {
+    // Insert return record
+    const result = db.prepare(`
+      INSERT INTO returns 
+      (product_id, accessory_id, item_name, item_type, brand, model, ram, storage, quantity, return_price, original_price, supplier, reason, date, currency, buying_history_id) 
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      product_id || null,
+      accessory_id || null,
+      item_name,
+      item_type,
+      brand || null,
+      model || null,
+      ram || null,
+      storage || null,
+      quantity,
+      return_price,
+      original_price,
+      supplier || null,
+      reason || null,
+      returnDate,
+      currency,
+      buying_history_id || null
+    );
+    
+    // Update product/accessory stock and recalculate price
+    if (item_type === 'product' && product_id) {
+      const product = db.prepare('SELECT * FROM products WHERE id = ?').get(product_id);
+      if (product) {
+        const currentStock = Number(product.stock) || 0;
+        const currentPrice = Number(product.buying_price) || 0;
+        
+        // Calculate new stock (decrease by return quantity)
+        const newStock = Math.max(0, currentStock - quantity);
+        
+        // Calculate new price using the formula: (old_total - return_value) / new_quantity
+        let newPrice = currentPrice;
+        if (newStock > 0) {
+          const oldTotal = currentStock * currentPrice;
+          const returnValue = quantity * return_price;
+          newPrice = (oldTotal - returnValue) / newStock;
+          
+          // Round appropriately based on currency
+          if (currency.toUpperCase() === 'USD') {
+            newPrice = Math.round(newPrice * 100) / 100; // 2 decimal places for USD
+          } else {
+            newPrice = Math.round(newPrice); // Whole numbers for IQD
+          }
+          
+          // Ensure price doesn't go negative
+          newPrice = Math.max(0, newPrice);
+        }
+        
+        // Update product
+        db.prepare('UPDATE products SET stock = ?, buying_price = ? WHERE id = ?')
+          .run(newStock, newPrice, product_id);
+      }
+    } else if (item_type === 'accessory' && accessory_id) {
+      const accessory = db.prepare('SELECT * FROM accessories WHERE id = ?').get(accessory_id);
+      if (accessory) {
+        const currentStock = Number(accessory.stock) || 0;
+        const currentPrice = Number(accessory.buying_price) || 0;
+        
+        // Calculate new stock (decrease by return quantity)
+        const newStock = Math.max(0, currentStock - quantity);
+        
+        // Calculate new price using the formula: (old_total - return_value) / new_quantity
+        let newPrice = currentPrice;
+        if (newStock > 0) {
+          const oldTotal = currentStock * currentPrice;
+          const returnValue = quantity * return_price;
+          newPrice = (oldTotal - returnValue) / newStock;
+          
+          // Round appropriately based on currency
+          if (currency.toUpperCase() === 'USD') {
+            newPrice = Math.round(newPrice * 100) / 100; // 2 decimal places for USD
+          } else {
+            newPrice = Math.round(newPrice); // Whole numbers for IQD
+          }
+          
+          // Ensure price doesn't go negative
+          newPrice = Math.max(0, newPrice);
+        }
+        
+        // Update accessory
+        db.prepare('UPDATE accessories SET stock = ?, buying_price = ? WHERE id = ?')
+          .run(newStock, newPrice, accessory_id);
+      }
+    }
+    
+    // Record transaction for accounting (return adds money back)
+    const addTransactionStmt = db.prepare(`
+      INSERT INTO transactions (type, amount_usd, amount_iqd, description, reference_id, reference_type, created_at) 
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+    
+    const usdAmount = currency === 'USD' ? return_price * quantity : 0;
+    const iqdAmount = currency === 'IQD' ? return_price * quantity : 0;
+    
+    addTransactionStmt.run(
+      'return',
+      usdAmount, // Positive to indicate money received back
+      iqdAmount, // Positive to indicate money received back
+      `Return: ${item_name} (${quantity} units) ${reason ? '- ' + reason : ''}`,
+      result.lastInsertRowid,
+      'returns',
+      returnDate
+    );
+    
+    // Add money back to balance
+    if (currency === 'USD') {
+      settings.updateBalance(db, 'USD', return_price * quantity);
+    } else {
+      settings.updateBalance(db, 'IQD', return_price * quantity);
+    }
+    
+    return { success: true, returnId: result.lastInsertRowid, returnValue: return_price * quantity };
+  });
+  
+  return transaction();
+}
+
+function getReturns(db) {
+  return db.prepare('SELECT * FROM returns ORDER BY date DESC').all();
+}
+
+function getReturnsByDateRange(db, startDate, endDate) {
+  return db.prepare('SELECT * FROM returns WHERE DATE(date) BETWEEN ? AND ? ORDER BY date DESC')
+    .all(startDate, endDate);
+}
+
+function getReturnsByProduct(db, product_id) {
+  return db.prepare('SELECT * FROM returns WHERE product_id = ? ORDER BY date DESC')
+    .all(product_id);
+}
+
+function getReturnsByAccessory(db, accessory_id) {
+  return db.prepare('SELECT * FROM returns WHERE accessory_id = ? ORDER BY date DESC')
+    .all(accessory_id);
+}
+
+function deleteReturn(db, id) {
+  return db.prepare('DELETE FROM returns WHERE id = ?').run(id);
+}
+
 module.exports = {
   getBuyingHistory,
   addBuyingHistory,
@@ -749,5 +1042,12 @@ module.exports = {
   addDirectPurchase,
   addDirectPurchaseWithItems,
   addDirectPurchaseMultiCurrency,
-  addDirectPurchaseMultiCurrencyWithItems
+  addDirectPurchaseMultiCurrencyWithItems,
+  // Returns functionality
+  addReturn,
+  getReturns,
+  getReturnsByDateRange,
+  getReturnsByProduct,
+  getReturnsByAccessory,
+  deleteReturn
 };

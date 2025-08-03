@@ -64,6 +64,14 @@ contextBridge.exposeInMainWorld('api', {
   addDirectPurchaseMultiCurrency: (purchaseData) => ipcRenderer.invoke('addDirectPurchaseMultiCurrency', purchaseData),
   addDirectPurchaseMultiCurrencyWithItems: (purchaseData) => ipcRenderer.invoke('addDirectPurchaseMultiCurrencyWithItems', purchaseData),
   
+  // Returns functionality
+  addReturn: (returnData) => ipcRenderer.invoke('addReturn', returnData),
+  getReturns: () => ipcRenderer.invoke('getReturns'),
+  getReturnsByDateRange: (startDate, endDate) => ipcRenderer.invoke('getReturnsByDateRange', startDate, endDate),
+  getReturnsByProduct: (productId) => ipcRenderer.invoke('getReturnsByProduct', productId),
+  getReturnsByAccessory: (accessoryId) => ipcRenderer.invoke('getReturnsByAccessory', accessoryId),
+  deleteReturn: (returnId) => ipcRenderer.invoke('deleteReturn', returnId),
+  
   // Monthly reports functionality
   createMonthlyReport: (month, year) => ipcRenderer.invoke('createMonthlyReport', month, year),
   getMonthlyReports: () => ipcRenderer.invoke('getMonthlyReports'),
@@ -110,6 +118,9 @@ contextBridge.exposeInMainWorld('api', {
   // Return functionality
   returnSale: (saleId) => ipcRenderer.invoke('returnSale', saleId),
   returnSaleItem: (saleId, itemId, quantity) => ipcRenderer.invoke('returnSaleItem', saleId, itemId, quantity),
+  // NEW: Dedicated Purchase Return
+  returnPurchaseToSupplier: (entryId, options) => ipcRenderer.invoke('returnPurchaseToSupplier', entryId, options),
+  
   // Buying History Return functionality
   returnBuyingHistoryEntry: (entryId, options) => ipcRenderer.invoke('returnBuyingHistoryEntry', entryId, options),
   returnBuyingHistoryItem: (entryId, itemId, quantity, options) => ipcRenderer.invoke('returnBuyingHistoryItem', entryId, itemId, quantity, options),

@@ -1037,6 +1037,65 @@ ipcMain.handle('addDirectPurchaseMultiCurrencyWithItems', async (event, purchase
   }
 });
 
+// Returns handlers
+ipcMain.handle('addReturn', async (event, returnData) => {
+  try {
+    const result = db.addReturn(returnData);
+    await runAutoBackupAfterSale();
+    return result;
+  } catch (error) {
+    console.error('[IPC] addReturn error:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('getReturns', async () => {
+  try {
+    return db.getReturns();
+  } catch (error) {
+    console.error('[IPC] getReturns error:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('getReturnsByDateRange', async (event, startDate, endDate) => {
+  try {
+    return db.getReturnsByDateRange(startDate, endDate);
+  } catch (error) {
+    console.error('[IPC] getReturnsByDateRange error:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('getReturnsByProduct', async (event, productId) => {
+  try {
+    return db.getReturnsByProduct(productId);
+  } catch (error) {
+    console.error('[IPC] getReturnsByProduct error:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('getReturnsByAccessory', async (event, accessoryId) => {
+  try {
+    return db.getReturnsByAccessory(accessoryId);
+  } catch (error) {
+    console.error('[IPC] getReturnsByAccessory error:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('deleteReturn', async (event, returnId) => {
+  try {
+    const result = db.deleteReturn(returnId);
+    await runAutoBackupAfterSale();
+    return result;
+  } catch (error) {
+    console.error('[IPC] deleteReturn error:', error);
+    throw error;
+  }
+});
+
 // Monthly reports handlers
 ipcMain.handle('createMonthlyReport', async (event, month, year) => {
   try {
@@ -1582,14 +1641,30 @@ ipcMain.handle('returnSaleItem', async (event, saleId, itemId, quantity = null) 
   }
 });
 
+// NEW: Dedicated Purchase Return handler
+ipcMain.handle('returnPurchaseToSupplier', async (event, entryId, options = {}) => {
+  try {
+    console.log('🔥 [MAIN.CJS] returnPurchaseToSupplier IPC called with:', { entryId, options });
+    const result = db.returnPurchaseToSupplier(entryId, options);
+    console.log('🔥 [MAIN.CJS] returnPurchaseToSupplier result:', result);
+    await runAutoBackupAfterSale();
+    return result;
+  } catch (e) {
+    console.error('🔥 [MAIN.CJS] Error in returnPurchaseToSupplier:', e);
+    return { success: false, message: e.message };
+  }
+});
+
 // Buying History Return handlers
 ipcMain.handle('returnBuyingHistoryEntry', async (event, entryId, options = {}) => {
   try {
+    console.log('🚀 [MAIN.CJS] returnBuyingHistoryEntry IPC called with:', { entryId, options });
     const result = db.returnBuyingHistoryEntry(entryId, options);
+    console.log('🚀 [MAIN.CJS] returnBuyingHistoryEntry result:', result);
     await runAutoBackupAfterSale();
     return result; // Return the full result object with refund details
   } catch (e) {
-    console.error('Error in returnBuyingHistoryEntry:', e);
+    console.error('🚀 [MAIN.CJS] Error in returnBuyingHistoryEntry:', e);
     return { success: false, message: e.message };
   }
 });

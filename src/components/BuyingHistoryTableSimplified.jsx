@@ -55,20 +55,6 @@ const BuyingHistoryTableSimplified = React.memo(function BuyingHistoryTableSimpl
       }
     });
 
-    // Add debugging to track total calculations
-    console.log('🔍 [BUYING HISTORY TOTALS DEBUG]:', {
-      totalEntries,
-      totalAmountUSD,
-      totalAmountIQD,
-      entries: historyData.map(entry => ({
-        id: entry.id,
-        currency: entry.currency,
-        total_price: entry.total_price,
-        multi_currency_usd: entry.multi_currency_usd,
-        multi_currency_iqd: entry.multi_currency_iqd
-      }))
-    });
-
     return {
       totalRevenueUSD: totalAmountUSD,
       totalRevenueIQD: totalAmountIQD,

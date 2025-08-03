@@ -1,8 +1,6 @@
 // Secret Admin Console for authorized administrators
 // This script provides balance adjustment tools for debugging and emergency fixes
 
-console.log('🔧 Secret Admin Console Loaded');
-
 // Only expose commands in admin context
 if (window.location.pathname.includes('/admin')) {
   
@@ -102,13 +100,8 @@ if (window.location.pathname.includes('/admin')) {
       apiAvailable: !!window.api
     };
     
-    console.log('💻 System Info:', info);
+    
     return info;
   };
-
-  // Show available commands on load
-  console.log('🔧 Secret Admin Console Ready! Type __showSecretCommands() to see available commands.');
   
-} else {
-  console.log('🔒 Secret Admin Console only available in admin mode');
 }

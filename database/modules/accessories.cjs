@@ -9,7 +9,6 @@ function getAllAccessories(db) {
 }
 
 function addAccessory(db, { name, buying_price, stock, archived = 0, brand, model, type, currency = 'IQD' }) {
-  console.log('🔍 [accessories.cjs] addAccessory called with:', { name, brand, model, type, currency, buying_price, stock });
   
   // Normalize values for consistent comparison
   const normalizedName = (name || '').toString().trim();
@@ -34,7 +33,6 @@ function addAccessory(db, { name, buying_price, stock, archived = 0, brand, mode
     normalizedCurrency
   );
   
-  console.log('🔍 [accessories.cjs] Existing accessory search result:', existingAccessory);
   
   if (existingAccessory && existingAccessory.id) {
     console.log('🔄 [accessories.cjs] Merging with existing accessory ID:', existingAccessory.id);
@@ -130,7 +128,6 @@ function updateAccessory(db, { id, name, buying_price, stock, archived = 0, bran
     
     // Verify the update
     const updated = db.prepare('SELECT * FROM accessories WHERE id = ?').get(id);
-    console.log('🔍 [accessories.cjs] Updated accessory verification:', updated);
     
     return result;
   } catch (error) {

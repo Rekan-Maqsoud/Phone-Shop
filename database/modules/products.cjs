@@ -13,7 +13,6 @@ function getAllProducts(db) {
 }
 
 function addProduct(db, { name, buying_price, stock, archived = 0, ram, storage, model, brand, category = 'phones', currency = 'IQD' }) {
-  console.log('🔍 [products.cjs] addProduct called with:', { name, brand, model, ram, storage, currency, buying_price, stock });
   
   // Normalize values for consistent comparison
   const normalizedName = (name || '').toString().trim();
@@ -41,7 +40,6 @@ function addProduct(db, { name, buying_price, stock, archived = 0, ram, storage,
     normalizedCurrency
   );
   
-  console.log('🔍 [products.cjs] Existing product search result:', existingProduct);
   
   if (existingProduct && existingProduct.id) {
     console.log('🔄 [products.cjs] Merging with existing product ID:', existingProduct.id);
@@ -146,7 +144,6 @@ function updateProduct(db, { id, name, buying_price, stock, archived = 0, ram, s
     
     // Verify the update
     const updated = db.prepare('SELECT * FROM products WHERE id = ?').get(id);
-    console.log('🔍 [products.cjs] Updated product verification:', updated);
     
     return result;
   } catch (error) {
