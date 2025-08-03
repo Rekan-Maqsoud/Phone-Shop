@@ -4,6 +4,7 @@ import { phoneBrands, accessoryModels } from './phoneBrands';
 import SearchableSelect from './SearchableSelect';
 import AutocompleteInput from './AutocompleteInput';
 import { EXCHANGE_RATES, loadExchangeRatesFromDB } from '../utils/exchangeRates';
+import { useSmartSuggestions } from '../utils/smartSuggestions';
 import { Icon } from '../utils/icons.jsx';
 
 export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompanyDebtMode = false, admin }) {
@@ -14,7 +15,6 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
   const [currency, setCurrency] = useState('IQD'); // 'USD' or 'IQD'
   const [simpleAmount, setSimpleAmount] = useState('');
   const [items, setItems] = useState([]);
-  const [error, setError] = useState('');
   const [multiCurrency, setMultiCurrency] = useState({ enabled: false, usdAmount: 0, iqdAmount: 0 });
   const [discount, setDiscount] = useState({
     enabled: false,
@@ -22,6 +22,17 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
     value: ''
   });
   const [currentExchangeRates, setCurrentExchangeRates] = useState({ ...EXCHANGE_RATES });
+
+  // Smart suggestions for products and accessories
+  const { 
+    productBrands,
+    accessoryBrands,
+    getProductModelsForBrand,
+    getAccessoryModelsForBrand,
+    accessoryTypes,
+    existingRamOptions,
+    existingStorageOptions
+  } = useSmartSuggestions();
 
   // Reset form when modal opens/closes
   useEffect(() => {
@@ -33,7 +44,6 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
       setPurchaseType('simple');
       setPaymentStatus(isCompanyDebtMode ? 'debt' : 'paid');
       // Don't reset currency - let user choose
-      setError('');
       setMultiCurrency({ enabled: false, usdAmount: 0, iqdAmount: 0 });
       setDiscount({
         enabled: false,
@@ -89,10 +99,63 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
     }
   }, []);
 
-  // Memoize options to prevent recreating arrays on every render
-  const brandOptions = useMemo(() => phoneBrands.map(brand => brand.name), []);
-  const ramOptions = useMemo(() => ['2GB', '3GB', '4GB', '6GB', '8GB', '12GB', '16GB', '18GB', '24GB'], []);
-  const storageOptions = useMemo(() => ['32GB', '64GB', '128GB', '256GB', '512GB', '1TB', '2TB'], []);
+  // Memoize options to prevent recreating arrays on every render and include smart suggestions
+  const productBrandOptions = useMemo(() => {
+    const staticBrands = phoneBrands.map(brand => brand.name);
+    const allBrands = [...new Set([...staticBrands, ...productBrands])];
+    return allBrands.sort((a, b) => a.localeCompare(b));
+  }, [productBrands]);
+
+  const accessoryBrandOptions = useMemo(() => {
+    const staticBrands = phoneBrands.map(brand => brand.name);
+    const allBrands = [...new Set([...staticBrands, ...accessoryBrands])];
+    return allBrands.sort((a, b) => a.localeCompare(b));
+  }, [accessoryBrands]);
+
+  const ramOptions = useMemo(() => {
+    const staticRam = ['2GB', '3GB', '4GB', '6GB', '8GB', '12GB', '16GB', '18GB', '24GB'];
+    const allRam = [...new Set([...staticRam, ...existingRamOptions])];
+    return allRam.sort((a, b) => a.localeCompare(b));
+  }, [existingRamOptions]);
+
+  const storageOptions = useMemo(() => {
+    const staticStorage = ['32GB', '64GB', '128GB', '256GB', '512GB', '1TB', '2TB'];
+    const allStorage = [...new Set([...staticStorage, ...existingStorageOptions])];
+    return allStorage.sort((a, b) => a.localeCompare(b));
+  }, [existingStorageOptions]);
+
+  const accessoryTypeOptions = useMemo(() => {
+    const staticTypes = ['headphones', 'earbuds', 'charger', 'cable', 'case', 'screen-protector', 'power-bank', 'wireless-charger', 'speaker', 'smartwatch', 'other'];
+    const allTypes = [...new Set([...staticTypes, ...accessoryTypes])];
+    return allTypes.sort((a, b) => a.localeCompare(b));
+  }, [accessoryTypes]);
+
+  // Helper function to get model suggestions for a specific brand
+  const getProductModelOptions = useCallback((brand) => {
+    if (!brand) return [];
+    
+    // Get models from static data
+    const staticModels = phoneBrands.find(b => b.name === brand)?.models || [];
+    
+    // Get models from smart suggestions for this brand
+    const smartModels = getProductModelsForBrand(brand);
+    
+    const allModels = [...new Set([...staticModels, ...smartModels])];
+    return allModels.sort((a, b) => a.localeCompare(b));
+  }, [getProductModelsForBrand]);
+
+  const getAccessoryModelOptions = useCallback((brand) => {
+    if (!brand) return [];
+    
+    // Get models from static data
+    const staticModels = accessoryModels[brand] || accessoryModels['Generic'] || [];
+    
+    // Get models from smart suggestions for this brand
+    const smartModels = getAccessoryModelsForBrand(brand);
+    
+    const allModels = [...new Set([...staticModels, ...smartModels])];
+    return allModels.sort((a, b) => a.localeCompare(b));
+  }, [getAccessoryModelsForBrand]);
 
   // Extract unique company names from buying history and company debts for autocomplete
   const companyNameSuggestions = useMemo(() => {
@@ -276,10 +339,21 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
+
+    console.log('[AddPurchaseModal] Form submitted with data:', {
+      companyName: companyName.trim(),
+      description: description.trim(),
+      purchaseType,
+      paymentStatus,
+      currency,
+      simpleAmount,
+      items,
+      multiCurrency,
+      discount
+    });
 
     if (!companyName.trim()) {
-      setError(t.pleaseProvideValidCompanyName || 'Please provide a valid company name');
+      admin?.setToast?.(t.pleaseProvideValidCompanyName || 'Please provide a valid company name', 'error');
       return;
     }
 
@@ -287,7 +361,7 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
       if (multiCurrency.enabled) {
         // Multi-currency validation
         if (multiCurrency.usdAmount <= 0 && multiCurrency.iqdAmount <= 0) {
-          setError(t.pleaseProvideValidAmount || 'Please provide a valid amount in at least one currency');
+          admin?.setToast?.(t.pleaseProvideValidAmount || 'Please provide a valid amount in at least one currency', 'error');
           return;
         }
         
@@ -315,7 +389,7 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
         // Single currency validation
         const amt = parseFloat(simpleAmount);
         if (!simpleAmount || isNaN(amt) || amt <= 0) {
-          setError(t.pleaseProvideValidAmount || 'Please provide a valid amount greater than 0');
+          admin?.setToast?.(t.pleaseProvideValidAmount || 'Please provide a valid amount greater than 0', 'error');
           return;
         }
 
@@ -347,7 +421,7 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
     } else {
       // Validate items
       if (items.length === 0) {
-        setError(t.pleaseAddAtLeastOneItem || 'Please add at least one item');
+        admin?.setToast?.(t.pleaseAddAtLeastOneItem || 'Please add at least one item', 'error');
         return;
       }
 
@@ -380,7 +454,7 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
       });
 
       if (invalidItems.length > 0) {
-        setError(t.pleaseFillAllRequiredFields || 'Please fill in all required fields for all items (brand, model, quantity, price)');
+        admin?.setToast?.(t.pleaseFillAllRequiredFields || 'Please fill in all required fields for all items (brand, model, quantity, price)', 'error');
         return;
       }
 
@@ -688,7 +762,15 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
                   <div className="flex justify-between">
                     <span>{t.totalPaid || 'Total Paid'}:</span>
                     <span className="font-medium">
-                      {currency === 'USD' ? '$' : 'د.ع'}{parseFloat(simpleAmount).toFixed(2)}
+                      {currency === 'USD' 
+                        ? `$${(() => {
+                            const amount = parseFloat(simpleAmount);
+                            if (Math.abs(amount) < 0.1) return Math.round(amount);
+                            const rounded = Math.round(amount * 100) / 100;
+                            return rounded % 1 === 0 ? Math.floor(rounded) : rounded.toFixed(2).replace(/\.?0+$/, '');
+                          })()} `
+                        : `د.ع${Math.round(parseFloat(simpleAmount)).toLocaleString()}`
+                      }
                     </span>
                   </div>
                   
@@ -876,7 +958,7 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
                           {t?.brand || 'Brand'} *
                         </label>
                         <SearchableSelect
-                          options={brandOptions}
+                          options={productBrandOptions}
                           value={item.brand}
                           onChange={(value) => {
                             updateItem(item.id, 'brand', value);
@@ -892,7 +974,7 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
                         </label>
                         <SearchableSelect
                           key={`model_${item.id}_${item.brand}`} // Force re-render when brand changes
-                          options={item.brand ? (phoneBrands.find(b => b.name === item.brand)?.models || []) : []}
+                          options={getProductModelOptions(item.brand)}
                           value={item.model}
                           onChange={(value) => updateItem(item.id, 'model', value)}
                           placeholder={item.brand ? (t?.selectModel || 'Select or type model...') : (t?.selectBrandFirst || 'Select brand first')}
@@ -1003,7 +1085,7 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
                           {t?.brand || 'Brand'} *
                         </label>
                         <SearchableSelect
-                          options={brandOptions}
+                          options={accessoryBrandOptions}
                           value={item.brand}
                           onChange={(value) => {
                             updateItem(item.id, 'brand', value);
@@ -1019,7 +1101,7 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
                         </label>
                         <SearchableSelect
                           key={`model_${item.id}_${item.brand}`} // Force re-render when brand changes
-                          options={item.brand ? (accessoryModels[item.brand] || accessoryModels['Generic'] || []) : []}
+                          options={getAccessoryModelOptions(item.brand)}
                           value={item.model}
                           onChange={(value) => updateItem(item.id, 'model', value)}
                           placeholder={item.brand ? (t?.selectModel || 'Select or type model...') : (t?.selectBrandFirst || 'Select brand first')}
@@ -1029,24 +1111,13 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
                         <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                           {t?.type || 'Type'}
                         </label>
-                        <select
+                        <SearchableSelect
+                          options={accessoryTypeOptions}
                           value={item.type}
-                          onChange={(e) => updateItem(item.id, 'type', e.target.value)}
-                          className="w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                        >
-                          <option value="">{t?.selectType || 'Select Type'}</option>
-                          <option value="headphones">{t?.headphones || 'Headphones'}</option>
-                          <option value="earbuds">{t?.earbuds || 'Earbuds'}</option>
-                          <option value="charger">{t?.charger || 'Charger'}</option>
-                          <option value="cable">{t?.cable || 'Cable'}</option>
-                          <option value="case">{t?.case || 'Case'}</option>
-                          <option value="screen-protector">{t?.screenProtector || 'Screen Protector'}</option>
-                          <option value="power-bank">{t?.powerBank || 'Power Bank'}</option>
-                          <option value="wireless-charger">{t?.wirelessCharger || 'Wireless Charger'}</option>
-                          <option value="speaker">{t?.speaker || 'Speaker'}</option>
-                          <option value="smartwatch">{t?.smartwatch || 'Smart Watch'}</option>
-                          <option value="other">{t?.other || 'Other'}</option>
-                        </select>
+                          onChange={(value) => updateItem(item.id, 'type', value)}
+                          placeholder={t?.selectType || 'Select or type type...'}
+                        />
+
                       </div>
                     </>
                   )}
@@ -1058,7 +1129,16 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
                     {t?.itemTotal || 'Item Total'}: 
                   </span>
                   <span className="ml-2 font-bold text-green-600 dark:text-green-400">
-                    {item.currency === 'USD' ? '$' : 'د.ع'}{((parseInt(item.quantity) || 0) * (parseFloat(item.unit_price) || 0)).toFixed(2)}
+                    {(() => {
+                      const total = (parseInt(item.quantity) || 0) * (parseFloat(item.unit_price) || 0);
+                      if (item.currency === 'USD') {
+                        if (Math.abs(total) < 0.1) return `$${Math.round(total)}`;
+                        const rounded = Math.round(total * 100) / 100;
+                        return rounded % 1 === 0 ? `$${Math.floor(rounded)}` : `$${rounded.toFixed(2).replace(/\.?0+$/, '')}`;
+                      } else {
+                        return `د.ع${Math.round(total).toLocaleString()}`;
+                      }
+                    })()}
                   </span>
                 </div>
               </div>
@@ -1373,12 +1453,6 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
                 )}
               </div>
             )}
-          </div>
-        )}
-
-        {error && (
-          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
-            <div className="text-red-600 dark:text-red-400 text-sm">{error}</div>
           </div>
         )}
 

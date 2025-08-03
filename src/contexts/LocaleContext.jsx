@@ -254,13 +254,11 @@ const translations = {
     failedToDownloadBackup: 'Failed to download backup',
     failedToChangeAutoBackupSetting: 'Failed to change auto backup setting',
     failedToRestoreFromLocalFile: 'Failed to restore from local file',
-    unknownError: 'Unknown error',
     failedToReturnItem: 'Failed to return item',
     failedToReturnSale: 'Failed to return sale',
     failedToAddLoan: 'Failed to add loan',
     failedToMarkLoanAsPaid: 'Failed to mark loan as paid',
     errorAddingLoan: 'Error adding loan',
-    totalCompanyDebtIQD: 'Total Company Debt IQD',
     noOutstandingDebts: 'No outstanding company debts',
     unpaidDebts: 'Unpaid Debts',
     outstandingDebts: 'Outstanding Debts',
@@ -276,7 +274,6 @@ const translations = {
     loanPaidSuccessfully: 'Loan paid successfully!',
     failedToPayLoan: 'Failed to pay loan',
     loanAddedSuccessfully: 'Loan added successfully!',
-    failedToAddLoan: 'Failed to add loan',
     remainingAmount: 'Remaining Amount',
     originalLoan: 'Original Loan',
     
@@ -330,8 +327,6 @@ const translations = {
     financialOverview: 'Financial Overview',
     customerOutstandingOfMonth: 'Customer Outstanding of Month',
     companyOutstandingOfMonth: 'Company Outstanding of Month',
-    usd: 'USD',
-    iqd: 'IQD',
     
     // Personal loans
     loanAmount: 'Loan Amount',
@@ -355,7 +350,6 @@ const translations = {
     totalProfit: 'Total Profit',
     profitUSD: 'Profit USD',
     profitIQD: 'Profit IQD',
-    inventoryValue: 'Inventory Value',
     debts: 'Debts',
 
     // Financial Summary Modal Translations
@@ -384,8 +378,6 @@ const translations = {
     archiveUnarchiveFailed: 'Archive/unarchive failed (no response).',
     productArchived: 'Item archived!',
     productUnarchived: 'Item unarchived!',
-    archiveFailed: 'Archive failed.',
-    unarchiveFailed: 'Unarchive failed.',
     
     // Dashboard
     businessOverview: 'Business Overview',
@@ -461,11 +453,8 @@ const translations = {
     fillRequiredFields: 'Please fill all required fields',
     incentiveUpdated: 'Incentive updated successfully',
     incentiveAdded: 'Incentive added successfully',
-    incentiveRemoved: 'Incentive removed successfully',
-    operationFailed: 'Operation failed',
     pleaseEnterValidAmount: 'Please enter a valid payment amount',
     takingLongerThanExpected: 'Taking longer than expected...',
-    reloadApp: 'Reload App',
     ifThisPersistsTryRestarting: 'If this persists, try restarting the application',
     
     // Keyboard Shortcuts
@@ -473,13 +462,9 @@ const translations = {
     keyboardShortcutsDescription: 'Master these shortcuts to navigate faster',
     navigateSections: 'Navigate between sections',
     directSectionAccess: 'Direct section access',
-    personalLoans: 'Personal Loans',
-    monthlyReports: 'Monthly Reports',
     backupSettings: 'Backup & Settings',
     goToCashier: 'Go to Cashier',
-    settings: 'Settings',
     backupManager: 'Backup Manager',
-    completeSale: 'Complete Sale',
     clearCart: 'Clear Cart',
     toggleDebtMode: 'Toggle Debt Mode',
     toggleMultiCurrency: 'Toggle Multi-Currency',
@@ -524,8 +509,6 @@ const translations = {
     buyOnCredit: 'Buy on Credit',
     payDirectly: 'Pay Directly',
     paymentStatus: 'Payment Status',
-    purchaseAddedSuccessfully: 'Purchase added successfully!',
-    errorAddingPurchase: 'Error adding purchase',
     
     // Multi-currency dashboard
     realTimeBusinessMetrics: 'Real-time business metrics across USD & IQD',
@@ -580,7 +563,6 @@ const translations = {
     signInSignUp: 'Sign In / Sign Up',
     
     // Backup Settings Section
-    backupSettings: 'Backup & Settings',
     backupDescription: 'Manage your data backup and synchronization settings',
     cloudAccount: 'Cloud Account',
     connected: 'Connected',
@@ -601,7 +583,6 @@ const translations = {
     needMoreOptions: 'Need More Options?',
     advancedSettingsDesc: 'Access advanced backup settings including restore options, backup history, and detailed configuration.',
     advancedBackupSettings: 'Advanced Backup Settings',
-    active: 'Active',
     inactive: 'Inactive',
     cloudStatus: 'Cloud Status',
     fullName: 'Full Name',
@@ -610,7 +591,6 @@ const translations = {
     confirmPassword: 'Confirm Password',
     processingAuth: 'Processing...',
     signUp: 'Sign Up',
-    signIn: 'Sign In',
     alreadyHaveAccount: 'Already have an account?',
     dontHaveAccount: "Don't have an account?",
     signedInAs: 'Signed in as',
@@ -639,7 +619,6 @@ const translations = {
     
     // Additional admin toast messages
     debtMarkedAsPaid: 'Debt marked as paid successfully',
-    errorMarkingDebtPaid: 'Error marking debt as paid',
     
     // Stock alerts
     stockWarnings: 'Stock Alerts',
@@ -675,8 +654,6 @@ const translations = {
     returnError: 'Failed to process return',
     availableQuantity: 'Available Quantity',
     returnOptions: 'Return Options',
-    returnInUSD: 'Return in USD',
-    returnInIQD: 'Return in IQD',
     singleCurrency: 'Single Currency',
     multiCurrency: 'Multi Currency',
     customAmount: 'Custom Amount',
@@ -686,16 +663,11 @@ const translations = {
     itemInformation: 'Item Information',
     returnConfiguration: 'Return Configuration',
     totalReturnAmount: 'Total Return Amount',
-    outOfStock: 'OUT OF STOCK',
-    left: 'left',
     show: 'Show',
     hide: 'Hide',
-    showing: 'Showing',
-    of: 'of',
     entries: 'entries',
     refreshData: 'Refresh All Data',
     refreshingData: 'Refreshing data...',
-    total: 'total',
     passwordsDoNotMatch: 'Passwords do not match',
     accountCreatedSuccessfully: 'Account created successfully!',
     signUpFailed: 'Sign up failed',
@@ -728,16 +700,11 @@ const translations = {
     todaysReturns: "Today's Returns",
     
     // Buying History Section
-    buyingHistoryDesc: 'Track all your business purchases and expenses',
     noBuyingHistory: 'No buying history yet',
     
     // Return Actions
     returnPurchase: 'Return Purchase',
-    returnEntry: 'Return',
-    returnItem: 'Return Item',
-    returnSuccess: 'Returned successfully!',
     returnFailed: 'Failed to return',
-    returnError: 'Error occurred during return',
     insufficientCurrency: 'Insufficient currency amount for return',
     available: 'Available',
     requested: 'Requested',
@@ -746,12 +713,9 @@ const translations = {
     refundedIQD: 'Refunded IQD',
     itemsReturned: 'Items returned to stock',
     confirmReturnPurchase: 'Are you sure you want to return this purchase?',
-    confirmReturnItem: 'Are you sure you want to return this item?',
     thisWillReturnStock: 'This will return items to stock and refund the amount to your balance.',
     addFirstPurchase: 'Add your first purchase to get started',
-    companyName: 'Company',
     itemName: 'Item',
-    amount: 'Amount',
     purchasedItems: 'Purchased Items',
     viewItems: 'View items',
     hideItems: 'Hide Items',
@@ -783,8 +747,6 @@ const translations = {
     // Monthly Reports Section
     noReports: 'No monthly reports yet',
     totalTransactions: 'Total Transactions',
-    totalProductsSold: 'Total Products Sold',
-    totalAccessoriesSold: 'Total Accessories Sold',
     totalSpent: 'Total Spent',
     
     // Settings Modal
@@ -803,21 +765,16 @@ const translations = {
     searchAndFilter: 'Search and Filter',
     searchFilterDesc: 'Filter your data by name, date, or range',
     searchByName: 'Search by name...',
-    brand: 'Brand',
-    allBrands: 'All Brands',
     searchType: 'Search Type',
     selectPeriod: 'Select Period',
     quickSelect: 'Quick Select',
     singleDate: 'Single Date',
     weekRange: 'Week Range',
     customRange: 'Custom Range',
-    today: 'Today',
     yesterday: 'Yesterday',
     last7Days: 'Last 7 Days',
-    thisWeek: 'This Week',
     lastWeek: 'Last Week',
     last30Days: 'Last 30 Days',
-    thisMonth: 'This Month',
     lastMonth: 'Last Month',
     selectDate: 'Select Date',
     day: 'Day',
@@ -827,18 +784,11 @@ const translations = {
     to: 'to',
     dateRange: 'Date Range',
     from: 'From',
-    clearFilters: 'Clear',
     showingResults: 'Showing',
-    of: 'of',
-    entries: 'entries',
 
     // Refresh functionality
-    dataRefreshed: 'Data refreshed successfully!',
-    refreshError: 'Error refreshing data',
 
     //Buying History Section
-    noBuyingHistory: 'No buying history',
-    addFirstPurchase: 'Add your first purchase to get started',
     payNow: 'Pay Now',
     payLater: 'Pay Later',
     immediatePayment: 'Immediate Payment',
@@ -917,29 +867,18 @@ const translations = {
     // Sales history hardcoded text translations
     noSales: 'No sales',
     returnSale: 'Return',
-    totalProducts: 'Total Products',
-    totalSales: 'Total Sales',
     totalRevenue: 'Total Revenue',
 
     // Missing translations
-    showingResults: 'Showing Results',
-    entries: 'entries',
-    lastMonth: 'Last Month',
-    purchasedItems: 'Purchased Items',
     companyDebtDetails: 'Company Debt Details',
     SPECIFICATIONS: 'SPECIFICATIONS',
     ITEM: 'ITEM',
-    hideItems: 'Hide Items',
     status: 'Status',
     createdAt: 'Created At',
-    selectDate: 'Select Date',
     withItems: 'With Items',
-    viewItems: 'View Items',
-    weekStartDate: 'Week Start Date',
 
     // Additional missing translations
     searchAndFilters: 'Search and Filters',
-    todaysSales: "Today's Sales",
     weeklySales: "Weekly Sales",
     payWithIQD: 'Pay with IQD',
     payWithUSD: 'Pay with USD',
@@ -951,7 +890,6 @@ const translations = {
     nearest10000: 'Nearest 10000',
     quickAmounts: 'Quick Amounts',
     paymentOptions: 'Payment Options',
-    customAmount: 'Custom Amount (IQD)',
     paymentSummary: 'Payment Summary',
     multicurrency: 'Multi-currency',
     currentBalances: 'Current Balances',
@@ -965,10 +903,6 @@ const translations = {
     loansIQD: 'Loans IQD',
     netPerformanceUSD: 'Net Performance USD',
     netPerformanceIQD: 'Net Performance IQD',
-    inventoryValueUSD: 'Inventory Value USD',
-    totalInventoryValue: 'Total Inventory Value',
-    inventoryValueIQD: 'Inventory Value IQD',
-    productsInventory: 'Products Inventory',
     accessoriesInventory: 'Accessories Inventory',
     uniqueAccessories: 'Unique Accessories',
     totalInventorySummary: 'Total Inventory Summary',
@@ -979,7 +913,6 @@ const translations = {
     usdEquivalent: 'USD Equivalent',
     balanceOverview: 'Balance Overview',
     recentTransactions: 'Recent Transactions',
-    multiCurrency: 'Multi-Currency',
     topSellingProducts: 'Top Selling Products',
     monthlyProfitTrends: 'Monthly Profit Trends',
     lowStockAlerts: 'Low Stock Alerts',
@@ -990,7 +923,6 @@ const translations = {
     addToCart: 'Add to Cart',
     filter: 'Filter',
     uniqueProducts: 'Unique Products',
-    percentage: 'Percentage',
     admin: 'Admin',
     roundedToNearestBill: 'Rounded to Nearest Bill',
     suggestMixedPayment: 'Suggest Mixed Payment',
@@ -1020,7 +952,6 @@ const translations = {
     loan: 'Loan',
     enterBorrowerName: 'Enter Borrower Name',
     multiCurrencyLoanSupport: 'Multi-currency loan support - enter amounts in USD and/or IQD',
-    lastMonth: 'Last Month',
     
     // Payment History & Partial Payment translations
     paymentHistory: 'Payment History',
@@ -1040,37 +971,10 @@ const translations = {
     payments: 'Payments',
     latest: 'Latest',
     paymentsWillAppearHere: 'Payment transactions will appear here',
-    markAsPaid: 'Mark as Paid',
     totalPaidUSD: 'Total Paid USD',
     totalPaidIQD: 'Total Paid IQD',
-    totalOutstandingUSD: 'Total Outstanding USD',
-    totalOutstandingIQD: 'Total Outstanding IQD',
-    searchAndFilters: 'Search and Filters',
     searchDebtsDesc: 'Search and filter customer debts',
-    searchCustomer: 'Search customers...',
-    newestFirst: 'Newest First',
-    oldestFirst: 'Oldest First',
-    highestAmount: 'Highest Amount',
-    lowestAmount: 'Lowest Amount',
-    customerAZ: 'Customer A-Z',
-    customerZA: 'Customer Z-A',
     paidDebts: 'Paid Debts',
-    outstandingDebts: 'Outstanding Debts',
-    noCustomerDebtsFound: 'No customer debts found for this search',
-    tryDifferentSearch: 'Try a different search term or clear the filter',
-    singleTransaction: 'transaction',
-    paidAmount: 'Paid Amount',
-    outstandingAmount: 'Outstanding',
-    payDebt: 'Pay Debt',
-    itemsCount: 'items',
-    paidOn: 'Paid on',
-    remaining: 'Remaining',
-    noCustomerDebts: 'No customer debts found',
-    noCustomerDebtsDesc: 'All customers have paid their debts or no debt sales have been made',
-    noCompanyDebts: 'No company debts',
-    unpaid: 'Unpaid',
-    transactions: 'Transactions',
-    customers: 'Customers',
     
     // Monthly Reports
     advancedAnalyticsInsights: 'Advanced analytics and insights for business performance tracking',
@@ -1106,8 +1010,6 @@ const translations = {
     // Business Analytics
     businessAnalytics: 'Business Analytics',
     practicalInsights: 'Practical insights for daily business management',
-    last7Days: 'Last 7 Days',
-    last30Days: 'Last 30 Days', 
     last90Days: 'Last 90 Days',
     overview: 'Overview',
     productsView: 'Products',
@@ -1117,12 +1019,10 @@ const translations = {
     avg: 'Avg',
     revenueTrend: 'Revenue Trend',
     transactionVolume: 'Transaction Volume',
-    topSellingProducts: 'Top Selling Products',
     productPerformance: 'Product Performance',
     noLowStock: 'All products are well stocked!',
     noBrand: 'No brand',
     units: 'units',
-    left: 'left',
     financialBreakdown: 'Financial Breakdown',
     currentPosition: 'Current Position',
     cashOnHand: 'Cash on Hand',
@@ -1194,7 +1094,6 @@ const translations = {
     cashCows: 'Cash Cows',
     questionMarks: 'Question Marks',
     dogs: 'Dogs',
-    products: 'Products',
     topPerformingProducts: 'Top Performing Products',
     
     // Market Basket Analysis
@@ -1221,8 +1120,6 @@ const translations = {
     itemsUnits: 'items',
     
     // Financial Metrics
-    totalRevenue: 'Total Revenue',
-    transactions: 'Transactions',
     profitMargin: 'Profit Margin',
     keyFinancialMetrics: 'Key Financial Metrics',
     netProfit: 'Net Profit',
@@ -1231,7 +1128,6 @@ const translations = {
     // Chart titles
     dailyRevenueTrends: 'Daily Revenue & Transaction Trends',
     financialHealthAssessment: 'Financial Health Assessment',
-    sold: 'sold',
     marketShare: 'market share',
 
     // Error Messages & System
@@ -1241,7 +1137,6 @@ const translations = {
     tryAgain: 'Try Again',
     reloadApplication: 'Reload Application',
     goToHome: 'Go to Home',
-    errorDetails: 'Error Details',
     errorDetailsDev: 'Error Details (Development Only)',
     errorLabel: 'Error:',
     componentStack: 'Component Stack:',
@@ -1250,7 +1145,6 @@ const translations = {
     tryToContinue: 'Try to Continue',
     errorDetailsDevelopment: 'Error Details (Dev Only)',
     cannotEditWithoutId: 'Cannot edit product without ID',
-    cannotOpenAddPurchaseModal: 'Cannot open add purchase modal',
     itemHasNoIdCannotUnarchive: 'Item has no ID, cannot unarchive',
 
     // Status Indicators
@@ -1260,25 +1154,16 @@ const translations = {
 
     // Categories & Product Types
     category: 'Category',
-    phones: 'Phones',
     tablets: 'Tablets',
-    accessories: 'Accessories',
     accessoryName: 'Accessory Name',
     noProductsLoaded: 'No Products Loaded',
     loadingProducts: 'Loading products...',
     refreshProducts: 'Refresh Products',
-    other: 'Other',
 
     // Theme Options
-    system: 'System',
-    light: 'Light',
-    dark: 'Dark',
     english: 'English',
 
     // Time Periods
-    last7Days: 'Last 7 Days',
-    last30Days: 'Last 30 Days',
-    last90Days: 'Last 90 Days',
     lastYear: 'Last Year',
     allTime: 'All Time',
     daily: 'Daily',
@@ -1286,12 +1171,9 @@ const translations = {
     monthly: 'Monthly',
 
     // Analytics & Reports
-    totalSales: 'Total Sales',
-    totalProfit: 'Total Profit',
     totalSpending: 'Total Spending',
     netGrowth: 'Net Growth',
     vsLastPeriod: 'vs last period',
-    margin: 'margin',
     salesVsSpending: 'Sales vs Spending',
     profitAnalysis: 'Profit Analysis',
     productsVsAccessories: 'Products vs Accessories',
@@ -1318,31 +1200,12 @@ const translations = {
     mobileRoma: 'Mobile Roma',
 
     // Menu & Navigation Labels
-    dashboard: 'Dashboard',
     analytics: 'Analytics',
-    products: 'Products',
-    accessories: 'Accessories',
-    archived: 'Archived',
-    sales: 'Sales',
-    buyingHistory: 'Buying History',
-    customerDebts: 'Customer Debts',
-    companyDebts: 'Company Debts',
-    incentives: 'Incentives',
-    personalLoans: 'Personal Loans',
     reports: 'Reports',
     backup: 'Backup',
-    settings: 'Settings',
-    logout: 'Logout',
 
     // Action Labels
-    add: 'Add',
-    edit: 'Edit',
-    delete: 'Delete',
-    search: 'Search',
-    filter: 'Filter',
-    refresh: 'Refresh',
     save: 'Save',
-    download: 'Download',
     upload: 'Upload',
 
     // Status Labels
@@ -1350,19 +1213,11 @@ const translations = {
     error: 'Error',
     warning: 'Warning',
     info: 'Info',
-    loading: 'Loading',
 
     // Additional Specific Terms
-    multiCurrency: 'Multi-currency',
-    ram: 'RAM',
-    storage: 'Storage',
-    fromBalance: 'from {currency} balance',
-    businessAnalytics: 'Business Analytics',
 
     // Tooltips and Title Attributes
     cloudBackupEnabled: 'Cloud backup enabled',
-    resetZoom: 'Reset Zoom',
-    exportChart: 'Export Chart',
     printLastReceipt: 'Print last receipt',
     showCurrencyBreakdown: 'Show currency breakdown',
 
@@ -1374,16 +1229,11 @@ const translations = {
     chartGuideTooltip: 'Tooltip: Hover over data points for details',
 
     // Balance labels
-    usdBalance: 'USD Balance',
-    iqdBalance: 'IQD Balance',
 
     // Stats labels
-    totalProducts: 'Total Products',
     totalAccessories: 'Total Accessories',
-    totalSales: 'Total Sales',
 
     // Error handling
-    errorDetails: 'Error Details',
 
     // Currency equivalents
     iqdEquivalent: 'IQD Equivalent',
@@ -1391,22 +1241,14 @@ const translations = {
     // Missing translations
     balanceManagement: 'Balance Management',
     item: 'Item',
-    returnCurrency: 'Return Currency',
-    purchaseWithItems: 'Purchase with Items',
-    originalPurchase: 'Original Purchase',
     leaveEmptyForFull: 'Leave empty for full return',
-    returnSummary: 'Return Summary',
     showAdvanced: 'Show Advanced',
     hideAdvanced: 'Hide Advanced',
-    confirmReturn: 'Confirm Return',
     customer_name: 'Customer Name',
     expand: 'Expand',
-    searchDebtsDesc: 'Search and filter debts by customer name or amount',
     archivedItemsDescription: 'View and manage archived products and accessories',
     invalidDate: 'Invalid Date',
     max: 'Max',
-    show: 'Show',
-    hide: 'Hide',
 
   },
   ku: {
@@ -1524,8 +1366,6 @@ const translations = {
     remove: 'لابردن',
     logout: 'چوونەدەرەوە',
     searching: 'گەڕان...',
-    remaining: 'ماوە',
-    change: 'گۆڕین',
     enterNewExchangeRate: 'ڕێژەی گۆڕینی نوێ بنووسە',
     
     // Product messages
@@ -1603,7 +1443,6 @@ const translations = {
     useArrowKeysToNavigate: 'بەکارهینانی ↑↓ بۆ گێران، Enter/Tab بۆ هەڵبژاردن، Esc بۆ داخستن',
     cloudBackup: 'پاشەکەوتی کلاود',
     settings: 'ڕێکخستنەکان',
-    accessories: 'ئامێرە یارمەتیدەرەکان',
     personalLoans: 'قەرزە کەسییەکان',
     multiCurrencyDashboard: 'داشبۆردی چەند دراویی',
     advancedAnalytics: 'شیکاری پێشکەوتوو',
@@ -1625,8 +1464,6 @@ const translations = {
     financialOverview: 'کورتەی دارایی',
     customerOutstandingOfMonth: 'قەرزی کڕیاری مانگ',
     companyOutstandingOfMonth: 'قەرزی کۆمپانیای مانگ',
-    usd: 'دۆلار',
-    iqd: 'دینار',
     
     // Admin Dashboard - Today's Performance
     adminDashboard: 'داشبۆردی ئەدمین',
@@ -1656,7 +1493,6 @@ const translations = {
     businessOverview: 'بینینی گشتی بازرگانیەکان ',
     dashboardWelcome: 'بەخێرهاتن بۆ داشبۆردی بازرگانیت',
     addPurchase: 'زیادکردنی کڕین',
-    reloadApp: 'دووبارە بارکردنی زانیاری بەرنامە',
     reloading: 'دووبارە بارکردن...',
     reload: 'دووبارە بارکردن',
     today: 'ئەمڕۆ',
@@ -1711,7 +1547,6 @@ const translations = {
     
     // Quick add product
     company: 'کۆمپانیا',
-    other: 'هیتر',
     ramPlaceholder: 'RAM (نموونە: 8GB)',
     storagePlaceholder: 'بیرگە (نموونە: 128GB)',
     addProduct: 'زیادکردنی بەرهەم',
@@ -1780,7 +1615,6 @@ const translations = {
     totalProfitIQD: 'کۆی قازانج IQD',
     totalRevenueUSD: 'کۆی داهات USD',
     totalRevenueIQD: 'کۆی داهات IQD',
-    total: 'کۆ',
     balanceAndTransactions: 'تەواو و مامەڵەکان',
     addPersonalLoan: 'زیادکردنی قەرزی کەسی',
     loansAddedToday: 'قەرزەکانی ئەمڕۆ زیادکراو',
@@ -1916,12 +1750,8 @@ const translations = {
     itemInformation: 'زانیاری بابەت',
     returnConfiguration: 'ڕێکخستنی گەڕاندنەوە',
     totalReturnAmount: 'کۆی بڕی گەڕاندنەوە',
-    outOfStock: 'کۆتایی هاتووە',
-    left: 'ماوە',
     show: 'پیشاندان',
     hide: 'شاردنەوە',
-    showing: 'پیشاندانی',
-    of: 'لە',
     entries: 'بابەت',
     refreshData: 'نوێکردنەوەی هەموو زانیارییەکان',
     refreshingData: 'نوێکردنەوەی زانیارییەکان...',
@@ -1983,8 +1813,6 @@ const translations = {
     // Monthly Reports Section
     noReports: 'هێشتا ڕاپۆرتی مانگانە نییە',
     totalTransactions: 'کۆی مامەڵەکان',
-    totalProductsSold: 'کۆی بەرهەمە فرۆشراوەکان',
-    totalAccessoriesSold: 'کۆی ئامێری یارمەتیدەرە فرۆشراوەکان',
     totalSpent: 'کۆی خەرجی',
     
     // Settings Modal
@@ -2025,16 +1853,11 @@ const translations = {
     
     // Return Actions
     returnPurchase: 'گەڕاندنەوەی کڕین',
-    returnEntry: 'گەڕاندنەوە',
-    returnItem: 'گەڕاندنەوەی کاڵا',
-    returnSuccess: 'بە سەرکەوتوویی گەڕێندرایەوە!',
     returnFailed: 'گەڕاندنەوە سەرکەوتوو نەبوو',
-    returnError: 'هەڵەیەک ڕوویدا لە کاتی گەڕاندنەوە',
     refundedUSD: 'دۆلاری گەڕێندراوە',
     refundedIQD: 'دیناری گەڕێندراوە',
     itemsReturned: 'کاڵاکان گەڕێندرانەوە بۆ کۆگا',
     confirmReturnPurchase: 'دڵنیای کە دەتەوێت ئەم کڕینە بگەڕێنیتەوە؟',
-    confirmReturnItem: 'دڵنیای کە دەتەوێت ئەم کاڵایە بگەڕێنیتەوە؟',
     thisWillReturnStock: 'ئەمە کاڵاکان دەگەڕێنێتەوە بۆ کۆگا و بڕی پارەکە دەگەڕێنێتەوە بۆ قەرزەکەت.',
     payNow: 'ئێستا پارە بدە',
     payLater: 'دواتر پارە بدە',
@@ -2141,7 +1964,6 @@ const translations = {
     addProductFailed: 'زیادکردنی بەرهەم شکستی هێنا.',
     errorAddingProduct: 'هەڵە لە زیادکردنی بەرهەم',
     errorAddingAccessory: 'هەڵە لە زیادکردنی ئامێری یارمەتیدەر',
-    errorMarkingDebtPaid: 'هەڵە لە نیشان کردنی قەرز وەک پارە دراو',
     
     // BackupManager translations
     databaseRestoredSuccessfully: 'بنکەی زانیاری بە سەرکەوتوویی گەڕایەوە!',
@@ -2158,24 +1980,19 @@ const translations = {
     errorDetails: 'وردەکاریەکانی هەڵە',
     accessoryArchived: 'ئامێری یارمەتیدەر ئەرشیو کرا',
     accessoryUnarchived: 'ئامێری یارمەتیدەر لە ئەرشیفەوە دەرهێنرا',
-    archiveFailed: 'ئەرشیو کردن شکستی هێنا',
-    unarchiveFailed: 'لە ئەرشیفەوە دەرهێنان شکستی هێنا',
     
     // IncentivesSection translations
     operationFailed: 'کردارەکە شکستی هێنا',
     incentiveRemoved: 'هانەدەر بە سەرکەوتوویی لابرا',
     
     // AdminModals translations
-    errorAddingPurchase: 'هەڵە لە زیادکردنی کڕین',
     purchaseAddedWithMixedCurrency: 'کڕین بە سەرکەوتوویی زیادکرا! دراوی تێکەڵ دۆزرایەوە و بە خۆکاری مامەڵەی لەگەڵ کرا.',
-    purchaseAddedSuccessfully: 'کڕین بە سەرکەوتوویی زیادکرا!',
     
     // useAdmin translations
     productAdded: 'بەرهەم زیادکرا:',
     accessoryAdded: 'ئامێری یارمەتیدەر زیادکرا:',
     
     // Product table translations
-    inventoryValue: 'نرخی کۆگا',
     
     // Additional missing translations
     addAccessoryFailed: 'زیادکردنی ئامێری یارمەتیدەر شکستی هێنا.',
@@ -2187,20 +2004,16 @@ const translations = {
     failedToDownloadBackup: 'داگرتنی پاشەکەوت شکستی هێنا',
     failedToChangeAutoBackupSetting: 'گۆڕینی ڕێکخستنی پاشەکەوتی خۆکار شکستی هێنا',
     failedToRestoreFromLocalFile: 'گەڕاندنەوە لە فایلی ناوخۆییەوە شکستی هێنا',
-    unknownError: 'هەڵەی نەزانراو',
     failedToReturnItem: 'گەڕاندنەوەی بڕگە شکستی هێنا',
     failedToReturnSale: 'گەڕاندنەوەی فرۆشتن شکستی هێنا',
-    failedToAddLoan: 'زیادکردنی قەرز شکستی هێنا',
     failedToMarkLoanAsPaid: 'نیشان کردنی قەرز وەک پارەدراو شکستی هێنا',
     errorAddingLoan: 'هەڵە لە زیادکردنی قەرز',
-    totalCompanyDebtIQD: 'کۆی قەرزی کۆمپانیا IQD',
     noOutstandingDebts: 'قەرزی باوەڕپێنەکراو نییە',
     unpaidDebts: 'قەرزە نەدراوەکان',
     paidCompanyDebts: 'قەرزە دراوەکان',
     
     // Additional missing translations
     searchAndFilters: 'گەڕان و فلتەرکردن',
-    todaysSales: "فرۆشتنی ئەمڕۆ",
     weeklySales: "فرۆشتنی هەفتانە",
     payWithIQD: 'پارەدان بە دینار',
     payWithUSD: 'پارەدان بە دۆلار',
@@ -2212,7 +2025,6 @@ const translations = {
     nearest10000: 'نزیکترین ١٠٠٠٠',
     quickAmounts: 'بڕە خێراکان',
     paymentOptions: 'هەڵبژاردەکانی پارەدان',
-    customAmount: 'بڕی دیاریکراو (دینار)',
     paymentSummary: 'کورتەی پارەدان',
     multicurrency: 'چەند دراویی',
     currentBalances: 'بالانسەکانی ئێستا',
@@ -2226,10 +2038,6 @@ const translations = {
     loansIQD: 'قەرزەکانی دینار',
     netPerformanceUSD: 'کاراییی سوودی دۆلار',
     netPerformanceIQD: 'کاراییی سوودی دینار',
-    inventoryValueUSD: 'نرخی کۆگای دۆلار',
-    totalInventoryValue: 'کۆی نرخی کۆگا',
-    inventoryValueIQD: 'نرخی کۆگای دینار',
-    productsInventory: 'کۆگای بەرهەمەکان',
     accessoriesInventory: 'کۆگای کەلوپەلەکان',
     uniqueAccessories: 'کەلوپەلە جیاوازەکان',
     totalInventorySummary: 'کورتەی کۆی کۆگا',
@@ -2240,7 +2048,6 @@ const translations = {
     usdEquivalent: 'قیمەتی دۆلار',
     balanceOverview: 'کورتەی بالانس',
     recentTransactions: 'مامەڵە نوێیەکان',
-    multiCurrency: 'چەند دراویی',
     topSellingProducts: 'بەرهەمە زۆر فرۆشراوەکان',
     monthlyProfitTrends: 'ئاڕاستەی سوودی مانگانە',
     lowStockAlerts: 'ئاگاداریی کۆگای کەم',
@@ -2251,7 +2058,6 @@ const translations = {
     addToCart: 'زیادکردن بۆ سەبەتە',
     filter: 'پاڵاوتن',
     uniqueProducts: 'بەرهەمی تایبەت',
-    percentage: 'ڕێژە',
     admin: 'بەڕێوەبەر',
     roundedToNearestBill: 'خڕکراوە بۆ نزیکترین پولەکە',
     suggestMixedPayment: 'پێشنیاری پارەدانی تێکەڵ',
@@ -2301,18 +2107,9 @@ const translations = {
     payments: 'پارەدانەکان',
     latest: 'دوایین',
     paymentsWillAppearHere: 'مامەڵەکانی پارەدان لێرە دەردەکەون',
-    markAsPaid: 'وەک پارەدراو نیشانی بکە',
     totalPaidUSD: 'کۆی پارەدراوی دۆلار',
     totalPaidIQD: 'کۆی پارەدراوی دینار',
-    totalOutstandingUSD: 'کۆی ماوەی دۆلار',
-    totalOutstandingIQD: 'کۆی ماوەی دینار',
-    searchAndFilters: 'گەڕان و فلتەرەکان',
     searchDebtsDesc: 'گەڕان و فلتەرکردنی قەرزەکانی کڕیار',
-    searchCustomer: 'گەڕانی کڕیار...',
-    newestFirst: 'نوێترین یەکەم',
-    oldestFirst: 'کۆنترین یەکەم',
-    highestAmount: 'زۆرترین بڕ',
-    lowestAmount: 'کەمترین بڕ',
     payDebt: 'پارەدانی قەرز',
     
     // Monthly Reports

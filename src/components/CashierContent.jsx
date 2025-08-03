@@ -41,7 +41,9 @@ export default function CashierContent({
   multiCurrency,
   setMultiCurrency,
   refreshProducts,
-  refreshAccessories
+  refreshAccessories,
+  debts,
+  debtSales
 }) {
   const [showExchangeRateModal, setShowExchangeRateModal] = useState(false);
   const [newExchangeRate, setNewExchangeRate] = useState(EXCHANGE_RATES.USD_TO_IQD.toString());
@@ -54,7 +56,11 @@ export default function CashierContent({
   });
   const [showFilters, setShowFilters] = useState(false);
   const [underCostWarningVisible, setUnderCostWarningVisible] = useState(false);
+  const [customerSuggestions, setCustomerSuggestions] = useState([]);
+  const [showCustomerSuggestions, setShowCustomerSuggestions] = useState(false);
+  const [selectedCustomerIndex, setSelectedCustomerIndex] = useState(-1);
   const inputRef = useRef();
+  const customerInputRef = useRef();
   const { soundSettings } = useSound();
 
   // Function to play sounds based on settings
@@ -147,10 +153,57 @@ export default function CashierContent({
     return categories.sort();
   }, [allItems]);
 
-  // Filter products based on selected filters
+  // Get unique customer names from debts and debt sales for autocomplete
+  const customerNames = useMemo(() => {
+    if (!isDebt) return []; // Only show suggestions for debt sales
+    
+    const names = new Set();
+    
+    // Get customer names from existing debts
+    if (Array.isArray(debts)) {
+      debts.forEach(debt => {
+        if (debt.customer_name && debt.customer_name.trim()) {
+          names.add(debt.customer_name.trim());
+        }
+      });
+    }
+    
+    // Get customer names from debt sales
+    if (Array.isArray(debtSales)) {
+      debtSales.forEach(sale => {
+        if (sale.customer_name && sale.customer_name.trim()) {
+          names.add(sale.customer_name.trim());
+        }
+      });
+    }
+    
+    return Array.from(names).sort();
+  }, [debts, debtSales, isDebt]);
+
+  // Filter products based on search and selected filters
   const filteredItems = useMemo(() => {
     return allItems.filter(item => {
       if (item.stock <= 0) return false;
+      
+      // Search filter - search in name, brand, model, type, ram, storage
+      if (search.trim()) {
+        const searchTerm = search.toLowerCase().trim();
+        const searchableFields = [
+          item.name,
+          item.brand, 
+          item.model,
+          item.type,
+          item.ram,
+          item.storage,
+          item.category
+        ].filter(Boolean).map(field => String(field).toLowerCase());
+        
+        const matchesSearch = searchableFields.some(field => 
+          field.includes(searchTerm)
+        );
+        
+        if (!matchesSearch) return false;
+      }
       
       // Brand filter
       if (filters.brand && item.brand !== filters.brand) return false;
@@ -170,7 +223,66 @@ export default function CashierContent({
       
       return true;
     });
-  }, [allItems, filters, currency]);
+  }, [allItems, filters, currency, search]);
+
+  // Customer name autocomplete handlers
+  const handleCustomerNameInput = (e) => {
+    const value = e.target.value;
+    setCustomerName(value);
+    
+    if (!isDebt || !value.trim()) {
+      setShowCustomerSuggestions(false);
+      setCustomerSuggestions([]);
+      setSelectedCustomerIndex(-1);
+      return;
+    }
+    
+    // Filter customer names based on input
+    const filteredCustomers = customerNames.filter(name =>
+      name.toLowerCase().includes(value.toLowerCase())
+    );
+    
+    setCustomerSuggestions(filteredCustomers);
+    setShowCustomerSuggestions(filteredCustomers.length > 0 && value.trim() !== '');
+    setSelectedCustomerIndex(-1);
+  };
+
+  const handleCustomerSuggestionClick = (customerName) => {
+    setCustomerName(customerName);
+    setShowCustomerSuggestions(false);
+    setCustomerSuggestions([]);
+    setSelectedCustomerIndex(-1);
+    playSound('action');
+  };
+
+  const handleCustomerKeyDown = (e) => {
+    if (!showCustomerSuggestions || customerSuggestions.length === 0) return;
+    
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        setSelectedCustomerIndex(prev => 
+          prev < customerSuggestions.length - 1 ? prev + 1 : 0
+        );
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setSelectedCustomerIndex(prev => 
+          prev > 0 ? prev - 1 : customerSuggestions.length - 1
+        );
+        break;
+      case 'Enter':
+        e.preventDefault();
+        if (selectedCustomerIndex >= 0) {
+          handleCustomerSuggestionClick(customerSuggestions[selectedCustomerIndex]);
+        }
+        break;
+      case 'Escape':
+        setShowCustomerSuggestions(false);
+        setSelectedCustomerIndex(-1);
+        break;
+    }
+  };
 
   // Calculate optimal change distribution
   const calculateChange = (totalPaidUSD, totalRequiredUSD) => {
@@ -419,6 +531,23 @@ export default function CashierContent({
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [showExchangeRateModal, items.length, loading.sale, processPayment]);
 
+  // Click outside to close customer suggestions
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      // Check if click is outside the customer input container
+      const customerContainer = customerInputRef.current?.parentElement;
+      if (customerContainer && !customerContainer.contains(event.target)) {
+        setShowCustomerSuggestions(false);
+        setSelectedCustomerIndex(-1);
+      }
+    };
+
+    if (showCustomerSuggestions) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showCustomerSuggestions]);
+
   const clearFilters = () => {
     setFilters({
       brand: '',
@@ -473,13 +602,59 @@ export default function CashierContent({
           <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-3">
             {t.customerInfo}
           </h3>
-          <input
-            type="text"
-            value={customerName}
-            onChange={(e) => setCustomerName(e.target.value)}
-            placeholder={t.customerName}
-            className="w-full p-3 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
+          <div className="relative">
+            <input
+              ref={customerInputRef}
+              type="text"
+              value={customerName}
+              onChange={handleCustomerNameInput}
+              onKeyDown={handleCustomerKeyDown}
+              placeholder={isDebt ? (t.customerNameOrSearch || 'Customer name (start typing for suggestions)') : t.customerName}
+              className={`w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                isDebt 
+                  ? 'border-orange-300 dark:border-orange-600 bg-orange-50 dark:bg-orange-900/20 text-slate-800 dark:text-white'
+                  : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white'
+              }`}
+            />
+            {isDebt && customerSuggestions.length > 0 && (
+              <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                {customerSuggestions.length} existing customer{customerSuggestions.length !== 1 ? 's' : ''} found
+              </div>
+            )}
+            {showCustomerSuggestions && customerSuggestions.length > 0 && (
+              <div 
+                className="absolute top-full left-0 right-0 bg-white dark:bg-slate-800 border-2 border-blue-300 dark:border-blue-600 rounded-lg mt-1 shadow-xl z-[9999] max-h-40 overflow-y-auto"
+                style={{ zIndex: 9999 }}
+              >
+                {customerSuggestions.map((name, index) => (
+                  <div
+                    key={name}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleCustomerSuggestionClick(name);
+                    }}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleCustomerSuggestionClick(name);
+                    }}
+                    className={`p-3 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30 border-b border-slate-100 dark:border-slate-700 last:border-b-0 transition-colors ${
+                      index === selectedCustomerIndex ? 'bg-blue-100 dark:bg-blue-900' : ''
+                    }`}
+                    style={{ userSelect: 'none' }}
+                  >
+                    <div className="font-medium text-slate-800 dark:text-white">
+                      {name}
+                    </div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400">
+                      Existing customer
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
           <div className="flex gap-2 mt-3">
             <button
               onClick={() => setIsDebt(false)}
@@ -529,22 +704,42 @@ export default function CashierContent({
                         <div className="font-semibold text-lg text-slate-800 dark:text-white mb-1">
                           {item.name || product?.name || t.unknown}
                         </div>
-                        {/* Product specifications display */}
+                        {/* Specifications display - different for products vs accessories */}
                         <div className="flex items-center gap-2 mb-2 text-sm">
-                          {(item.ram || product?.ram) && (
-                            <span className="px-2 py-1 bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 rounded-full text-xs font-medium">
-                              RAM: {item.ram || product?.ram}
-                            </span>
+                          {/* Show RAM/Storage only for products (phones) */}
+                          {(item.itemType === 'product' || item.category === 'phones' || (!item.itemType && !item.category)) && (
+                            <>
+                              {(item.ram || product?.ram) && (
+                                <span className="px-2 py-1 bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 rounded-full text-xs font-medium">
+                                  RAM: {item.ram || product?.ram}
+                                </span>
+                              )}
+                              {(item.storage || product?.storage) && (
+                                <span className="px-2 py-1 bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 rounded-full text-xs font-medium">
+                                  Storage: {item.storage || product?.storage}
+                                </span>
+                              )}
+                              {(item.model || product?.model) && (
+                                <span className="text-xs text-slate-600 dark:text-slate-400">
+                                  Model: {item.model || product?.model}
+                                </span>
+                              )}
+                            </>
                           )}
-                          {(item.storage || product?.storage) && (
-                            <span className="px-2 py-1 bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 rounded-full text-xs font-medium">
-                              Storage: {item.storage || product?.storage}
-                            </span>
-                          )}
-                          {(item.model || product?.model) && (
-                            <span className="text-xs text-slate-600 dark:text-slate-400">
-                              Model: {item.model || product?.model}
-                            </span>
+                          {/* Show type/brand for accessories */}
+                          {(item.itemType === 'accessory' || item.category === 'accessories') && (
+                            <>
+                              {(item.type || product?.type) && (
+                                <span className="px-2 py-1 bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 rounded-full text-xs font-medium">
+                                  {item.type || product?.type}
+                                </span>
+                              )}
+                              {(item.brand || product?.brand) && (
+                                <span className="text-xs text-slate-600 dark:text-slate-400">
+                                  Brand: {item.brand || product?.brand}
+                                </span>
+                              )}
+                            </>
                           )}
                         </div>
                         <div className="flex items-center gap-3 mb-2">
@@ -644,8 +839,13 @@ export default function CashierContent({
                                   
                                   // Round to appropriate precision for storage
                                   if (itemCurrency === 'IQD') {
-                                    // Round IQD to nearest 1000 to eliminate smaller denominations
-                                    storedPrice = Math.round(storedPrice / 1000) * 1000;
+                                    // For accessories, allow more precise pricing - round to nearest IQD
+                                    // For products, round to nearest 1000 to eliminate smaller denominations
+                                    if (item.itemType === 'accessory' || item.category === 'accessories') {
+                                      storedPrice = Math.round(storedPrice);
+                                    } else {
+                                      storedPrice = Math.round(storedPrice / 1000) * 1000;
+                                    }
                                   } else {
                                     storedPrice = Math.round(storedPrice * 100) / 100;
                                   }
@@ -691,8 +891,13 @@ export default function CashierContent({
                                   
                                   // Round to appropriate precision for storage
                                   if (itemCurrency === 'IQD') {
-                                    // Round IQD to nearest 1000 to eliminate smaller denominations
-                                    storedPrice = Math.round(storedPrice / 1000) * 1000;
+                                    // For accessories, allow more precise pricing - round to nearest IQD
+                                    // For products, round to nearest 1000 to eliminate smaller denominations
+                                    if (item.itemType === 'accessory' || item.category === 'accessories') {
+                                      storedPrice = Math.round(storedPrice);
+                                    } else {
+                                      storedPrice = Math.round(storedPrice / 1000) * 1000;
+                                    }
                                   } else {
                                     storedPrice = Math.round(storedPrice * 100) / 100;
                                   }
@@ -1258,8 +1463,26 @@ export default function CashierContent({
                 value={search}
                 onChange={handleSearchInput}
                 placeholder={t.searchProducts}
-                className="w-full p-3 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full p-3 pr-20 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
+              <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center gap-2">
+                {search && (
+                  <>
+                    <span className="text-xs text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900 px-2 py-1 rounded">
+                      {filteredItems.length}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleSearchInput({ target: { value: '' } })}
+                      className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                      title="Clear search"
+                    >
+                      <Icon name="x" size={16} />
+                    </button>
+                  </>
+                )}
+                <Icon name="search" size={16} className="text-slate-400" />
+              </div>
               {showSuggestions && suggestions.length > 0 && (
                 <div className="absolute top-full left-0 right-0 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg mt-1 shadow-lg z-50 max-h-60 overflow-y-auto">
                   {suggestions.map((suggestion, index) => (
@@ -1333,15 +1556,36 @@ export default function CashierContent({
         <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg flex-1 min-h-0 flex flex-col">
           <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
             <div className="flex justify-between items-center mb-3">
-              <h3 className="text-lg font-semibold text-slate-800 dark:text-white">
-                {t.products}
-              </h3>
-              <button
-                onClick={() => setShowFilters(!showFilters)}
-                className="px-3 py-1 bg-gray-500 hover:bg-gray-600 text-white text-sm rounded-lg transition-colors"
-              >
-                <Icon name="filter" className="inline mr-1" size={16} />{t.filter || 'Filter'}
-              </button>
+              <div className="flex items-center gap-3">
+                <h3 className="text-lg font-semibold text-slate-800 dark:text-white">
+                  {t.products}
+                </h3>
+                {search && (
+                  <span className="text-sm text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900 px-2 py-1 rounded-full">
+                    "{search}" ({filteredItems.length} found)
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                {(search || filters.brand || filters.category || filters.priceMin || filters.priceMax) && (
+                  <button
+                    onClick={() => {
+                      clearFilters();
+                      handleSearchInput({ target: { value: '' } });
+                    }}
+                    className="px-2 py-1 bg-red-500 hover:bg-red-600 text-white text-xs rounded-lg transition-colors"
+                    title="Clear all filters and search"
+                  >
+                    <Icon name="x" className="inline mr-1" size={12} />Clear All
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowFilters(!showFilters)}
+                  className="px-3 py-1 bg-gray-500 hover:bg-gray-600 text-white text-sm rounded-lg transition-colors"
+                >
+                  <Icon name="filter" className="inline mr-1" size={16} />{t.filter || 'Filter'}
+                </button>
+              </div>
             </div>
             
             {/* Filter Controls */}

@@ -81,14 +81,14 @@ export const triggerCloudBackup = async () => {
       
       return result;
     } else {
-      console.warn('[triggerCloudBackup] API not available');
+      // API not available - fail silently
       if (backupProgress) {
         backupProgress.hideProgress();
       }
       return { success: false, message: 'Cloud backup API not available' }; // This is internal, no translation needed
     }
   } catch (error) {
-    console.error('[triggerCloudBackup] Error:', error);
+    // Error during backup - fail silently
     if (backupProgress) {
       backupProgress.hideProgress();
     }
@@ -102,7 +102,7 @@ export const triggerCloudBackup = async () => {
 export const triggerCloudBackupAsync = () => {
   // Fire and forget - don't block UI
   triggerCloudBackup().catch(error => {
-    console.error('[triggerCloudBackupAsync] Background backup failed:', error);
+    // Background backup failed - fail silently
   });
   
   // Return immediately

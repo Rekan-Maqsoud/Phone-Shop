@@ -9,6 +9,7 @@ const AccessoriesSection = ({
   t, 
   admin, 
   handleArchiveToggle, 
+  handleEditAccessory,
   loading 
 }) => {
   const { accessories } = useData();
@@ -49,7 +50,14 @@ const AccessoriesSection = ({
     <div className="w-full h-full p-8 space-y-8">
       {/* Quick Add Form */}
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8">
-        <QuickAddAccessory t={t} onAdd={admin.handleAddAccessory} loading={loading} />
+        <QuickAddAccessory 
+          t={t} 
+          onAdd={admin.handleAddAccessory} 
+          loading={loading} 
+          admin={admin}
+          showConfirm={admin.showConfirm}
+          accessories={accessories}
+        />
       </div>
       
       {/* Search and Filter Controls */}
@@ -206,6 +214,13 @@ const AccessoriesSection = ({
                     </td>
                     <td className="px-6 py-4 text-center">
                       <div className="flex gap-2 justify-center">
+                        <button
+                          onClick={() => handleEditAccessory && handleEditAccessory(accessory)}
+                          className="px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm"
+                          disabled={loading}
+                        >
+                          {t.edit || 'Edit'}
+                        </button>
                         <button
                           onClick={() => handleArchiveToggle(accessory, true)}
                           className="px-3 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-sm"

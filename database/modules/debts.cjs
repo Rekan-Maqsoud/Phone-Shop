@@ -360,6 +360,7 @@ function markCompanyDebtPaid(db, id, paymentData) {
         SELECT company_name, amount, description, currency,
                payment_usd_amount as current_paid_usd, 
                payment_iqd_amount as current_paid_iqd,
+               usd_amount, iqd_amount,
                paid_at
         FROM company_debts WHERE id = ?
       `).get(id);
@@ -408,6 +409,12 @@ function markCompanyDebtPaid(db, id, paymentData) {
       let isFullyPaid = false;
       let remainingDebt = 0;
       
+      // Determine original debt amounts - use usd_amount/iqd_amount columns if available, fallback to main columns
+      const originalUSDAmount = debtInfo.usd_amount || 
+                                (debtInfo.currency === 'USD' ? debtInfo.amount : 0);
+      const originalIQDAmount = debtInfo.iqd_amount || 
+                                (debtInfo.currency === 'IQD' ? debtInfo.amount : 0);
+      
       if (debtInfo.currency === 'USD') {
         // For USD debts, convert total paid to USD equivalent
         const totalPaidUSDEquivalent = newTotalPaidUSD + (newTotalPaidIQD / currentUSDToIQD);
@@ -420,10 +427,43 @@ function markCompanyDebtPaid(db, id, paymentData) {
         // If remaining debt is less than 250 IQD, consider it fully paid
         isFullyPaid = remainingDebt <= 250; // 250 IQD threshold
       } else if (debtInfo.currency === 'MULTI') {
-        // For multi-currency debts, use USD equivalent
+        // For multi-currency debts, we need to handle cross-currency payments properly
+        
+        // Calculate remaining debt amounts in each currency
+        const remainingUSD = Math.max(0, originalUSDAmount - newTotalPaidUSD);
+        const remainingIQD = Math.max(0, originalIQDAmount - newTotalPaidIQD);
+        
+        // If either currency is overpaid, apply the excess to the other currency
+        let adjustedPaidUSD = newTotalPaidUSD;
+        let adjustedPaidIQD = newTotalPaidIQD;
+        
+        if (newTotalPaidUSD > originalUSDAmount && remainingIQD > 0) {
+          // Overpaid in USD, convert excess to IQD payment
+          const excessUSD = newTotalPaidUSD - originalUSDAmount;
+          const excessAsIQD = excessUSD * currentUSDToIQD;
+          adjustedPaidUSD = originalUSDAmount;
+          adjustedPaidIQD = Math.min(newTotalPaidIQD + excessAsIQD, originalIQDAmount);
+        } else if (newTotalPaidIQD > originalIQDAmount && remainingUSD > 0) {
+          // Overpaid in IQD, convert excess to USD payment
+          const excessIQD = newTotalPaidIQD - originalIQDAmount;
+          const excessAsUSD = excessIQD / currentUSDToIQD;
+          adjustedPaidIQD = originalIQDAmount;
+          adjustedPaidUSD = Math.min(newTotalPaidUSD + excessAsUSD, originalUSDAmount);
+        }
+        
+        // Calculate final remaining amounts
+        const finalRemainingUSD = Math.max(0, originalUSDAmount - adjustedPaidUSD);
+        const finalRemainingIQD = Math.max(0, originalIQDAmount - adjustedPaidIQD);
+        
+        // Check if fully paid (both currencies satisfied)
+        isFullyPaid = finalRemainingUSD <= 0.01 && finalRemainingIQD <= 250;
+        
+        // For display purposes, calculate total remaining in USD equivalent
+        remainingDebt = finalRemainingUSD + (finalRemainingIQD / currentUSDToIQD);
+      } else {
+        // Legacy handling for unknown currency types
         const totalPaidUSDEquivalent = newTotalPaidUSD + (newTotalPaidIQD / currentUSDToIQD);
         remainingDebt = debtInfo.amount - totalPaidUSDEquivalent;
-        // Convert 250 IQD threshold to USD equivalent (250 / currentUSDToIQD)
         const usdThreshold = 250 / currentUSDToIQD;
         isFullyPaid = remainingDebt <= usdThreshold;
       }

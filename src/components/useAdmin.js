@@ -38,6 +38,8 @@ export default function useAdmin(showConfirm = null) {
   // UI state
   const [showProductModal, setShowProductModal] = useState(false);
   const [editProduct, setEditProduct] = useState(null);
+  const [showAccessoryModal, setShowAccessoryModal] = useState(false);
+  const [editAccessory, setEditAccessory] = useState(null);
   const [viewSale, setViewSale] = useState(null);
   // Company debt modal states
   const [selectedCompanyDebt, setSelectedCompanyDebt] = useState(null);
@@ -199,15 +201,15 @@ export default function useAdmin(showConfirm = null) {
             );
             return;
           } else {
-            // Fallback to native confirm if showConfirm not available
-            const confirmMerge = confirm(
-              t?.productMergeConfirm?.replace('{currency}', existingProduct.currency)?.replace('{newCurrency}', product.currency) ||
-              `A product with the same specs already exists in ${existingProduct.currency}. Do you want to update its currency to ${product.currency} and merge the prices?`
+            // Fallback to toast warning if showConfirm not available
+            setToast(
+              'Warning: ' + (t?.productMergeConfirm?.replace('{currency}', existingProduct.currency)?.replace('{newCurrency}', product.currency) ||
+              `A product with the same specs already exists in ${existingProduct.currency}. Auto-merging with currency update to ${product.currency}.`),
+              'warning'
             );
             
-            if (confirmMerge) {
-              // Same merge logic as above
-              
+            // Proceed with merge automatically
+            {
               let newBuyingPrice = product.buying_price;
               let newStock = existingProduct.stock + (product.stock || 0);
               
@@ -658,6 +660,10 @@ export default function useAdmin(showConfirm = null) {
     setShowProductModal,
     editProduct,
     setEditProduct,
+    showAccessoryModal,
+    setShowAccessoryModal,
+    editAccessory,
+    setEditAccessory,
     viewSale,
     setViewSale,
     debts,
@@ -714,7 +720,7 @@ export default function useAdmin(showConfirm = null) {
     // Add refresh functions to admin object
     refreshProducts, refreshAccessories, refreshSales, refreshDebts, refreshCompanyDebts, refreshBuyingHistory, refreshMonthlyReports,
   }), [
-    products, accessories, sales, showProductModal, editProduct, viewSale, debts, debtSales, companyDebts, buyingHistory, monthlyReports,
+    products, accessories, sales, showProductModal, editProduct, showAccessoryModal, editAccessory, viewSale, debts, debtSales, companyDebts, buyingHistory, monthlyReports,
     selectedCompanyDebt, showEnhancedCompanyDebtModal, activeSection, showPaidDebts, debtSearch, showAddPurchaseModal, isCompanyDebtMode,
     toast, dataLoading, balanceUSD, balanceIQD, notificationsEnabled, lowStockThreshold, adminModal, adminPassword, adminError, resetConfirmOpen,
     // Add function dependencies to ensure stability

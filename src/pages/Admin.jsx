@@ -64,7 +64,7 @@ export default function Admin() {
   
   // Load exchange rates from database on mount
   useEffect(() => {
-    loadExchangeRatesFromDB().catch(console.error);
+    loadExchangeRatesFromDB().catch(() => {});
   }, []);
 
   // Load balances on mount
@@ -76,7 +76,7 @@ export default function Admin() {
           setBalances(balanceData || { usd_balance: 0, iqd_balance: 0 });
         }
       } catch (error) {
-        console.error('Error loading balances:', error);
+        // Error loading balances - fail silently
       }
     };
     loadBalances();
@@ -244,7 +244,7 @@ export default function Admin() {
       admin.setToast(t?.dataRefreshed || 'All data refreshed successfully!', 'success', 2000);
       playSuccessSound();
     } catch (error) {
-      console.error('Error refreshing admin data:', error);
+      // Error refreshing admin data - fail silently
       admin.setToast(t?.refreshError || 'Error refreshing data', 'error', 3000);
       playErrorSound();
     } finally {
@@ -509,7 +509,7 @@ export default function Admin() {
                       // Also refresh products in case of mixed display
                       await admin.refreshProducts();
                     } else {
-                      console.error('❌ Accessory archive toggle failed:', result);
+                      // Accessory archive toggle failed - fail silently
                       admin.setToast(archive ? (t.archiveFailed || 'Archive failed') : (t.unarchiveFailed || 'Unarchive failed'), 'error');
                     }
                   } else {
@@ -546,7 +546,10 @@ export default function Admin() {
                   admin.setToast(`${archive ? 'Archive' : 'Unarchive'} failed: ${error.message}`, 'error');
                 }
               }} />}
-              {section === 'accessories' && <AccessoriesSection admin={admin} t={t} handleArchiveToggle={async (item, archive) => {
+              {section === 'accessories' && <AccessoriesSection admin={admin} t={t} handleEditAccessory={(accessory) => {
+                admin.setEditAccessory(accessory);
+                admin.setShowAccessoryModal(true);
+              }} handleArchiveToggle={async (item, archive) => {
                 // Handle accessory archiving specifically
                 try {
                   const updatedAccessory = { 

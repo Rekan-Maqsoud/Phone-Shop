@@ -122,35 +122,9 @@ const FinancialSummaryModal = ({ isOpen, onClose, t }) => {
     const usdBalance = balances?.usd_balance || 0;
     const iqdBalance = balances?.iqd_balance || 0;
     
-    // Calculate adjustment for paid debt sales to avoid double-counting
-    // When debt sales are paid, they add to balance but shouldn't count as both balance AND sales revenue
-    const paidDebtSalesAdjustmentUSD = [];
-    const paidDebtSalesAdjustmentIQD = [];
-    
-    (sales || []).forEach(sale => {
-      if (sale.is_debt) {
-        const debt = (debts || []).find(d => d.sale_id === sale.id);
-        const isPaid = debt && (debt.paid_at || debt.paid);
-        
-        if (isPaid) {
-          // This debt sale was paid, so it's already in our balance
-          // We need to subtract it from balance to avoid double-counting
-          if (sale.currency === 'USD') {
-            paidDebtSalesAdjustmentUSD.push(sale);
-          } else if (sale.currency === 'IQD') {
-            paidDebtSalesAdjustmentIQD.push(sale);
-          }
-        }
-      }
-    });
-    
-    const paidDebtAdjustmentUSD = paidDebtSalesAdjustmentUSD.reduce((sum, sale) => sum + (sale.total || 0), 0);
-    const paidDebtAdjustmentIQD = paidDebtSalesAdjustmentIQD.reduce((sum, sale) => sum + (sale.total || 0), 0);
-    
-    // Adjust balances to remove the double-counting from paid debt sales
-    const adjustedUSDBalance = usdBalance - paidDebtAdjustmentUSD;
-    const adjustedIQDBalance = iqdBalance - paidDebtAdjustmentIQD;
-    const totalBalanceUSD = adjustedUSDBalance + (adjustedIQDBalance * EXCHANGE_RATES.IQD_TO_USD);
+    // Use the actual balances without any adjustments
+    // The shop balance already reflects the current state including paid debts
+    const totalBalanceUSD = usdBalance + (iqdBalance * EXCHANGE_RATES.IQD_TO_USD);
 
     // Calculate customer debts (unpaid debt sales) in USD equivalent
     const unpaidDebtSalesUSD = [];
@@ -308,13 +282,10 @@ const FinancialSummaryModal = ({ isOpen, onClose, t }) => {
       totalCompanyDebtsUSD,
       totalInventoryValueUSD,
       finalResult,
-      // Individual currency amounts for display (using adjusted balances)
+      // Individual currency amounts for display (using original balances)
       balances: { 
-        usd: adjustedUSDBalance, 
-        iqd: adjustedIQDBalance,
-        // Also show the adjustment amounts for transparency
-        paidDebtAdjustmentUSD,
-        paidDebtAdjustmentIQD 
+        usd: usdBalance, 
+        iqd: iqdBalance
       },
       customerDebts: { usd: customerDebtsUSD, iqd: customerDebtsIQD },
       personalLoans: { usd: personalLoansUSD, iqd: personalLoansIQD },
@@ -402,17 +373,6 @@ const FinancialSummaryModal = ({ isOpen, onClose, t }) => {
                 <span className="text-green-100">IQD:</span> {financialSummary.balances.iqd.toLocaleString()} IQD
               </div>
             </div>
-            {(financialSummary.balances.paidDebtAdjustmentUSD > 0 || financialSummary.balances.paidDebtAdjustmentIQD > 0) && (
-              <div className="mt-2 text-xs text-green-100 bg-green-600 bg-opacity-50 rounded p-2">
-                <div className="font-medium mb-1">{t?.adjustmentNote || 'Adjusted for paid debts to prevent double-counting:'}</div>
-                {financialSummary.balances.paidDebtAdjustmentUSD > 0 && (
-                  <div>USD: -${financialSummary.balances.paidDebtAdjustmentUSD.toFixed(2)}</div>
-                )}
-                {financialSummary.balances.paidDebtAdjustmentIQD > 0 && (
-                  <div>IQD: -{financialSummary.balances.paidDebtAdjustmentIQD.toLocaleString()} IQD</div>
-                )}
-              </div>
-            )}
             <div className="mt-2 text-xl font-bold border-t border-green-400 pt-2">
               {t?.totalUSDEquivalent || 'Total (USD Equivalent)'}: ${financialSummary.totalBalanceUSD.toFixed(2)}
             </div>

@@ -465,20 +465,27 @@ class CloudBackupService {
     }
     
     if (!this.isAuthenticated) {
-      return { success: false, message: 'Not authenticated' };
+      // Silently fail if not authenticated to prevent 401 error spam
+      return { success: false, message: 'Not authenticated', silent: true };
     }
 
     try {
       // First, delete any existing auto backups in background
       this.deleteOldAutoBackups().catch(error => {
-        console.error('[CloudBackupService] Background cleanup failed:', error);
+        // Only log non-authentication errors
+        if (!error.message?.includes('authenticated') && !error.message?.includes('401')) {
+          console.error('[CloudBackupService] Background cleanup failed:', error);
+        }
       });
       
       // Create the new auto backup
       const description = `Auto backup - ${new Date().toISOString()}`;
       return await this.createBackup(dbPath, description);
     } catch (error) {
-      console.error('[CloudBackupService] Auto backup failed:', error);
+      // Don't log authentication errors to prevent spam
+      if (!error.message?.includes('authenticated') && !error.message?.includes('401')) {
+        console.error('[CloudBackupService] Auto backup failed:', error);
+      }
       // Don't fail - just log and continue
       return { success: false, message: error.message, silent: true };
     }

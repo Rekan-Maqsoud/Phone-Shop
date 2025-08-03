@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useData } from '../contexts/DataContext';
 import PaymentHistory from './PaymentHistory';
 import { formatCurrency, EXCHANGE_RATES } from '../utils/exchangeRates';
@@ -13,15 +13,83 @@ const CompanyDebtsSection = ({
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedPaymentHistories, setExpandedPaymentHistories] = useState(new Set());
-  const { companyDebts } = useData();
+  const { companyDebts, refreshCompanyDebts } = useData();
   const { isRTL } = useLocale();
+
+  // Force refresh when component mounts to ensure latest data
+  useEffect(() => {
+    const refreshData = async () => {
+      await refreshCompanyDebts();
+    };
+    refreshData();
+  }, [refreshCompanyDebts]);
+
+  // Add effect to refresh when companyDebts change to ensure calculations are updated
+  useEffect(() => {
+    // Trigger a re-render when companyDebts data changes
+    // This ensures calculations are updated with the latest payment data
+    // Force re-calculation of memoized values by clearing any cached state
+    if (companyDebts.length > 0) {
+      // Data updated, calculations will be refreshed automatically via useMemo
+    }
+  }, [companyDebts]);
+
+  // Memoize the filtered and calculated debts to ensure they update when data changes
+  const { filteredDebts, totals } = useMemo(() => {
+    // Filter debts by search term
+    const filtered = companyDebts.filter(debt => 
+      debt?.company_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      debt?.description?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    // Calculate total REMAINING debt by currency with 250 IQD threshold
+    const calculatedTotals = filtered.reduce((acc, d) => {
+      // Skip fully paid debts
+      if (d.paid_at) return acc;
+      
+      if (d.currency === 'MULTI') {
+        const remainingUSD = Math.max(0, (d.usd_amount || 0) - (d.payment_usd_amount || 0));
+        const remainingIQD = Math.max(0, (d.iqd_amount || 0) - (d.payment_iqd_amount || 0));
+        
+        // Only add if there's actually remaining debt
+        if (remainingUSD > 0 || remainingIQD > 0) {
+          // Check 250 IQD threshold for the total remaining
+          const totalRemainingIQDEquivalent = remainingIQD + (remainingUSD * 1440);
+          if (totalRemainingIQDEquivalent >= 250) {
+            acc.usd += remainingUSD;
+            acc.iqd += remainingIQD;
+          }
+        }
+      } else if (d.currency === 'USD') {
+        const remaining = Math.max(0, (d.amount || 0) - (d.payment_usd_amount || 0));
+        
+        // Only add if there's remaining debt and meets threshold
+        if (remaining > 0) {
+          const remainingIQDEquivalent = remaining * 1440;
+          if (remainingIQDEquivalent >= 250) {
+            acc.usd += remaining;
+          }
+        }
+      } else {
+        const remaining = Math.max(0, (d.amount || 0) - (d.payment_iqd_amount || 0));
+        
+        // Only add if there's remaining debt and meets threshold
+        if (remaining >= 250) {
+          acc.iqd += remaining;
+        }
+      }
+      return acc;
+    }, { usd: 0, iqd: 0 });
+
+    return { filteredDebts: filtered, totals: calculatedTotals };
+  }, [companyDebts, searchTerm]);
 
   // Helper function to format REMAINING debt amount with proper currency handling
   const formatDebtAmount = (debt) => {
     if (debt.currency === 'MULTI') {
       // Multi-currency debt - show remaining amounts
-      const remainingUSD = (debt.usd_amount || 0) - (debt.payment_usd_amount || 0);
-      const remainingIQD = (debt.iqd_amount || 0) - (debt.payment_iqd_amount || 0);
+      const remainingUSD = Math.max(0, (debt.usd_amount || 0) - (debt.payment_usd_amount || 0));
+      const remainingIQD = Math.max(0, (debt.iqd_amount || 0) - (debt.payment_iqd_amount || 0));
       
       if (remainingUSD > 0 && remainingIQD > 0) {
         return `${formatCurrency(remainingUSD, 'USD')} + ${formatCurrency(remainingIQD, 'IQD')}`;
@@ -36,10 +104,10 @@ const CompanyDebtsSection = ({
       // Single currency debt - show remaining amount
       const currency = debt.currency || 'IQD'; // Default to IQD if not specified
       if (currency === 'USD') {
-        const remaining = (debt.amount || 0) - (debt.payment_usd_amount || 0);
+        const remaining = Math.max(0, (debt.amount || 0) - (debt.payment_usd_amount || 0));
         return formatCurrency(remaining, 'USD');
       } else {
-        const remaining = (debt.amount || 0) - (debt.payment_iqd_amount || 0);
+        const remaining = Math.max(0, (debt.amount || 0) - (debt.payment_iqd_amount || 0));
         return formatCurrency(remaining, 'IQD');
       }
     }
@@ -104,12 +172,6 @@ const CompanyDebtsSection = ({
         </div>
 
       {(() => {
-        // Filter debts by search term
-        const filteredDebts = companyDebts.filter(debt => 
-          debt?.company_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          debt?.description?.toLowerCase().includes(searchTerm.toLowerCase())
-        );
-        
         if (filteredDebts.length === 0) {
           return <div className="text-center text-gray-400 py-6">{t.noCompanyDebts || 'No company debts'}</div>;
         }
@@ -156,37 +218,8 @@ const CompanyDebtsSection = ({
           return bUnpaidTotal - aUnpaidTotal;
         });
 
-        // Calculate total REMAINING debt by currency with 250 IQD threshold
-        const totals = filteredDebts.filter(d => !d.paid_at).reduce((acc, d) => {
-          if (d.currency === 'MULTI') {
-            const remainingUSD = (d.usd_amount || 0) - (d.payment_usd_amount || 0);
-            const remainingIQD = (d.iqd_amount || 0) - (d.payment_iqd_amount || 0);
-            
-            // Check 250 IQD threshold
-            const totalRemainingIQDEquivalent = remainingIQD + (remainingUSD * 1440);
-            if (totalRemainingIQDEquivalent >= 250) {
-              acc.usd += Math.max(0, remainingUSD);
-              acc.iqd += Math.max(0, remainingIQD);
-            }
-          } else if (d.currency === 'USD') {
-            const remaining = (d.amount || 0) - (d.payment_usd_amount || 0);
-            
-            // Check 250 IQD threshold
-            const remainingIQDEquivalent = remaining * 1440;
-            if (remainingIQDEquivalent >= 250 && remaining > 0) {
-              acc.usd += remaining;
-            }
-          } else {
-            const remaining = (d.amount || 0) - (d.payment_iqd_amount || 0);
-            
-            // Check 250 IQD threshold
-            if (remaining >= 250) {
-              acc.iqd += remaining;
-            }
-          }
-          return acc;
-        }, { usd: 0, iqd: 0 });
-
+        // Use memoized totals calculated above
+        
         if (filteredDebts.length === 0) {
           return <div className="text-center text-gray-400 py-6">{t.noMatchingCompanyDebts || 'No matching company debts found'}</div>;
         }
@@ -233,22 +266,35 @@ const CompanyDebtsSection = ({
                 });
                 
                 // Calculate total REMAINING debt for this company
+                // Include all unpaid debts and calculate remaining amounts properly
+                const totalUnpaidForCompany = sortedCompanyDebts
+                  .filter(d => !d.paid_at) // Only unpaid debts
+                  .reduce((acc, d) => {
+                    if (d.currency === 'MULTI') {
+                      const remainingUSD = Math.max(0, (d.usd_amount || 0) - (d.payment_usd_amount || 0));
+                      const remainingIQD = Math.max(0, (d.iqd_amount || 0) - (d.payment_iqd_amount || 0));
+                      
+                      // Only add if there's actually remaining debt
+                      if (remainingUSD > 0 || remainingIQD > 0) {
+                        acc.usd += remainingUSD;
+                        acc.iqd += remainingIQD;
+                      }
+                    } else if (d.currency === 'USD') {
+                      const remaining = Math.max(0, (d.amount || 0) - (d.payment_usd_amount || 0));
+                      if (remaining > 0) {
+                        acc.usd += remaining;
+                      }
+                    } else {
+                      const remaining = Math.max(0, (d.amount || 0) - (d.payment_iqd_amount || 0));
+                      if (remaining > 0) {
+                        acc.iqd += remaining;
+                      }
+                    }
+                    return acc;
+                  }, { usd: 0, iqd: 0 });
+                
+                // Calculate unpaid debts for this company
                 const unpaidDebts = sortedCompanyDebts.filter(d => !d.paid_at);
-                const totalUnpaidForCompany = unpaidDebts.reduce((acc, d) => {
-                  if (d.currency === 'MULTI') {
-                    const remainingUSD = (d.usd_amount || 0) - (d.payment_usd_amount || 0);
-                    const remainingIQD = (d.iqd_amount || 0) - (d.payment_iqd_amount || 0);
-                    acc.usd += remainingUSD;
-                    acc.iqd += remainingIQD;
-                  } else if (d.currency === 'USD') {
-                    const remaining = (d.amount || 0) - (d.payment_usd_amount || 0);
-                    acc.usd += remaining;
-                  } else {
-                    const remaining = (d.amount || 0) - (d.payment_iqd_amount || 0);
-                    acc.iqd += remaining;
-                  }
-                  return acc;
-                }, { usd: 0, iqd: 0 });
                 
                 return (
                   <div key={companyName} className="bg-gray-50 dark:bg-gray-700 rounded-xl shadow-lg overflow-hidden mb-6">
@@ -344,21 +390,22 @@ const CompanyDebtsSection = ({
                                     {t.remaining || 'Remaining'}: 
                                     {(() => {
                                       if (debt.currency === 'MULTI') {
-                                        const remainingUSD = (debt.usd_amount || 0) - (debt.payment_usd_amount || 0);
-                                        const remainingIQD = (debt.iqd_amount || 0) - (debt.payment_iqd_amount || 0);
+                                        const remainingUSD = Math.max(0, (debt.usd_amount || 0) - (debt.payment_usd_amount || 0));
+                                        const remainingIQD = Math.max(0, (debt.iqd_amount || 0) - (debt.payment_iqd_amount || 0));
                                         return (
                                           <>
                                             {remainingUSD > 0 && ` ${formatCurrency(remainingUSD, 'USD')}`}
                                             {remainingUSD > 0 && remainingIQD > 0 && ' + '}
                                             {remainingIQD > 0 && ` ${formatCurrency(remainingIQD, 'IQD')}`}
+                                            {remainingUSD === 0 && remainingIQD === 0 && ' Fully Paid'}
                                           </>
                                         );
                                       } else if (debt.currency === 'USD') {
-                                        const remaining = (debt.amount || 0) - (debt.payment_usd_amount || 0);
-                                        return remaining > 0 ? ` ${formatCurrency(remaining, 'USD')}` : '';
+                                        const remaining = Math.max(0, (debt.amount || 0) - (debt.payment_usd_amount || 0));
+                                        return remaining > 0 ? ` ${formatCurrency(remaining, 'USD')}` : ' Fully Paid';
                                       } else {
-                                        const remaining = (debt.amount || 0) - (debt.payment_iqd_amount || 0);
-                                        return remaining > 0 ? ` ${formatCurrency(remaining, 'IQD')}` : '';
+                                        const remaining = Math.max(0, (debt.amount || 0) - (debt.payment_iqd_amount || 0));
+                                        return remaining > 0 ? ` ${formatCurrency(remaining, 'IQD')}` : ' Fully Paid';
                                       }
                                     })()}
                                   </div>

@@ -47,7 +47,14 @@ export default function ProductsSection({ t, admin, handleEditProduct, handleArc
     <div className="w-full h-full p-8 space-y-8">
       {/* Quick Add Form */}
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8">
-        <QuickAddProduct t={t} onAdd={admin.handleAddProduct} loading={loading} onToast={admin.setToast} showConfirm={admin.showConfirm} />
+        <QuickAddProduct 
+          t={t} 
+          onAdd={admin.handleAddProduct} 
+          loading={loading} 
+          onToast={admin.setToast} 
+          showConfirm={admin.showConfirm}
+          admin={admin}
+        />
       </div>
       
       {/* Search and Filter Controls */}

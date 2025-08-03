@@ -66,6 +66,8 @@ export default function Cashier() {
   const { 
     products: allProducts, 
     accessories: allAccessories, 
+    debts,
+    debtSales,
     apiReady,
     refreshDebts, 
     refreshDebtSales,
@@ -127,7 +129,7 @@ export default function Cashier() {
 
   // Load exchange rates from database on mount
   useEffect(() => {
-    loadExchangeRatesFromDB().catch(console.error);
+    loadExchangeRatesFromDB().catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -437,6 +439,8 @@ export default function Cashier() {
         setMultiCurrency={setMultiCurrency}
         refreshProducts={refreshProducts}
         refreshAccessories={refreshAccessories}
+        debts={debts}
+        debtSales={debtSales}
       />
       
       {/* Toast */}

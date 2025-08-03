@@ -21,7 +21,7 @@ let currentExchangeRates = {
 export const loadExchangeRatesFromDB = async () => {
   try {
     if (!window.api?.getExchangeRate) {
-      console.warn('⚠️ Exchange rate API not available');
+      // Exchange rate API not available - fail silently
       return false;
     }
 
@@ -41,11 +41,11 @@ export const loadExchangeRatesFromDB = async () => {
       
       return true;
     } else {
-      console.warn('⚠️ No valid exchange rate in DB - rates must be set manually');
+      // No valid exchange rate in DB - fail silently
       return false;
     }
   } catch (error) {
-    console.error('❌ Failed to load exchange rates:', error);
+    // Failed to load exchange rates - fail silently
     return false;
   }
 };
@@ -73,7 +73,7 @@ export const getCurrentExchangeRate = (fromCurrency, toCurrency) => {
 export const saveExchangeRate = async (usdToIqd) => {
   try {
     if (!window.api?.setExchangeRate) {
-      console.error('❌ Exchange rate save API not available');
+      // Exchange rate save API not available - fail silently
       return false;
     }
 
@@ -89,7 +89,7 @@ export const saveExchangeRate = async (usdToIqd) => {
     
     return true;
   } catch (error) {
-    console.error('❌ Failed to save exchange rate:', error);
+    // Failed to save exchange rate - fail silently
     return false;
   }
 };
@@ -111,39 +111,64 @@ export const convertCurrency = (amount, fromCurrency, toCurrency) => {
   return amount; // fallback
 };
 
-export const formatCurrency = (amount, currency, hideZeroDecimals = true) => {
+/**
+ * Intelligently rounds amounts based on value and currency
+ * For amounts < 0.1, rounds to nearest whole number
+ */
+const intelligentRound = (amount, currency) => {
   const numAmount = Number(amount || 0);
   
   if (currency === 'IQD') {
-    // IQD should never show decimals
-    const rounded = Math.round(numAmount);
-    return `د.ع${rounded.toLocaleString()}`;
+    // IQD should always be whole numbers
+    return Math.round(numAmount);
   }
   
-  // For USD: show 2 decimals, but remove .00 for whole numbers if hideZeroDecimals is true
-  if (hideZeroDecimals) {
-    const formatted = numAmount.toFixed(2);
-    const cleanFormatted = formatted.endsWith('.00') ? formatted.slice(0, -3) : formatted;
-    return `$${cleanFormatted}`;
+  // For USD: if less than 0.1, round to nearest whole number
+  if (Math.abs(numAmount) < 0.1) {
+    return Math.round(numAmount);
+  }
+  
+  // Otherwise, round to 2 decimal places but limit to max 2 decimals
+  return Math.round(numAmount * 100) / 100;
+};
+
+export const formatCurrency = (amount, currency, hideZeroDecimals = true) => {
+  const numAmount = intelligentRound(amount, currency);
+  
+  if (currency === 'IQD') {
+    // IQD should never show decimals
+    return `د.ع${Math.round(numAmount).toLocaleString()}`;
+  }
+  
+  // For USD: determine decimal places
+  const isWholeNumber = numAmount === Math.floor(numAmount);
+  
+  if (isWholeNumber || hideZeroDecimals) {
+    return `$${Math.floor(numAmount).toLocaleString()}`;
   } else {
-    const formatted = numAmount.toFixed(2);
+    // Show 1-2 decimal places max, remove trailing zeros
+    const formatted = numAmount.toFixed(2).replace(/\.?0+$/, '');
     return `$${formatted}`;
   }
 };
 
 // New function that uses translations
 export const formatCurrencyWithTranslation = (amount, currency, t) => {
-  const numAmount = Number(amount || 0);
+  const numAmount = intelligentRound(amount, currency);
   
   if (currency === 'IQD') {
-    const rounded = Math.round(numAmount);
-    return `د.ع${rounded.toLocaleString()}`;
+    return `د.ع${Math.round(numAmount).toLocaleString()}`;
   }
   
-  // For USD: show 2 decimals, but remove .00 for whole numbers
-  const formatted = numAmount.toFixed(2);
-  const cleanFormatted = formatted.endsWith('.00') ? formatted.slice(0, -3) : formatted;
-  return `$${cleanFormatted}`;
+  // For USD: show clean formatting
+  const isWholeNumber = numAmount === Math.floor(numAmount);
+  if (isWholeNumber) {
+    return `$${Math.floor(numAmount).toLocaleString()}`;
+  } else {
+    // Show 1-2 decimal places max, remove trailing zeros
+    const formatted = numAmount.toFixed(2).replace(/\.?0+$/, '');
+    return `$${formatted}`;
+  }
 };
 
 // Round IQD amounts to nearest 250 (smallest bill denomination)

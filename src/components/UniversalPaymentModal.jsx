@@ -56,23 +56,23 @@ const UniversalPaymentModal = ({
       let remainingIQD = 0;
       
       if (debtData.currency === 'MULTI') {
-        remainingUSD = (debtData.usd_amount || 0) - (debtData.payment_usd_amount || 0);
-        remainingIQD = (debtData.iqd_amount || 0) - (debtData.payment_iqd_amount || 0);
+        remainingUSD = Math.max(0, (debtData.usd_amount || 0) - (debtData.payment_usd_amount || 0));
+        remainingIQD = Math.max(0, (debtData.iqd_amount || 0) - (debtData.payment_iqd_amount || 0));
       } else if (debtData.currency === 'USD') {
-        remainingUSD = (debtData.amount || 0) - (debtData.payment_usd_amount || 0);
+        remainingUSD = Math.max(0, (debtData.amount || 0) - (debtData.payment_usd_amount || 0));
         remainingIQD = 0;
       } else {
         // IQD or unknown currency
         remainingUSD = 0;
-        remainingIQD = (debtData.amount || 0) - (debtData.payment_iqd_amount || 0);
+        remainingIQD = Math.max(0, (debtData.amount || 0) - (debtData.payment_iqd_amount || 0));
       }
       
       // Convert to USD equivalent for consistent calculation
       return remainingUSD + (remainingIQD / EXCHANGE_RATES.USD_TO_IQD);
     } else if (paymentType === 'personal') {
       // For personal loans, calculate remaining amount
-      const remainingUSD = (debtData.usd_amount || 0) - (debtData.payment_usd_amount || 0);
-      const remainingIQD = (debtData.iqd_amount || 0) - (debtData.payment_iqd_amount || 0);
+      const remainingUSD = Math.max(0, (debtData.usd_amount || 0) - (debtData.payment_usd_amount || 0));
+      const remainingIQD = Math.max(0, (debtData.iqd_amount || 0) - (debtData.payment_iqd_amount || 0));
       return remainingUSD + (remainingIQD / EXCHANGE_RATES.USD_TO_IQD);
     }
     return 0;
@@ -266,6 +266,9 @@ const UniversalPaymentModal = ({
         const paymentTypeText = isFullPayment ? (t?.fullPayment || 'Full payment') : (t?.partialPayment || 'Partial payment');
         
         admin.setToast?.(`${paymentTypeText} received: ${amounts.join(' + ')}`, 'success');
+        
+        // Force a small delay to ensure database write is complete before triggering callbacks
+        await new Promise(resolve => setTimeout(resolve, 100));
         
         if (onPaymentComplete) {
           await onPaymentComplete();

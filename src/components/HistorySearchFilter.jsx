@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useLocale } from '../contexts/LocaleContext';
 import { Icon } from '../utils/icons';
 
-// Helper function to format totals without forcing decimal places
+// Helper function to format totals with consistent rounding rules
 const formatTotal = (amount, currency) => {
   const numAmount = Number(amount || 0);
   
@@ -11,13 +11,23 @@ const formatTotal = (amount, currency) => {
     return `د.ع${Math.round(numAmount).toLocaleString()}`;
   }
   
-  // For USD: show decimals only if needed
-  if (numAmount % 1 === 0) {
-    // Whole number, no decimals
-    return `$${numAmount.toLocaleString()}`;
+  // For USD: apply intelligent rounding
+  let finalAmount = numAmount;
+  
+  // If less than 0.1, round to nearest whole number
+  if (Math.abs(numAmount) < 0.1) {
+    finalAmount = Math.round(numAmount);
   } else {
-    // Has decimals, show 2 decimal places
-    return `$${numAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    // Round to 2 decimal places max
+    finalAmount = Math.round(numAmount * 100) / 100;
+  }
+  
+  // Format with 1-2 decimals max, remove trailing zeros
+  if (finalAmount % 1 === 0) {
+    return `$${Math.floor(finalAmount).toLocaleString()}`;
+  } else {
+    const formatted = finalAmount.toFixed(2).replace(/\.?0+$/, '');
+    return `$${formatted}`;
   }
 };
 

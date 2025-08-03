@@ -408,6 +408,33 @@ function runMigrations(db) {
     console.warn('Customer debts migration warning:', e.message);
   }
 
+  // Migrate accessories table to add created_at and updated_at columns
+  try {
+    const accessoriesTableInfo = db.prepare("PRAGMA table_info(accessories)").all();
+    const hasCreatedAt = accessoriesTableInfo.some(col => col.name === 'created_at');
+    const hasUpdatedAt = accessoriesTableInfo.some(col => col.name === 'updated_at');
+
+    if (!hasCreatedAt) {
+      console.log('Adding created_at column to accessories table...');
+      db.prepare('ALTER TABLE accessories ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP').run();
+      console.log('✅ created_at column added to accessories table');
+      
+      // Update existing accessories with current timestamp
+      db.prepare('UPDATE accessories SET created_at = CURRENT_TIMESTAMP WHERE created_at IS NULL').run();
+    }
+    
+    if (!hasUpdatedAt) {
+      console.log('Adding updated_at column to accessories table...');
+      db.prepare('ALTER TABLE accessories ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP').run();
+      console.log('✅ updated_at column added to accessories table');
+      
+      // Update existing accessories with current timestamp
+      db.prepare('UPDATE accessories SET updated_at = CURRENT_TIMESTAMP WHERE updated_at IS NULL').run();
+    }
+  } catch (e) {
+    console.warn('Accessories migration warning:', e.message);
+  }
+
   // Migrate buying_history table to support has_items column
   try {
     const buyingHistoryTableInfo = db.prepare("PRAGMA table_info(buying_history)").all();

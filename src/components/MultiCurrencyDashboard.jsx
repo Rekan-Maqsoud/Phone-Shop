@@ -10,6 +10,7 @@ import {
   Tooltip,
   Legend,
   ArcElement,
+  Filler,
 } from 'chart.js';
 import { Line, Doughnut } from 'react-chartjs-2';
 
@@ -33,7 +34,8 @@ ChartJS.register(
   Title,
   Tooltip,
   Legend,
-  ArcElement
+  ArcElement,
+  Filler
 );
 
 function MultiCurrencyDashboard({ admin, t, onRefresh }) {
@@ -214,27 +216,71 @@ function MultiCurrencyDashboard({ admin, t, onRefresh }) {
     const weekIQDSales = calculateRevenueByCurrency(thisWeeksSales, 'IQD');
 
     // Outstanding debts by currency (customer debts)
-    // Use debtSales to get all debt sales, then check if they're paid via debts table
-    const unpaidDebtSalesUSD = [];
-    const unpaidDebtSalesIQD = [];
+    // Use debtSales to get all debt sales, then calculate remaining amounts after partial payments
+    const calculateRemainingDebtAmount = (sale, debt) => {
+      if (!debt) {
+        // No debt record means full amount is owed
+        return {
+          amount: sale.total,
+          currency: sale.currency || 'USD'
+        };
+      }
+
+      if (debt.paid_at) {
+        // Fully paid
+        return {
+          amount: 0,
+          currency: sale.currency || 'USD'
+        };
+      }
+
+      // Calculate remaining amount after partial payments with currency conversion
+      const originalTotal = sale.total;
+      const currency = sale.currency || 'USD';
+      const currentUSDToIQD = 1440; // Exchange rate
+      
+      if (currency === 'USD') {
+        // For USD debts, convert all payments to USD equivalent
+        const paidUSD = debt.payment_usd_amount || 0;
+        const paidIQD = debt.payment_iqd_amount || 0;
+        const totalPaidUSDEquivalent = paidUSD + (paidIQD / currentUSDToIQD);
+        
+        return {
+          amount: Math.max(0, originalTotal - totalPaidUSDEquivalent),
+          currency: 'USD'
+        };
+      } else {
+        // For IQD debts, convert all payments to IQD equivalent
+        const paidUSD = debt.payment_usd_amount || 0;
+        const paidIQD = debt.payment_iqd_amount || 0;
+        const totalPaidIQDEquivalent = paidIQD + (paidUSD * currentUSDToIQD);
+        
+        return {
+          amount: Math.max(0, originalTotal - totalPaidIQDEquivalent),
+          currency: 'IQD'
+        };
+      }
+    };
+    
+    let unpaidUSDDebts = 0;
+    let unpaidIQDDebts = 0;
+    let unpaidCustomerDebtCount = 0;
     
     (sales || []).forEach(sale => {
       if (sale.is_debt) {
         const debt = (debts || []).find(d => d.sale_id === sale.id);
-        const isPaid = debt && (debt.paid_at || debt.paid);
+        const remaining = calculateRemainingDebtAmount(sale, debt);
         
-        if (!isPaid) {
-          if (sale.currency === 'USD') {
-            unpaidDebtSalesUSD.push(sale);
-          } else if (sale.currency === 'IQD') {
-            unpaidDebtSalesIQD.push(sale);
+        if (remaining.amount > 0) {
+          unpaidCustomerDebtCount++;
+          if (remaining.currency === 'USD') {
+            unpaidUSDDebts += remaining.amount;
+          } else if (remaining.currency === 'IQD') {
+            unpaidIQDDebts += remaining.amount;
           }
         }
       }
     });
-    
-    const unpaidUSDDebts = unpaidDebtSalesUSD.reduce((sum, sale) => sum + (sale.total || 0), 0);
-    const unpaidIQDDebts = unpaidDebtSalesIQD.reduce((sum, sale) => sum + (sale.total || 0), 0);
 
     // Outstanding company debts by currency - account for partial payments and 250 IQD threshold
     const unpaidCompanyDebts = (companyDebts || []).filter(debt => !debt.paid_at);
@@ -544,7 +590,7 @@ function MultiCurrencyDashboard({ admin, t, onRefresh }) {
       todaysReturnsUSD, // Add return amounts for display
       todaysReturnsIQD, // Add return amounts for display
       totalTransactions: todaysNonDebtSales.length,
-      totalDebtCount: unpaidDebtSalesUSD.length + unpaidDebtSalesIQD.length + unpaidCompanyDebts.length,
+      totalDebtCount: unpaidCustomerDebtCount + unpaidCompanyDebts.length,
       totalLoanCount: unpaidLoans.length,
       unpaidCompanyUSDDebts,
       unpaidCompanyIQDDebts,

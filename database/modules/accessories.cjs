@@ -9,25 +9,70 @@ function getAllAccessories(db) {
 }
 
 function addAccessory(db, { name, buying_price, stock, archived = 0, brand, model, type, currency = 'IQD' }) {
-  // Check if accessory with same name, brand, model, and currency already exists
-  const existingAccessory = db.prepare('SELECT * FROM accessories WHERE name = ? AND brand = ? AND model = ? AND currency = ? AND archived = 0')
-    .get(name, brand || null, model || null, currency);
+  console.log('🔍 [accessories.cjs] addAccessory called with:', { name, brand, model, type, currency, buying_price, stock });
   
-  if (existingAccessory) {
-    // Calculate new average buying price
-    const currentStock = existingAccessory.stock;
-    const currentBuyingPrice = existingAccessory.buying_price;
+  // Normalize values for consistent comparison
+  const normalizedName = (name || '').toString().trim();
+  const normalizedBrand = (brand || '').toString().trim();
+  const normalizedModel = (model || '').toString().trim();
+  const normalizedType = (type || '').toString().trim();
+  const normalizedCurrency = (currency || 'IQD').toString().trim();
+  
+  // Check if accessory with same specifications already exists
+  const existingAccessory = db.prepare(`
+    SELECT * FROM accessories 
+    WHERE LOWER(TRIM(COALESCE(name, ''))) = LOWER(?) 
+    AND LOWER(TRIM(COALESCE(brand, ''))) = LOWER(?) 
+    AND LOWER(TRIM(COALESCE(model, ''))) = LOWER(?) 
+    AND LOWER(TRIM(COALESCE(type, ''))) = LOWER(?) 
+    AND LOWER(TRIM(COALESCE(currency, 'IQD'))) = LOWER(?) 
+    AND archived = 0
+  `).get(
+    normalizedName, 
+    normalizedBrand, 
+    normalizedModel, 
+    normalizedType, 
+    normalizedCurrency
+  );
+  
+  console.log('🔍 [accessories.cjs] Existing accessory search result:', existingAccessory);
+  
+  if (existingAccessory && existingAccessory.id) {
+    console.log('🔄 [accessories.cjs] Merging with existing accessory ID:', existingAccessory.id);
+    
+    // Calculate new weighted average buying price
+    const currentStock = Number(existingAccessory.stock) || 0;
+    const currentBuyingPrice = Number(existingAccessory.buying_price) || 0;
     const newStock = Number(stock) || 0;
     const newBuyingPrice = Number(buying_price) || 0;
     
     const totalStock = currentStock + newStock;
-    const averageBuyingPrice = totalStock > 0 ? 
-      Math.round(((currentBuyingPrice * currentStock) + (newBuyingPrice * newStock)) / totalStock) : 
-      newBuyingPrice;
+    let averageBuyingPrice;
+    
+    if (totalStock > 0) {
+      averageBuyingPrice = ((currentBuyingPrice * currentStock) + (newBuyingPrice * newStock)) / totalStock;
+      // Round appropriately based on currency
+      if (normalizedCurrency.toUpperCase() === 'USD') {
+        averageBuyingPrice = Math.round(averageBuyingPrice * 100) / 100; // 2 decimal places for USD
+      } else {
+        averageBuyingPrice = Math.round(averageBuyingPrice); // Whole numbers for IQD
+      }
+    } else {
+      averageBuyingPrice = newBuyingPrice;
+    }
+    
+    console.log('🔢 [accessories.cjs] Price calculation:', {
+      currentStock,
+      currentBuyingPrice,
+      newStock,
+      newBuyingPrice,
+      totalStock,
+      averageBuyingPrice
+    });
     
     // Update existing accessory with new stock and average buying price
-    const result = db.prepare('UPDATE accessories SET buying_price=?, stock=stock+?, type=?, currency=? WHERE id=?')
-      .run(averageBuyingPrice, newStock, type || existingAccessory.type, currency, existingAccessory.id);
+    const result = db.prepare('UPDATE accessories SET buying_price=?, stock=?, updated_at=CURRENT_TIMESTAMP WHERE id=?')
+      .run(averageBuyingPrice, totalStock, existingAccessory.id);
     
     // Verify the accessory has a valid ID after update
     const updatedAccessory = db.prepare('SELECT id FROM accessories WHERE id = ?').get(existingAccessory.id);
@@ -36,11 +81,14 @@ function addAccessory(db, { name, buying_price, stock, archived = 0, brand, mode
       repairNullIds(db);
     }
     
-    return result;
+    console.log('✅ [accessories.cjs] Accessory merged successfully:', { id: existingAccessory.id, newStock: totalStock, newPrice: averageBuyingPrice });
+    return { ...result, merged: true, accessoryId: existingAccessory.id };
   } else {
+    console.log('➕ [accessories.cjs] Creating new accessory');
+    
     // Create new accessory
-    const result = db.prepare('INSERT INTO accessories (name, buying_price, stock, archived, brand, model, type, currency) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(name, buying_price, stock, archived, brand || null, model || null, type || null, currency);
+    const result = db.prepare('INSERT INTO accessories (name, buying_price, stock, archived, brand, model, type, currency, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)')
+      .run(normalizedName, buying_price, stock, archived, normalizedBrand || null, normalizedModel || null, normalizedType || null, normalizedCurrency);
     
     // Verify the new accessory has a valid ID
     const newAccessory = db.prepare('SELECT id FROM accessories WHERE rowid = ?').get(result.lastInsertRowid);
@@ -49,7 +97,9 @@ function addAccessory(db, { name, buying_price, stock, archived = 0, brand, mode
       repairNullIds(db);
     }
     
-    return result;
+    const newAccessoryId = result.lastInsertRowid;
+    console.log('✅ [accessories.cjs] New accessory created:', { id: newAccessoryId });
+    return { ...result, merged: false, accessoryId: newAccessoryId };
   }
 }
 

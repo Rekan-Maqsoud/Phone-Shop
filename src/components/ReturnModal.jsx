@@ -3,6 +3,35 @@ import { getCurrentExchangeRate, formatCurrency, loadExchangeRatesFromDB } from 
 import { Icon } from '../utils/icons.jsx';
 import ModalBase from './ModalBase';
 
+// Local currency formatting helper for ReturnModal with consistent rounding
+const formatReturnCurrency = (amount, currency) => {
+  const numAmount = Number(amount || 0);
+  
+  if (currency === 'IQD') {
+    // IQD should never show decimals
+    return `د.ع${Math.round(numAmount).toLocaleString()}`;
+  }
+  
+  // For USD: apply intelligent rounding
+  let finalAmount = numAmount;
+  
+  // If less than 0.1, round to nearest whole number
+  if (Math.abs(numAmount) < 0.1) {
+    finalAmount = Math.round(numAmount);
+  } else {
+    // Round to 2 decimal places max
+    finalAmount = Math.round(numAmount * 100) / 100;
+  }
+  
+  // Format with 1-2 decimals max, remove trailing zeros
+  if (finalAmount % 1 === 0) {
+    return `$${Math.floor(finalAmount)}`;
+  } else {
+    const formatted = finalAmount.toFixed(2).replace(/\.?0+$/, '');
+    return `$${formatted}`;
+  }
+};
+
 const ReturnModal = ({ 
   show, 
   onClose, 
@@ -408,14 +437,14 @@ const ReturnModal = ({
                 <span className="ml-2 font-medium text-gray-900 dark:text-white">
                   {maxReturnAmounts.originalCurrency === 'MULTI' ? (
                     <>
-                      {maxReturnAmounts.usd > 0 && `$${maxReturnAmounts.usd.toFixed(2)}`}
+                      {maxReturnAmounts.usd > 0 && formatReturnCurrency(maxReturnAmounts.usd, 'USD')}
                       {maxReturnAmounts.usd > 0 && maxReturnAmounts.iqd > 0 && ' + '}
-                      {maxReturnAmounts.iqd > 0 && `د.ع${maxReturnAmounts.iqd.toFixed(0)}`}
+                      {maxReturnAmounts.iqd > 0 && formatReturnCurrency(maxReturnAmounts.iqd, 'IQD')}
                     </>
                   ) : maxReturnAmounts.originalCurrency === 'USD' ? (
-                    `$${maxReturnAmounts.usd.toFixed(2)}`
+                    formatReturnCurrency(maxReturnAmounts.usd, 'USD')
                   ) : (
-                    `د.ع${maxReturnAmounts.iqd.toFixed(0)}`
+                    formatReturnCurrency(maxReturnAmounts.iqd, 'IQD')
                   )}
                 </span>
               </div>
@@ -456,7 +485,7 @@ const ReturnModal = ({
                 <div className="flex justify-between">
                   <span className="text-blue-700 dark:text-blue-300">USD:</span>
                   <span className="font-medium text-blue-900 dark:text-blue-100">
-                    ${maxReturnAmounts.usd.toFixed(2)}
+                    {formatReturnCurrency(maxReturnAmounts.usd, 'USD')}
                   </span>
                 </div>
               )}
@@ -464,7 +493,7 @@ const ReturnModal = ({
                 <div className="flex justify-between">
                   <span className="text-blue-700 dark:text-blue-300">IQD:</span>
                   <span className="font-medium text-blue-900 dark:text-blue-100">
-                    د.ع{maxReturnAmounts.iqd.toFixed(0)}
+                    {formatReturnCurrency(maxReturnAmounts.iqd, 'IQD')}
                   </span>
                 </div>
               )}
@@ -472,7 +501,7 @@ const ReturnModal = ({
                 <div className="flex justify-between">
                   <span className="text-blue-700 dark:text-blue-300">{t?.totalValue || 'Total Value'}:</span>
                   <span className="font-medium text-blue-900 dark:text-blue-100">
-                    ${maxReturnAmounts.totalValueUSD.toFixed(2)} USD
+                    {formatReturnCurrency(maxReturnAmounts.totalValueUSD, 'USD')} USD
                   </span>
                 </div>
               </div>
@@ -497,7 +526,7 @@ const ReturnModal = ({
                 <span className="ml-3 text-sm text-gray-700 dark:text-gray-300">
                   {t?.allInUSD || 'All in USD'} 
                   <span className="text-gray-500 ml-1">
-                    (${maxReturnAmounts.totalValueUSD.toFixed(2)})
+                    ({formatReturnCurrency(maxReturnAmounts.totalValueUSD, 'USD')})
                   </span>
                 </span>
               </label>
@@ -517,7 +546,7 @@ const ReturnModal = ({
                     (د.ع{(() => {
                       const entry = returnData?.entry;
                       const rate = entry?.exchange_rate_usd_to_iqd || getCurrentExchangeRate('USD', 'IQD');
-                      return (maxReturnAmounts.totalValueUSD * rate).toFixed(0);
+                      return Math.round(maxReturnAmounts.totalValueUSD * rate).toLocaleString();
                     })()})
                   </span>
                 </span>
@@ -557,7 +586,7 @@ const ReturnModal = ({
                   step="0.01"
                   value={usdAmount}
                   onChange={(e) => setUsdAmount(e.target.value)}
-                  placeholder={`Max: $${maxReturnAmounts.usd.toFixed(2)}`}
+                  placeholder={`Max: ${formatReturnCurrency(maxReturnAmounts.usd, 'USD')}`}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
                 />
               </div>
@@ -573,7 +602,7 @@ const ReturnModal = ({
                   step="1"
                   value={iqdAmount}
                   onChange={(e) => setIqdAmount(e.target.value)}
-                  placeholder={`Max: د.ع${maxReturnAmounts.iqd.toFixed(0)}`}
+                  placeholder={`Max: ${formatReturnCurrency(maxReturnAmounts.iqd, 'IQD')}`}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
                 />
               </div>
@@ -590,7 +619,7 @@ const ReturnModal = ({
                 <div className="flex justify-between">
                   <span className="text-green-700 dark:text-green-300">USD:</span>
                   <span className="font-medium text-green-900 dark:text-green-100">
-                    ${currentReturnAmounts.usd.toFixed(2)}
+                    {formatReturnCurrency(currentReturnAmounts.usd, 'USD')}
                   </span>
                 </div>
               )}
@@ -598,7 +627,7 @@ const ReturnModal = ({
                 <div className="flex justify-between">
                   <span className="text-green-700 dark:text-green-300">IQD:</span>
                   <span className="font-medium text-green-900 dark:text-green-100">
-                    د.ع{currentReturnAmounts.iqd.toFixed(0)}
+                    {formatReturnCurrency(currentReturnAmounts.iqd, 'IQD')}
                   </span>
                 </div>
               )}
@@ -606,7 +635,7 @@ const ReturnModal = ({
                 <div className="flex justify-between">
                   <span className="text-green-700 dark:text-green-300">{t?.totalValue || 'Total Value'}:</span>
                   <span className="font-medium text-green-900 dark:text-green-100">
-                    ${currentReturnAmounts.totalValueUSD.toFixed(2)} USD
+                    {formatReturnCurrency(currentReturnAmounts.totalValueUSD, 'USD')} USD
                   </span>
                 </div>
               </div>

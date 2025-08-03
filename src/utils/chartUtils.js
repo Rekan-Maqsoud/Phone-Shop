@@ -2,27 +2,48 @@
 import { EXCHANGE_RATES } from './exchangeRates';
 
 /**
+ * Intelligently rounds amounts based on value and currency
+ * For amounts < 0.1, rounds to nearest whole number
+ */
+const intelligentRound = (amount, currency) => {
+  const numAmount = Number(amount || 0);
+  
+  if (currency === 'IQD') {
+    // IQD should always be whole numbers
+    return Math.round(numAmount);
+  }
+  
+  // For USD: if less than 0.1, round to nearest whole number
+  if (Math.abs(numAmount) < 0.1) {
+    return Math.round(numAmount);
+  }
+  
+  // Otherwise, round to 2 decimal places but limit to max 2 decimals
+  return Math.round(numAmount * 100) / 100;
+};
+
+/**
  * Format currency with proper decimals and localization
  * @param {number} amount - The amount to format
  * @param {string} currency - The currency type ('USD' or 'IQD')
  * @returns {string} Formatted currency string
  */
 export const formatCurrency = (amount, currency = 'USD') => {
+  const numAmount = intelligentRound(amount, currency);
+  
   if (currency === 'IQD') {
     // IQD always shows as whole numbers (no decimals ever)
-    return `${Math.round(amount).toLocaleString()} د.ع`;
+    return `${Math.round(numAmount).toLocaleString()} د.ع`;
   }
   
-  // For USD: Show whole numbers when possible, otherwise show minimal decimals
-  const numAmount = Number(amount);
-  if (numAmount === Math.floor(numAmount)) {
-    // It's a whole number, show without decimals
+  // For USD: Show whole numbers when possible, otherwise show 1-2 decimals max
+  const isWholeNumber = numAmount === Math.floor(numAmount);
+  if (isWholeNumber) {
     return `${Math.floor(numAmount).toLocaleString()} USD`;
   } else {
-    // It has decimals, format with minimal decimal places
-    const formatted = numAmount.toFixed(2);
-    const cleanFormatted = formatted.replace(/\.?0+$/, '');
-    return `${cleanFormatted} USD`;
+    // Show 1-2 decimal places max, remove trailing zeros
+    const formatted = numAmount.toFixed(2).replace(/\.?0+$/, '');
+    return `${formatted} USD`;
   }
 };
 

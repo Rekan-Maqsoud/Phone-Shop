@@ -14,14 +14,14 @@ const cloudBackupService = new CloudBackupService();
 // Initialize auto backup settings
 async function initializeAutoBackup() {
   try {
-    // Check if auto backup is enabled in settings (default to true)
+    // Check if auto backup is enabled in settings (default to false to prevent auth errors)
     const autoBackupEnabled = await settings.get('autoBackup');
-    const enabled = autoBackupEnabled !== undefined ? autoBackupEnabled : true;
+    const enabled = autoBackupEnabled === true; // Only enable if explicitly set to true
     cloudBackupService.setAutoBackup(enabled);
   } catch (error) {
     console.error('[Main] Failed to initialize auto backup:', error);
-    // Default to enabled if error
-    cloudBackupService.setAutoBackup(true);
+    // Default to disabled if error to prevent spam
+    cloudBackupService.setAutoBackup(false);
   }
 }
 
@@ -261,11 +261,9 @@ ipcMain.handle('getProducts', async () => {
       const products = db.getProducts();
       return products || [];
     } else {
-      console.error('❌ Database or getProducts function not available');
       return [];
     }
   } catch (e) {
-    console.error('❌ getProducts error:', e);
     return [];
   }
 });
@@ -708,14 +706,18 @@ ipcMain.handle('saveSale', async (event, sale) => {
 // Auto backup after data changes using new cloud backup system
 async function autoBackupAfterChange(operationType = 'unknown') {
   try {
-    if (cloudBackupService) {
+    if (cloudBackupService && cloudBackupService.isAuthenticated) {
       const dbPath = getDatabasePath();
       // Don't await - let backup run in background
       cloudBackupService.autoBackup(dbPath).catch(error => {
-        console.error('Background backup failed:', error);
+        // Silently fail for authentication errors to avoid spam
+        if (!error.message?.includes('authenticated') && !error.message?.includes('401')) {
+          console.error('Background backup failed:', error);
+        }
       });
       return { success: true };
     }
+    return { success: false, message: 'Cloud backup not authenticated' };
   } catch (error) {
     console.error('Auto backup trigger failed:', error);
     return { success: false, error: error.message };

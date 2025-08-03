@@ -1,29 +1,75 @@
 import React, { useState, useMemo } from 'react';
 import { phoneBrands } from './phoneBrands';
 import SearchableSelect from './SearchableSelect';
+import { useSmartSuggestions } from '../utils/smartSuggestions';
 
-export default function QuickAddProduct({ t, onAdd, loading, onToast = null, showConfirm = null }) {
+export default function QuickAddProduct({ t, onAdd, loading, onToast = null, showConfirm = null, admin = null }) {
   const [brand, setBrand] = useState('');
-  const [customBrand, setCustomBrand] = useState('');
   const [model, setModel] = useState('');
-  const [customModel, setCustomModel] = useState('');
   const [ram, setRam] = useState('');
   const [storage, setStorage] = useState('');
   const [buyingPrice, setBuyingPrice] = useState('');
   const [currency, setCurrency] = useState('IQD');
   const [stock, setStock] = useState(1);
 
-  // Memoize options to prevent recreating arrays on every render
-  const brandOptions = useMemo(() => phoneBrands.map(brand => brand.name), []);
-  const ramOptions = useMemo(() => ['2GB', '3GB', '4GB', '6GB', '8GB', '12GB', '16GB', '18GB', '24GB'], []);
-  const storageOptions = useMemo(() => ['32GB', '64GB', '128GB', '256GB', '512GB', '1TB', '2TB'], []);
+  // Get smart suggestions from existing data
+  const { 
+    productBrands, 
+    getProductModelsForBrand, 
+    existingRamOptions, 
+    existingStorageOptions 
+  } = useSmartSuggestions();
 
-  const isOtherBrand = brand === 'Other';
-  const isOtherModel = model === 'Other';
-  const models = !isOtherBrand && brand ? phoneBrands.find(b => b.name === brand)?.models || [] : [];
+  // Combine predefined brands with existing data brands
+  const brandOptions = useMemo(() => {
+    const predefinedBrands = phoneBrands.map(brand => brand.name);
+    const allBrands = [...new Set([...predefinedBrands, ...productBrands])];
+    return allBrands.sort((a, b) => a.localeCompare(b));
+  }, [productBrands]);
+
+  // Combine predefined RAM options with existing data
+  const ramOptions = useMemo(() => {
+    const predefinedRam = ['2GB', '3GB', '4GB', '6GB', '8GB', '12GB', '16GB', '18GB', '24GB', '32GB', '64GB'];
+    const allRam = [...new Set([...predefinedRam, ...existingRamOptions])];
+    return allRam.sort((a, b) => {
+      const aNum = parseInt(a.replace(/[^\d]/g, ''));
+      const bNum = parseInt(b.replace(/[^\d]/g, ''));
+      return aNum - bNum;
+    });
+  }, [existingRamOptions]);
+
+  // Combine predefined storage options with existing data
+  const storageOptions = useMemo(() => {
+    const predefinedStorage = ['32GB', '64GB', '128GB', '256GB', '512GB', '1TB', '2TB'];
+    const allStorage = [...new Set([...predefinedStorage, ...existingStorageOptions])];
+    return allStorage.sort((a, b) => {
+      const aNum = parseInt(a.replace(/[^\d]/g, ''));
+      const bNum = parseInt(b.replace(/[^\d]/g, ''));
+      return aNum - bNum;
+    });
+  }, [existingStorageOptions]);
+
+  // Get models for selected brand - combine predefined and existing data
+  const models = useMemo(() => {
+    if (!brand) return [];
+    
+    // Get predefined models
+    const predefinedModels = phoneBrands.find(b => b.name === brand)?.models || [];
+    
+    // Get existing models from data
+    const existingModels = getProductModelsForBrand(brand);
+    
+    // Combine and deduplicate
+    const allModels = [...new Set([...predefinedModels, ...existingModels])];
+    return allModels.sort((a, b) => a.localeCompare(b));
+  }, [brand, getProductModelsForBrand]);
 
   const handleSubmit = e => {
     e.preventDefault();
+    console.log('🚀 [QuickAddProduct] Form submitted with:', {
+      brand, model, ram, storage, buyingPrice, currency, stock
+    });
+    
     // Ask for confirmation if RAM or Storage is empty
     if (!ram || !storage) {
       const message = t.missingRamStorageConfirm || 'RAM or Storage is empty. Are you sure you want to add this product?';
@@ -34,9 +80,15 @@ export default function QuickAddProduct({ t, onAdd, loading, onToast = null, sho
         });
         return;
       } else {
-        // Use default confirm message since showConfirm isn't available
-        const proceed = confirm(message);
-        if (!proceed) return;
+        // If showConfirm isn't available, use admin.setToast to warn instead
+        console.warn('[QuickAddProduct] showConfirm function not available, using toast warning');
+        if (admin?.setToast) {
+          admin.setToast('Warning: ' + message, 'warning');
+        } else {
+          // Final fallback to confirm
+          const proceed = confirm(message);
+          if (!proceed) return;
+        }
       }
     }
     
@@ -44,26 +96,24 @@ export default function QuickAddProduct({ t, onAdd, loading, onToast = null, sho
   };
   
   const submitProduct = () => {
-    const finalBrand = isOtherBrand ? customBrand : brand;
-    const finalModel = isOtherModel || isOtherBrand ? customModel : model;
-    
-    onAdd({
-      name: finalModel || `${finalBrand} Phone`, // Fallback name if model is empty
+    const productData = {
+      name: model || `${brand} Phone`, // Fallback name if model is empty
       buying_price: buyingPrice ? parseFloat(buyingPrice) : 0,
       stock: stock ? parseInt(stock, 10) : 1,
       ram,
       storage,
-      brand: finalBrand,
-      model: finalModel,
+      brand: brand,
+      model: model,
       currency: currency,
       category: 'phones'
-    });
+    };
+    
+    console.log('📦 [QuickAddProduct] Adding product:', productData);
+    onAdd(productData);
     
     // Reset form
     setBrand(''); 
-    setCustomBrand(''); 
     setModel(''); 
-    setCustomModel(''); 
     setRam(''); 
     setStorage(''); 
     setBuyingPrice('');
@@ -88,63 +138,29 @@ export default function QuickAddProduct({ t, onAdd, loading, onToast = null, sho
               {t.company || 'Brand'} *
             </label>
             <SearchableSelect
-              options={[...brandOptions, 'Other']}
+              options={brandOptions}
               value={brand}
               onChange={(value) => {
                 setBrand(value);
                 setModel('');
-                setCustomBrand('');
               }}
               placeholder={t?.selectBrand || 'Select or type brand...'}
             />
           </div>
           
-          {isOtherBrand ? (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                {t.customBrand || 'Custom Brand'} *
-              </label>
-              <input
-                type="text"
-                value={customBrand}
-                onChange={e => setCustomBrand(e.target.value)}
-                placeholder={t.company}
-                className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white text-gray-900 dark:bg-gray-700 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400"
-                required
-              />
-            </div>
-          ) : (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                {t.model || 'Model'} *
-              </label>
-              <SearchableSelect
-                key={`model_${brand}`} // Force re-render when brand changes
-                options={brand ? [...models, 'Other'] : []}
-                value={model}
-                onChange={(value) => setModel(value)}
-                placeholder={brand ? (t?.selectModel || 'Select or type model...') : (t?.selectBrandFirst || 'Select brand first')}
-              />
-            </div>
-          )}
-        </div>
-
-        {/* Custom model input if needed */}
-        {(isOtherModel || isOtherBrand) && (
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              {t.customModel || 'Custom Model'} *
+              {t.model || 'Model'} *
             </label>
-            <input
-              type="text"
-              value={customModel}
-              onChange={e => setCustomModel(e.target.value)}
-              placeholder={t.model}
-              className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white text-gray-900 dark:bg-gray-700 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400"
-              required
+            <SearchableSelect
+              key={`model_${brand}`} // Force re-render when brand changes
+              options={brand ? models : []}
+              value={model}
+              onChange={(value) => setModel(value)}
+              placeholder={brand ? (t?.selectModel || 'Select or type model...') : (t?.selectBrandFirst || 'Select brand first')}
             />
           </div>
-        )}
+        </div>
 
         {/* Second Row: Specs */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

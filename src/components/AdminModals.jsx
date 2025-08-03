@@ -3,6 +3,7 @@ import { useData } from '../contexts/DataContext';
 import { EXCHANGE_RATES } from '../utils/exchangeRates';
 import SettingsModal from './SettingsModal';
 import ProductModal from './ProductModal';
+import AccessoryModal from './AccessoryModal';
 import SaleDetailsModal from './SaleDetailsModal';
 import BackupManager from './BackupManager';
 import AddPurchaseModal from './AddPurchaseModal';
@@ -52,7 +53,7 @@ export default function AdminModals({
   // Cloud Backup
   triggerCloudBackup
 }) {
-  const { refreshSales, refreshProducts, refreshAccessories, refreshCompanyDebts, refreshBuyingHistory, refreshDebts, refreshDebtSales, refreshTransactions } = useData();
+  const { refreshSales, refreshProducts, refreshAccessories, refreshCompanyDebts, refreshBuyingHistory, refreshDebts, refreshDebtSales, refreshTransactions, refreshAllData } = useData();
   
 
   return (
@@ -80,7 +81,7 @@ export default function AdminModals({
       {/* Product Modal */}
       {typeof ProductModal !== 'undefined' ? (
         <ProductModal
-          key={admin.editProduct?.id || 'new'} // Force re-render when product changes
+          key={`product-${admin.editProduct?.id || 'new'}`} // Force re-render when product changes
           show={admin.showProductModal}
           initialProduct={admin.editProduct}
           onSubmit={admin.editProduct ? admin.handleEditProduct : admin.handleAddProduct}
@@ -94,6 +95,25 @@ export default function AdminModals({
         />
       ) : (
         <div className="text-red-600 font-bold p-4">ProductModal component not found or failed to import.</div>
+      )}
+
+      {/* Accessory Modal */}
+      {typeof AccessoryModal !== 'undefined' ? (
+        <AccessoryModal
+          key={`accessory-${admin.editAccessory?.id || 'new'}`} // Force re-render when accessory changes
+          show={admin.showAccessoryModal}
+          initialAccessory={admin.editAccessory}
+          onSubmit={admin.editAccessory ? admin.handleEditAccessory : admin.handleAddAccessory}
+          onClose={() => {
+            admin.setShowAccessoryModal(false);
+            admin.setEditAccessory(null);
+          }}
+          t={t}
+          loading={loading}
+          onToast={admin.setToast}
+        />
+      ) : (
+        <div className="text-red-600 font-bold p-4">AccessoryModal component not found or failed to import.</div>
       )}
 
       {/* Sale Details Modal */}
@@ -422,9 +442,52 @@ export default function AdminModals({
           debtData={selectedCompanyDebt}
           paymentType="company"
           onPaymentComplete={async () => {
-            await refreshCompanyDebts();
-            await refreshBuyingHistory();
-            await refreshTransactions();
+            // Multiple refresh cycles with increasing delays to ensure database is fully updated
+            try {
+              // Clear the current state first to force a fresh fetch
+              if (admin.setCompanyDebts) {
+                admin.setCompanyDebts([]);
+              }
+              
+              // Initial immediate refresh
+              await refreshCompanyDebts();
+              
+              // Second refresh after short delay
+              await new Promise(resolve => setTimeout(resolve, 200));
+              await refreshCompanyDebts();
+              
+              // Third refresh after longer delay
+              await new Promise(resolve => setTimeout(resolve, 300));
+              await refreshCompanyDebts();
+              
+              // Refresh related data
+              await refreshBuyingHistory();
+              await refreshTransactions();
+              
+              // Also refresh any balance data to ensure UI consistency
+              if (admin.loadBalances) {
+                await admin.loadBalances();
+              }
+              
+              // Trigger full data refresh to ensure everything is in sync
+              await new Promise(resolve => setTimeout(resolve, 100));
+              await refreshAllData();
+            } catch (error) {
+              console.error('Error during data refresh after payment:', error);
+              // Even if refresh fails, still try one more time
+              try {
+                await new Promise(resolve => setTimeout(resolve, 500));
+                await refreshCompanyDebts();
+              } catch (retryError) {
+                console.error('Retry refresh also failed:', retryError);
+              }
+            }
+            
+            // Clear the selected debt to force re-selection with fresh data
+            setSelectedCompanyDebt(null);
+            setShowEnhancedCompanyDebtModal(false);
+            
+            // Trigger cloud backup after successful payment
             triggerCloudBackup();
           }}
           admin={{

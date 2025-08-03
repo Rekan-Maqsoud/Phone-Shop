@@ -5,6 +5,35 @@ import ConfirmModal from './ConfirmModal';
 import ReturnModal from './ReturnModal';
 import { Icon } from '../utils/icons.jsx';
 
+// Currency formatting helper with consistent rounding
+const formatHistoryCurrency = (amount, currency) => {
+  const numAmount = Number(amount || 0);
+  
+  if (currency === 'IQD') {
+    // IQD should never show decimals
+    return `د.ع${Math.round(numAmount).toLocaleString()}`;
+  }
+  
+  // For USD: apply intelligent rounding
+  let finalAmount = numAmount;
+  
+  // If less than 0.1, round to nearest whole number
+  if (Math.abs(numAmount) < 0.1) {
+    finalAmount = Math.round(numAmount);
+  } else {
+    // Round to 2 decimal places max
+    finalAmount = Math.round(numAmount * 100) / 100;
+  }
+  
+  // Format with 1-2 decimals max, remove trailing zeros
+  if (finalAmount % 1 === 0) {
+    return `$${Math.floor(finalAmount)}`;
+  } else {
+    const formatted = finalAmount.toFixed(2).replace(/\.?0+$/, '');
+    return `$${formatted}`;
+  }
+};
+
 // Enhanced table for buying history with item details support - Memoized for performance
 const BuyingHistoryTable = React.memo(function BuyingHistoryTable({ 
   buyingHistory, 
@@ -121,11 +150,10 @@ const BuyingHistoryTable = React.memo(function BuyingHistoryTable({
         // Build refund amount display
         const refundAmounts = [];
         if (result.refundedUSD > 0) {
-          const formatted = result.refundedUSD.toFixed(2);
-          const cleanFormatted = formatted.endsWith('.00') ? formatted.slice(0, -3) : formatted;
-          refundAmounts.push(`$${cleanFormatted}`);
+          const formatted = formatHistoryCurrency(result.refundedUSD, 'USD');
+          refundAmounts.push(formatted.replace('$', '$'));
         }
-        if (result.refundedIQD > 0) refundAmounts.push(`د.ع${result.refundedIQD.toFixed(0)}`);
+        if (result.refundedIQD > 0) refundAmounts.push(formatHistoryCurrency(result.refundedIQD, 'IQD'));
         
         if (refundAmounts.length > 0) {
           toastMessage += ` Amount refunded: ${refundAmounts.join(' + ')}`;
@@ -208,11 +236,10 @@ const BuyingHistoryTable = React.memo(function BuyingHistoryTable({
         // Build refund amount display
         const refundAmounts = [];
         if (result.returnedAmountUSD > 0) {
-          const formatted = result.returnedAmountUSD.toFixed(2);
-          const cleanFormatted = formatted.endsWith('.00') ? formatted.slice(0, -3) : formatted;
-          refundAmounts.push(`$${cleanFormatted}`);
+          const formatted = formatHistoryCurrency(result.returnedAmountUSD, 'USD');
+          refundAmounts.push(formatted.replace('$', '$'));
         }
-        if (result.returnedAmountIQD > 0) refundAmounts.push(`د.ع${Math.round(result.returnedAmountIQD).toLocaleString()}`);
+        if (result.returnedAmountIQD > 0) refundAmounts.push(formatHistoryCurrency(result.returnedAmountIQD, 'IQD'));
         
         if (refundAmounts.length > 0) {
           toastMessage += ` Amount refunded: ${refundAmounts.join(' + ')}`;
@@ -461,18 +488,14 @@ const BuyingHistoryTable = React.memo(function BuyingHistoryTable({
                             {(entry.multi_currency_usd || 0) > 0 && (
                               <div className="bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200 px-2 py-1 rounded-lg">
                                 <span className="font-bold text-sm">
-                                  ${(() => {
-                                    const amount = entry.multi_currency_usd || 0;
-                                    const formatted = amount.toFixed(2);
-                                    return formatted.endsWith('.00') ? formatted.slice(0, -3) : formatted;
-                                  })()}
+                                  {formatHistoryCurrency(entry.multi_currency_usd || 0, 'USD')}
                                 </span>
                               </div>
                             )}
                             {(entry.multi_currency_iqd || 0) > 0 && (
                               <div className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 px-2 py-1 rounded-lg">
                                 <span className="font-bold text-sm">
-                                  د.ع{Math.round(entry.multi_currency_iqd || 0).toLocaleString()}
+                                  {formatHistoryCurrency(entry.multi_currency_iqd || 0, 'IQD')}
                                 </span>
                               </div>
                             )}
@@ -488,12 +511,8 @@ const BuyingHistoryTable = React.memo(function BuyingHistoryTable({
                               : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
                           }`}>
                             {entry.currency === 'USD' 
-                              ? (() => {
-                                  const amount = entry.total_price || entry.amount || 0;
-                                  const formatted = amount.toFixed(2);
-                                  return `$${formatted.endsWith('.00') ? formatted.slice(0, -3) : formatted}`;
-                                })()
-                              : `د.ع${Math.round(entry.total_price || entry.amount || 0).toLocaleString()}`
+                              ? formatHistoryCurrency(entry.total_price || entry.amount || 0, 'USD')
+                              : formatHistoryCurrency(entry.total_price || entry.amount || 0, 'IQD')
                             }
                           </div>
                         )}
@@ -574,8 +593,8 @@ const BuyingHistoryTable = React.memo(function BuyingHistoryTable({
                                         : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
                                     }`}>
                                       {(item.currency || 'IQD') === 'USD' 
-                                        ? `$${item.unit_price.toFixed(2).replace('.00', '')}`
-                                        : `د.ع${Math.round(item.unit_price).toLocaleString()}`
+                                        ? formatHistoryCurrency(item.unit_price, 'USD')
+                                        : formatHistoryCurrency(item.unit_price, 'IQD')
                                       }
                                     </div>
                                   </div>
@@ -587,8 +606,8 @@ const BuyingHistoryTable = React.memo(function BuyingHistoryTable({
                                         : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
                                     }`}>
                                       {(item.currency || 'IQD') === 'USD' 
-                                        ? `$${item.total_price.toFixed(2).replace('.00', '')}`
-                                        : `د.ع${Math.round(item.total_price).toLocaleString()}`
+                                        ? formatHistoryCurrency(item.total_price, 'USD')
+                                        : formatHistoryCurrency(item.total_price, 'IQD')
                                       }
                                     </div>
                                   </div>

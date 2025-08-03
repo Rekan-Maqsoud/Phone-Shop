@@ -13,45 +13,94 @@ function getAllProducts(db) {
 }
 
 function addProduct(db, { name, buying_price, stock, archived = 0, ram, storage, model, brand, category = 'phones', currency = 'IQD' }) {
-  // Check if product with same name, brand, model, RAM, storage, and currency already exists
+  console.log('🔍 [products.cjs] addProduct called with:', { name, brand, model, ram, storage, currency, buying_price, stock });
+  
+  // Normalize values for consistent comparison
+  const normalizedName = (name || '').toString().trim();
+  const normalizedBrand = (brand || '').toString().trim();
+  const normalizedModel = (model || '').toString().trim();
+  const normalizedRam = (ram || '').toString().trim();
+  const normalizedStorage = (storage || '').toString().trim();
+  const normalizedCurrency = (currency || 'IQD').toString().trim();
+  
+  // Check if product with same specifications already exists
   const existingProduct = db.prepare(`
     SELECT * FROM products 
-    WHERE name = ? AND COALESCE(brand, '') = ? AND COALESCE(model, '') = ? 
-    AND COALESCE(ram, '') = ? AND COALESCE(storage, '') = ? 
-    AND currency = ? AND archived = 0
-  `).get(name, brand || '', model || '', ram || '', storage || '', currency);
+    WHERE LOWER(TRIM(COALESCE(name, ''))) = LOWER(?) 
+    AND LOWER(TRIM(COALESCE(brand, ''))) = LOWER(?) 
+    AND LOWER(TRIM(COALESCE(model, ''))) = LOWER(?) 
+    AND LOWER(TRIM(COALESCE(ram, ''))) = LOWER(?) 
+    AND LOWER(TRIM(COALESCE(storage, ''))) = LOWER(?) 
+    AND LOWER(TRIM(COALESCE(currency, 'IQD'))) = LOWER(?) 
+    AND archived = 0
+  `).get(
+    normalizedName, 
+    normalizedBrand, 
+    normalizedModel, 
+    normalizedRam, 
+    normalizedStorage, 
+    normalizedCurrency
+  );
+  
+  console.log('🔍 [products.cjs] Existing product search result:', existingProduct);
   
   if (existingProduct && existingProduct.id) {
-    // Calculate new average buying price
-    const currentStock = existingProduct.stock;
-    const currentBuyingPrice = existingProduct.buying_price;
+    console.log('🔄 [products.cjs] Merging with existing product ID:', existingProduct.id);
+    
+    // Calculate new weighted average buying price
+    const currentStock = Number(existingProduct.stock) || 0;
+    const currentBuyingPrice = Number(existingProduct.buying_price) || 0;
     const newStock = Number(stock) || 0;
     const newBuyingPrice = Number(buying_price) || 0;
     
     const totalStock = currentStock + newStock;
-    const averageBuyingPrice = totalStock > 0 ? 
-      Math.round(((currentBuyingPrice * currentStock) + (newBuyingPrice * newStock)) / totalStock) : 
-      newBuyingPrice;
+    let averageBuyingPrice;
+    
+    if (totalStock > 0) {
+      averageBuyingPrice = ((currentBuyingPrice * currentStock) + (newBuyingPrice * newStock)) / totalStock;
+      // Round appropriately based on currency
+      if (normalizedCurrency.toUpperCase() === 'USD') {
+        averageBuyingPrice = Math.round(averageBuyingPrice * 100) / 100; // 2 decimal places for USD
+      } else {
+        averageBuyingPrice = Math.round(averageBuyingPrice); // Whole numbers for IQD
+      }
+    } else {
+      averageBuyingPrice = newBuyingPrice;
+    }
+    
+    console.log('🔢 [products.cjs] Price calculation:', {
+      currentStock,
+      currentBuyingPrice,
+      newStock,
+      newBuyingPrice,
+      totalStock,
+      averageBuyingPrice
+    });
     
     // Update existing product with new stock and average buying price
-    const result = db.prepare('UPDATE products SET buying_price=?, stock=stock+?, ram=?, storage=?, model=?, brand=?, category=?, currency=? WHERE id=?')
-      .run(averageBuyingPrice, newStock, ram || existingProduct.ram, storage || existingProduct.storage, model || existingProduct.model, brand || existingProduct.brand, category, currency, existingProduct.id);
+    const result = db.prepare('UPDATE products SET buying_price=?, stock=? WHERE id=?')
+      .run(averageBuyingPrice, totalStock, existingProduct.id);
     
-    return result;
+    console.log('✅ [products.cjs] Product merged successfully:', { id: existingProduct.id, newStock: totalStock, newPrice: averageBuyingPrice });
+    return { ...result, merged: true, productId: existingProduct.id };
   } else {
+    console.log('➕ [products.cjs] Creating new product');
+    
     // Create new product - force ID to be set properly
-    const result = db.prepare('INSERT INTO products (id, name, buying_price, stock, archived, ram, storage, model, brand, category, currency) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(null, name, buying_price, stock, archived, ram || null, storage || null, model || null, brand || null, category, currency);
+    const result = db.prepare('INSERT INTO products (name, buying_price, stock, archived, ram, storage, model, brand, category, currency) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(normalizedName, buying_price, stock, archived, normalizedRam || null, normalizedStorage || null, normalizedModel || null, normalizedBrand || null, category, normalizedCurrency);
     
     // CRITICAL: Verify the product was created with a valid ID and repair if needed
     const newProductId = result.lastInsertRowid;
     const newProduct = db.prepare('SELECT * FROM products WHERE rowid = ?').get(newProductId);
     if (!newProduct || !newProduct.id) {
+      console.log('⚠️ [products.cjs] Repairing product ID...');
       // Force repair immediately
       db.prepare('UPDATE products SET id = ? WHERE rowid = ?').run(newProductId, newProductId);
     }
     
-    return result;
+    console.log('✅ [products.cjs] New product created:', { id: newProductId });
+    return { ...result, merged: false, productId: newProductId };
   }
 }
 

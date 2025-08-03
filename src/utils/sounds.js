@@ -29,7 +29,7 @@ export const setSoundSettings = (settings) => {
   try {
     localStorage.setItem(SOUND_SETTINGS_KEY, JSON.stringify(settings));
   } catch (error) {
-    console.warn('Failed to save sound settings:', error);
+    // Failed to save sound settings - ignore silently
   }
 };
 
@@ -54,7 +54,7 @@ class SoundEffectGenerator {
       this.initialized = true;
       return true;
     } catch (error) {
-      console.warn('Audio context initialization failed:', error);
+      // Audio context initialization failed - ignore silently
       return false;
     }
   }
@@ -114,7 +114,7 @@ const playSoundEffect = async (soundType, soundFunction) => {
   try {
     await soundFunction(settings.volume);
   } catch (error) {
-    console.warn(`Sound effect failed for ${soundType}:`, error);
+    // Sound effect failed - ignore silently
   }
 };
 
