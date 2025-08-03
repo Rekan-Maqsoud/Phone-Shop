@@ -122,7 +122,7 @@ class ErrorBoundaryClass extends React.Component {
               </button>
             </div>
 
-            {process.env.NODE_ENV === 'development' && error && (
+            {import.meta.env.DEV && error && (
               <details className="mt-6">
                 <summary className="cursor-pointer text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100">
                   {t?.errorDetailsDev || 'Error Details (Development Only)'}

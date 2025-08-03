@@ -463,9 +463,9 @@ export default function useAdmin(showConfirm = null) {
         }
       }
     } catch (e) {
-      setToast('Restore failed.');
+      setToast('Restore failed: ' + (e.message || 'Unknown error'));
     } finally {
-      
+      // Cleanup completed
     }
   };
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
@@ -511,9 +511,9 @@ export default function useAdmin(showConfirm = null) {
         }
       }
     } catch (e) {
-      setToast('Reset failed.');
+      setToast('Reset failed: ' + (e.message || 'Unknown error'));
     } finally {
-      
+      // Reset completed
     }
   };
   const handleExportSales = async () => {

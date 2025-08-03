@@ -112,15 +112,17 @@ export default function HistorySearchFilter({
       case 'today':
         return { start: today, end: new Date(today.getTime() + 24 * 60 * 60 * 1000 - 1) };
         
-      case 'yesterday':
+      case 'yesterday': {
         const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);
         return { start: yesterday, end: new Date(yesterday.getTime() + 24 * 60 * 60 * 1000 - 1) };
+      }
         
-      case 'thisWeek':
+      case 'thisWeek': {
         const thisWeekStart = new Date(today);
         thisWeekStart.setDate(today.getDate() - today.getDay()); // Start of week (Sunday)
         const thisWeekEnd = new Date(thisWeekStart.getTime() + 7 * 24 * 60 * 60 * 1000 - 1);
         return { start: thisWeekStart, end: thisWeekEnd };
+      }
         
       case 'lastWeek':
         const lastWeekEnd = new Date(today);
