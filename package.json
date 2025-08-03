@@ -1,7 +1,7 @@
 {
   "name": "mobile-roma",
   "private": true,
-  "version": "1.2.2",
+  "version": "1.2.4",
   "description": "Mobile Roma - Phone Shop Management System",
   "main": "src/main.cjs",
   "author": "Mobile Roma Team",
@@ -11,6 +11,8 @@
     "dev": "concurrently \"vite --port 5173\" \"wait-on http://localhost:5173 && electron .\"",
     "build": "vite build",
     "make": "electron-builder",
+    "publish": "electron-builder --publish=always",
+    "draft": "electron-builder --publish=never",
     "postinstall": "electron-builder install-app-deps",
     "lint": "eslint .",
     "preview": "vite preview",
@@ -27,6 +29,7 @@
     "date-fns": "^4.1.0",
     "dotenv": "^16.6.0",
     "electron-settings": "^4.0.4",
+    "electron-updater": "^6.6.2",
     "lucide-react": "^0.525.0",
     "react": "^18.0.0",
     "react-chartjs-2": "^5.3.0",
@@ -77,6 +80,13 @@
         "to": "app-icon.ico"
       }
     ],
+    "publish": {
+      "provider": "github",
+      "owner": "Rekan-Maqsoud",
+      "repo": "Phone-Shop",
+      "private": false,
+      "releaseType": "release"
+    },
     "linux": {
       "target": "AppImage",
       "category": "Office"
@@ -85,7 +95,8 @@
       "target": "nsis",
       "icon": "public/app-icon.ico",
       "requestedExecutionLevel": "asInvoker",
-      "signAndEditExecutable": false
+      "signAndEditExecutable": false,
+      "publisherName": "Mobile Roma"
     },
     "mac": {
       "target": "dmg"

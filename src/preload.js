@@ -145,4 +145,12 @@ contextBridge.exposeInMainWorld('api', {
   // Discount functionality
   addDiscount: (discountData) => ipcRenderer.invoke('addDiscount', discountData),
   getDiscounts: (transaction_type, reference_id) => ipcRenderer.invoke('getDiscounts', transaction_type, reference_id),
+  
+  // Auto Update functionality
+  checkForUpdates: (manual = false) => ipcRenderer.invoke('checkForUpdates', manual),
+  downloadUpdate: () => ipcRenderer.invoke('downloadUpdate'),
+  installUpdate: () => ipcRenderer.invoke('installUpdate'),
+  getUpdateSettings: () => ipcRenderer.invoke('getUpdateSettings'),
+  updateUpdateSettings: (settings) => ipcRenderer.invoke('updateUpdateSettings', settings),
+  getAppVersion: () => ipcRenderer.invoke('getAppVersion'),
 });

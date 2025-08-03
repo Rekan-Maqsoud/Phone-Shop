@@ -25,6 +25,7 @@ import AdminLoadingFallback from '../components/AdminLoadingFallback';
 import ExchangeRateIndicator from '../components/ExchangeRateIndicator';
 import MonthlyReport from '../components/MonthlyReport';
 import BackupSettingsSection from '../components/BackupSettingsSection';
+import UpdateSettingsSection from '../components/UpdateSettingsSection';
 import FinancialSummaryModal from '../components/FinancialSummaryModal';
 import { Icon } from '../utils/icons.jsx';
 
@@ -150,7 +151,8 @@ export default function Admin() {
     { key: 'accessories', label: t.accessories, icon: 'accessories', shortcut: '9', color: 'orange' },
     { key: 'archived', label: t.archivedProducts, icon: 'archived', shortcut: '0', color: 'gray' },
     { key: 'monthlyReports', label: t.monthlyReports, icon: 'monthlyReports', shortcut: '+', color: 'teal' },
-    { key: 'backupSettings', label: t.backupSettings || 'Backup & Settings', icon: 'cloud', shortcut: '-', color: 'slate' }
+    { key: 'backupSettings', label: t.backupSettings || 'Backup & Settings', icon: 'cloud', shortcut: '-', color: 'slate' },
+    { key: 'updateSettings', label: t.updateSettings || 'App Updates', icon: 'download', shortcut: '=', color: 'cyan' }
   ], [t]);
 
   // Helper function to get color classes with proper light mode support
@@ -653,6 +655,7 @@ export default function Admin() {
               {section === 'personalLoans' && <PersonalLoansSection admin={admin} t={t} />}
               {section === 'monthlyReports' && <MonthlyReport admin={admin} t={t} />}
               {section === 'backupSettings' && <BackupSettingsSection admin={admin} t={t} setShowBackupManager={setShowBackupManager} />}
+              {section === 'updateSettings' && <UpdateSettingsSection admin={admin} t={t} />}
             </div>
           </main>
         </div>

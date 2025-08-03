@@ -7,9 +7,13 @@ let db; // Will be initialized after DB path is set
 const bcrypt = require('bcryptjs');
 const settings = require('electron-settings');
 const CloudBackupService = require('./services/CloudBackupService.cjs');
+const AutoUpdateService = require('./services/AutoUpdateService.cjs');
 
 // Initialize cloud backup service
 const cloudBackupService = new CloudBackupService();
+
+// Initialize auto update service
+const autoUpdateService = new AutoUpdateService();
 
 // Initialize auto backup settings
 async function initializeAutoBackup() {
@@ -123,6 +127,9 @@ function createWindow() {
   
   win.loadURL(urlToLoad);
   
+  // Initialize auto-update service with this window
+  autoUpdateService.setMainWindow(win);
+  
   // Add URL navigation handler to prevent file:// URL issues
   win.webContents.on('will-navigate', (event, navigationUrl) => {
     // Block file:// URLs that aren't our main file
@@ -195,6 +202,22 @@ app.whenReady().then(async () => {
     await initializeAutoBackup();
     
     createWindow();
+    
+    // Check for updates on startup (only in production)
+    if (app.isPackaged) {
+      // Delay update check to allow window to fully load
+      setTimeout(async () => {
+        try {
+          const updateSettings = await autoUpdateService.getUpdateSettings();
+          if (updateSettings.checkOnStartup) {
+            console.log('[Main] Checking for updates on startup...');
+            await autoUpdateService.checkForUpdates();
+          }
+        } catch (error) {
+          console.error('[Main] Failed to check for updates on startup:', error);
+        }
+      }, 5000); // 5 second delay
+    }
     
     // Check if we need to perform monthly reset on app startup
     checkAndPerformMonthlyReset();
@@ -2031,5 +2054,77 @@ ipcMain.handle('getExchangeRate', async (event, fromCurrency, toCurrency) => {
   } catch (e) {
     console.error('❌ getExchangeRate error:', e);
     return null;
+  }
+});
+
+// Auto Update IPC Handlers
+ipcMain.handle('checkForUpdates', async (event, manual = false) => {
+  try {
+    console.log('[IPC] Checking for updates, manual:', manual);
+    await autoUpdateService.checkForUpdates(manual);
+    return { success: true };
+  } catch (error) {
+    console.error('[IPC] checkForUpdates error:', error);
+    return { success: false, message: error.message };
+  }
+});
+
+ipcMain.handle('downloadUpdate', async () => {
+  try {
+    console.log('[IPC] Downloading update...');
+    await autoUpdateService.downloadUpdate();
+    return { success: true };
+  } catch (error) {
+    console.error('[IPC] downloadUpdate error:', error);
+    return { success: false, message: error.message };
+  }
+});
+
+ipcMain.handle('installUpdate', async () => {
+  try {
+    console.log('[IPC] Installing update...');
+    await autoUpdateService.installUpdate();
+    return { success: true };
+  } catch (error) {
+    console.error('[IPC] installUpdate error:', error);
+    return { success: false, message: error.message };
+  }
+});
+
+ipcMain.handle('getUpdateSettings', async () => {
+  try {
+    const settings = await autoUpdateService.getUpdateSettings();
+    return { success: true, settings };
+  } catch (error) {
+    console.error('[IPC] getUpdateSettings error:', error);
+    return { success: false, message: error.message };
+  }
+});
+
+ipcMain.handle('updateUpdateSettings', async (event, newSettings) => {
+  try {
+    console.log('[IPC] Updating update settings:', newSettings);
+    const result = await autoUpdateService.updateSettings(newSettings);
+    return { success: result };
+  } catch (error) {
+    console.error('[IPC] updateUpdateSettings error:', error);
+    return { success: false, message: error.message };
+  }
+});
+
+ipcMain.handle('getAppVersion', async () => {
+  try {
+    const version = require('../package.json').version;
+    return { success: true, version };
+  } catch (error) {
+    console.error('[IPC] getAppVersion error:', error);
+    return { success: false, message: error.message };
+  }
+});
+
+// Cleanup when app is closing
+app.on('before-quit', () => {
+  if (autoUpdateService) {
+    autoUpdateService.destroy();
   }
 });
