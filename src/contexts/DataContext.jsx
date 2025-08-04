@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import { EXCHANGE_RATES } from '../utils/exchangeRates';
 
 const DataContext = createContext();
 
@@ -238,6 +239,206 @@ export const DataProvider = ({ children }) => {
     }
   }, [apiReady]);
 
+  // Utility function to calculate remaining debt amount using payment history with accurate exchange rates
+  const calculateRemainingCustomerDebt = useCallback((sale, debt) => {
+    if (!debt) {
+      // No debt record means full amount is owed
+      return {
+        amount: sale.total,
+        currency: sale.currency || 'USD'
+      };
+    }
+
+    if (debt.paid_at) {
+      // Fully paid
+      return {
+        amount: 0,
+        currency: sale.currency || 'USD'
+      };
+    }
+
+    // For now, fallback to the original calculation using the accumulated payment totals
+    // TODO: Implement proper payment history tracking once the migration is stable
+    const originalTotal = sale.total;
+    const currency = sale.currency || 'USD';
+    
+    // Use the exchange rate saved at payment time, or fallback to current rate
+    const exchangeRate = debt.payment_exchange_rate_usd_to_iqd || EXCHANGE_RATES.USD_TO_IQD;
+    
+    if (currency === 'USD') {
+      // For USD debts, convert all payments to USD equivalent using saved rates
+      const paidUSD = debt.payment_usd_amount || 0;
+      const paidIQD = debt.payment_iqd_amount || 0;
+      const totalPaidUSDEquivalent = paidUSD + (paidIQD / exchangeRate);
+      
+      return {
+        amount: Math.max(0, originalTotal - totalPaidUSDEquivalent),
+        currency: 'USD'
+      };
+    } else {
+      // For IQD debts, convert all payments to IQD equivalent using saved rates
+      const paidUSD = debt.payment_usd_amount || 0;
+      const paidIQD = debt.payment_iqd_amount || 0;
+      const totalPaidIQDEquivalent = paidIQD + (paidUSD * exchangeRate);
+      
+      return {
+        amount: Math.max(0, originalTotal - totalPaidIQDEquivalent),
+        currency: 'IQD'
+      };
+    }
+  }, []);
+
+  // Utility function to calculate remaining company debt amount using current exchange rates for UI display
+  const calculateRemainingCompanyDebt = useCallback((debt) => {
+    if (!debt) {
+      return { USD: 0, IQD: 0 };
+    }
+
+    if (debt.paid_at) {
+      // Fully paid
+      return { USD: 0, IQD: 0 };
+    }
+
+    // Always use CURRENT exchange rate for UI display consistency
+    // The payment-time rates are used for backend calculations but UI should be consistent
+    const currentExchangeRate = EXCHANGE_RATES.USD_TO_IQD;
+
+    if (debt.currency === 'MULTI') {
+      // For multi-currency debts, subtract partial payments
+      const remainingUSD = Math.max(0, (debt.usd_amount || 0) - (debt.payment_usd_amount || 0));
+      const remainingIQD = Math.max(0, (debt.iqd_amount || 0) - (debt.payment_iqd_amount || 0));
+      
+      // Check 250 IQD threshold: if total remaining is less than 250 IQD equivalent, ignore
+      const totalRemainingIQDEquivalent = remainingIQD + (remainingUSD * currentExchangeRate);
+      if (totalRemainingIQDEquivalent >= 250) {
+        return { USD: remainingUSD, IQD: remainingIQD };
+      } else {
+        return { USD: 0, IQD: 0 };
+      }
+    } else if (debt.currency === 'USD') {
+      // USD debt - subtract USD payments and IQD payments converted to USD using CURRENT rate for display
+      const paidUSD = debt.payment_usd_amount || 0;
+      const paidIQD = debt.payment_iqd_amount || 0;
+      const remaining = Math.max(0, (debt.amount || 0) - paidUSD - (paidIQD / currentExchangeRate));
+      
+      // Check 250 IQD threshold for USD debts
+      const remainingIQDEquivalent = remaining * currentExchangeRate;
+      if (remainingIQDEquivalent >= 250) {
+        return { USD: remaining, IQD: 0 };
+      } else {
+        return { USD: 0, IQD: 0 };
+      }
+    } else {
+      // IQD or unknown currency - subtract IQD payments and USD payments converted to IQD using CURRENT rate for display
+      const paidUSD = debt.payment_usd_amount || 0;
+      const paidIQD = debt.payment_iqd_amount || 0;
+      const remaining = Math.max(0, (debt.amount || 0) - paidIQD - (paidUSD * currentExchangeRate));
+      
+      // Check 250 IQD threshold
+      if (remaining >= 250) {
+        return { USD: 0, IQD: remaining };
+      } else {
+        return { USD: 0, IQD: 0 };
+      }
+    }
+  }, []);
+
+  // Utility function to calculate remaining personal loan amount using accumulated payment totals
+  const calculateRemainingPersonalLoan = useCallback((loan) => {
+    if (!loan) {
+      return { USD: 0, IQD: 0 };
+    }
+
+    if (loan.paid_at) {
+      // Fully paid
+      return { USD: 0, IQD: 0 };
+    }
+
+    // For personal loans, track remaining amounts in each currency using accumulated totals
+    const totalPaidUSD = loan.payment_usd_amount || 0;
+    const totalPaidIQD = loan.payment_iqd_amount || 0;
+    
+    const remainingUSD = Math.max(0, (loan.usd_amount || 0) - totalPaidUSD);
+    const remainingIQD = Math.max(0, (loan.iqd_amount || 0) - totalPaidIQD);
+    
+    // Check 250 IQD threshold: if total remaining is less than 250 IQD equivalent, ignore
+    const currentExchangeRate = window.exchangeRates?.USD_TO_IQD || 1390;
+    const totalRemainingIQDEquivalent = remainingIQD + (remainingUSD * currentExchangeRate);
+    if (totalRemainingIQDEquivalent >= 250) {
+      return { USD: remainingUSD, IQD: remainingIQD };
+    } else {
+      return { USD: 0, IQD: 0 };
+    }
+  }, []);
+
+  // Utility function to calculate total outstanding customer debts
+  const calculateTotalCustomerOutstanding = useCallback(() => {
+    const outstanding = { USD: 0, IQD: 0 };
+    
+    if (!sales || !debts) return outstanding;
+    
+    const debtSalesFiltered = sales.filter(sale => sale.is_debt);
+    debtSalesFiltered.forEach(sale => {
+      const debt = debts.find(d => d.sale_id === sale.id);
+      const remaining = calculateRemainingCustomerDebt(sale, debt);
+      
+      if (remaining.amount > 0) {
+        if (remaining.currency === 'USD') {
+          outstanding.USD += remaining.amount;
+        } else if (remaining.currency === 'IQD') {
+          outstanding.IQD += remaining.amount;
+        }
+      }
+    });
+    
+    return outstanding;
+  }, [sales, debts, calculateRemainingCustomerDebt]);
+
+  // Utility function to calculate total outstanding company debts
+  const calculateTotalCompanyOutstanding = useCallback(() => {
+    const outstanding = { USD: 0, IQD: 0 };
+    
+    if (!companyDebts) return outstanding;
+    
+    const unpaidCompanyDebts = companyDebts.filter(debt => !debt.paid_at);
+    unpaidCompanyDebts.forEach(debt => {
+      const remaining = calculateRemainingCompanyDebt(debt);
+      outstanding.USD += remaining.USD;
+      outstanding.IQD += remaining.IQD;
+    });
+    
+    return outstanding;
+  }, [companyDebts, calculateRemainingCompanyDebt]);
+
+  // Utility function to get company debt counts
+  const getCompanyDebtCounts = useCallback(() => {
+    if (!companyDebts) return { total: 0, unpaid: 0 };
+    
+    const total = companyDebts.length;
+    const unpaid = companyDebts.filter(debt => !debt.paid_at).length;
+    
+    return { total, unpaid };
+  }, [companyDebts]);
+
+  // Utility function to get customer debt counts
+  const getCustomerDebtCounts = useCallback(() => {
+    if (!sales || !debts) return { total: 0, unpaid: 0 };
+    
+    const debtSalesFiltered = sales.filter(sale => sale.is_debt);
+    const total = debtSalesFiltered.length;
+    
+    let unpaid = 0;
+    debtSalesFiltered.forEach(sale => {
+      const debt = debts.find(d => d.sale_id === sale.id);
+      const remaining = calculateRemainingCustomerDebt(sale, debt);
+      if (remaining.amount > 0) {
+        unpaid++;
+      }
+    });
+    
+    return { total, unpaid };
+  }, [sales, debts, calculateRemainingCustomerDebt]);
+
   const refreshPersonalLoans = useCallback(async () => {
     if (!apiReady || !window.api?.getPersonalLoans) return;
     try {
@@ -349,7 +550,16 @@ export const DataProvider = ({ children }) => {
     refreshBuyingHistory,
     refreshMonthlyReports,
     refreshIncentives,
-    refreshTransactions
+    refreshTransactions,
+
+    // Debt calculation utilities
+    calculateRemainingCustomerDebt,
+    calculateRemainingCompanyDebt,
+    calculateRemainingPersonalLoan,
+    calculateTotalCustomerOutstanding,
+    calculateTotalCompanyOutstanding,
+    getCompanyDebtCounts,
+    getCustomerDebtCounts
   };
 
   return (

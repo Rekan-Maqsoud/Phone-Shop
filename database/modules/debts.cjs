@@ -10,6 +10,16 @@ function getCustomerDebts(db) {
   }
 }
 
+function getDebtPayments(db, debtType, debtId) {
+  try {
+    return db.prepare('SELECT * FROM debt_payments WHERE debt_type = ? AND debt_id = ? ORDER BY payment_date ASC')
+      .all(debtType, debtId);
+  } catch (error) {
+    console.error('❌ [debts.cjs] Error getting debt payments:', error);
+    return [];
+  }
+}
+
 function addCustomerDebt(db, { customer_name, amount, description, currency = 'IQD', sale_id = null }) {
   try {
     // Validate required parameters
@@ -113,6 +123,7 @@ function markCustomerDebtPaid(db, id, paymentData) {
       // Check if this payment fully pays off the debt based on the original currency
       const { getExchangeRate } = require('./settings.cjs');
       const currentUSDToIQD = getExchangeRate(db, 'USD', 'IQD');
+      const currentIQDToUSD = 1 / currentUSDToIQD;
       
       let isFullyPaid = false;
       let remainingCustomerDebt = 0;
@@ -132,13 +143,35 @@ function markCustomerDebtPaid(db, id, paymentData) {
       // Only set paid_at if fully paid
       const paidAtValue = isFullyPaid ? now : null;
       
+      // Record this specific payment in the debt_payments table
+      // This allows us to track each payment's exchange rate accurately
+      const recordPaymentStmt = db.prepare(`
+        INSERT INTO debt_payments (debt_type, debt_id, payment_usd_amount, payment_iqd_amount, 
+                                   payment_currency_used, exchange_rate_usd_to_iqd, exchange_rate_iqd_to_usd, 
+                                   payment_date) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      
+      recordPaymentStmt.run(
+        'customer',
+        id,
+        finalUSDAmount || 0,
+        finalIQDAmount || 0,
+        payment_currency_used || (finalUSDAmount > 0 && finalIQDAmount > 0 ? 'MULTI' : (finalUSDAmount > 0 ? 'USD' : 'IQD')),
+        currentUSDToIQD,
+        currentIQDToUSD,
+        now
+      );
+
       // Update the debt record - accumulate payments, only mark as paid if fully paid
+      // Also save the latest payment exchange rate for remaining debt calculations
       const updateStmt = db.prepare(`
         UPDATE customer_debts 
         SET paid_at = ?, 
             payment_usd_amount = ?, 
             payment_iqd_amount = ?,
-            payment_currency_used = ?
+            payment_exchange_rate_usd_to_iqd = ?,
+            payment_exchange_rate_iqd_to_usd = ?
         WHERE id = ?
       `);
       
@@ -146,7 +179,8 @@ function markCustomerDebtPaid(db, id, paymentData) {
         paidAtValue, 
         newTotalPaidUSD || 0, 
         newTotalPaidIQD || 0,
-        payment_currency_used || (finalUSDAmount > 0 && finalIQDAmount > 0 ? 'MULTI' : (finalUSDAmount > 0 ? 'USD' : 'IQD')),
+        currentUSDToIQD,
+        currentIQDToUSD,
         id
       );
       
@@ -396,6 +430,11 @@ function markCompanyDebtPaid(db, id, paymentData) {
         }
       }
       
+      // Get current exchange rates and save them with the payment
+      const { getExchangeRate } = require('./settings.cjs');
+      const currentUSDToIQD = getExchangeRate(db, 'USD', 'IQD');
+      const currentIQDToUSD = 1 / currentUSDToIQD;
+      
       // Calculate cumulative payment amounts for partial payment support
       const currentPaidUSD = debtInfo.current_paid_usd || 0;
       const currentPaidIQD = debtInfo.current_paid_iqd || 0;
@@ -403,8 +442,8 @@ function markCompanyDebtPaid(db, id, paymentData) {
       const newTotalPaidIQD = currentPaidIQD + finalIQDAmount;
       
       // Check if this payment fully pays off the debt based on the original currency
-      const { getExchangeRate } = require('./settings.cjs');
-      const currentUSDToIQD = getExchangeRate(db, 'USD', 'IQD');
+      // NOTE: For remaining debt calculations, we'll use the saved exchange rates per payment
+      // This is handled later in the utility functions that calculate remaining debt
       
       let isFullyPaid = false;
       let remainingDebt = 0;
@@ -415,17 +454,33 @@ function markCompanyDebtPaid(db, id, paymentData) {
       const originalIQDAmount = debtInfo.iqd_amount || 
                                 (debtInfo.currency === 'IQD' ? debtInfo.amount : 0);
       
+      // Enhanced debug logging
+      console.log('[DEBUG][CompanyDebt][CALC] Original debt:', debtInfo.amount, debtInfo.currency);
+      console.log('[DEBUG][CompanyDebt][CALC] Exchange rate USD->IQD:', currentUSDToIQD);
+      console.log('[DEBUG][CompanyDebt][CALC] Previous payments - USD:', currentPaidUSD, 'IQD:', currentPaidIQD);
+      console.log('[DEBUG][CompanyDebt][CALC] Current payment - USD:', finalUSDAmount, 'IQD:', finalIQDAmount);
+      console.log('[DEBUG][CompanyDebt][CALC] Total paid so far - USD:', newTotalPaidUSD, 'IQD:', newTotalPaidIQD);
+      
       if (debtInfo.currency === 'USD') {
-        // For USD debts, convert total paid to USD equivalent
-        const totalPaidUSDEquivalent = newTotalPaidUSD + (newTotalPaidIQD / currentUSDToIQD);
+        // For USD debts, convert total paid to USD equivalent (including both currencies)
+        const iqdToUSDEquivalent = newTotalPaidIQD / currentUSDToIQD;
+        const totalPaidUSDEquivalent = newTotalPaidUSD + iqdToUSDEquivalent;
         remainingDebt = debtInfo.amount - totalPaidUSDEquivalent;
         isFullyPaid = remainingDebt <= 0.01; // USD tolerance
+        // Enhanced debug log
+        console.log('[DEBUG][CompanyDebt][USD] IQD->USD conversion:', newTotalPaidIQD, '/', currentUSDToIQD, '=', iqdToUSDEquivalent);
+        console.log('[DEBUG][CompanyDebt][USD] Total USD equivalent paid:', totalPaidUSDEquivalent);
+        console.log('[DEBUG][CompanyDebt][USD] Remaining debt:', remainingDebt, 'Fully paid:', isFullyPaid);
       } else if (debtInfo.currency === 'IQD') {
-        // For IQD debts, convert total paid to IQD equivalent
-        const totalPaidIQDEquivalent = newTotalPaidIQD + (newTotalPaidUSD * currentUSDToIQD);
+        // For IQD debts, convert total paid to IQD equivalent (including both currencies)
+        const usdToIQDEquivalent = newTotalPaidUSD * currentUSDToIQD;
+        const totalPaidIQDEquivalent = newTotalPaidIQD + usdToIQDEquivalent;
         remainingDebt = debtInfo.amount - totalPaidIQDEquivalent;
-        // If remaining debt is less than 250 IQD, consider it fully paid
         isFullyPaid = remainingDebt <= 250; // 250 IQD threshold
+        // Enhanced debug log
+        console.log('[DEBUG][CompanyDebt][IQD] USD->IQD conversion:', newTotalPaidUSD, '*', currentUSDToIQD, '=', usdToIQDEquivalent);
+        console.log('[DEBUG][CompanyDebt][IQD] Total IQD equivalent paid:', totalPaidIQDEquivalent);
+        console.log('[DEBUG][CompanyDebt][IQD] Remaining debt:', remainingDebt, 'Fully paid:', isFullyPaid);
       } else if (debtInfo.currency === 'MULTI') {
         // For multi-currency debts, we need to handle cross-currency payments properly
         
@@ -471,21 +526,45 @@ function markCompanyDebtPaid(db, id, paymentData) {
       // Only set paid_at if fully paid
       const paidAtValue = isFullyPaid ? now : null;
       
+      // Record this specific payment in the debt_payments table
+      // This allows us to track each payment's exchange rate accurately
+      const recordPaymentStmt = db.prepare(`
+        INSERT INTO debt_payments (debt_type, debt_id, payment_usd_amount, payment_iqd_amount, 
+                                   payment_currency_used, exchange_rate_usd_to_iqd, exchange_rate_iqd_to_usd, 
+                                   payment_date) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      
+      recordPaymentStmt.run(
+        'company',
+        id,
+        finalUSDAmount || 0,
+        finalIQDAmount || 0,
+        payment_currency_used || (finalUSDAmount > 0 && finalIQDAmount > 0 ? 'MULTI' : (finalUSDAmount > 0 ? 'USD' : 'IQD')),
+        currentUSDToIQD,
+        currentIQDToUSD,
+        now
+      );
+
       // Update the debt record - accumulate payments, only mark as paid if fully paid
+      // Also save the latest payment exchange rate for remaining debt calculations
       const updateStmt = db.prepare(`
         UPDATE company_debts 
         SET paid_at = ?, 
             payment_usd_amount = ?, 
             payment_iqd_amount = ?,
-            payment_currency_used = ?
+            payment_exchange_rate_usd_to_iqd = ?,
+            payment_exchange_rate_iqd_to_usd = ?
         WHERE id = ?
       `);
-      
+      // Debug log
+      console.log('[DEBUG][CompanyDebt][UPDATE] paidAt:', paidAtValue, 'USD Paid:', newTotalPaidUSD, 'IQD Paid:', newTotalPaidIQD, 'Exchange Rate:', currentUSDToIQD);
       const result = updateStmt.run(
         paidAtValue, 
         newTotalPaidUSD || 0, 
         newTotalPaidIQD || 0,
-        payment_currency_used || (finalUSDAmount > 0 && finalIQDAmount > 0 ? 'MULTI' : (finalUSDAmount > 0 ? 'USD' : 'IQD')),
+        currentUSDToIQD,
+        currentIQDToUSD,
         id
       );
       
@@ -641,12 +720,15 @@ function markCompanyDebtPaid(db, id, paymentData) {
       
       // Deduct from the user's balance based on the actual payment amounts
       // This is the key fix - deduct the currencies that were actually paid
+      console.log('[DEBUG][CompanyDebt][BALANCE] Before deduction - finalUSDAmount:', finalUSDAmount, 'finalIQDAmount:', finalIQDAmount);
       if (finalUSDAmount > 0) {
+        console.log('[DEBUG][CompanyDebt][BALANCE] Deducting USD:', finalUSDAmount);
         settings.updateBalance(db, 'USD', -finalUSDAmount);
       }
       
       // Deduct IQD amount if any IQD was paid  
       if (finalIQDAmount > 0) {
+        console.log('[DEBUG][CompanyDebt][BALANCE] Deducting IQD:', finalIQDAmount);
         settings.updateBalance(db, 'IQD', -finalIQDAmount);
       }
       
@@ -1025,6 +1107,26 @@ function markPersonalLoanPaid(db, id, paymentData) {
       // Check if loan is fully paid after this payment
       const isFullyPaid = (newPaymentUSD >= (loanInfo.usd_amount || 0)) && (newPaymentIQD >= (loanInfo.iqd_amount || 0));
       
+      // Record this specific payment in the debt_payments table
+      // This allows us to track each payment's exchange rate accurately
+      const recordPaymentStmt = db.prepare(`
+        INSERT INTO debt_payments (debt_type, debt_id, payment_usd_amount, payment_iqd_amount, 
+                                   payment_currency_used, exchange_rate_usd_to_iqd, exchange_rate_iqd_to_usd, 
+                                   payment_date) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      
+      recordPaymentStmt.run(
+        'personal',
+        id,
+        payment_usd_amount || 0,
+        payment_iqd_amount || 0,
+        (payment_usd_amount > 0 && payment_iqd_amount > 0) ? 'MULTI' : (payment_usd_amount > 0 ? 'USD' : 'IQD'),
+        usdToIqdRate,
+        iqdToUsdRate,
+        now
+      );
+
       // Update the loan record - only set paid_at if fully paid
       const updateStmt = db.prepare(`
         UPDATE personal_loans 
@@ -1256,6 +1358,7 @@ function getTotalDebts(db) {
 
 module.exports = {
   getCustomerDebts,
+  getDebtPayments,
   addCustomerDebt,
   payCustomerDebt,
   markCustomerDebtPaid,

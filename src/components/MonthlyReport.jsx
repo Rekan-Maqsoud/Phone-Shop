@@ -4,7 +4,18 @@ import { EXCHANGE_RATES, formatCurrencyWithTranslation } from '../utils/exchange
 import { Icon } from '../utils/icons.jsx';
 
 const MonthlyReport = ({ t }) => {
-  const { sales, products, accessories, debts, buyingHistory, companyDebts, incentives, transactions } = useData();
+  const { 
+    sales, 
+    products, 
+    accessories, 
+    debts, 
+    buyingHistory, 
+    companyDebts, 
+    incentives, 
+    transactions,
+    calculateRemainingCustomerDebt,
+    calculateRemainingCompanyDebt
+  } = useData();
   const [selectedMonth, setSelectedMonth] = useState('');
 
   // Get available months from sales data
@@ -176,7 +187,7 @@ const MonthlyReport = ({ t }) => {
             const saleProfit = saleTotal - totalBuyingInUSD;
             totalProfit.USD += saleProfit;
           } else {
-            const totalBuyingInIQD = saleBuyingCostIQD + (saleBuyingCostUSD * (sale.exchange_rate_usd_to_iqd || 1440));
+            const totalBuyingInIQD = saleBuyingCostIQD + (saleBuyingCostUSD * (sale.exchange_rate_usd_to_iqd || 1390));
             const saleProfit = saleTotal - totalBuyingInIQD;
             totalProfit.IQD += saleProfit;
           }
@@ -248,50 +259,9 @@ const MonthlyReport = ({ t }) => {
       });
     }
 
-    // Helper function to calculate remaining debt amount (same logic as dashboard)
+    // Helper function to calculate remaining debt amount using utility from DataContext
     const calculateRemainingDebtAmount = (sale, debt) => {
-      if (!debt) {
-        // No debt record means full amount is owed
-        return {
-          amount: sale.total,
-          currency: sale.currency || 'USD'
-        };
-      }
-
-      if (debt.paid_at) {
-        // Fully paid
-        return {
-          amount: 0,
-          currency: sale.currency || 'USD'
-        };
-      }
-
-      // Calculate remaining amount after partial payments with currency conversion
-      const originalTotal = sale.total;
-      const currency = sale.currency || 'USD';
-      const currentUSDToIQD = 1440; // Exchange rate
-      
-      if (currency === 'USD') {
-        // For USD debts, convert all payments to USD equivalent
-        const paidUSD = debt.payment_usd_amount || 0;
-        const paidIQD = debt.payment_iqd_amount || 0;
-        const totalPaidUSDEquivalent = paidUSD + (paidIQD / currentUSDToIQD);
-        
-        return {
-          amount: Math.max(0, originalTotal - totalPaidUSDEquivalent),
-          currency: 'USD'
-        };
-      } else {
-        // For IQD debts, convert all payments to IQD equivalent
-        const paidUSD = debt.payment_usd_amount || 0;
-        const paidIQD = debt.payment_iqd_amount || 0;
-        const totalPaidIQDEquivalent = paidIQD + (paidUSD * currentUSDToIQD);
-        
-        return {
-          amount: Math.max(0, originalTotal - totalPaidIQDEquivalent),
-          currency: 'IQD'
-        };
-      }
+      return calculateRemainingCustomerDebt(sale, debt);
     };
 
     // Calculate outstanding for the month (debts created in this month that are still unpaid)
@@ -312,7 +282,7 @@ const MonthlyReport = ({ t }) => {
     });
 
     // Calculate company debts for the month (company debts created in this month with remaining amounts)
-    // Use REMAINING debt amounts instead of total amounts (same logic as dashboard)
+    // Use REMAINING debt amounts instead of total amounts using utility function
     const companyOutstanding = { USD: 0, IQD: 0 };
     if (companyDebts && Array.isArray(companyDebts)) {
       const monthCompanyDebts = companyDebts.filter(debt => {
@@ -322,34 +292,9 @@ const MonthlyReport = ({ t }) => {
       });
 
       monthCompanyDebts.forEach(debt => {
-        if (debt.currency === 'MULTI') {
-          // For multi-currency debts, subtract partial payments
-          const remainingUSD = Math.max(0, (debt.usd_amount || 0) - (debt.payment_usd_amount || 0));
-          const remainingIQD = Math.max(0, (debt.iqd_amount || 0) - (debt.payment_iqd_amount || 0));
-          
-          // Check 250 IQD threshold: if total remaining is less than 250 IQD equivalent, ignore
-          const totalRemainingIQDEquivalent = remainingIQD + (remainingUSD * 1440); // Convert USD to IQD
-          if (totalRemainingIQDEquivalent >= 250) {
-            companyOutstanding.USD += remainingUSD;
-            companyOutstanding.IQD += remainingIQD;
-          }
-        } else if (debt.currency === 'USD') {
-          const remaining = Math.max(0, (debt.amount || 0) - (debt.payment_usd_amount || 0));
-          
-          // Check 250 IQD threshold for USD debts
-          const remainingIQDEquivalent = remaining * 1440; // Convert USD to IQD
-          if (remainingIQDEquivalent >= 250) {
-            companyOutstanding.USD += remaining;
-          }
-        } else {
-          // IQD or unknown currency
-          const remaining = Math.max(0, (debt.amount || 0) - (debt.payment_iqd_amount || 0));
-          
-          // Check 250 IQD threshold
-          if (remaining >= 250) {
-            companyOutstanding.IQD += remaining;
-          }
-        }
+        const remaining = calculateRemainingCompanyDebt(debt);
+        companyOutstanding.USD += remaining.USD;
+        companyOutstanding.IQD += remaining.IQD;
       });
     }
 

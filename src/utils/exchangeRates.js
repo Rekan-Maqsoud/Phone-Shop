@@ -10,8 +10,8 @@
 
 // Simple in-memory cache - will be populated from database
 let currentExchangeRates = {
-  USD_TO_IQD: 1400, // Default working rate that matches header display
-  IQD_TO_USD: 1/1400
+  USD_TO_IQD: 1390, // Default working rate that matches header display
+  IQD_TO_USD: 1/1390
 };
 
 /**

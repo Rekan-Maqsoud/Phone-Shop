@@ -1,5 +1,9 @@
 // Electron main process
 
+// Set environment variables for unsigned updates BEFORE importing any electron modules
+process.env.ELECTRON_UPDATER_ALLOW_UNSIGNED = 'true';
+process.env.ELECTRON_UPDATER_DISABLE_SIGNATURE_VERIFICATION = 'true';
+
 const { app, BrowserWindow, ipcMain, dialog, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
@@ -18,14 +22,21 @@ const autoUpdateService = new AutoUpdateService();
 // Initialize auto backup settings
 async function initializeAutoBackup() {
   try {
-    // Check if auto backup is enabled in settings (default to false to prevent auth errors)
-    const autoBackupEnabled = await settings.get('autoBackup');
-    const enabled = autoBackupEnabled === true; // Only enable if explicitly set to true
+    // Check if auto backup is enabled in settings
+    let autoBackupEnabled = await settings.get('autoBackup');
+    
+    // If setting doesn't exist, set it to true by default
+    if (autoBackupEnabled === undefined || autoBackupEnabled === null) {
+      await settings.set('autoBackup', true);
+      autoBackupEnabled = true;
+    }
+    
+    const enabled = autoBackupEnabled === true;
     cloudBackupService.setAutoBackup(enabled);
   } catch (error) {
     console.error('[Main] Failed to initialize auto backup:', error);
-    // Default to disabled if error to prevent spam
-    cloudBackupService.setAutoBackup(false);
+    // Default to enabled if error to ensure backups work
+    cloudBackupService.setAutoBackup(true);
   }
 }
 
@@ -121,7 +132,7 @@ function createWindow() {
   });
   
   const urlToLoad = isDevMode 
-    ? 'http://localhost:5173/'
+    ? (process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173/')
     : `file://${path.join(__dirname, '../dist/index.html')}`;
     
   
@@ -729,8 +740,17 @@ ipcMain.handle('saveSale', async (event, sale) => {
 // Auto backup after data changes using new cloud backup system
 async function autoBackupAfterChange(operationType = 'unknown') {
   try {
-    if (cloudBackupService && cloudBackupService.isAuthenticated) {
+    if (!cloudBackupService) {
+      return { success: false, message: 'CloudBackupService not available' };
+    }
+    
+    if (!cloudBackupService.autoBackupEnabled) {
+      return { success: false, message: 'Auto backup disabled' };
+    }
+    
+    if (cloudBackupService.isAuthenticated) {
       const dbPath = getDatabasePath();
+      
       // Don't await - let backup run in background
       cloudBackupService.autoBackup(dbPath).catch(error => {
         // Silently fail for authentication errors to avoid spam
@@ -738,9 +758,10 @@ async function autoBackupAfterChange(operationType = 'unknown') {
           console.error('Background backup failed:', error);
         }
       });
-      return { success: true };
+      return { success: true, message: 'Auto backup started' };
+    } else {
+      return { success: false, message: 'Cloud backup not authenticated' };
     }
-    return { success: false, message: 'Cloud backup not authenticated' };
   } catch (error) {
     console.error('Auto backup trigger failed:', error);
     return { success: false, error: error.message };
@@ -834,6 +855,19 @@ ipcMain.handle('getCustomerDebts', async () => {
     }
   } catch (error) {
     console.error('❌ getCustomerDebts error:', error);
+    return [];
+  }
+});
+ipcMain.handle('getDebtPayments', async (event, debtType, debtId) => {
+  try {
+    if (db && db.getDebtPayments) {
+      return db.getDebtPayments(debtType, debtId);
+    } else {
+      console.error('❌ Database or getDebtPayments function not available');
+      return [];
+    }
+  } catch (error) {
+    console.error('❌ getDebtPayments error:', error);
     return [];
   }
 });

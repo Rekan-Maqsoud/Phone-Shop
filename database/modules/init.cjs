@@ -261,6 +261,19 @@ CREATE TABLE IF NOT EXISTS returns (
   FOREIGN KEY(accessory_id) REFERENCES accessories(id),
   FOREIGN KEY(buying_history_id) REFERENCES buying_history(id)
 );
+
+CREATE TABLE IF NOT EXISTS debt_payments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  debt_type TEXT NOT NULL, -- 'customer', 'company', 'personal'
+  debt_id INTEGER NOT NULL,
+  payment_usd_amount REAL DEFAULT 0,
+  payment_iqd_amount REAL DEFAULT 0,
+  payment_currency_used TEXT,
+  exchange_rate_usd_to_iqd REAL NOT NULL,
+  exchange_rate_iqd_to_usd REAL NOT NULL,
+  payment_date DATETIME NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
 `;
   
   // Execute initial schema
@@ -295,6 +308,9 @@ CREATE TABLE IF NOT EXISTS returns (
       CREATE INDEX IF NOT EXISTS idx_transactions_type ON transactions(type);
       CREATE INDEX IF NOT EXISTS idx_transactions_created_at ON transactions(created_at);
       CREATE INDEX IF NOT EXISTS idx_buying_history_date ON buying_history(date);
+      CREATE INDEX IF NOT EXISTS idx_debt_payments_debt_type ON debt_payments(debt_type);
+      CREATE INDEX IF NOT EXISTS idx_debt_payments_debt_id ON debt_payments(debt_id);
+      CREATE INDEX IF NOT EXISTS idx_debt_payments_payment_date ON debt_payments(payment_date);
     `);
   } catch (e) {
     console.warn('Database index creation warning:', e.message);
@@ -393,6 +409,8 @@ function runMigrations(db) {
     const hasPaymentUsdAmount = companyDebtsTableInfo.some(col => col.name === 'payment_usd_amount');
     const hasPaymentIqdAmount = companyDebtsTableInfo.some(col => col.name === 'payment_iqd_amount');
     const hasPaymentCurrencyUsed = companyDebtsTableInfo.some(col => col.name === 'payment_currency_used');
+    const hasPaymentExchangeRateUsdToIqd = companyDebtsTableInfo.some(col => col.name === 'payment_exchange_rate_usd_to_iqd');
+    const hasPaymentExchangeRateIqdToUsd = companyDebtsTableInfo.some(col => col.name === 'payment_exchange_rate_iqd_to_usd');
 
     if (!hasPaymentUsdAmount) {
       db.prepare('ALTER TABLE company_debts ADD COLUMN payment_usd_amount REAL DEFAULT 0').run();
@@ -402,6 +420,12 @@ function runMigrations(db) {
     }
     if (!hasPaymentCurrencyUsed) {
       db.prepare('ALTER TABLE company_debts ADD COLUMN payment_currency_used TEXT').run();
+    }
+    if (!hasPaymentExchangeRateUsdToIqd) {
+      db.prepare('ALTER TABLE company_debts ADD COLUMN payment_exchange_rate_usd_to_iqd REAL DEFAULT 1390').run();
+    }
+    if (!hasPaymentExchangeRateIqdToUsd) {
+      db.prepare('ALTER TABLE company_debts ADD COLUMN payment_exchange_rate_iqd_to_usd REAL DEFAULT 0.000719').run();
     }
   } catch (e) {
     console.warn('Company debts migration warning:', e.message);
@@ -422,6 +446,8 @@ function runMigrations(db) {
     const hasPaymentUsdAmount = customerDebtsTableInfo.some(col => col.name === 'payment_usd_amount');
     const hasPaymentIqdAmount = customerDebtsTableInfo.some(col => col.name === 'payment_iqd_amount');
     const hasPaymentCurrencyUsed = customerDebtsTableInfo.some(col => col.name === 'payment_currency_used');
+    const hasPaymentExchangeRateUsdToIqd = customerDebtsTableInfo.some(col => col.name === 'payment_exchange_rate_usd_to_iqd');
+    const hasPaymentExchangeRateIqdToUsd = customerDebtsTableInfo.some(col => col.name === 'payment_exchange_rate_iqd_to_usd');
 
     if (!hasPaymentUsdAmount) {
       db.prepare('ALTER TABLE customer_debts ADD COLUMN payment_usd_amount REAL DEFAULT 0').run();
@@ -431,6 +457,12 @@ function runMigrations(db) {
     }
     if (!hasPaymentCurrencyUsed) {
       db.prepare('ALTER TABLE customer_debts ADD COLUMN payment_currency_used TEXT').run();
+    }
+    if (!hasPaymentExchangeRateUsdToIqd) {
+      db.prepare('ALTER TABLE customer_debts ADD COLUMN payment_exchange_rate_usd_to_iqd REAL DEFAULT 1390').run();
+    }
+    if (!hasPaymentExchangeRateIqdToUsd) {
+      db.prepare('ALTER TABLE customer_debts ADD COLUMN payment_exchange_rate_iqd_to_usd REAL DEFAULT 0.000719').run();
     }
   } catch (e) {
     console.warn('Customer debts migration warning:', e.message);
@@ -507,6 +539,38 @@ function runMigrations(db) {
     }
   } catch (e) {
     console.warn('Buying history multi-currency migration warning:', e.message);
+  }
+
+  // Migrate to add debt_payments table for existing databases
+  try {
+    // Check if debt_payments table exists
+    const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='debt_payments'").all();
+    
+    if (tables.length === 0) {
+      console.log('Creating debt_payments table for existing database...');
+      // Create the debt_payments table
+      db.exec(`
+        CREATE TABLE debt_payments (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          debt_type TEXT NOT NULL,
+          debt_id INTEGER NOT NULL,
+          payment_usd_amount REAL DEFAULT 0,
+          payment_iqd_amount REAL DEFAULT 0,
+          payment_currency_used TEXT,
+          exchange_rate_usd_to_iqd REAL NOT NULL,
+          exchange_rate_iqd_to_usd REAL NOT NULL,
+          payment_date DATETIME NOT NULL,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        
+        CREATE INDEX IF NOT EXISTS idx_debt_payments_debt_type ON debt_payments(debt_type);
+        CREATE INDEX IF NOT EXISTS idx_debt_payments_debt_id ON debt_payments(debt_id);
+        CREATE INDEX IF NOT EXISTS idx_debt_payments_payment_date ON debt_payments(payment_date);
+      `);
+      console.log('✅ debt_payments table created successfully');
+    }
+  } catch (e) {
+    console.warn('Debt payments table migration warning:', e.message);
   }
 
   // Initialize sample data if tables are empty

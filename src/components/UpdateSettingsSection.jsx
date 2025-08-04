@@ -68,7 +68,18 @@ export default function UpdateSettingsSection({ admin, t }) {
     const handleUpdateError = (event, error) => {
       setCheckingForUpdates(false);
       console.error('Update error:', error);
-      admin.setToast(`${t.updateCheckFailed || 'Update check failed'}: ${error}`, 'error');
+      
+      // Enhanced error message for users
+      let userMessage = error;
+      if (error.includes('No releases found')) {
+        userMessage = t.noReleasesFound || 'No updates are currently available. Please check back later.';
+      } else if (error.includes('Network error')) {
+        userMessage = t.networkError || 'Unable to check for updates. Please check your internet connection.';
+      } else if (error.includes('timed out')) {
+        userMessage = t.updateTimeout || 'Update check timed out. Please try again.';
+      }
+      
+      admin.setToast(userMessage, 'error', 8000);
     };
 
     const handleDownloadProgress = (event, data) => {
@@ -236,6 +247,16 @@ export default function UpdateSettingsSection({ admin, t }) {
             )}
           </button>
         </div>
+        
+        {/* Note about enabling updates */}
+        {!updateSettings.autoUpdateEnabled && (
+          <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
+            <p className="text-sm text-blue-600 dark:text-blue-400">
+              <Icon name="info" className="w-4 h-4 inline mr-1" />
+              {t.updateHint || 'Enable "Auto Updates" below to receive automatic notifications when new versions are available.'}
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Update Available */}
@@ -354,6 +375,19 @@ export default function UpdateSettingsSection({ admin, t }) {
             <h5 className="font-medium text-blue-800 dark:text-blue-300">{t.howUpdatesWork || 'How Updates Work'}</h5>
             <p className="text-sm text-blue-600 dark:text-blue-400 mt-1">
               {t.updatesInfo || 'Updates are fetched from the official repository. You will always be notified before any update is installed. The app will restart automatically after installation to apply the update.'}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Troubleshooting Info */}
+      <div className="mt-4 p-4 bg-yellow-50 dark:bg-yellow-900/30 rounded-lg">
+        <div className="flex items-start space-x-2">
+          <Icon name="alert-triangle" className="w-5 h-5 text-yellow-600 dark:text-yellow-400 mt-0.5" />
+          <div>
+            <h5 className="font-medium text-yellow-800 dark:text-yellow-300">{t.troubleshooting || 'Troubleshooting'}</h5>
+            <p className="text-sm text-yellow-600 dark:text-yellow-400 mt-1">
+              {t.troubleshootingInfo || 'If update checks fail, ensure you have an active internet connection. Updates may not be available if no new releases have been published. Contact support if issues persist.'}
             </p>
           </div>
         </div>

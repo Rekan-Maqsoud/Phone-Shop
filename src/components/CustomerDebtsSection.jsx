@@ -17,7 +17,13 @@ const CustomerDebtsSection = ({
   showConfirm,
   triggerCloudBackup 
 }) => {
-  const { refreshDebts, refreshDebtSales, refreshSales, refreshTransactions } = useData();
+  const { 
+    refreshDebts, 
+    refreshDebtSales, 
+    refreshSales, 
+    refreshTransactions,
+    calculateRemainingCustomerDebt
+  } = useData();
   const { isRTL } = useLocale();
   const [sortBy, setSortBy] = useState('date'); // 'date', 'amount', 'customer'
   const [sortOrder, setSortOrder] = useState('desc'); // 'asc', 'desc'
@@ -56,48 +62,7 @@ const CustomerDebtsSection = ({
 
   // Helper function to calculate REMAINING debt amount for a customer debt
   const calculateRemainingDebt = (sale, debt) => {
-    if (!debt) {
-      // No debt record means full amount is owed
-      return {
-        amount: sale.total,
-        currency: sale.currency || 'USD'
-      };
-    }
-
-    if (debt.paid_at) {
-      // Fully paid
-      return {
-        amount: 0,
-        currency: sale.currency || 'USD'
-      };
-    }
-
-    // Calculate remaining amount after partial payments with currency conversion
-    const originalTotal = sale.total;
-    const currency = sale.currency || 'USD';
-    const currentUSDToIQD = 1440; // Exchange rate
-    
-    if (currency === 'USD') {
-      // For USD debts, convert all payments to USD equivalent
-      const paidUSD = debt.payment_usd_amount || 0;
-      const paidIQD = debt.payment_iqd_amount || 0;
-      const totalPaidUSDEquivalent = paidUSD + (paidIQD / currentUSDToIQD);
-      
-      return {
-        amount: Math.max(0, originalTotal - totalPaidUSDEquivalent),
-        currency: 'USD'
-      };
-    } else {
-      // For IQD debts, convert all payments to IQD equivalent
-      const paidUSD = debt.payment_usd_amount || 0;
-      const paidIQD = debt.payment_iqd_amount || 0;
-      const totalPaidIQDEquivalent = paidIQD + (paidUSD * currentUSDToIQD);
-      
-      return {
-        amount: Math.max(0, originalTotal - totalPaidIQDEquivalent),
-        currency: 'IQD'
-      };
-    }
+    return calculateRemainingCustomerDebt(sale, debt);
   };
 
   // Helper function to calculate the display amount based on paid/unpaid status

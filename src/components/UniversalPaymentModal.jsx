@@ -42,12 +42,16 @@ const UniversalPaymentModal = ({
       const currency = debtData.sale.currency || 'USD';
       
       if (currency === 'USD') {
-        const paidAmount = debtData.debt.payment_usd_amount || 0;
-        const remaining = Math.max(0, originalTotal - paidAmount);
+        // USD debt - subtract USD payments and IQD payments converted to USD
+        const paidUSD = debtData.debt.payment_usd_amount || 0;
+        const paidIQD = debtData.debt.payment_iqd_amount || 0;
+        const remaining = Math.max(0, originalTotal - paidUSD - (paidIQD / EXCHANGE_RATES.USD_TO_IQD));
         return remaining;
       } else {
-        const paidAmount = debtData.debt.payment_iqd_amount || 0;
-        const remaining = Math.max(0, originalTotal - paidAmount);
+        // IQD debt - subtract IQD payments and USD payments converted to IQD
+        const paidUSD = debtData.debt.payment_usd_amount || 0;
+        const paidIQD = debtData.debt.payment_iqd_amount || 0;
+        const remaining = Math.max(0, originalTotal - paidIQD - (paidUSD * EXCHANGE_RATES.USD_TO_IQD));
         return remaining / EXCHANGE_RATES.USD_TO_IQD; // Convert to USD for calculation
       }
     } else if (paymentType === 'company') {
@@ -59,12 +63,17 @@ const UniversalPaymentModal = ({
         remainingUSD = Math.max(0, (debtData.usd_amount || 0) - (debtData.payment_usd_amount || 0));
         remainingIQD = Math.max(0, (debtData.iqd_amount || 0) - (debtData.payment_iqd_amount || 0));
       } else if (debtData.currency === 'USD') {
-        remainingUSD = Math.max(0, (debtData.amount || 0) - (debtData.payment_usd_amount || 0));
+        // USD debt - subtract USD payments and IQD payments converted to USD
+        const paidUSD = debtData.payment_usd_amount || 0;
+        const paidIQD = debtData.payment_iqd_amount || 0;
+        remainingUSD = Math.max(0, (debtData.amount || 0) - paidUSD - (paidIQD / EXCHANGE_RATES.USD_TO_IQD));
         remainingIQD = 0;
       } else {
-        // IQD or unknown currency
+        // IQD or unknown currency - subtract IQD payments and USD payments converted to IQD
+        const paidUSD = debtData.payment_usd_amount || 0;
+        const paidIQD = debtData.payment_iqd_amount || 0;
         remainingUSD = 0;
-        remainingIQD = Math.max(0, (debtData.amount || 0) - (debtData.payment_iqd_amount || 0));
+        remainingIQD = Math.max(0, (debtData.amount || 0) - paidIQD - (paidUSD * EXCHANGE_RATES.USD_TO_IQD));
       }
       
       // Convert to USD equivalent for consistent calculation
@@ -343,7 +352,13 @@ const UniversalPaymentModal = ({
                 {paymentType === 'company' ? (
                   debtData.currency === 'IQD' ? (
                     <>
-                      {formatCurrency((debtData.amount || 0) - (debtData.payment_iqd_amount || 0), 'IQD')}
+                      {(() => {
+                        // IQD debt - subtract IQD payments and USD payments converted to IQD
+                        const paidUSD = debtData.payment_usd_amount || 0;
+                        const paidIQD = debtData.payment_iqd_amount || 0;
+                        const remaining = Math.max(0, (debtData.amount || 0) - paidIQD - (paidUSD * EXCHANGE_RATES.USD_TO_IQD));
+                        return formatCurrency(remaining, 'IQD');
+                      })()}
                       <div className="text-sm text-gray-500">
                         (≈ {formatCurrency(debtAmountUSD, 'USD')})
                       </div>
@@ -361,7 +376,13 @@ const UniversalPaymentModal = ({
                     </>
                   ) : (
                     <>
-                      {formatCurrency((debtData.amount || 0) - (debtData.payment_usd_amount || 0), 'USD')}
+                      {(() => {
+                        // USD debt - subtract USD payments and IQD payments converted to USD
+                        const paidUSD = debtData.payment_usd_amount || 0;
+                        const paidIQD = debtData.payment_iqd_amount || 0;
+                        const remaining = Math.max(0, (debtData.amount || 0) - paidUSD - (paidIQD / EXCHANGE_RATES.USD_TO_IQD));
+                        return formatCurrency(remaining, 'USD');
+                      })()}
                       <div className="text-sm text-gray-500">
                         (≈ {formatCurrency(debtAmountUSD * EXCHANGE_RATES.USD_TO_IQD, 'IQD')})
                       </div>

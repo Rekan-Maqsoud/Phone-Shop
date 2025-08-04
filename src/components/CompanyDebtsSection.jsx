@@ -13,7 +13,12 @@ const CompanyDebtsSection = React.memo(({
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedPaymentHistories, setExpandedPaymentHistories] = useState(new Set());
-  const { companyDebts, refreshCompanyDebts } = useData();
+  const { 
+    companyDebts, 
+    refreshCompanyDebts,
+    calculateRemainingCompanyDebt,
+    calculateTotalCompanyOutstanding
+  } = useData();
   const { isRTL } = useLocale();
 
   // Force refresh when component mounts ONCE to ensure latest data
@@ -32,74 +37,32 @@ const CompanyDebtsSection = React.memo(({
       debt?.description?.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    // Calculate total REMAINING debt by currency with 250 IQD threshold
-    const calculatedTotals = filtered.reduce((acc, d) => {
+    // Calculate total REMAINING debt by currency using utility function
+    const calculatedTotals = filtered.reduce((acc, debt) => {
       // Skip fully paid debts
-      if (d.paid_at) return acc;
+      if (debt.paid_at) return acc;
       
-      if (d.currency === 'MULTI') {
-        const remainingUSD = Math.max(0, (d.usd_amount || 0) - (d.payment_usd_amount || 0));
-        const remainingIQD = Math.max(0, (d.iqd_amount || 0) - (d.payment_iqd_amount || 0));
-        
-        // Only add if there's actually remaining debt
-        if (remainingUSD > 0 || remainingIQD > 0) {
-          // Check 250 IQD threshold for the total remaining
-          const totalRemainingIQDEquivalent = remainingIQD + (remainingUSD * 1440);
-          if (totalRemainingIQDEquivalent >= 250) {
-            acc.usd += remainingUSD;
-            acc.iqd += remainingIQD;
-          }
-        }
-      } else if (d.currency === 'USD') {
-        const remaining = Math.max(0, (d.amount || 0) - (d.payment_usd_amount || 0));
-        
-        // Only add if there's remaining debt and meets threshold
-        if (remaining > 0) {
-          const remainingIQDEquivalent = remaining * 1440;
-          if (remainingIQDEquivalent >= 250) {
-            acc.usd += remaining;
-          }
-        }
-      } else {
-        const remaining = Math.max(0, (d.amount || 0) - (d.payment_iqd_amount || 0));
-        
-        // Only add if there's remaining debt and meets threshold
-        if (remaining >= 250) {
-          acc.iqd += remaining;
-        }
-      }
+      const remaining = calculateRemainingCompanyDebt(debt);
+      acc.usd += remaining.USD;
+      acc.iqd += remaining.IQD;
       return acc;
     }, { usd: 0, iqd: 0 });
 
     return { filteredDebts: filtered, totals: calculatedTotals };
-  }, [companyDebts, searchTerm]);
+  }, [companyDebts, searchTerm, calculateRemainingCompanyDebt]);
 
   // Helper function to format REMAINING debt amount with proper currency handling
   const formatDebtAmount = (debt) => {
-    if (debt.currency === 'MULTI') {
-      // Multi-currency debt - show remaining amounts
-      const remainingUSD = Math.max(0, (debt.usd_amount || 0) - (debt.payment_usd_amount || 0));
-      const remainingIQD = Math.max(0, (debt.iqd_amount || 0) - (debt.payment_iqd_amount || 0));
-      
-      if (remainingUSD > 0 && remainingIQD > 0) {
-        return `${formatCurrency(remainingUSD, 'USD')} + ${formatCurrency(remainingIQD, 'IQD')}`;
-      } else if (remainingUSD > 0) {
-        return formatCurrency(remainingUSD, 'USD');
-      } else if (remainingIQD > 0) {
-        return formatCurrency(remainingIQD, 'IQD');
-      } else {
-        return formatCurrency(0, 'USD');
-      }
+    const remaining = calculateRemainingCompanyDebt(debt);
+    
+    if (remaining.USD > 0 && remaining.IQD > 0) {
+      return `${formatCurrency(remaining.USD, 'USD')} + ${formatCurrency(remaining.IQD, 'IQD')}`;
+    } else if (remaining.USD > 0) {
+      return formatCurrency(remaining.USD, 'USD');
+    } else if (remaining.IQD > 0) {
+      return formatCurrency(remaining.IQD, 'IQD');
     } else {
-      // Single currency debt - show remaining amount
-      const currency = debt.currency || 'IQD'; // Default to IQD if not specified
-      if (currency === 'USD') {
-        const remaining = Math.max(0, (debt.amount || 0) - (debt.payment_usd_amount || 0));
-        return formatCurrency(remaining, 'USD');
-      } else {
-        const remaining = Math.max(0, (debt.amount || 0) - (debt.payment_iqd_amount || 0));
-        return formatCurrency(remaining, 'IQD');
-      }
+      return formatCurrency(0, 'USD');
     }
   };
 
@@ -179,20 +142,12 @@ const CompanyDebtsSection = React.memo(({
 
         // Sort companies by unpaid debt amount (highest first), then alphabetically (case-insensitive)
         const sortedCompanies = Object.values(groupedDebts).sort((a, b) => {
-          // Calculate REMAINING unpaid amounts for comparison (convert to USD for comparison)
+          // Calculate REMAINING unpaid amounts for comparison using proper calculation function
           const calculateUnpaidUSDValue = (debts) => {
             return debts.filter(d => !d.paid_at).reduce((sum, d) => {
-              if (d.currency === 'MULTI') {
-                const remainingUSD = (d.usd_amount || 0) - (d.payment_usd_amount || 0);
-                const remainingIQD = (d.iqd_amount || 0) - (d.payment_iqd_amount || 0);
-                return sum + remainingUSD + (remainingIQD * EXCHANGE_RATES.IQD_TO_USD);
-              } else if (d.currency === 'USD') {
-                const remaining = (d.amount || 0) - (d.payment_usd_amount || 0);
-                return sum + remaining;
-              } else {
-                const remaining = (d.amount || 0) - (d.payment_iqd_amount || 0);
-                return sum + (remaining * EXCHANGE_RATES.IQD_TO_USD);
-              }
+              const remaining = calculateRemainingCompanyDebt(d);
+              // Convert both currencies to USD for comparison using current rates (for sorting only)
+              return sum + remaining.USD + (remaining.IQD * EXCHANGE_RATES.IQD_TO_USD);
             }, 0);
           };
           
@@ -255,31 +210,13 @@ const CompanyDebtsSection = React.memo(({
                   return new Date(b.created_at) - new Date(a.created_at);
                 });
                 
-                // Calculate total REMAINING debt for this company
-                // Include all unpaid debts and calculate remaining amounts properly
+                // Calculate total REMAINING debt for this company using proper calculation
                 const totalUnpaidForCompany = sortedCompanyDebts
                   .filter(d => !d.paid_at) // Only unpaid debts
-                  .reduce((acc, d) => {
-                    if (d.currency === 'MULTI') {
-                      const remainingUSD = Math.max(0, (d.usd_amount || 0) - (d.payment_usd_amount || 0));
-                      const remainingIQD = Math.max(0, (d.iqd_amount || 0) - (d.payment_iqd_amount || 0));
-                      
-                      // Only add if there's actually remaining debt
-                      if (remainingUSD > 0 || remainingIQD > 0) {
-                        acc.usd += remainingUSD;
-                        acc.iqd += remainingIQD;
-                      }
-                    } else if (d.currency === 'USD') {
-                      const remaining = Math.max(0, (d.amount || 0) - (d.payment_usd_amount || 0));
-                      if (remaining > 0) {
-                        acc.usd += remaining;
-                      }
-                    } else {
-                      const remaining = Math.max(0, (d.amount || 0) - (d.payment_iqd_amount || 0));
-                      if (remaining > 0) {
-                        acc.iqd += remaining;
-                      }
-                    }
+                  .reduce((acc, debt) => {
+                    const remaining = calculateRemainingCompanyDebt(debt);
+                    acc.usd += remaining.USD;
+                    acc.iqd += remaining.IQD;
                     return acc;
                   }, { usd: 0, iqd: 0 });
                 
@@ -379,23 +316,15 @@ const CompanyDebtsSection = React.memo(({
                                     <br />
                                     {t.remaining || 'Remaining'}: 
                                     {(() => {
-                                      if (debt.currency === 'MULTI') {
-                                        const remainingUSD = Math.max(0, (debt.usd_amount || 0) - (debt.payment_usd_amount || 0));
-                                        const remainingIQD = Math.max(0, (debt.iqd_amount || 0) - (debt.payment_iqd_amount || 0));
-                                        return (
-                                          <>
-                                            {remainingUSD > 0 && ` ${formatCurrency(remainingUSD, 'USD')}`}
-                                            {remainingUSD > 0 && remainingIQD > 0 && ' + '}
-                                            {remainingIQD > 0 && ` ${formatCurrency(remainingIQD, 'IQD')}`}
-                                            {remainingUSD === 0 && remainingIQD === 0 && ' Fully Paid'}
-                                          </>
-                                        );
-                                      } else if (debt.currency === 'USD') {
-                                        const remaining = Math.max(0, (debt.amount || 0) - (debt.payment_usd_amount || 0));
-                                        return remaining > 0 ? ` ${formatCurrency(remaining, 'USD')}` : ' Fully Paid';
+                                      const remaining = calculateRemainingCompanyDebt(debt);
+                                      if (remaining.USD > 0 && remaining.IQD > 0) {
+                                        return ` ${formatCurrency(remaining.USD, 'USD')} + ${formatCurrency(remaining.IQD, 'IQD')}`;
+                                      } else if (remaining.USD > 0) {
+                                        return ` ${formatCurrency(remaining.USD, 'USD')}`;
+                                      } else if (remaining.IQD > 0) {
+                                        return ` ${formatCurrency(remaining.IQD, 'IQD')}`;
                                       } else {
-                                        const remaining = Math.max(0, (debt.amount || 0) - (debt.payment_iqd_amount || 0));
-                                        return remaining > 0 ? ` ${formatCurrency(remaining, 'IQD')}` : ' Fully Paid';
+                                        return ' Fully Paid';
                                       }
                                     })()}
                                   </div>

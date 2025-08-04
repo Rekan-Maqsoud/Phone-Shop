@@ -99,7 +99,7 @@ const SalesHistoryTableEnhanced = React.memo(function SalesHistoryTableEnhanced(
       if (sale.currency === 'USD') {
         actualUsdProfit = saleTotal - usdData.buyingTotal - (iqdData.buyingTotal * (sale.exchange_rate_iqd_to_usd || 0.000694));
       } else {
-        actualIqdProfit = saleTotal - iqdData.buyingTotal - (usdData.buyingTotal * (sale.exchange_rate_usd_to_iqd || 1440));
+        actualIqdProfit = saleTotal - iqdData.buyingTotal - (usdData.buyingTotal * (sale.exchange_rate_usd_to_iqd || 1390));
       }
     }
 

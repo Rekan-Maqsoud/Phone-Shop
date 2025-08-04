@@ -232,8 +232,10 @@ const FinancialSummaryModal = ({ isOpen, onClose, t }) => {
         const remaining = (debt.usd_amount || 0) - (debt.payment_usd_amount || 0);
         return sum + Math.max(0, remaining);
       } else if (debt.currency === 'USD' && !debt.is_multi_currency) {
-        // Single currency USD debt
-        const remaining = (debt.amount || 0) - (debt.payment_usd_amount || 0);
+        // Single currency USD debt - subtract USD payments and IQD payments converted to USD
+        const paidUSD = debt.payment_usd_amount || 0;
+        const paidIQD = debt.payment_iqd_amount || 0;
+        const remaining = (debt.amount || 0) - paidUSD - (paidIQD * EXCHANGE_RATES.IQD_TO_USD);
         return sum + Math.max(0, remaining);
       }
       return sum;
@@ -246,8 +248,10 @@ const FinancialSummaryModal = ({ isOpen, onClose, t }) => {
         const remaining = (debt.iqd_amount || 0) - (debt.payment_iqd_amount || 0);
         return sum + Math.max(0, remaining);
       } else if ((debt.currency === 'IQD' || !debt.currency) && !debt.is_multi_currency) {
-        // Single currency IQD debt (or legacy debt without currency)
-        const remaining = (debt.amount || 0) - (debt.payment_iqd_amount || 0);
+        // Single currency IQD debt (or legacy debt without currency) - subtract IQD payments and USD payments converted to IQD
+        const paidUSD = debt.payment_usd_amount || 0;
+        const paidIQD = debt.payment_iqd_amount || 0;
+        const remaining = (debt.amount || 0) - paidIQD - (paidUSD * EXCHANGE_RATES.USD_TO_IQD);
         return sum + Math.max(0, remaining);
       }
       return sum;

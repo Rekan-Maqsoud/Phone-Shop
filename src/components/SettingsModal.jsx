@@ -282,7 +282,7 @@ export default function SettingsModal({
         
         {/* App Info */}
         <div className="mt-6 text-xs text-gray-500 dark:text-gray-400 text-center select-none">
-          <span>{t.madeBy || 'Made by'} Rekan M Koye &middot; v1.2.0</span>
+          <span>{t.madeBy || 'Made by'} "Rekan M Koye"  &middot; v1.2.10</span>
         </div>
       </div>
     </div>

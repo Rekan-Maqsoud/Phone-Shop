@@ -7,12 +7,38 @@ export default function EnhancedCompanyDebtModal({ show, onClose, debt, onMarkPa
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showItems, setShowItems] = useState(true);
-  const [paymentCurrency, setPaymentCurrency] = useState('IQD'); // Which currency user will pay with
-  const [paymentAmount, setPaymentAmount] = useState(0); // How much user is paying
+  const [paymentMode, setPaymentMode] = useState('single'); // 'single' or 'multi'
+  const [paymentCurrency, setPaymentCurrency] = useState('IQD'); // Which currency user will pay with (for single mode)
+  const [paymentAmount, setPaymentAmount] = useState(0); // How much user is paying (for single mode)
+  
+  // Multi-currency payment state
+  const [usdPaymentAmount, setUsdPaymentAmount] = useState(0);
+  const [iqdPaymentAmount, setIqdPaymentAmount] = useState(0);
 
   // Calculate payment summary with change skipping logic
   const paymentSummary = useMemo(() => {
-    if (!debt || !paymentAmount) return null;
+    if (!debt) return null;
+    
+    // Determine effective payment amounts based on mode
+    let effectiveUsdPayment = 0;
+    let effectiveIqdPayment = 0;
+    
+    if (paymentMode === 'multi') {
+      effectiveUsdPayment = usdPaymentAmount || 0;
+      effectiveIqdPayment = iqdPaymentAmount || 0;
+    } else {
+      // Single currency mode
+      if (paymentCurrency === 'USD') {
+        effectiveUsdPayment = paymentAmount || 0;
+        effectiveIqdPayment = 0;
+      } else {
+        effectiveUsdPayment = 0;
+        effectiveIqdPayment = paymentAmount || 0;
+      }
+    }
+    
+    // Skip calculation if no payment amounts
+    if (effectiveUsdPayment === 0 && effectiveIqdPayment === 0) return null;
     
     // Calculate debt amount in USD equivalent based on its original currency
     let debtAmountUSD = 0;
@@ -28,53 +54,101 @@ export default function EnhancedCompanyDebtModal({ show, onClose, debt, onMarkPa
       debtAmountUSD = (debt.amount || 0) / EXCHANGE_RATES.USD_TO_IQD;
     }
     
-    let changeInfo = null;
-    let netDeduction = 0;
+    // Account for previous payments
+    const previousPaidUSD = debt.payment_usd_amount || 0;
+    const previousPaidIQD = debt.payment_iqd_amount || 0;
+    const previousPaidUSDEquivalent = previousPaidUSD + (previousPaidIQD / EXCHANGE_RATES.USD_TO_IQD);
     
-    if (paymentCurrency === 'USD') {
-      const overpaymentUSD = paymentAmount - debtAmountUSD;
-      
-      if (overpaymentUSD > 0) {
-        // Skip change if less than $1 USD
-        if (overpaymentUSD < 1) {
-          changeInfo = { message: `Change of $${overpaymentUSD.toFixed(2)} will be ignored (less than $1)` };
-          netDeduction = paymentAmount; // Keep full payment
-        } else {
-          changeInfo = { message: `Change: $${overpaymentUSD.toFixed(2)} will be returned` };
-          netDeduction = debtAmountUSD; // Only deduct debt amount
-        }
+    // Calculate remaining debt after previous payments
+    const remainingDebtUSD = Math.max(0, debtAmountUSD - previousPaidUSDEquivalent);
+    
+    // Convert total payment to USD equivalent for comparison
+    const totalPaymentUSD = effectiveUsdPayment + (effectiveIqdPayment / EXCHANGE_RATES.USD_TO_IQD);
+    
+    let changeInfo = null;
+    let netDeductionUSD = 0;
+    let netDeductionIQD = 0;
+    
+    const overpaymentUSD = totalPaymentUSD - remainingDebtUSD;
+    
+    if (overpaymentUSD > 0) {
+      // Skip change if less than $1 USD equivalent
+      if (overpaymentUSD < 1) {
+        changeInfo = { message: `Change of $${overpaymentUSD.toFixed(2)} will be ignored (less than $1)` };
+        netDeductionUSD = effectiveUsdPayment; // Keep full USD payment
+        netDeductionIQD = effectiveIqdPayment; // Keep full IQD payment
       } else {
-        netDeduction = paymentAmount;
+        changeInfo = { message: `Change: $${overpaymentUSD.toFixed(2)} will be returned` };
+        // Calculate proportional deduction
+        if (paymentMode === 'multi') {
+          // For multi-currency, proportionally reduce both currencies
+          const debtRatio = remainingDebtUSD / totalPaymentUSD;
+          netDeductionUSD = effectiveUsdPayment * debtRatio;
+          netDeductionIQD = effectiveIqdPayment * debtRatio;
+        } else {
+          // For single currency, only deduct debt amount
+          netDeductionUSD = Math.min(effectiveUsdPayment, remainingDebtUSD);
+          netDeductionIQD = Math.min(effectiveIqdPayment, remainingDebtUSD * EXCHANGE_RATES.USD_TO_IQD);
+        }
       }
     } else {
-      // Paying with IQD
-      const debtAmountIQD = debt.currency === 'IQD' ? (debt.amount || 0) : (debtAmountUSD * EXCHANGE_RATES.USD_TO_IQD);
-      const overpaymentIQD = paymentAmount - debtAmountIQD;
-      
-      if (overpaymentIQD > 0) {
-        // Skip change if less than 1000 IQD
-        if (overpaymentIQD < 1000) {
-          changeInfo = { message: `Change of د.ع${overpaymentIQD.toFixed(0)} will be ignored (less than 1000 IQD)` };
-          netDeduction = paymentAmount / EXCHANGE_RATES.USD_TO_IQD; // Convert full payment to USD equivalent
-        } else {
-          changeInfo = { message: `Change: د.ع${overpaymentIQD.toFixed(0)} will be returned` };
-          netDeduction = debtAmountUSD; // Only deduct debt amount in USD equivalent
-        }
-      } else {
-        netDeduction = paymentAmount / EXCHANGE_RATES.USD_TO_IQD; // Convert payment to USD equivalent
-      }
+      // Not overpaying, deduct full payment amounts
+      netDeductionUSD = effectiveUsdPayment;
+      netDeductionIQD = effectiveIqdPayment;
     }
     
     return {
-      debtAmount: debtAmountUSD,
-      paymentAmount,
-      netDeduction,
+      originalDebtAmount: debtAmountUSD,
+      remainingDebtAmount: remainingDebtUSD,
+      previousPaidUSD,
+      previousPaidIQD,
+      paymentAmountUSD: effectiveUsdPayment,
+      paymentAmountIQD: effectiveIqdPayment,
+      totalPaymentUSD,
+      netDeductionUSD,
+      netDeductionIQD,
       changeInfo,
-      isOverpaying: paymentAmount > (paymentCurrency === 'USD' ? debtAmountUSD : debtAmountUSD * EXCHANGE_RATES.USD_TO_IQD),
-      isUnderpaying: paymentAmount < (paymentCurrency === 'USD' ? debtAmountUSD : debtAmountUSD * EXCHANGE_RATES.USD_TO_IQD),
-      isPerfect: Math.abs(paymentAmount - (paymentCurrency === 'USD' ? debtAmountUSD : debtAmountUSD * EXCHANGE_RATES.USD_TO_IQD)) < 0.01
+      isOverpaying: overpaymentUSD > 0,
+      isUnderpaying: totalPaymentUSD < remainingDebtUSD,
+      isPerfect: Math.abs(totalPaymentUSD - remainingDebtUSD) < 0.01,
+      finalRemainingDebtUSD: Math.max(0, remainingDebtUSD - totalPaymentUSD)
     };
-  }, [debt, paymentAmount, paymentCurrency]);
+  }, [debt, paymentAmount, paymentCurrency, paymentMode, usdPaymentAmount, iqdPaymentAmount]);
+
+  // Calculate remaining debt display
+  const getRemainingDebtDisplay = () => {
+    if (!debt) return '';
+    
+    const previousPaidUSD = debt.payment_usd_amount || 0;
+    const previousPaidIQD = debt.payment_iqd_amount || 0;
+    
+    if (debt.currency === 'USD') {
+      const remainingUSD = Math.max(0, (debt.amount || 0) - previousPaidUSD - (previousPaidIQD / EXCHANGE_RATES.USD_TO_IQD));
+      return `$${remainingUSD.toFixed(2)}`;
+    } else if (debt.currency === 'IQD') {
+      const remainingIQD = Math.max(0, (debt.amount || 0) - previousPaidIQD - (previousPaidUSD * EXCHANGE_RATES.USD_TO_IQD));
+      return `د.ع${remainingIQD.toFixed(0)} IQD`;
+    } else if (debt.currency === 'MULTI') {
+      const originalUSD = debt.usd_amount || 0;
+      const originalIQD = debt.iqd_amount || 0;
+      const remainingUSD = Math.max(0, originalUSD - previousPaidUSD);
+      const remainingIQD = Math.max(0, originalIQD - previousPaidIQD);
+      
+      if (remainingUSD > 0 && remainingIQD > 0) {
+        return `$${remainingUSD.toFixed(2)} + د.ع${remainingIQD.toFixed(0)} IQD`;
+      } else if (remainingUSD > 0) {
+        return `$${remainingUSD.toFixed(2)}`;
+      } else if (remainingIQD > 0) {
+        return `د.ع${remainingIQD.toFixed(0)} IQD`;
+      } else {
+        return 'Fully Paid';
+      }
+    } else {
+      // Default to IQD
+      const remainingIQD = Math.max(0, (debt.amount || 0) - previousPaidIQD - (previousPaidUSD * EXCHANGE_RATES.USD_TO_IQD));
+      return `د.ع${remainingIQD.toFixed(0)} IQD`;
+    }
+  };
 
   useEffect(() => {
     if (show && debt && debt.has_items) {
@@ -84,20 +158,35 @@ export default function EnhancedCompanyDebtModal({ show, onClose, debt, onMarkPa
     
     // Set default payment amount when debt changes
     if (show && debt) {
+      setPaymentMode('single');
       setPaymentCurrency('IQD');
-      // Set payment amount based on debt currency and default payment currency (IQD)
+      setUsdPaymentAmount(0);
+      setIqdPaymentAmount(0);
+      
+      // Calculate remaining debt considering previous payments
+      const previousPaidUSD = debt.payment_usd_amount || 0;
+      const previousPaidIQD = debt.payment_iqd_amount || 0;
+      
+      // Set payment amount based on remaining debt (not original debt)
       if (debt.currency === 'IQD') {
-        setPaymentAmount(debt.amount || 0); // IQD debt, IQD payment - direct amount
+        const remainingIQD = Math.max(0, (debt.amount || 0) - previousPaidIQD - (previousPaidUSD * EXCHANGE_RATES.USD_TO_IQD));
+        setPaymentAmount(remainingIQD); // IQD debt, IQD payment - remaining amount
       } else if (debt.currency === 'USD') {
-        setPaymentAmount((debt.amount || 0) * EXCHANGE_RATES.USD_TO_IQD); // USD debt, convert to IQD for payment
+        const remainingUSD = Math.max(0, (debt.amount || 0) - previousPaidUSD - (previousPaidIQD / EXCHANGE_RATES.USD_TO_IQD));
+        setPaymentAmount(remainingUSD * EXCHANGE_RATES.USD_TO_IQD); // USD debt, convert remaining to IQD for payment
       } else if (debt.currency === 'MULTI') {
-        // For multi-currency debt, calculate total in IQD
-        const usdInIQD = (debt.usd_amount || 0) * EXCHANGE_RATES.USD_TO_IQD;
-        const totalIQD = usdInIQD + (debt.iqd_amount || 0);
-        setPaymentAmount(totalIQD);
+        // For multi-currency debt, calculate remaining total in IQD
+        const originalUSD = debt.usd_amount || 0;
+        const originalIQD = debt.iqd_amount || 0;
+        const remainingUSD = Math.max(0, originalUSD - previousPaidUSD);
+        const remainingIQD = Math.max(0, originalIQD - previousPaidIQD);
+        const remainingUSDInIQD = remainingUSD * EXCHANGE_RATES.USD_TO_IQD;
+        const totalRemainingIQD = remainingUSDInIQD + remainingIQD;
+        setPaymentAmount(totalRemainingIQD);
       } else {
         // Legacy or unknown currency, default to IQD (assume debt amount is in IQD)
-        setPaymentAmount(debt.amount || 0);
+        const remainingIQD = Math.max(0, (debt.amount || 0) - previousPaidIQD - (previousPaidUSD * EXCHANGE_RATES.USD_TO_IQD));
+        setPaymentAmount(remainingIQD);
       }
     }
   }, [show, debt]);
@@ -117,20 +206,46 @@ export default function EnhancedCompanyDebtModal({ show, onClose, debt, onMarkPa
   };
 
   const handleMarkPaid = async () => {
-    if (!paymentAmount || paymentAmount <= 0) {
-      if (typeof onToast === 'function') {
-        onToast(t?.pleaseEnterValidAmount || 'Please enter a valid payment amount', 'error');
-      } else {
-        console.error('Please enter a valid payment amount');
+    let effectiveUsdPayment = 0;
+    let effectiveIqdPayment = 0;
+    
+    if (paymentMode === 'multi') {
+      effectiveUsdPayment = usdPaymentAmount || 0;
+      effectiveIqdPayment = iqdPaymentAmount || 0;
+      
+      if (effectiveUsdPayment <= 0 && effectiveIqdPayment <= 0) {
+        if (typeof onToast === 'function') {
+          onToast(t?.pleaseEnterValidAmount || 'Please enter a valid payment amount', 'error');
+        } else {
+          console.error('Please enter a valid payment amount');
+        }
+        return;
       }
-      return;
+    } else {
+      // Single currency mode
+      if (!paymentAmount || paymentAmount <= 0) {
+        if (typeof onToast === 'function') {
+          onToast(t?.pleaseEnterValidAmount || 'Please enter a valid payment amount', 'error');
+        } else {
+          console.error('Please enter a valid payment amount');
+        }
+        return;
+      }
+      
+      if (paymentCurrency === 'USD') {
+        effectiveUsdPayment = paymentAmount;
+        effectiveIqdPayment = 0;
+      } else {
+        effectiveUsdPayment = 0;
+        effectiveIqdPayment = paymentAmount;
+      }
     }
     
-    // Use new multi-currency format to properly track which currency was used for payment
+    // Use new multi-currency format to properly track which currencies were used for payment
     const paymentData = {
-      payment_currency_used: paymentCurrency,
-      payment_usd_amount: paymentCurrency === 'USD' ? paymentAmount : 0,
-      payment_iqd_amount: paymentCurrency === 'IQD' ? paymentAmount : 0,
+      payment_currency_used: paymentMode === 'multi' ? 'MULTI' : paymentCurrency,
+      payment_usd_amount: effectiveUsdPayment,
+      payment_iqd_amount: effectiveIqdPayment,
       // Keep legacy format for backward compatibility
       payment_currency: paymentCurrency,
       payment_amount: paymentAmount
@@ -394,122 +509,288 @@ export default function EnhancedCompanyDebtModal({ show, onClose, debt, onMarkPa
             </h3>
             
             <div className="space-y-4">
-              {/* Payment Currency Selection */}
+              {/* Payment Mode Selection */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  {t?.payWith || 'Pay with'}:
+                  Payment Mode:
                 </label>
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     type="button"
                     onClick={() => {
-                      setPaymentCurrency('USD');
-                      // Set payment amount based on debt currency
-                      if (debt.currency === 'IQD') {
-                        setPaymentAmount((debt.amount || 0) / EXCHANGE_RATES.USD_TO_IQD); // Convert IQD debt to USD payment
-                      } else if (debt.currency === 'USD') {
-                        setPaymentAmount(debt.amount || 0); // USD debt, USD payment
-                      } else if (debt.currency === 'MULTI') {
-                        setPaymentAmount(debt.usd_amount || 0); // Multi-currency debt, use USD portion
-                      } else {
-                        // Legacy or unknown currency, assume IQD debt and convert to USD
-                        setPaymentAmount((debt.amount || 0) / EXCHANGE_RATES.USD_TO_IQD);
-                      }
+                      setPaymentMode('single');
+                      setUsdPaymentAmount(0);
+                      setIqdPaymentAmount(0);
                     }}
                     className={`p-3 rounded-lg text-sm font-medium transition-colors ${
-                      paymentCurrency === 'USD'
-                        ? 'bg-green-500 text-white'
+                      paymentMode === 'single'
+                        ? 'bg-blue-500 text-white'
                         : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300'
                     }`}
                   >
-                    <span className="flex items-center gap-2">
-                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/>
-                      </svg>
-                      USD
-                    </span>
+                    Single Currency
                   </button>
                   <button
                     type="button"
                     onClick={() => {
-                      setPaymentCurrency('IQD');
-                      // Set payment amount based on debt currency
-                      if (debt.currency === 'IQD') {
-                        setPaymentAmount(debt.amount || 0); // IQD debt, IQD payment
-                      } else if (debt.currency === 'USD') {
-                        setPaymentAmount((debt.amount || 0) * EXCHANGE_RATES.USD_TO_IQD); // Convert USD debt to IQD payment
-                      } else if (debt.currency === 'MULTI') {
-                        const usdInIQD = (debt.usd_amount || 0) * EXCHANGE_RATES.USD_TO_IQD;
-                        setPaymentAmount(usdInIQD + (debt.iqd_amount || 0)); // Multi-currency debt, total in IQD
-                      } else {
-                        // Legacy or unknown currency, assume IQD debt
-                        setPaymentAmount(debt.amount || 0);
-                      }
+                      setPaymentMode('multi');
+                      setPaymentAmount(0);
                     }}
                     className={`p-3 rounded-lg text-sm font-medium transition-colors ${
-                      paymentCurrency === 'IQD'
-                        ? 'bg-yellow-500 text-white'
+                      paymentMode === 'multi'
+                        ? 'bg-green-500 text-white'
                         : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300'
                     }`}
                   >
-                    <span className="flex items-center gap-2">
-                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-                      </svg>
-                      د.ع IQD
-                    </span>
+                    Mixed Currency
                   </button>
                 </div>
               </div>
 
-              {/* Payment Amount Input */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  {t?.paymentAmount || 'Payment Amount'} ({paymentCurrency === 'USD' ? '$' : 'د.ع'})
-                </label>
-                <input
-                  type="number"
-                  value={paymentAmount}
-                  onChange={(e) => setPaymentAmount(Number(e.target.value) || 0)}
-                  placeholder="0.00"
-                  min="0"
-                  step={paymentCurrency === 'USD' ? '0.01' : '1'}
-                  className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
-                />
-              </div>
+              {/* Single Currency Payment */}
+              {paymentMode === 'single' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    {t?.payWith || 'Pay with'}:
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPaymentCurrency('USD');
+                        // Set payment amount based on debt currency
+                        if (debt.currency === 'IQD') {
+                          setPaymentAmount((debt.amount || 0) / EXCHANGE_RATES.USD_TO_IQD); // Convert IQD debt to USD payment
+                        } else if (debt.currency === 'USD') {
+                          setPaymentAmount(debt.amount || 0); // USD debt, USD payment
+                        } else if (debt.currency === 'MULTI') {
+                          setPaymentAmount(debt.usd_amount || 0); // Multi-currency debt, use USD portion
+                        } else {
+                          // Legacy or unknown currency, assume IQD debt and convert to USD
+                          setPaymentAmount((debt.amount || 0) / EXCHANGE_RATES.USD_TO_IQD);
+                        }
+                      }}
+                      className={`p-3 rounded-lg text-sm font-medium transition-colors ${
+                        paymentCurrency === 'USD'
+                          ? 'bg-green-500 text-white'
+                          : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300'
+                      }`}
+                    >
+                      <span className="flex items-center gap-2">
+                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/>
+                        </svg>
+                        USD
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPaymentCurrency('IQD');
+                        // Set payment amount based on debt currency
+                        if (debt.currency === 'IQD') {
+                          setPaymentAmount(debt.amount || 0); // IQD debt, IQD payment
+                        } else if (debt.currency === 'USD') {
+                          setPaymentAmount((debt.amount || 0) * EXCHANGE_RATES.USD_TO_IQD); // Convert USD debt to IQD payment
+                        } else if (debt.currency === 'MULTI') {
+                          const usdInIQD = (debt.usd_amount || 0) * EXCHANGE_RATES.USD_TO_IQD;
+                          setPaymentAmount(usdInIQD + (debt.iqd_amount || 0)); // Multi-currency debt, total in IQD
+                        } else {
+                          // Legacy or unknown currency, assume IQD debt
+                          setPaymentAmount(debt.amount || 0);
+                        }
+                      }}
+                      className={`p-3 rounded-lg text-sm font-medium transition-colors ${
+                        paymentCurrency === 'IQD'
+                          ? 'bg-green-500 text-white'
+                          : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300'
+                      }`}
+                    >
+                      <span className="flex items-center gap-2">
+                        د.ع IQD
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Multi-Currency Payment */}
+              {paymentMode === 'multi' && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      USD Amount:
+                    </label>
+                    <input
+                      type="number"
+                      value={usdPaymentAmount}
+                      onChange={(e) => setUsdPaymentAmount(parseFloat(e.target.value) || 0)}
+                      className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="0.00"
+                      min="0"
+                      step="0.01"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      IQD Amount:
+                    </label>
+                    <input
+                      type="number"
+                      value={iqdPaymentAmount}
+                      onChange={(e) => setIqdPaymentAmount(parseFloat(e.target.value) || 0)}
+                      className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="0"
+                      min="0"
+                      step="1"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Payment Currency Selection */}
+              {paymentMode === 'single' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    {t?.payWith || 'Pay with'}:
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPaymentCurrency('USD');
+                        // Set payment amount based on debt currency
+                        if (debt.currency === 'IQD') {
+                          setPaymentAmount((debt.amount || 0) / EXCHANGE_RATES.USD_TO_IQD); // Convert IQD debt to USD payment
+                        } else if (debt.currency === 'USD') {
+                          setPaymentAmount(debt.amount || 0); // USD debt, USD payment
+                        } else if (debt.currency === 'MULTI') {
+                          setPaymentAmount(debt.usd_amount || 0); // Multi-currency debt, use USD portion
+                        } else {
+                          // Legacy or unknown currency, assume IQD debt and convert to USD
+                          setPaymentAmount((debt.amount || 0) / EXCHANGE_RATES.USD_TO_IQD);
+                        }
+                      }}
+                      className={`p-3 rounded-lg text-sm font-medium transition-colors ${
+                        paymentCurrency === 'USD'
+                          ? 'bg-green-500 text-white'
+                          : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300'
+                      }`}
+                    >
+                      <span className="flex items-center gap-2">
+                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/>
+                        </svg>
+                        USD
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPaymentCurrency('IQD');
+                        // Set payment amount based on debt currency
+                        if (debt.currency === 'IQD') {
+                          setPaymentAmount(debt.amount || 0); // IQD debt, IQD payment
+                        } else if (debt.currency === 'USD') {
+                          setPaymentAmount((debt.amount || 0) * EXCHANGE_RATES.USD_TO_IQD); // Convert USD debt to IQD payment
+                        } else if (debt.currency === 'MULTI') {
+                          const usdInIQD = (debt.usd_amount || 0) * EXCHANGE_RATES.USD_TO_IQD;
+                          setPaymentAmount(usdInIQD + (debt.iqd_amount || 0)); // Multi-currency debt, total in IQD
+                        } else {
+                          // Legacy or unknown currency, assume IQD debt
+                          setPaymentAmount(debt.amount || 0);
+                        }
+                      }}
+                      className={`p-3 rounded-lg text-sm font-medium transition-colors ${
+                        paymentCurrency === 'IQD'
+                          ? 'bg-yellow-500 text-white'
+                          : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300'
+                      }`}
+                    >
+                      <span className="flex items-center gap-2">
+                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                        </svg>
+                        د.ع IQD
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Payment Amount Input for Single Currency Mode */}
+              {paymentMode === 'single' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    {t?.paymentAmount || 'Payment Amount'} ({paymentCurrency === 'USD' ? '$' : 'د.ع'})
+                  </label>
+                  <input
+                    type="number"
+                    value={paymentAmount}
+                    onChange={(e) => setPaymentAmount(Number(e.target.value) || 0)}
+                    placeholder="0.00"
+                    min="0"
+                    step={paymentCurrency === 'USD' ? '0.01' : '1'}
+                    className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-white"
+                  />
+                </div>
+              )}
 
               {/* Default Payment Info */}
               <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
                 <div className="text-sm text-blue-700 dark:text-blue-300">
                   <div className="font-medium mb-2">{t?.debtInfo || 'Debt Information'}:</div>
-                  {debt.currency === 'IQD' && (
-                    <>
-                      <div>Debt Amount: د.ع{(debt.amount || 0).toFixed(0)} IQD</div>
-                      {paymentCurrency === 'USD' && (
-                        <div>Equivalent: ${((debt.amount || 0) / EXCHANGE_RATES.USD_TO_IQD).toFixed(2)} USD</div>
-                      )}
-                    </>
+                  
+                  {/* Original Debt Amount */}
+                  <div className="mb-2">
+                    <span className="font-medium">Original Debt: </span>
+                    {debt.currency === 'IQD' && (
+                      <span>د.ع{(debt.amount || 0).toFixed(0)} IQD</span>
+                    )}
+                    {debt.currency === 'USD' && (
+                      <span>${(debt.amount || 0).toFixed(2)} USD</span>
+                    )}
+                    {debt.currency === 'MULTI' && (
+                      <span>${(debt.usd_amount || 0).toFixed(2)} USD + د.ع{(debt.iqd_amount || 0).toFixed(0)} IQD</span>
+                    )}
+                    {(!debt.currency || (debt.currency !== 'USD' && debt.currency !== 'IQD' && debt.currency !== 'MULTI')) && (
+                      <span>د.ع{(debt.amount || 0).toFixed(0)} IQD (Default Currency)</span>
+                    )}
+                  </div>
+
+                  {/* Previous Payments (if any) */}
+                  {((debt.payment_usd_amount || 0) > 0 || (debt.payment_iqd_amount || 0) > 0) && (
+                    <div className="mb-2">
+                      <span className="font-medium">Previous Payments: </span>
+                      <div className="text-green-600 dark:text-green-400">
+                        {(debt.payment_usd_amount || 0) > 0 && (
+                          <span className="mr-2">${(debt.payment_usd_amount || 0).toFixed(2)} USD</span>
+                        )}
+                        {(debt.payment_iqd_amount || 0) > 0 && (
+                          <span>د.ع{(debt.payment_iqd_amount || 0).toFixed(0)} IQD</span>
+                        )}
+                      </div>
+                    </div>
                   )}
-                  {debt.currency === 'USD' && (
-                    <>
-                      <div>Debt Amount: ${(debt.amount || 0).toFixed(2)} USD</div>
-                      {paymentCurrency === 'IQD' && (
-                        <div>Equivalent: د.ع{((debt.amount || 0) * EXCHANGE_RATES.USD_TO_IQD).toFixed(0)} IQD</div>
+
+                  {/* Remaining Debt */}
+                  <div className="border-t pt-2">
+                    <span className="font-bold">Remaining Debt: </span>
+                    <span className="font-bold text-red-600 dark:text-red-400">
+                      {getRemainingDebtDisplay()}
+                    </span>
+                  </div>
+
+                  {/* Payment Currency Equivalent */}
+                  {paymentCurrency && debt.currency !== paymentCurrency && paymentMode === 'single' && (
+                    <div className="mt-2 text-xs">
+                      {paymentCurrency === 'USD' && debt.currency === 'IQD' && (
+                        <div>USD Equivalent: ${((debt.amount || 0) / EXCHANGE_RATES.USD_TO_IQD).toFixed(2)}</div>
                       )}
-                    </>
-                  )}
-                  {debt.currency === 'MULTI' && (
-                    <>
-                      <div>Debt Amount: ${(debt.usd_amount || 0).toFixed(2)} USD + د.ع{(debt.iqd_amount || 0).toFixed(0)} IQD</div>
-                    </>
-                  )}
-                  {(!debt.currency || (debt.currency !== 'USD' && debt.currency !== 'IQD' && debt.currency !== 'MULTI')) && (
-                    <>
-                      <div>Debt Amount: د.ع{(debt.amount || 0).toFixed(0)} IQD (Default Currency)</div>
-                      {paymentCurrency === 'USD' && (
-                        <div>Equivalent: ${((debt.amount || 0) / EXCHANGE_RATES.USD_TO_IQD).toFixed(2)} USD</div>
+                      {paymentCurrency === 'IQD' && debt.currency === 'USD' && (
+                        <div>IQD Equivalent: د.ع{((debt.amount || 0) * EXCHANGE_RATES.USD_TO_IQD).toFixed(0)}</div>
                       )}
-                    </>
+                    </div>
                   )}
                 </div>
               </div>
@@ -538,7 +819,15 @@ export default function EnhancedCompanyDebtModal({ show, onClose, debt, onMarkPa
                         <span>{t?.payingAmount || 'Paying'}:</span>
                         <span className="font-medium">
                           <div className="flex flex-col">
-                            <div>{paymentCurrency === 'USD' ? `$${paymentSummary.paymentAmount.toFixed(2)}` : `د.ع${paymentSummary.paymentAmount.toFixed(0)}`}</div>
+                            {paymentMode === 'multi' ? (
+                              <div>
+                                {paymentSummary.paymentAmountUSD > 0 && <div>${paymentSummary.paymentAmountUSD.toFixed(2)} USD</div>}
+                                {paymentSummary.paymentAmountIQD > 0 && <div>د.ع{paymentSummary.paymentAmountIQD.toFixed(0)} IQD</div>}
+                                <div className="text-xs opacity-75">Total: ${paymentSummary.totalPaymentUSD.toFixed(2)} USD equivalent</div>
+                              </div>
+                            ) : (
+                              <div>{paymentCurrency === 'USD' ? `$${paymentSummary.paymentAmountUSD.toFixed(2)}` : `د.ع${paymentSummary.paymentAmountIQD.toFixed(0)}`}</div>
+                            )}
                           </div>
                         </span>
                       </div>
@@ -546,11 +835,29 @@ export default function EnhancedCompanyDebtModal({ show, onClose, debt, onMarkPa
                         <span>{t?.willBeDeducted || 'Will be deducted'}:</span>
                         <span className="font-medium text-red-600 dark:text-red-400">
                           <div className="flex flex-col">
-                            <div>{paymentCurrency === 'USD' ? `$${paymentSummary.netDeduction.toFixed(2)}` : `د.ع${(paymentSummary.netDeduction * EXCHANGE_RATES.USD_TO_IQD).toFixed(0)}`}</div>
-                            <div className="text-xs opacity-75">{t?.fromBalance?.replace('{currency}', paymentCurrency) || `from ${paymentCurrency} balance`}</div>
+                            {paymentMode === 'multi' ? (
+                              <div>
+                                {paymentSummary.netDeductionUSD > 0 && <div>${paymentSummary.netDeductionUSD.toFixed(2)} USD</div>}
+                                {paymentSummary.netDeductionIQD > 0 && <div>د.ع{paymentSummary.netDeductionIQD.toFixed(0)} IQD</div>}
+                              </div>
+                            ) : (
+                              <div>{paymentCurrency === 'USD' ? `$${paymentSummary.netDeductionUSD.toFixed(2)}` : `د.ع${paymentSummary.netDeductionIQD.toFixed(0)}`}</div>
+                            )}
+                            <div className="text-xs opacity-75">{t?.fromBalance?.replace('{currency}', paymentMode === 'multi' ? 'both' : paymentCurrency) || `from ${paymentMode === 'multi' ? 'both currencies' : paymentCurrency} balance`}</div>
                           </div>
                         </span>
                       </div>
+                      {paymentSummary.remainingDebtUSD > 0 && (
+                        <div className="flex justify-between">
+                          <span className="text-red-600 dark:text-red-400">Remaining:</span>
+                          <span className="font-medium text-red-600 dark:text-red-400">
+                            ${paymentSummary.remainingDebtUSD.toFixed(2)}
+                            {debt.currency === 'IQD' && (
+                              <div className="text-xs opacity-75">(≈ د.ع{(paymentSummary.remainingDebtUSD * EXCHANGE_RATES.USD_TO_IQD).toFixed(0)})</div>
+                            )}
+                          </span>
+                        </div>
+                      )}
                       <hr className="border-yellow-200 dark:border-yellow-700" />
                       
                       {paymentSummary.changeInfo && (

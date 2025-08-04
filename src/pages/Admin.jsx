@@ -123,7 +123,7 @@ export default function Admin() {
         
         // Convert to IQD for display consistency (legacy)
         if (sale.currency === 'USD') {
-          return itemSum + (storedProfit * (sale.exchange_rates?.usd_to_iqd || 1440));
+          return itemSum + (storedProfit * (sale.exchange_rates?.usd_to_iqd || 1390));
         } else {
           return itemSum + storedProfit;
         }

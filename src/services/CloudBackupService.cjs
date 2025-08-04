@@ -480,7 +480,9 @@ class CloudBackupService {
       
       // Create the new auto backup
       const description = `Auto backup - ${new Date().toISOString()}`;
-      return await this.createBackup(dbPath, description);
+      const result = await this.createBackup(dbPath, description);
+      
+      return result;
     } catch (error) {
       // Don't log authentication errors to prevent spam
       if (!error.message?.includes('authenticated') && !error.message?.includes('401')) {

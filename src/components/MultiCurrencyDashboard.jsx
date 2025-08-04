@@ -39,7 +39,25 @@ ChartJS.register(
 );
 
 function MultiCurrencyDashboard({ admin, t, onRefresh }) {
-  const { products, accessories, sales, debts, buyingHistory, companyDebts, incentives, transactions, personalLoans, refreshAllData, refreshDebts } = useData();
+  const { 
+    products, 
+    accessories, 
+    sales, 
+    debts, 
+    buyingHistory, 
+    companyDebts, 
+    incentives, 
+    transactions, 
+    personalLoans, 
+    refreshAllData, 
+    refreshDebts,
+    calculateRemainingCustomerDebt,
+    calculateRemainingCompanyDebt,
+    calculateTotalCustomerOutstanding,
+    calculateTotalCompanyOutstanding,
+    getCompanyDebtCounts,
+    getCustomerDebtCounts
+  } = useData();
   const [balances, setBalances] = useState({ usd_balance: 0, iqd_balance: 0 });
   const [dashboardData, setDashboardData] = useState(null);
 
@@ -199,128 +217,19 @@ function MultiCurrencyDashboard({ admin, t, onRefresh }) {
     const weekUSDSales = calculateRevenueByCurrency(thisWeeksSales, 'USD');
     const weekIQDSales = calculateRevenueByCurrency(thisWeeksSales, 'IQD');
 
-    // Outstanding debts by currency (customer debts)
-    // Use debtSales to get all debt sales, then calculate remaining amounts after partial payments
-    const calculateRemainingDebtAmount = (sale, debt) => {
-      if (!debt) {
-        // No debt record means full amount is owed
-        return {
-          amount: sale.total,
-          currency: sale.currency || 'USD'
-        };
-      }
+    // Outstanding debts by currency - using DataContext utility functions
+    const totalCustomerOutstanding = calculateTotalCustomerOutstanding();
+    const totalCompanyOutstanding = calculateTotalCompanyOutstanding();
+    const customerDebtCounts = getCustomerDebtCounts();
+    const companyDebtCounts = getCompanyDebtCounts();
 
-      if (debt.paid_at) {
-        // Fully paid
-        return {
-          amount: 0,
-          currency: sale.currency || 'USD'
-        };
-      }
-
-      // Calculate remaining amount after partial payments with currency conversion
-      const originalTotal = sale.total;
-      const currency = sale.currency || 'USD';
-      const currentUSDToIQD = 1440; // Exchange rate
-      
-      if (currency === 'USD') {
-        // For USD debts, convert all payments to USD equivalent
-        const paidUSD = debt.payment_usd_amount || 0;
-        const paidIQD = debt.payment_iqd_amount || 0;
-        const totalPaidUSDEquivalent = paidUSD + (paidIQD / currentUSDToIQD);
-        
-        return {
-          amount: Math.max(0, originalTotal - totalPaidUSDEquivalent),
-          currency: 'USD'
-        };
-      } else {
-        // For IQD debts, convert all payments to IQD equivalent
-        const paidUSD = debt.payment_usd_amount || 0;
-        const paidIQD = debt.payment_iqd_amount || 0;
-        const totalPaidIQDEquivalent = paidIQD + (paidUSD * currentUSDToIQD);
-        
-        return {
-          amount: Math.max(0, originalTotal - totalPaidIQDEquivalent),
-          currency: 'IQD'
-        };
-      }
-    };
+    const unpaidUSDDebts = totalCustomerOutstanding.USD;
+    const unpaidIQDDebts = totalCustomerOutstanding.IQD;
+    const unpaidCustomerDebtCount = customerDebtCounts.unpaid;
     
-    let unpaidUSDDebts = 0;
-    let unpaidIQDDebts = 0;
-    let unpaidCustomerDebtCount = 0;
-    
-    (sales || []).forEach(sale => {
-      if (sale.is_debt) {
-        const debt = (debts || []).find(d => d.sale_id === sale.id);
-        const remaining = calculateRemainingDebtAmount(sale, debt);
-        
-        if (remaining.amount > 0) {
-          unpaidCustomerDebtCount++;
-          if (remaining.currency === 'USD') {
-            unpaidUSDDebts += remaining.amount;
-          } else if (remaining.currency === 'IQD') {
-            unpaidIQDDebts += remaining.amount;
-          }
-        }
-      }
-    });
-
-    // Outstanding company debts by currency - account for partial payments and 250 IQD threshold
-    const unpaidCompanyDebts = (companyDebts || []).filter(debt => !debt.paid_at);
-    const unpaidCompanyUSDDebts = unpaidCompanyDebts.reduce((sum, d) => {
-      if (d.currency === 'MULTI') {
-        // For multi-currency debts, subtract partial payments
-        const remainingUSD = (d.usd_amount || 0) - (d.payment_usd_amount || 0);
-        const remainingIQD = (d.iqd_amount || 0) - (d.payment_iqd_amount || 0);
-        
-        // Check 250 IQD threshold: if total remaining is less than 250 IQD equivalent, ignore
-        const totalRemainingIQDEquivalent = remainingIQD + (remainingUSD * 1440); // Convert USD to IQD
-        if (totalRemainingIQDEquivalent < 250) {
-          return sum; // Don't count this debt
-        }
-        
-        return sum + Math.max(0, remainingUSD);
-      } else if (d.currency === 'USD') {
-        const remaining = (d.amount || 0) - (d.payment_usd_amount || 0);
-        
-        // Check 250 IQD threshold for USD debts
-        const remainingIQDEquivalent = remaining * 1440; // Convert USD to IQD
-        if (remainingIQDEquivalent < 250) {
-          return sum; // Don't count this debt
-        }
-        
-        return sum + Math.max(0, remaining);
-      }
-      // Don't include IQD debts in USD total
-      return sum;
-    }, 0);
-    const unpaidCompanyIQDDebts = unpaidCompanyDebts.reduce((sum, d) => {
-      if (d.currency === 'MULTI') {
-        // For multi-currency debts, subtract partial payments
-        const remainingUSD = (d.usd_amount || 0) - (d.payment_usd_amount || 0);
-        const remainingIQD = (d.iqd_amount || 0) - (d.payment_iqd_amount || 0);
-        
-        // Check 250 IQD threshold: if total remaining is less than 250 IQD equivalent, ignore
-        const totalRemainingIQDEquivalent = remainingIQD + (remainingUSD * 1440); // Convert USD to IQD
-        if (totalRemainingIQDEquivalent < 250) {
-          return sum; // Don't count this debt
-        }
-        
-        return sum + Math.max(0, remainingIQD);
-      } else if (d.currency === 'IQD') {
-        const remaining = (d.amount || 0) - (d.payment_iqd_amount || 0);
-        
-        // Check 250 IQD threshold
-        if (remaining < 250) {
-          return sum; // Don't count this debt
-        }
-        
-        return sum + Math.max(0, remaining);
-      }
-      // Don't include USD debts in IQD total
-      return sum;
-    }, 0);
+    const unpaidCompanyUSDDebts = totalCompanyOutstanding.USD;
+    const unpaidCompanyIQDDebts = totalCompanyOutstanding.IQD;
+    const unpaidCompanyDebtsCount = companyDebtCounts.unpaid;
 
     // Outstanding personal loans by currency - use new multi-currency fields
     const unpaidLoans = (personalLoans || []).filter(loan => !loan.paid_at);
@@ -574,7 +483,7 @@ function MultiCurrencyDashboard({ admin, t, onRefresh }) {
       todaysReturnsUSD, // Add return amounts for display
       todaysReturnsIQD, // Add return amounts for display
       totalTransactions: todaysNonDebtSales.length,
-      totalDebtCount: unpaidCustomerDebtCount + unpaidCompanyDebts.length,
+      totalDebtCount: unpaidCustomerDebtCount + unpaidCompanyDebtsCount,
       totalLoanCount: unpaidLoans.length,
       unpaidCompanyUSDDebts,
       unpaidCompanyIQDDebts,
@@ -584,7 +493,7 @@ function MultiCurrencyDashboard({ admin, t, onRefresh }) {
       totalAccessoriesCount,
       totalStockCount,
     };
-  }, [sales, debts, buyingHistory, personalLoans, companyDebts, products, accessories, incentives, transactions]);
+  }, [sales, debts, buyingHistory, personalLoans, companyDebts, products, accessories, incentives, transactions, calculateTotalCustomerOutstanding, calculateTotalCompanyOutstanding, getCustomerDebtCounts, getCompanyDebtCounts]);
 
   return (
     <div className="w-full h-full p-8 space-y-6">
