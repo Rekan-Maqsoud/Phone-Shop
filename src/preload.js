@@ -44,6 +44,7 @@ contextBridge.exposeInMainWorld('api', {
   addCompanyDebtWithItems: (data) => ipcRenderer.invoke('addCompanyDebtWithItems', data),
   getCompanyDebtItems: (debtId) => ipcRenderer.invoke('getCompanyDebtItems', debtId),
   markCompanyDebtPaid: (id, paid_at, multiCurrency) => ipcRenderer.invoke('markCompanyDebtPaid', id, paid_at, multiCurrency),
+  payCompanyDebtTotal: (companyName, paymentData) => ipcRenderer.invoke('payCompanyDebtTotal', companyName, paymentData),
   
   // Incentive functionality
   getIncentives: () => ipcRenderer.invoke('getIncentives'),

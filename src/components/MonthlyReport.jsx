@@ -110,14 +110,10 @@ const MonthlyReport = ({ t }) => {
         }
       }
 
-      // Calculate profit based on actual payment (like in sales history for consistency)
-      let saleBuyingCostUSD = 0;
-      let saleBuyingCostIQD = 0;
-      
+      // FIXED: Use stored profit values from database (profit_in_sale_currency) which accounts for discounts
       if (sale.items && Array.isArray(sale.items)) {
         sale.items.forEach(item => {
           const quantity = item.quantity || 1;
-          const buyingPrice = item.buying_price || 0;
           
           // Determine if it's a product or accessory
           const isProduct = !item.is_accessory && products && products.find(p => p.id === item.product_id);
@@ -131,103 +127,117 @@ const MonthlyReport = ({ t }) => {
             totalAccessoriesSold += quantity;
           }
 
-          // Calculate buying costs by currency for accurate profit calculation
-          const itemCurrency = item.product_currency || item.accessory_currency || 'IQD';
-          if (itemCurrency === 'USD') {
-            saleBuyingCostUSD += buyingPrice * quantity;
-          } else {
-            saleBuyingCostIQD += buyingPrice * quantity;
-          }
+          // Only include profit for paid sales - profit will be calculated at sale level below
         });
         
-        // Calculate profit and product/accessory breakdown in one pass
-        if (sale.multi_currency_payment) {
-          // Multi-currency: profit = payment - buying costs in respective currencies
-          const usdRevenue = sale.multi_currency_payment.usd_amount || 0;
-          const iqdRevenue = sale.multi_currency_payment.iqd_amount || 0;
+        // Calculate profit for this sale using the same logic as SalesHistoryTableEnhanced
+        if (isPaid && sale.items && Array.isArray(sale.items)) {
+          // Calculate total buying cost for this sale
+          let totalBuyingCostUSD = 0;
+          let totalBuyingCostIQD = 0;
+          let productBuyingCostUSD = 0;
+          let productBuyingCostIQD = 0;
+          let accessoryBuyingCostUSD = 0;
+          let accessoryBuyingCostIQD = 0;
           
-          totalProfit.USD += usdRevenue - saleBuyingCostUSD;
-          totalProfit.IQD += iqdRevenue - saleBuyingCostIQD;
-          
-          // Calculate product/accessory profits based on actual item profits (not duplicated)
           sale.items.forEach(item => {
             const quantity = item.quantity || 1;
-            const sellingPrice = item.selling_price || item.price || 0;
             const buyingPrice = item.buying_price || 0;
-            const itemCurrency = item.product_currency || item.accessory_currency || 'IQD';
-            
-            // Calculate individual item profit in native currency
-            const itemProfit = (sellingPrice - buyingPrice) * quantity;
-            
+            const itemCurrency = item.product_currency || 'IQD';
             const isProduct = !item.is_accessory && products && products.find(p => p.id === item.product_id);
             const isAccessory = item.is_accessory && accessories && accessories.find(a => a.id === item.product_id);
             
-            if (isProduct) {
-              if (itemCurrency === 'USD') {
-                totalProductProfit.USD += itemProfit;
-              } else {
-                totalProductProfit.IQD += itemProfit;
-              }
-            }
+            const totalBuyingForItem = buyingPrice * quantity;
             
-            if (isAccessory) {
-              if (itemCurrency === 'USD') {
-                totalAccessoryProfit.USD += itemProfit;
-              } else {
-                totalAccessoryProfit.IQD += itemProfit;
-              }
+            if (itemCurrency === 'USD') {
+              totalBuyingCostUSD += totalBuyingForItem;
+              if (isProduct) productBuyingCostUSD += totalBuyingForItem;
+              if (isAccessory) accessoryBuyingCostUSD += totalBuyingForItem;
+            } else {
+              totalBuyingCostIQD += totalBuyingForItem;
+              if (isProduct) productBuyingCostIQD += totalBuyingForItem;
+              if (isAccessory) accessoryBuyingCostIQD += totalBuyingForItem;
             }
           });
-        } else {
-          // Single currency: calculate sale profit once
-          const saleTotal = sale.total || 0;
           
-          if (sale.currency === 'USD') {
-            const totalBuyingInUSD = saleBuyingCostUSD + (saleBuyingCostIQD * (sale.exchange_rate_iqd_to_usd || 0.000694));
-            const saleProfit = saleTotal - totalBuyingInUSD;
-            totalProfit.USD += saleProfit;
+          // Calculate actual profit based on payment received (accounts for discounts)
+          let actualSaleProfitUSD = 0;
+          let actualSaleProfitIQD = 0;
+          
+          if (sale.multi_currency_payment) {
+            // For multi-currency sales
+            const totalBuyingInUSD = totalBuyingCostUSD + (totalBuyingCostIQD * (sale.exchange_rate_iqd_to_usd || 0.000694));
+            const totalPaidInUSD = (sale.multi_currency_payment.usd_amount || 0) + 
+                                  ((sale.multi_currency_payment.iqd_amount || 0) * (sale.exchange_rate_iqd_to_usd || 0.000694));
+            
+            const totalProfitUSD = totalPaidInUSD - totalBuyingInUSD;
+            
+            // Split profit proportionally between currencies based on payment
+            const totalPaidAmount = totalPaidInUSD || 1; // Avoid division by zero
+            const usdRatio = (sale.multi_currency_payment.usd_amount || 0) / totalPaidAmount;
+            const iqdRatio = ((sale.multi_currency_payment.iqd_amount || 0) * (sale.exchange_rate_iqd_to_usd || 0.000694)) / totalPaidAmount;
+            
+            actualSaleProfitUSD = totalProfitUSD * usdRatio;
+            actualSaleProfitIQD = (totalProfitUSD * iqdRatio) / (sale.exchange_rate_iqd_to_usd || 0.000694);
           } else {
-            const totalBuyingInIQD = saleBuyingCostIQD + (saleBuyingCostUSD * (sale.exchange_rate_usd_to_iqd || 1390));
-            const saleProfit = saleTotal - totalBuyingInIQD;
-            totalProfit.IQD += saleProfit;
+            // Single currency sale - use sale.total which accounts for discounts
+            const saleTotal = sale.total || 0;
+            if (sale.currency === 'USD') {
+              actualSaleProfitUSD = saleTotal - totalBuyingCostUSD - (totalBuyingCostIQD * (sale.exchange_rate_iqd_to_usd || 0.000694));
+            } else {
+              actualSaleProfitIQD = saleTotal - totalBuyingCostIQD - (totalBuyingCostUSD * (sale.exchange_rate_usd_to_iqd || 1390));
+            }
           }
           
-          // Calculate product/accessory profits based on individual item profits in native currencies
-          sale.items.forEach(item => {
-            const quantity = item.quantity || 1;
-            const sellingPrice = item.selling_price || item.price || 0;
-            const buyingPrice = item.buying_price || 0;
-            const itemCurrency = item.product_currency || item.accessory_currency || 'IQD';
+          // Add to total profits
+          totalProfit.USD += actualSaleProfitUSD;
+          totalProfit.IQD += actualSaleProfitIQD;
+          
+          // Calculate product and accessory profits proportionally
+          const totalBuyingCostAllUSD = totalBuyingCostUSD + (totalBuyingCostIQD * (sale.exchange_rate_iqd_to_usd || 0.000694));
+          const productBuyingCostAllUSD = productBuyingCostUSD + (productBuyingCostIQD * (sale.exchange_rate_iqd_to_usd || 0.000694));
+          const accessoryBuyingCostAllUSD = accessoryBuyingCostUSD + (accessoryBuyingCostIQD * (sale.exchange_rate_iqd_to_usd || 0.000694));
+          
+          if (totalBuyingCostAllUSD > 0) {
+            const productProfitRatio = productBuyingCostAllUSD / totalBuyingCostAllUSD;
+            const accessoryProfitRatio = accessoryBuyingCostAllUSD / totalBuyingCostAllUSD;
             
-            // Calculate individual item profit in native currency (no currency conversion)
-            const itemProfit = (sellingPrice - buyingPrice) * quantity;
-            
-            const isProduct = !item.is_accessory && products && products.find(p => p.id === item.product_id);
-            const isAccessory = item.is_accessory && accessories && accessories.find(a => a.id === item.product_id);
-            
-            if (isProduct) {
-              if (itemCurrency === 'USD') {
-                totalProductProfit.USD += itemProfit;
-              } else {
-                totalProductProfit.IQD += itemProfit;
-              }
-            }
-            
-            if (isAccessory) {
-              if (itemCurrency === 'USD') {
-                totalAccessoryProfit.USD += itemProfit;
-              } else {
-                totalAccessoryProfit.IQD += itemProfit;
-              }
-            }
-          });
+            // Allocate profits proportionally
+            totalProductProfit.USD += actualSaleProfitUSD * productProfitRatio;
+            totalProductProfit.IQD += actualSaleProfitIQD * productProfitRatio;
+            totalAccessoryProfit.USD += actualSaleProfitUSD * accessoryProfitRatio;
+            totalAccessoryProfit.IQD += actualSaleProfitIQD * accessoryProfitRatio;
+          }
         }
       }
     });
 
-    // Calculate total spending - use transactions for accurate tracking
+    // Calculate total spending - use transactions for accurate tracking PLUS buying history
     const totalSpending = { USD: 0, IQD: 0 };
     
+    // First, add buying history spending for the month
+    if (buyingHistory && Array.isArray(buyingHistory)) {
+      const monthBuyingHistory = buyingHistory.filter(purchase => {
+        if (!purchase.date && !purchase.created_at) return false;
+        const purchaseDate = new Date(purchase.date || purchase.created_at);
+        return purchaseDate >= startDate && purchaseDate <= endDate;
+      });
+
+      monthBuyingHistory.forEach(purchase => {
+        if (purchase.currency === 'MULTI') {
+          // Multi-currency purchases
+          totalSpending.USD += purchase.multi_currency_usd || 0;
+          totalSpending.IQD += purchase.multi_currency_iqd || 0;
+        } else if (purchase.currency === 'USD') {
+          totalSpending.USD += purchase.total_price || purchase.amount || 0;
+        } else {
+          // IQD or default currency
+          totalSpending.IQD += purchase.total_price || purchase.amount || 0;
+        }
+      });
+    }
+    
+    // Then, add transaction-based spending (company debt payments, etc.)
     if (transactions && Array.isArray(transactions)) {
       const monthTransactions = transactions.filter(transaction => {
         if (!transaction.created_at) return false;
@@ -236,23 +246,25 @@ const MonthlyReport = ({ t }) => {
       });
 
       monthTransactions.forEach(transaction => {
-        // Include all spending transactions: direct purchases, company debt payments, etc.
-        if (transaction.type === 'direct_purchase' || transaction.type === 'company_debt_payment') {
-          // For direct purchases, amounts are negative (spending), so we take absolute value
-          if (transaction.amount_usd < 0) {
-            totalSpending.USD += Math.abs(transaction.amount_usd);
-          }
-          if (transaction.amount_iqd < 0) {
-            totalSpending.IQD += Math.abs(transaction.amount_iqd);
-          }
-          
+        // Include company debt payments and other outgoing transactions
+        if (transaction.type === 'company_debt_payment') {
           // For company debt payments, amounts are positive (money going out), so add directly
-          if (transaction.type === 'company_debt_payment') {
-            if (transaction.amount_usd > 0) {
-              totalSpending.USD += transaction.amount_usd;
+          if (transaction.amount_usd > 0) {
+            totalSpending.USD += transaction.amount_usd;
+          }
+          if (transaction.amount_iqd > 0) {
+            totalSpending.IQD += transaction.amount_iqd;
+          }
+        }
+        // Include other outgoing transactions (negative amounts)
+        else if (transaction.amount_usd < 0 || transaction.amount_iqd < 0) {
+          // Exclude sales returns as they don't represent spending
+          if (!['sale_return', 'debt_sale_return'].includes(transaction.type)) {
+            if (transaction.amount_usd < 0) {
+              totalSpending.USD += Math.abs(transaction.amount_usd);
             }
-            if (transaction.amount_iqd > 0) {
-              totalSpending.IQD += transaction.amount_iqd;
+            if (transaction.amount_iqd < 0) {
+              totalSpending.IQD += Math.abs(transaction.amount_iqd);
             }
           }
         }

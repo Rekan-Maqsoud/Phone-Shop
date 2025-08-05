@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useData } from '../contexts/DataContext';
-import PaymentHistory from './PaymentHistory';
+import UniversalPaymentModal from './UniversalPaymentModal';
+import ModalBase from './ModalBase';
 import { formatCurrency, EXCHANGE_RATES } from '../utils/exchangeRates';
 import { Icon } from '../utils/icons.jsx';
 import { useLocale } from '../contexts/LocaleContext';
@@ -12,10 +13,17 @@ const CompanyDebtsSection = React.memo(({
   openAddPurchaseModal
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [expandedPaymentHistories, setExpandedPaymentHistories] = useState(new Set());
+  const [selectedCompany, setSelectedCompany] = useState(null);
+  const [showCompanyDetailsModal, setShowCompanyDetailsModal] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [selectedCompanyForPayment, setSelectedCompanyForPayment] = useState(null);
+  const [selectedCompanyForView, setSelectedCompanyForView] = useState(null);
+  const [companyPaymentHistory, setCompanyPaymentHistory] = useState([]);
+  const [loadingPaymentHistory, setLoadingPaymentHistory] = useState(false);
   const { 
     companyDebts, 
     refreshCompanyDebts,
+    refreshTransactions,
     calculateRemainingCompanyDebt,
     calculateTotalCompanyOutstanding
   } = useData();
@@ -29,8 +37,36 @@ const CompanyDebtsSection = React.memo(({
     refreshData();
   }, []); // Remove refreshCompanyDebts dependency to prevent infinite re-renders
 
+  // Load payment history when viewing company details
+  useEffect(() => {
+    const loadPaymentHistory = async () => {
+      if (!selectedCompanyForView) {
+        setCompanyPaymentHistory([]);
+        return;
+      }
+
+      console.log('🔍 Loading payment history for company:', selectedCompanyForView.company_name);
+      setLoadingPaymentHistory(true);
+
+      try {
+        if (window.api?.getDebtPayments) {
+          const payments = await window.api.getDebtPayments(selectedCompanyForView.company_name);
+          console.log('📋 Payment history loaded:', payments);
+          setCompanyPaymentHistory(payments || []);
+        }
+      } catch (error) {
+        console.error('❌ Error loading payment history:', error);
+        setCompanyPaymentHistory([]);
+      } finally {
+        setLoadingPaymentHistory(false);
+      }
+    };
+
+    loadPaymentHistory();
+  }, [selectedCompanyForView]);
+
   // Memoize the filtered and calculated debts to ensure they update when data changes
-  const { filteredDebts, totals } = useMemo(() => {
+  const { filteredDebts, totals, groupedDebts } = useMemo(() => {
     // Filter debts by search term
     const filtered = companyDebts.filter(debt => 
       debt?.company_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -48,32 +84,207 @@ const CompanyDebtsSection = React.memo(({
       return acc;
     }, { usd: 0, iqd: 0 });
 
-    return { filteredDebts: filtered, totals: calculatedTotals };
+    // Group debts by company name (normalize case)
+    const grouped = filtered.reduce((groups, debt) => {
+      const companyName = debt.company_name.charAt(0).toUpperCase() + debt.company_name.slice(1).toLowerCase();
+      const key = companyName;
+      if (!groups[key]) {
+        groups[key] = { companyName, debts: [] };
+      }
+      groups[key].debts.push(debt);
+      return groups;
+    }, {});
+
+    // Sort companies by unpaid debt amount (highest first), then alphabetically (case-insensitive)
+    const sortedCompanies = Object.values(grouped).sort((a, b) => {
+      // Calculate REMAINING unpaid amounts for comparison using proper calculation function
+      const calculateUnpaidUSDValue = (debts) => {
+        return debts.filter(d => !d.paid_at).reduce((sum, d) => {
+          const remaining = calculateRemainingCompanyDebt(d);
+          // Convert both currencies to USD for comparison using current rates (for sorting only)
+          return sum + remaining.USD + (remaining.IQD * EXCHANGE_RATES.IQD_TO_USD);
+        }, 0);
+      };
+      
+      const aUnpaidTotal = calculateUnpaidUSDValue(a.debts);
+      const bUnpaidTotal = calculateUnpaidUSDValue(b.debts);
+      
+      // If both have unpaid debts or both don't, sort alphabetically (case-insensitive)
+      if ((aUnpaidTotal > 0 && bUnpaidTotal > 0) || (aUnpaidTotal === 0 && bUnpaidTotal === 0)) {
+        return a.companyName.toLowerCase().localeCompare(b.companyName.toLowerCase());
+      }
+      
+      // Companies with unpaid debts come first
+      return bUnpaidTotal - aUnpaidTotal;
+    });
+
+    return { filteredDebts: filtered, totals: calculatedTotals, groupedDebts: sortedCompanies };
   }, [companyDebts, searchTerm, calculateRemainingCompanyDebt]);
 
-  // Helper function to format REMAINING debt amount with proper currency handling
-  const formatDebtAmount = (debt) => {
-    const remaining = calculateRemainingCompanyDebt(debt);
+  // Helper function to calculate total debt for a company
+  const calculateCompanyTotalDebt = (companyDebts) => {
+    return companyDebts
+      .filter(debt => !debt.paid_at) // Only unpaid debts
+      .reduce((total, debt) => {
+        const remaining = calculateRemainingCompanyDebt(debt);
+        total.usd += remaining.USD;
+        total.iqd += remaining.IQD;
+        return total;
+      }, { usd: 0, iqd: 0 });
+  };
+
+  // Helper function to format company total debt
+  const formatCompanyDebtAmount = (companyDebts) => {
+    const total = calculateCompanyTotalDebt(companyDebts);
     
-    if (remaining.USD > 0 && remaining.IQD > 0) {
-      return `${formatCurrency(remaining.USD, 'USD')} + ${formatCurrency(remaining.IQD, 'IQD')}`;
-    } else if (remaining.USD > 0) {
-      return formatCurrency(remaining.USD, 'USD');
-    } else if (remaining.IQD > 0) {
-      return formatCurrency(remaining.IQD, 'IQD');
+    if (total.usd > 0 && total.iqd > 0) {
+      return `${formatCurrency(total.usd, 'USD')} + ${formatCurrency(total.iqd, 'IQD')}`;
+    } else if (total.usd > 0) {
+      return formatCurrency(total.usd, 'USD');
+    } else if (total.iqd > 0) {
+      return formatCurrency(total.iqd, 'IQD');
     } else {
-      return formatCurrency(0, 'USD');
+      return null;
     }
   };
 
-  const togglePaymentHistory = (debtId) => {
-    const newExpanded = new Set(expandedPaymentHistories);
-    if (newExpanded.has(debtId)) {
-      newExpanded.delete(debtId);
-    } else {
-      newExpanded.add(debtId);
+  const openCompanyModal = (companyName, companyDebts) => {
+    setSelectedCompany({ name: companyName, debts: companyDebts });
+    setSelectedCompanyForView({ company_name: companyName, debts: companyDebts });
+    setShowCompanyDetailsModal(true);
+  };
+
+  const closeCompanyModal = async () => {
+    setSelectedCompany(null);
+    setSelectedCompanyForView(null);
+    setShowCompanyDetailsModal(false);
+    // Refresh data after modal closes to ensure we have latest state
+    await refreshCompanyDebts();
+  };
+
+  const openPaymentModal = (companyName, companyDebts) => {
+    console.log('🚀 OPENING PAYMENT MODAL DEBUG:');
+    console.log('- Company name:', companyName);
+    console.log('- Company debts count:', companyDebts.length);
+    console.log('- Company debts:', companyDebts);
+    
+    // Calculate total debt for this company
+    const totalDebt = calculateCompanyTotalDebt(companyDebts);
+    console.log('- Calculated total debt:', totalDebt);
+    
+    // Create a unified debt object for UniversalPaymentModal
+    const unifiedDebt = {
+      company_name: companyName,
+      currency: 'MULTI',
+      usd_amount: totalDebt.usd,
+      iqd_amount: totalDebt.iqd,
+      payment_usd_amount: 0,
+      payment_iqd_amount: 0
+    };
+    
+    console.log('- Unified debt object:', unifiedDebt);
+    setSelectedCompanyForPayment(unifiedDebt);
+    setShowPaymentModal(true);
+    console.log('- Modal should now be open');
+  };
+
+  const handleClosePaymentModal = async () => {
+    setSelectedCompanyForPayment(null);
+    setShowPaymentModal(false);
+    // Refresh data after payment modal closes
+    await refreshCompanyDebts();
+  };
+
+  const handlePaymentComplete = async (paymentData) => {
+    try {
+      console.log('🎯 COMPANY PAYMENT HANDLER DEBUG:');
+      console.log('- Received paymentData:', paymentData);
+      console.log('- paymentData type:', typeof paymentData);
+      console.log('- paymentData keys:', Object.keys(paymentData || {}));
+      console.log('- selectedCompanyForPayment:', selectedCompanyForPayment);
+      
+      if (!paymentData) {
+        console.error('❌ No paymentData received');
+        throw new Error('No payment data received');
+      }
+      
+      if (!paymentData.company_name) {
+        console.error('❌ Missing company_name in paymentData');
+        console.log('- Available keys in paymentData:', Object.keys(paymentData));
+        throw new Error('Missing company name in payment data');
+      }
+      
+      console.log('✅ Processing payment for company:', paymentData.company_name);
+      console.log('- USD amount:', paymentData.payment_usd_amount);
+      console.log('- IQD amount:', paymentData.payment_iqd_amount);
+
+      // Call the backend API for company debt payment
+      const result = await window.api.payCompanyDebtTotal(
+        paymentData.company_name,
+        {
+          payment_usd_amount: paymentData.payment_usd_amount || 0,
+          payment_iqd_amount: paymentData.payment_iqd_amount || 0,
+          payment_currency_used: paymentData.payment_currency_used || 'USD'
+        }
+      );
+      
+      console.log('💰 Payment result:', result);
+      
+      if (result.success) {
+        console.log('✅ Payment successful, refreshing data...');
+        
+        // Show detailed payment result
+        let message = `Successfully paid debt for ${paymentData.company_name}`;
+        if (result.paidDebts && result.paidDebts.length > 0) {
+          message += ` (${result.paidDebts.length} debt${result.paidDebts.length > 1 ? 's' : ''} affected)`;
+        }
+        
+        // Check for overpayment
+        if (result.hasOverpayment && (result.remainingPayment.usd > 0 || result.remainingPayment.iqd > 0)) {
+          const overpaymentParts = [];
+          if (result.remainingPayment.usd > 0) {
+            overpaymentParts.push(formatCurrency(result.remainingPayment.usd, 'USD'));
+          }
+          if (result.remainingPayment.iqd > 0) {
+            overpaymentParts.push(formatCurrency(result.remainingPayment.iqd, 'IQD'));
+          }
+          
+          admin?.setToast?.(`${message}. Overpayment: ${overpaymentParts.join(' + ')} (not deducted from balance)`, 'warning', 8000);
+        } else {
+          admin?.setToast?.(message, 'success');
+        }
+        
+        setShowPaymentModal(false);
+        setSelectedCompanyForPayment(null);
+        
+        // Force refresh the company debts data
+        console.log('🔄 Calling refreshCompanyDebts...');
+        await refreshCompanyDebts();
+        console.log('✅ refreshCompanyDebts completed');
+        
+        // Also refresh transactions since payment creates transaction records
+        console.log('🔄 Calling refreshTransactions...');
+        await refreshTransactions();
+        console.log('✅ refreshTransactions completed');
+        
+        // Force admin to refresh balances if available
+        if (admin?.refreshBalances) {
+          console.log('🔄 Calling admin.refreshBalances...');
+          await admin.refreshBalances();
+          console.log('✅ admin.refreshBalances completed');
+        } else {
+          console.log('⚠️ admin.refreshBalances not available');
+        }
+        
+        admin?.setToast?.(`Successfully paid debt for ${paymentData.company_name}`, 'success');
+      } else {
+        console.error('Payment failed:', result.error);
+        admin?.setToast?.(`Payment failed: ${result.error}`, 'error');
+      }
+    } catch (error) {
+      console.error('Error processing company payment:', error);
+      admin?.setToast?.(error.message || 'Error processing payment', 'error');
     }
-    setExpandedPaymentHistories(newExpanded);
   };
 
   return (
@@ -129,48 +340,13 @@ const CompanyDebtsSection = React.memo(({
           return <div className="text-center text-gray-400 py-6">{t.noCompanyDebts || 'No company debts'}</div>;
         }
 
-        // Group debts by company name (normalize case)
-        const groupedDebts = filteredDebts.reduce((groups, debt) => {
-          const companyName = debt.company_name.charAt(0).toUpperCase() + debt.company_name.slice(1).toLowerCase();
-          const key = companyName;
-          if (!groups[key]) {
-            groups[key] = { companyName, debts: [] };
-          }
-          groups[key].debts.push(debt);
-          return groups;
-        }, {});
-
-        // Sort companies by unpaid debt amount (highest first), then alphabetically (case-insensitive)
-        const sortedCompanies = Object.values(groupedDebts).sort((a, b) => {
-          // Calculate REMAINING unpaid amounts for comparison using proper calculation function
-          const calculateUnpaidUSDValue = (debts) => {
-            return debts.filter(d => !d.paid_at).reduce((sum, d) => {
-              const remaining = calculateRemainingCompanyDebt(d);
-              // Convert both currencies to USD for comparison using current rates (for sorting only)
-              return sum + remaining.USD + (remaining.IQD * EXCHANGE_RATES.IQD_TO_USD);
-            }, 0);
-          };
-          
-          const aUnpaidTotal = calculateUnpaidUSDValue(a.debts);
-          const bUnpaidTotal = calculateUnpaidUSDValue(b.debts);
-          
-          // If both have unpaid debts or both don't, sort alphabetically (case-insensitive)
-          if ((aUnpaidTotal > 0 && bUnpaidTotal > 0) || (aUnpaidTotal === 0 && bUnpaidTotal === 0)) {
-            return a.companyName.toLowerCase().localeCompare(b.companyName.toLowerCase());
-          }
-          
-          // Companies with unpaid debts come first
-          return bUnpaidTotal - aUnpaidTotal;
-        });
-
-        // Use memoized totals calculated above
-        
-        if (filteredDebts.length === 0) {
+        if (groupedDebts.length === 0) {
           return <div className="text-center text-gray-400 py-6">{t.noMatchingCompanyDebts || 'No matching company debts found'}</div>;
         }
 
         return (
           <>
+            {/* Total Debt Summary */}
             <div className="bg-gray-50 dark:bg-gray-700 rounded-xl p-4 mb-6">
               <div className="flex flex-wrap gap-4">
                 {(totals.usd > 0 || totals.iqd > 0) ? (
@@ -197,191 +373,62 @@ const CompanyDebtsSection = React.memo(({
               </div>
             </div>
             
-            <div className="space-y-6">
-              {sortedCompanies.map(({ companyName, debts }) => {
-                const companyDebts = debts;
-                // Sort this company's debts: unpaid first (newest to oldest), then paid (newest to oldest)
-                const sortedCompanyDebts = companyDebts.sort((a, b) => {
-                  // If one is paid and other is not, unpaid comes first
-                  if (!a.paid_at && b.paid_at) return -1;
-                  if (a.paid_at && !b.paid_at) return 1;
-                  
-                  // If both have same payment status, sort by date (newest first)
-                  return new Date(b.created_at) - new Date(a.created_at);
-                });
-                
-                // Calculate total REMAINING debt for this company using proper calculation
-                const totalUnpaidForCompany = sortedCompanyDebts
-                  .filter(d => !d.paid_at) // Only unpaid debts
-                  .reduce((acc, debt) => {
-                    const remaining = calculateRemainingCompanyDebt(debt);
-                    acc.usd += remaining.USD;
-                    acc.iqd += remaining.IQD;
-                    return acc;
-                  }, { usd: 0, iqd: 0 });
-                
-                // Calculate unpaid debts for this company
-                const unpaidDebts = sortedCompanyDebts.filter(d => !d.paid_at);
-                
+            {/* Companies List */}
+            <div className="space-y-4">
+              {groupedDebts.map(({ companyName, debts }) => {
+                const totalDebt = calculateCompanyTotalDebt(debts);
+                const unpaidDebtsCount = debts.filter(d => !d.paid_at).length;
+                const totalDebtsCount = debts.length;
+                const debtAmountText = formatCompanyDebtAmount(debts);
+
                 return (
-                  <div key={companyName} className="bg-gray-50 dark:bg-gray-700 rounded-xl shadow-lg overflow-hidden mb-6">
-                    {/* Company Header */}
-                    <div className="bg-white dark:bg-gray-800 rounded-t-xl shadow p-6">
-                      <div className="flex justify-between items-center">
-                        <div>
-                          <h3 className="text-xl font-bold text-gray-800 dark:text-gray-100">
-                            {companyName}
-                          </h3>
-                          <div className={`text-gray-600 dark:text-gray-400 flex items-center gap-2 ${getFlexDirection(isRTL)}`}>
-                            <span>{unpaidDebts.length} {unpaidDebts.length === 1 ? (t.unpaidDebt || 'unpaid debt') : (t.unpaidDebts || 'unpaid debts')}</span>
-                            <span className="text-gray-400">{getSeparator(isRTL)}</span>
-                            <span>{sortedCompanyDebts.length - unpaidDebts.length} {sortedCompanyDebts.length - unpaidDebts.length === 1 ? (t.paidDebt || 'paid debt') : (t.paidDebts || 'paid debts')}</span>
-                          </div>
+                  <div key={companyName} className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
+                    <div className="flex justify-between items-center">
+                      {/* Company Info */}
+                      <div className="flex-1">
+                        <h3 className="text-xl font-bold text-gray-800 dark:text-gray-100 mb-2">
+                          {companyName}
+                        </h3>
+                        <div className={`text-gray-600 dark:text-gray-400 flex items-center gap-2 ${getFlexDirection(isRTL)} mb-3`}>
+                          <span>{unpaidDebtsCount} {unpaidDebtsCount === 1 ? (t.unpaidPurchase || 'unpaid purchase') : (t.unpaidPurchases || 'unpaid purchases')}</span>
+                          <span className="text-gray-400">{getSeparator(isRTL)}</span>
+                          <span>{totalDebtsCount - unpaidDebtsCount} {totalDebtsCount - unpaidDebtsCount === 1 ? (t.paidPurchase || 'paid purchase') : (t.paidPurchases || 'paid purchases')}</span>
                         </div>
-                        <div className={getTextAlign(isRTL, 'right')}>
-                          <div className="text-lg font-bold text-gray-800 dark:text-gray-100 flex flex-col gap-1">
-                            {totalUnpaidForCompany.usd > 0 && (
-                              <div>{formatCurrency(totalUnpaidForCompany.usd, 'USD')}</div>
-                            )}
-                            {totalUnpaidForCompany.iqd > 0 && (
-                              <div>{formatCurrency(totalUnpaidForCompany.iqd, 'IQD')}</div>
-                            )}
-                            {totalUnpaidForCompany.usd === 0 && totalUnpaidForCompany.iqd === 0 && (
-                              <div className="text-green-600 dark:text-green-400">{t.allPaid || 'All Paid'}</div>
-                            )}
-                          </div>
-                          <div className="text-red-600 dark:text-red-400 text-sm">
-                            {t.totalOwed || 'Total Owed'}
-                          </div>
+                        
+                        {/* Total Debt Amount */}
+                        <div className="text-lg font-bold">
+                          {debtAmountText ? (
+                            <span className="text-red-600 dark:text-red-400">
+                              {debtAmountText}
+                            </span>
+                          ) : (
+                            <span className="text-green-600 dark:text-green-400">
+                              {t.allPaid || 'All Paid'}
+                            </span>
+                          )}
                         </div>
                       </div>
-                    </div>
 
-                    {/* Company Debts List */}
-                    <div className="p-6 space-y-4">
-                      {sortedCompanyDebts.map((debt) => (
-                        <div 
-                          key={debt.id} 
-                          className={`rounded-xl p-4 border-2 transition-all hover:shadow-md ${
-                            debt.paid_at 
-                              ? 'border-green-200 bg-green-50 dark:border-green-700 dark:bg-green-900/20' 
-                              : 'border-red-200 bg-red-50 dark:border-red-700 dark:bg-red-900/20'
-                          }`}
+                      {/* Action Buttons */}
+                      <div className="flex flex-col gap-3 ml-6">
+                        <button
+                          onClick={() => openCompanyModal(companyName, debts)}
+                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium flex items-center min-w-[120px] justify-center"
                         >
-                          <div className="flex justify-between items-start">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-2">
-                                <span className={`w-3 h-3 rounded-full ${debt.paid_at ? 'bg-green-500' : 'bg-red-500'}`}></span>
-                                <span className={`text-lg font-bold ${debt.paid_at ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}>
-                                  {formatDebtAmount(debt)}
-                                </span>
-                                {debt.paid_at && (
-                                  <span className="text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 px-2 py-1 rounded-full">
-                                    <Icon name="checkCircle" size={16} className="mr-2 text-green-600" /> {t.paid || 'Paid'}
-                                  </span>
-                                )}
-                              </div>
-                              
-                              <p className="text-gray-700 dark:text-gray-300 mb-2">
-                                {debt.description || t.noDescription || 'No description'}
-                              </p>
-                              
-                              <div className="text-sm text-gray-500 dark:text-gray-400 space-y-1">
-                                <div>
-                                  {t.created || 'Created'}: {new Date(debt.created_at).toLocaleDateString()} {new Date(debt.created_at).toLocaleTimeString()}
-                                </div>
-                                {debt.paid_at && (
-                                  <div className="text-green-600 dark:text-green-400">
-                                    {t.paidOn || 'Paid on'}: {new Date(debt.paid_at).toLocaleDateString()} {new Date(debt.paid_at).toLocaleTimeString()}
-                                    {(debt.payment_usd_amount > 0 || debt.payment_iqd_amount > 0) && (
-                                      <span className="ml-2">
-                                        (
-                                        {debt.payment_usd_amount > 0 && formatCurrency(debt.payment_usd_amount, 'USD')}
-                                        {debt.payment_usd_amount > 0 && debt.payment_iqd_amount > 0 && ' + '}
-                                        {debt.payment_iqd_amount > 0 && formatCurrency(debt.payment_iqd_amount, 'IQD')}
-                                        )
-                                      </span>
-                                    )}
-                                  </div>
-                                )}
-                                
-                                {/* Show partial payment status for unpaid debts */}
-                                {!debt.paid_at && (debt.payment_usd_amount > 0 || debt.payment_iqd_amount > 0) && (
-                                  <div className="text-blue-600 dark:text-blue-400 mt-1">
-                                    <Icon name="clock" size={12} className="text-blue-600" />
-                                    {t.partiallyPaid || 'Partially Paid'}: 
-                                    {debt.payment_usd_amount > 0 && ` ${formatCurrency(debt.payment_usd_amount, 'USD')}`}
-                                    {debt.payment_usd_amount > 0 && debt.payment_iqd_amount > 0 && ' + '}
-                                    {debt.payment_iqd_amount > 0 && ` ${formatCurrency(debt.payment_iqd_amount, 'IQD')}`}
-                                    <br />
-                                    {t.remaining || 'Remaining'}: 
-                                    {(() => {
-                                      const remaining = calculateRemainingCompanyDebt(debt);
-                                      if (remaining.USD > 0 && remaining.IQD > 0) {
-                                        return ` ${formatCurrency(remaining.USD, 'USD')} + ${formatCurrency(remaining.IQD, 'IQD')}`;
-                                      } else if (remaining.USD > 0) {
-                                        return ` ${formatCurrency(remaining.USD, 'USD')}`;
-                                      } else if (remaining.IQD > 0) {
-                                        return ` ${formatCurrency(remaining.IQD, 'IQD')}`;
-                                      } else {
-                                        return ' Fully Paid';
-                                      }
-                                    })()}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                            
-                            <div className="flex flex-col gap-2 ml-4">
-                              {debt.has_items && (
-                                <button
-                                  onClick={() => {
-                                    admin.setSelectedCompanyDebt(debt);
-                                    admin.setShowEnhancedCompanyDebtModal(true);
-                                  }}
-                                  className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium"
-                                >
-                                  <Icon name="eye" size={16} className="mr-2" /> {t.viewDetails || 'View Details'}
-                                </button>
-                              )}
-                              {!debt.paid_at && (
-                                <button
-                                  onClick={() => {
-                                    admin.setSelectedCompanyDebt(debt);
-                                    admin.setShowEnhancedCompanyDebtModal(true);
-                                  }}
-                                  className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-medium"
-                                >
-                                  <Icon name="checkCircle" size={16} className="mr-2" /> {t.markAsPaid || 'Mark as Paid'}
-                                </button>
-                              )}
-                            </div>
-                            
-                            {/* Payment History Section */}
-                            {(debt.payment_usd_amount > 0 || debt.payment_iqd_amount > 0 || debt.paid_at) && (
-                              <div className="mt-3">
-                                <button
-                                  onClick={() => togglePaymentHistory(debt.id)}
-                                  className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition"
-                                >
-                                  <Icon name="history" size={14} />
-                                  {t?.paymentHistory || 'Payment History'}
-                                  <Icon 
-                                    name={expandedPaymentHistories.has(debt.id) ? "chevron-up" : "chevron-down"} 
-                                    size={14} 
-                                  />
-                                </button>
-                                <PaymentHistory
-                                  debtId={debt.id}
-                                  debtType="company"
-                                  t={t}
-                                  isVisible={expandedPaymentHistories.has(debt.id)}
-                                />
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ))}
+                          <Icon name="eye" size={16} className="mr-2" />
+                          {t.viewDetails || 'View Details'}
+                        </button>
+                        
+                        {debtAmountText && (
+                          <button
+                            onClick={() => openPaymentModal(companyName, debts)}
+                            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-medium flex items-center min-w-[120px] justify-center"
+                          >
+                            <Icon name="credit-card" size={16} className="mr-2" />
+                            {t.payDebt || 'Pay Debt'}
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );
@@ -391,8 +438,427 @@ const CompanyDebtsSection = React.memo(({
         );
       })()}
       </div>
+
+      {/* Company Details Modal */}
+      {selectedCompany && (
+        <CompanyDetailsModal
+          show={showCompanyDetailsModal}
+          onClose={closeCompanyModal}
+          companyName={selectedCompany.name}
+          companyDebts={selectedCompany.debts}
+          paymentHistory={companyPaymentHistory}
+          loadingPaymentHistory={loadingPaymentHistory}
+          t={t}
+        />
+      )}
+
+      {/* Universal Payment Modal for Company Debts */}
+      <UniversalPaymentModal
+        show={showPaymentModal}
+        onClose={handleClosePaymentModal}
+        debtData={selectedCompanyForPayment}
+        paymentType="company"
+        onPaymentComplete={handlePaymentComplete}
+        admin={admin}
+        t={t}
+      />
     </div>
   );
 });
+
+// Simple modal to show company purchase history
+function CompanyDetailsModal({ show, onClose, companyName, companyDebts, paymentHistory, loadingPaymentHistory, t }) {
+  const [expandedDebtItems, setExpandedDebtItems] = useState(new Set());
+  const [expandedPayments, setExpandedPayments] = useState(new Set());
+  const [debtPaymentHistory, setDebtPaymentHistory] = useState({});
+  const { calculateRemainingCompanyDebt } = useData();
+
+  if (!show || !companyName) return null;
+
+  const sortedDebts = companyDebts.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+  const toggleDebtItems = async (debtId) => {
+    const newExpanded = new Set(expandedDebtItems);
+    if (newExpanded.has(debtId)) {
+      newExpanded.delete(debtId);
+    } else {
+      newExpanded.add(debtId);
+    }
+    setExpandedDebtItems(newExpanded);
+  };
+
+  const togglePaymentHistory = async (debtId) => {
+    const newExpanded = new Set(expandedPayments);
+    if (newExpanded.has(debtId)) {
+      newExpanded.delete(debtId);
+    } else {
+      newExpanded.add(debtId);
+      // Fetch payment history if not already loaded
+      if (!debtPaymentHistory[debtId]) {
+        try {
+          const payments = await window.api?.getDebtPayments?.('company', debtId);
+          setDebtPaymentHistory(prev => ({
+            ...prev,
+            [debtId]: payments || []
+          }));
+        } catch (error) {
+          console.error('Error fetching payment history:', error);
+          setDebtPaymentHistory(prev => ({
+            ...prev,
+            [debtId]: []
+          }));
+        }
+      }
+    }
+    setExpandedPayments(newExpanded);
+  };
+
+  return (
+    <ModalBase show={show} onClose={onClose} title={`${companyName} - ${t?.purchaseHistory || 'Purchase History'}`} maxWidth="4xl">
+      <div className="flex-1 overflow-y-auto">
+        <div className="p-6 space-y-4">
+          {/* Company Payment History Section */}
+          {paymentHistory && paymentHistory.length > 0 && (
+            <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-700 p-4 mb-6">
+              <h3 className="text-lg font-semibold text-blue-800 dark:text-blue-300 mb-3 flex items-center">
+                <Icon name="creditCard" size={20} className="mr-2" />
+                {t?.companyPaymentLog || 'Company Payment Log'}
+              </h3>
+              <div className="space-y-2 max-h-48 overflow-y-auto">
+                {paymentHistory.map((payment, idx) => (
+                  <div key={idx} className="flex justify-between items-center bg-white dark:bg-gray-800 rounded p-3 border border-blue-100 dark:border-blue-800">
+                    <div>
+                      <div className="font-medium text-gray-900 dark:text-gray-100">
+                        {payment.payment_usd_amount > 0 && (
+                          <span>{formatCurrency(payment.payment_usd_amount, 'USD')}</span>
+                        )}
+                        {payment.payment_usd_amount > 0 && payment.payment_iqd_amount > 0 && (
+                          <span className="text-gray-500 mx-2">+</span>
+                        )}
+                        {payment.payment_iqd_amount > 0 && (
+                          <span>{formatCurrency(payment.payment_iqd_amount, 'IQD')}</span>
+                        )}
+                      </div>
+                      <div className="text-sm text-gray-500 dark:text-gray-400">
+                        {t?.paymentMethod || 'Method'}: {payment.payment_currency_used || 'Unknown'}
+                      </div>
+                    </div>
+                    <div className="text-right text-gray-600 dark:text-gray-300">
+                      <div className="text-sm font-medium">
+                        {new Date(payment.payment_date).toLocaleDateString()}
+                      </div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">
+                        {new Date(payment.payment_date).toLocaleTimeString()}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {loadingPaymentHistory && (
+                <div className="text-center py-4">
+                  <Icon name="loading" size={20} className="animate-spin mx-auto mb-2" />
+                  <span className="text-sm text-gray-500">{t?.loadingPayments || 'Loading payment history...'}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Individual Purchase History */}
+          <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">
+            {t?.purchaseHistory || 'Purchase History'}
+          </h3>
+          
+          {sortedDebts.map((debt, index) => {
+            const isExpanded = expandedDebtItems.has(debt.id);
+            const isPaymentExpanded = expandedPayments.has(debt.id);
+            const remaining = calculateRemainingCompanyDebt(debt);
+            const isFullyPaid = debt.paid_at || (remaining.USD === 0 && remaining.IQD === 0);
+            const hasPartialPayment = (debt.payment_usd_amount > 0 || debt.payment_iqd_amount > 0) && !isFullyPaid;
+            const debtPayments = debtPaymentHistory[debt.id] || [];
+            
+            return (
+              <div
+                key={debt.id}
+                className={`bg-gray-50 dark:bg-gray-700 rounded-lg border ${
+                  isFullyPaid ? 'border-green-300 dark:border-green-600' : 'border-gray-200 dark:border-gray-600'
+                }`}
+              >
+                <div className="p-4">
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-900 dark:text-gray-100">
+                        {t?.purchase || 'Purchase'} #{sortedDebts.length - index}
+                      </span>
+                      {isFullyPaid && (
+                        <span className="px-2 py-1 bg-green-100 dark:bg-green-800 text-green-700 dark:text-green-300 text-xs rounded-full font-medium">
+                          {t?.paid || 'PAID'}
+                        </span>
+                      )}
+                      {hasPartialPayment && (
+                        <span className="px-2 py-1 bg-yellow-100 dark:bg-yellow-800 text-yellow-700 dark:text-yellow-300 text-xs rounded-full font-medium">
+                          {t?.partial || 'PARTIAL'}
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-sm text-gray-500 dark:text-gray-400">
+                      {new Date(debt.created_at).toLocaleDateString()} {new Date(debt.created_at).toLocaleTimeString()}
+                    </span>
+                  </div>
+                  
+                  {/* Original Amount */}
+                  <div className="mb-2">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">{t?.originalAmount || 'Original Amount'}:</span>
+                    <div className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                      {debt.currency === 'MULTI' ? (
+                        <>
+                          {debt.usd_amount > 0 && (
+                            <span>{formatCurrency(debt.usd_amount, 'USD')}</span>
+                          )}
+                          {debt.usd_amount > 0 && debt.iqd_amount > 0 && (
+                            <span className="text-gray-500 mx-2">+</span>
+                          )}
+                          {debt.iqd_amount > 0 && (
+                            <span>{formatCurrency(debt.iqd_amount, 'IQD')}</span>
+                          )}
+                        </>
+                      ) : (
+                        <span>{formatCurrency(debt.amount, debt.currency || 'IQD')}</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Payment Summary */}
+                  {(debt.payment_usd_amount > 0 || debt.payment_iqd_amount > 0) && (
+                    <div className="mb-2">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-sm text-gray-600 dark:text-gray-400">{t?.totalPaid || 'Total Paid'}:</span>
+                        <button
+                          onClick={() => togglePaymentHistory(debt.id)}
+                          className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline"
+                        >
+                          {isPaymentExpanded ? (t?.hidePayments || 'Hide Payments') : (t?.viewPayments || 'View Payment History')}
+                        </button>
+                      </div>
+                      <div className="text-sm font-medium text-green-700 dark:text-green-300">
+                        {debt.payment_usd_amount > 0 && (
+                          <span>{formatCurrency(debt.payment_usd_amount, 'USD')}</span>
+                        )}
+                        {debt.payment_usd_amount > 0 && debt.payment_iqd_amount > 0 && (
+                          <span className="text-gray-500 mx-2">+</span>
+                        )}
+                        {debt.payment_iqd_amount > 0 && (
+                          <span>{formatCurrency(debt.payment_iqd_amount, 'IQD')}</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Payment History */}
+                  {isPaymentExpanded && (debt.payment_usd_amount > 0 || debt.payment_iqd_amount > 0) && (
+                    <div className="mb-2 bg-green-50 dark:bg-green-900/20 rounded-lg p-3">
+                      <h5 className="text-sm font-medium text-green-800 dark:text-green-300 mb-2">
+                        {t?.paymentHistory || 'Payment History'}:
+                      </h5>
+                      {debtPayments.length > 0 ? (
+                        <div className="space-y-2">
+                          {debtPayments.map((payment, idx) => (
+                            <div key={idx} className="flex justify-between items-center bg-white dark:bg-gray-800 rounded p-2 text-xs">
+                              <div>
+                                <div className="font-medium text-gray-900 dark:text-gray-100">
+                                  {payment.payment_usd_amount > 0 && (
+                                    <span>{formatCurrency(payment.payment_usd_amount, 'USD')}</span>
+                                  )}
+                                  {payment.payment_usd_amount > 0 && payment.payment_iqd_amount > 0 && (
+                                    <span className="text-gray-500 mx-1">+</span>
+                                  )}
+                                  {payment.payment_iqd_amount > 0 && (
+                                    <span>{formatCurrency(payment.payment_iqd_amount, 'IQD')}</span>
+                                  )}
+                                </div>
+                                <div className="text-gray-500 dark:text-gray-400">
+                                  {payment.payment_currency_used || 'Unknown'}
+                                </div>
+                              </div>
+                              <div className="text-right text-gray-500 dark:text-gray-400">
+                                {new Date(payment.payment_date).toLocaleDateString()}
+                                <br />
+                                {new Date(payment.payment_date).toLocaleTimeString()}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                          {t?.loadingPayments || 'Loading payment history...'}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Remaining Amount */}
+                  {!isFullyPaid && (remaining.USD > 0 || remaining.IQD > 0) && (
+                    <div className="mb-2">
+                      <span className="text-sm text-gray-600 dark:text-gray-400">{t?.remainingAmount || 'Remaining Amount'}:</span>
+                      <div className="text-lg font-bold text-red-600 dark:text-red-400">
+                        {remaining.USD > 0 && (
+                          <span>{formatCurrency(remaining.USD, 'USD')}</span>
+                        )}
+                        {remaining.USD > 0 && remaining.IQD > 0 && (
+                          <span className="text-gray-500 mx-2">+</span>
+                        )}
+                        {remaining.IQD > 0 && (
+                          <span>{formatCurrency(remaining.IQD, 'IQD')}</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {debt.description && debt.description.trim() && (
+                    <div className="mb-2">
+                      <span className="text-sm text-gray-600 dark:text-gray-400">{t?.description || 'Description'}:</span>
+                      <p className="text-gray-800 dark:text-gray-200">
+                        {debt.description}
+                      </p>
+                    </div>
+                  )}
+                  
+                  <div className="flex items-center justify-between">
+                    {debt.has_items && (
+                      <div className="text-sm text-blue-600 dark:text-blue-400 flex items-center">
+                        <Icon name="package" size={16} className="mr-1" />
+                        {t?.hasItems || 'Contains items'}
+                      </div>
+                    )}
+                    
+                    {debt.has_items && (
+                      <button
+                        onClick={() => toggleDebtItems(debt.id)}
+                        className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition text-sm flex items-center"
+                      >
+                        <Icon name="eye" size={14} className="mr-1" />
+                        {isExpanded ? (t?.hideItems || 'Hide Items') : (t?.viewItems || 'View Items')}
+                      </button>
+                    )}
+                  </div>
+                </div>
+                
+                {/* Expanded Items Section */}
+                {debt.has_items && isExpanded && (
+                  <div className="border-t border-gray-200 dark:border-gray-600 bg-gray-100 dark:bg-gray-800">
+                    <DebtItemsDisplay debtId={debt.id} t={t} />
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      
+      <div className="p-6 border-t border-gray-200 dark:border-gray-700">
+        <div className="flex justify-end">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition"
+          >
+            {t?.close || 'Close'}
+          </button>
+        </div>
+      </div>
+    </ModalBase>
+  );
+}
+
+// Component to display debt items
+function DebtItemsDisplay({ debtId, t }) {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const fetchItems = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        if (window.api?.getCompanyDebtItems) {
+          const fetchedItems = await window.api.getCompanyDebtItems(debtId);
+          setItems(fetchedItems || []);
+        }
+      } catch (err) {
+        console.error('Error fetching debt items:', err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchItems();
+  }, [debtId]);
+
+  if (loading) {
+    return (
+      <div className="p-4 text-center">
+        <Icon name="loading" size={20} className="animate-spin mx-auto mb-2" />
+        <span className="text-sm text-gray-500">{t?.loadingItems || 'Loading items...'}</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-4 text-center text-red-600 dark:text-red-400">
+        <Icon name="alert" size={20} className="mx-auto mb-2" />
+        <span className="text-sm">{t?.errorLoadingItems || 'Error loading items'}</span>
+      </div>
+    );
+  }
+
+  if (!items || items.length === 0) {
+    return (
+      <div className="p-4 text-center text-gray-500 dark:text-gray-400">
+        <Icon name="package" size={20} className="mx-auto mb-2" />
+        <span className="text-sm">{t?.noItemsFound || 'No items found for this purchase'}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-4">
+      <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+        {t?.purchaseItems || 'Purchase Items'} ({items.length})
+      </h4>
+      <div className="space-y-2">
+        {items.map((item, index) => (
+          <div key={index} className="flex justify-between items-center p-2 bg-white dark:bg-gray-700 rounded border border-gray-200 dark:border-gray-600">
+            <div className="flex-1">
+              <div className="font-medium text-gray-900 dark:text-gray-100">
+                {item.product_name || item.name || t?.unknownItem || 'Unknown Item'}
+              </div>
+              {item.model && (
+                <div className="text-sm text-gray-500 dark:text-gray-400">
+                  {t?.model || 'Model'}: {item.model}
+                </div>
+              )}
+              {item.color && (
+                <div className="text-sm text-gray-500 dark:text-gray-400">
+                  {t?.color || 'Color'}: {item.color}
+                </div>
+              )}
+            </div>
+            <div className="text-right">
+              <div className="font-medium text-gray-900 dark:text-gray-100">
+                {t?.qty || 'Qty'}: {item.quantity || 1}
+              </div>
+              {item.unit_price && (
+                <div className="text-sm text-gray-500 dark:text-gray-400">
+                  {formatCurrency(item.unit_price, item.currency || 'IQD')} {t?.each || 'each'}
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default CompanyDebtsSection;

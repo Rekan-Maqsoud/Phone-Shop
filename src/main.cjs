@@ -8,6 +8,7 @@ const { app, BrowserWindow, ipcMain, dialog, nativeImage } = require('electron')
 const path = require('path');
 const fs = require('fs');
 let db; // Will be initialized after DB path is set
+let mainWindow; // Reference to the main application window
 const bcrypt = require('bcryptjs');
 const settings = require('electron-settings');
 const CloudBackupService = require('./services/CloudBackupService.cjs');
@@ -119,6 +120,9 @@ function createWindow() {
     show: false, // Don't show until ready
     autoHideMenuBar: true, // Hide menu bar by default
   });
+  
+  // Store reference to main window for IPC handlers
+  mainWindow = win;
   
   // Set the window icon again after creation (Windows fix)
   if (process.platform === 'win32' && iconImage) {
@@ -933,6 +937,19 @@ ipcMain.handle('markCompanyDebtPaid', async (event, id, paymentData) => {
   const result = db.markCompanyDebtPaid(id, paymentData);
   await runAutoBackupAfterSale();
   return result;
+});
+
+ipcMain.handle('payCompanyDebtTotal', async (event, companyName, paymentData) => {
+  try {
+    console.log('[IPC] payCompanyDebtTotal called with:', { companyName, paymentData });
+    const result = db.payCompanyDebtTotal(companyName, paymentData);
+    console.log('[IPC] payCompanyDebtTotal result:', result);
+    await runAutoBackupAfterSale();
+    return result;
+  } catch (error) {
+    console.error('[IPC] Error in payCompanyDebtTotal:', error);
+    throw error;
+  }
 });
 
 // Incentive handlers
@@ -1897,12 +1914,20 @@ ipcMain.handle('restoreFromFile', async (event, filePath) => {
     // Replace database with backup
     fs.copyFileSync(filePath, dbPath);
 
-    // Replace database with backup
-    fs.copyFileSync(filePath, dbPath);
-
     // Reinitialize database connection
     try {
-      // With the modular database, no cache clearing needed
+      // Clear the module cache to ensure fresh database connection
+      const dbModulePath = require.resolve('../database/index.cjs');
+      delete require.cache[dbModulePath];
+      
+      // Also clear any cached modules that might be holding database references
+      Object.keys(require.cache).forEach(key => {
+        if (key.includes('database/modules/')) {
+          delete require.cache[key];
+        }
+      });
+      
+      // Reinitialize with fresh module
       const dbModule = require('../database/index.cjs');
       Object.assign(db, dbModule(dbPath));
       
@@ -1914,6 +1939,16 @@ ipcMain.handle('restoreFromFile', async (event, filePath) => {
       // Rollback if DB cannot be opened
       if (fs.existsSync(backupCurrentPath)) {
         fs.copyFileSync(backupCurrentPath, dbPath);
+        
+        // Clear cache again for rollback
+        const dbModulePath = require.resolve('../database/index.cjs');
+        delete require.cache[dbModulePath];
+        Object.keys(require.cache).forEach(key => {
+          if (key.includes('database/modules/')) {
+            delete require.cache[key];
+          }
+        });
+        
         const dbModule = require('../database/index.cjs');
         Object.assign(db, dbModule(dbPath));
       }
@@ -1927,6 +1962,110 @@ ipcMain.handle('restoreFromFile', async (event, filePath) => {
     };
   } catch (e) {
     console.error('[IPC] Restore failed:', e);
+    return { success: false, message: e.message };
+  }
+});
+
+// Select and restore backup from local file
+ipcMain.handle('selectAndRestoreBackup', async () => {
+  try {
+    const { dialog } = require('electron');
+    
+    // Show file dialog to select backup file
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: 'Select Backup File to Restore',
+      properties: ['openFile'],
+      filters: [
+        { name: 'SQLite Database', extensions: ['sqlite', 'db'] },
+        { name: 'All Files', extensions: ['*'] }
+      ]
+    });
+    
+    if (result.canceled) {
+      return { success: false, message: 'Restore cancelled by user.' };
+    }
+    
+    const selectedFilePath = result.filePaths[0];
+    const dbPath = getDatabasePath();
+    const backupCurrentPath = dbPath + '.bak';
+    
+    try {
+      if (!fs.existsSync(selectedFilePath)) {
+        console.error('[IPC] Backup file not found:', selectedFilePath);
+        return { success: false, message: 'Backup file not found' };
+      }
+      
+      // Verify backup file is valid SQLite by checking header
+      const buffer = Buffer.alloc(16);
+      const fd = fs.openSync(selectedFilePath, 'r');
+      fs.readSync(fd, buffer, 0, 16, 0);
+      fs.closeSync(fd);
+      
+      if (!buffer.toString('utf8', 0, 15).startsWith('SQLite format 3')) {
+        console.error('[IPC] Invalid SQLite file:', selectedFilePath);
+        return { success: false, message: 'Selected file is not a valid SQLite database backup' };
+      }
+      
+      // Backup current database
+      if (fs.existsSync(dbPath)) {
+        fs.copyFileSync(dbPath, backupCurrentPath);
+      }
+      
+      // Replace database with backup
+      fs.copyFileSync(selectedFilePath, dbPath);
+
+      // Reinitialize database connection
+      try {
+        // Clear the module cache to ensure fresh database connection
+        const dbModulePath = require.resolve('../database/index.cjs');
+        delete require.cache[dbModulePath];
+        
+        // Also clear any cached modules that might be holding database references
+        Object.keys(require.cache).forEach(key => {
+          if (key.includes('database/modules/')) {
+            delete require.cache[key];
+          }
+        });
+        
+        // Reinitialize with fresh module
+        const dbModule = require('../database/index.cjs');
+        Object.assign(db, dbModule(dbPath));
+        
+        // Test connection by running a simple query
+        const testResult = db.getProducts();
+
+      } catch (e) {
+        console.error('[IPC] DB re-initialization or test query failed:', e);
+        // Rollback if DB cannot be opened
+        if (fs.existsSync(backupCurrentPath)) {
+          fs.copyFileSync(backupCurrentPath, dbPath);
+          
+          // Clear cache again for rollback
+          const dbModulePath = require.resolve('../database/index.cjs');
+          delete require.cache[dbModulePath];
+          Object.keys(require.cache).forEach(key => {
+            if (key.includes('database/modules/')) {
+              delete require.cache[key];
+            }
+          });
+          
+          const dbModule = require('../database/index.cjs');
+          Object.assign(db, dbModule(dbPath));
+        }
+        throw new Error('Restored DB is invalid or corrupt. Rolled back to previous database.');
+      }
+      
+      return { 
+        success: true, 
+        message: 'Database restored successfully. Please restart the application to ensure all changes take effect.',
+        requiresRestart: true
+      };
+    } catch (e) {
+      console.error('[IPC] Restore failed:', e);
+      return { success: false, message: e.message };
+    }
+  } catch (e) {
+    console.error('[IPC] selectAndRestoreBackup failed:', e);
     return { success: false, message: e.message };
   }
 });

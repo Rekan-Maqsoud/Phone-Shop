@@ -210,10 +210,23 @@ export const DataProvider = ({ children }) => {
   }, [apiReady]);
   
   const refreshCompanyDebts = useCallback(async () => {
-    if (!apiReady || !window.api?.getCompanyDebts) return;
+    console.log('🔄 DataContext: refreshCompanyDebts called');
+    console.log('- apiReady:', apiReady);
+    console.log('- window.api?.getCompanyDebts exists:', !!window.api?.getCompanyDebts);
+    
+    if (!apiReady || !window.api?.getCompanyDebts) {
+      console.log('❌ DataContext: Cannot refresh - API not ready or getCompanyDebts missing');
+      return;
+    }
+    
     try {
+      console.log('📡 DataContext: Fetching company debts from API...');
       const data = await window.api.getCompanyDebts();
+      console.log('📦 DataContext: Received company debts data:', data);
+      console.log('📊 DataContext: Company debts count:', data?.length || 0);
+      
       setCompanyDebts(data || []);
+      console.log('✅ DataContext: Company debts state updated');
     } catch (error) {
       console.error('❌ DataContext: Error refreshing company debts:', error);
     }

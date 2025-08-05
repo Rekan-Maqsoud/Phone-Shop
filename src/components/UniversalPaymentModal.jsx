@@ -173,6 +173,13 @@ const UniversalPaymentModal = ({
   const processPayment = async () => {
     if (!debtData) return;
     
+    console.log('🔄 PROCESS PAYMENT DEBUG:');
+    console.log('- debtData:', debtData);
+    console.log('- paymentType:', paymentType);
+    console.log('- multiCurrency.enabled:', multiCurrency.enabled);
+    console.log('- customAmount:', customAmount);
+    console.log('- paymentCurrency:', paymentCurrency);
+    
     try {
       let paymentData = {};
       
@@ -226,6 +233,8 @@ const UniversalPaymentModal = ({
         }
       }
 
+      console.log('💳 CREATED PAYMENT DATA:', paymentData);
+
       let result;
       
       // Call appropriate payment function based on type
@@ -255,12 +264,25 @@ const UniversalPaymentModal = ({
           }
         }
       } else if (paymentType === 'company') {
-        // Use multi-currency payment data like customer debts
-        result = await window.api?.markCompanyDebtPaid?.(debtData.id, {
-          payment_currency_used: paymentData.payment_currency_used,
-          payment_usd_amount: paymentData.payment_usd_amount || 0,
-          payment_iqd_amount: paymentData.payment_iqd_amount || 0
-        });
+        // For company debts, let the parent component handle the payment processing
+        // We just pass the payment data to the callback
+        console.log('🏢 COMPANY PAYMENT DEBUG:');
+        console.log('- paymentData before adding company_name:', paymentData);
+        console.log('- debtData:', debtData);
+        console.log('- onPaymentComplete exists:', !!onPaymentComplete);
+        
+        // Add company name to payment data
+        paymentData.company_name = debtData.company_name;
+        console.log('- paymentData after adding company_name:', paymentData);
+        
+        if (onPaymentComplete) {
+          console.log('📞 Calling onPaymentComplete with paymentData...');
+          await onPaymentComplete(paymentData);
+          handleClose();
+          return;
+        } else {
+          console.error('❌ No onPaymentComplete callback provided for company payment');
+        }
       } else if (paymentType === 'personal') {
         result = await window.api?.markPersonalLoanPaid?.(debtData.id, paymentData);
       }
@@ -280,7 +302,7 @@ const UniversalPaymentModal = ({
         await new Promise(resolve => setTimeout(resolve, 50)); // Reduced from 100ms
         
         if (onPaymentComplete) {
-          await onPaymentComplete();
+          await onPaymentComplete(paymentData);
         }
         
         handleClose();
