@@ -357,7 +357,7 @@ function addCompanyDebt(db, { company_name, amount, description, has_items = 0, 
   try {
     return db.prepare(`INSERT INTO company_debts 
       (company_name, amount, description, created_at, has_items, currency, usd_amount, iqd_amount) 
-      VALUES (?, ?, ?, ?, ?, ?, ?)`)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
       .run(company_name, finalAmount, description, now, has_items, finalCurrency, usdAmount, iqdAmount);
   } catch (columnError) {
     // Fallback to basic schema without multi-currency columns
@@ -685,32 +685,68 @@ function payCompanyDebtTotal(db, companyName, paymentData) {
         let usdToApply = 0;
         let iqdToApply = 0;
         
-        // First, try to pay with matching currency
-        if (remainingDebtUSD > 0 && remainingUSDPayment > 0) {
-          usdToApply = Math.min(remainingDebtUSD, remainingUSDPayment);
-          remainingUSDPayment -= usdToApply;
-          remainingDebtUSD -= usdToApply;
-        }
-        
-        if (remainingDebtIQD > 0 && remainingIQDPayment > 0) {
-          iqdToApply = Math.min(remainingDebtIQD, remainingIQDPayment);
-          remainingIQDPayment -= iqdToApply;
-          remainingDebtIQD -= iqdToApply;
-        }
-        
-        // If debt still has remaining amount, use cross-currency payment
-        if (remainingDebtUSD > 0 && remainingIQDPayment > 0) {
-          const iqdToUSDForDebt = Math.min(remainingIQDPayment, remainingDebtUSD * currentUSDToIQD);
-          iqdToApply += iqdToUSDForDebt;
-          remainingIQDPayment -= iqdToUSDForDebt;
-          remainingDebtUSD -= iqdToUSDForDebt / currentUSDToIQD;
-        }
-        
-        if (remainingDebtIQD > 0 && remainingUSDPayment > 0) {
-          const usdToIQDForDebt = Math.min(remainingUSDPayment, remainingDebtIQD / currentUSDToIQD);
-          usdToApply += usdToIQDForDebt;
-          remainingUSDPayment -= usdToIQDForDebt;
-          remainingDebtIQD -= usdToIQDForDebt * currentUSDToIQD;
+        if (debt.currency === 'MULTI') {
+          // For multi-currency debts, handle cross-currency payments properly
+          // First, satisfy each currency portion with its matching payment
+          if (remainingDebtUSD > 0 && remainingUSDPayment > 0) {
+            usdToApply = Math.min(remainingDebtUSD, remainingUSDPayment);
+            remainingUSDPayment -= usdToApply;
+            remainingDebtUSD -= usdToApply;
+          }
+          
+          if (remainingDebtIQD > 0 && remainingIQDPayment > 0) {
+            iqdToApply = Math.min(remainingDebtIQD, remainingIQDPayment);
+            remainingIQDPayment -= iqdToApply;
+            remainingDebtIQD -= iqdToApply;
+          }
+          
+          // Then apply cross-currency payments if there's still remaining payment and debt
+          if (remainingDebtUSD > 0 && remainingIQDPayment > 0) {
+            // Use IQD payment to pay USD debt
+            const iqdNeededForUSDDebt = remainingDebtUSD * currentUSDToIQD;
+            const iqdToUseForUSD = Math.min(remainingIQDPayment, iqdNeededForUSDDebt);
+            iqdToApply += iqdToUseForUSD;
+            remainingIQDPayment -= iqdToUseForUSD;
+            remainingDebtUSD -= iqdToUseForUSD / currentUSDToIQD;
+          }
+          
+          if (remainingDebtIQD > 0 && remainingUSDPayment > 0) {
+            // Use USD payment to pay IQD debt
+            const usdNeededForIQDDebt = remainingDebtIQD / currentUSDToIQD;
+            const usdToUseForIQD = Math.min(remainingUSDPayment, usdNeededForIQDDebt);
+            usdToApply += usdToUseForIQD;
+            remainingUSDPayment -= usdToUseForIQD;
+            remainingDebtIQD -= usdToUseForIQD * currentUSDToIQD;
+          }
+        } else {
+          // For single-currency debts, use the existing logic
+          // First, try to pay with matching currency
+          if (remainingDebtUSD > 0 && remainingUSDPayment > 0) {
+            usdToApply = Math.min(remainingDebtUSD, remainingUSDPayment);
+            remainingUSDPayment -= usdToApply;
+            remainingDebtUSD -= usdToApply;
+          }
+          
+          if (remainingDebtIQD > 0 && remainingIQDPayment > 0) {
+            iqdToApply = Math.min(remainingDebtIQD, remainingIQDPayment);
+            remainingIQDPayment -= iqdToApply;
+            remainingDebtIQD -= iqdToApply;
+          }
+          
+          // Cross-currency payment for single-currency debts
+          if (remainingDebtUSD > 0 && remainingIQDPayment > 0) {
+            const iqdToUSDForDebt = Math.min(remainingIQDPayment, remainingDebtUSD * currentUSDToIQD);
+            iqdToApply += iqdToUSDForDebt;
+            remainingIQDPayment -= iqdToUSDForDebt;
+            remainingDebtUSD -= iqdToUSDForDebt / currentUSDToIQD;
+          }
+          
+          if (remainingDebtIQD > 0 && remainingUSDPayment > 0) {
+            const usdToIQDForDebt = Math.min(remainingUSDPayment, remainingDebtIQD / currentUSDToIQD);
+            usdToApply += usdToIQDForDebt;
+            remainingUSDPayment -= usdToIQDForDebt;
+            remainingDebtIQD -= usdToIQDForDebt * currentUSDToIQD;
+          }
         }
         
         // Apply the payment to this debt
@@ -834,8 +870,10 @@ function payCompanyDebtTotalForcedUSD(db, companyName, paymentData) {
   }
   
   const now = new Date().toISOString();
-  const EXCHANGE_RATES = { USD_TO_IQD: 1440 }; // Fallback exchange rate
-  const currentUSDToIQD = EXCHANGE_RATES.USD_TO_IQD;
+  
+  // Get current exchange rates from settings instead of hardcoded fallback
+  const { getExchangeRate } = require('./settings.cjs');
+  const currentUSDToIQD = getExchangeRate(db, 'USD', 'IQD');
   
   const transaction = db.transaction(() => {
     try {
@@ -860,10 +898,10 @@ function payCompanyDebtTotalForcedUSD(db, companyName, paymentData) {
         };
       }
       
-      // Calculate total remaining USD debt for this company, but also collect all debts for payment
+      // Calculate total remaining USD debt for this company - ONLY USD and MULTI debts
       let totalRemainingUSDDebt = 0;
       const usdDebts = []; // USD debts (priority)
-      const otherDebts = []; // Non-USD debts (secondary)
+      const multiCurrencyDebts = []; // Multi-currency debts (only USD portion)
       
       for (const debt of unpaidDebts) {
         const currentPaidUSD = debt.payment_usd_amount || 0;
@@ -880,29 +918,23 @@ function payCompanyDebtTotalForcedUSD(db, companyName, paymentData) {
               remainingAmount: remainingDebtUSD
             });
           }
-        } else {
-          // Also include non-USD debts for payment if USD payment exceeds USD debts
-          let remainingAmount = 0;
-          if (debt.currency === 'IQD') {
-            const totalPaidIQDEquivalent = currentPaidIQD + (currentPaidUSD * currentUSDToIQD);
-            remainingAmount = Math.max(0, debt.amount - totalPaidIQDEquivalent);
-          } else if (debt.currency === 'MULTI') {
-            const remainingUSD = Math.max(0, (debt.usd_amount || 0) - currentPaidUSD);
-            const remainingIQD = Math.max(0, (debt.iqd_amount || 0) - currentPaidIQD);
-            remainingAmount = remainingUSD + (remainingIQD / currentUSDToIQD); // Convert to USD equivalent for sorting
-          }
+        } else if (debt.currency === 'MULTI') {
+          // For multi-currency debts, only consider the USD portion
+          const remainingUSD = Math.max(0, (debt.usd_amount || 0) - currentPaidUSD);
           
-          if (remainingAmount > 0) {
-            otherDebts.push({
+          if (remainingUSD > 0) {
+            totalRemainingUSDDebt += remainingUSD;
+            multiCurrencyDebts.push({
               ...debt,
-              remainingAmount: remainingAmount
+              remainingAmount: remainingUSD
             });
           }
         }
+        // IGNORE IQD-only debts completely for forced USD payment
       }
       
-      // Combine debts: USD debts first, then other debts
-      const allDebtsForPayment = [...usdDebts, ...otherDebts];
+      // Combine only USD and multi-currency debts
+      const allDebtsForPayment = [...usdDebts, ...multiCurrencyDebts];
       
       if (allDebtsForPayment.length === 0) {
         return {
@@ -933,7 +965,7 @@ function payCompanyDebtTotalForcedUSD(db, companyName, paymentData) {
         let paymentFromUSDBalance = 0;
         let paymentFromIQDBalance = 0;
         
-        // Payment logic depends on debt type
+        // Payment logic: Only USD and MULTI debts allowed in forced USD payment
         if (debt.currency === 'USD') {
           // Try to pay with USD balance first for USD debts
           if (remainingUSDPayment > 0) {
@@ -948,33 +980,25 @@ function payCompanyDebtTotalForcedUSD(db, companyName, paymentData) {
             paymentFromIQDBalance = Math.min(remainingIQDPayment, iqdNeededForDebt);
             remainingIQDPayment -= paymentFromIQDBalance;
           }
-        } else if (debt.currency === 'IQD') {
-          // For IQD debts, prioritize IQD payment but allow USD cross-payment
-          if (remainingIQDPayment > 0) {
-            paymentFromIQDBalance = Math.min(remainingIQDPayment, debt.remainingAmount);
-            remainingIQDPayment -= paymentFromIQDBalance;
-          }
-          
-          // If still debt remaining, pay with USD balance (converted to IQD equivalent)
-          const stillOwedAfterIQD = debt.remainingAmount - paymentFromIQDBalance;
-          if (stillOwedAfterIQD > 0 && remainingUSDPayment > 0) {
-            const usdNeededForDebt = stillOwedAfterIQD / currentUSDToIQD;
-            paymentFromUSDBalance = Math.min(remainingUSDPayment, usdNeededForDebt);
-            remainingUSDPayment -= paymentFromUSDBalance;
-          }
         } else if (debt.currency === 'MULTI') {
-          // For multi-currency debts, apply both currencies proportionally
+          // For multi-currency debts with FORCED USD payment, only pay USD portion
+          // This is exactly like single-currency USD debt logic
           const remainingUSD = Math.max(0, (debt.usd_amount || 0) - currentPaidUSD);
-          const remainingIQD = Math.max(0, (debt.iqd_amount || 0) - currentPaidIQD);
           
-          if (remainingUSD > 0 && remainingUSDPayment > 0) {
-            paymentFromUSDBalance = Math.min(remainingUSDPayment, remainingUSD);
-            remainingUSDPayment -= paymentFromUSDBalance;
-          }
-          
-          if (remainingIQD > 0 && remainingIQDPayment > 0) {
-            paymentFromIQDBalance = Math.min(remainingIQDPayment, remainingIQD);
-            remainingIQDPayment -= paymentFromIQDBalance;
+          if (remainingUSD > 0) {
+            // Try to pay with USD balance first
+            if (remainingUSDPayment > 0) {
+              paymentFromUSDBalance = Math.min(remainingUSDPayment, remainingUSD);
+              remainingUSDPayment -= paymentFromUSDBalance;
+            }
+            
+            // If still debt remaining, pay with IQD balance (converted to USD equivalent)
+            const stillOwedAfterUSD = remainingUSD - paymentFromUSDBalance;
+            if (stillOwedAfterUSD > 0 && remainingIQDPayment > 0) {
+              const iqdNeededForDebt = stillOwedAfterUSD * currentUSDToIQD;
+              paymentFromIQDBalance = Math.min(remainingIQDPayment, iqdNeededForDebt);
+              remainingIQDPayment -= paymentFromIQDBalance;
+            }
           }
         }
         
@@ -1095,8 +1119,10 @@ function payCompanyDebtTotalForcedIQD(db, companyName, paymentData) {
   }
   
   const now = new Date().toISOString();
-  const EXCHANGE_RATES = { USD_TO_IQD: 1440 }; // Fallback exchange rate
-  const currentUSDToIQD = EXCHANGE_RATES.USD_TO_IQD;
+  
+  // Get current exchange rates from settings instead of hardcoded fallback
+  const { getExchangeRate } = require('./settings.cjs');
+  const currentUSDToIQD = getExchangeRate(db, 'USD', 'IQD');
   
   const transaction = db.transaction(() => {
     try {
@@ -1121,10 +1147,10 @@ function payCompanyDebtTotalForcedIQD(db, companyName, paymentData) {
         };
       }
       
-      // Calculate total remaining IQD debt for this company, but also collect all debts for payment
+      // Calculate total remaining IQD debt for this company - ONLY IQD and MULTI debts
       let totalRemainingIQDDebt = 0;
       const iqdDebts = []; // IQD debts (priority)
-      const otherDebts = []; // Non-IQD debts (secondary)
+      const multiCurrencyDebts = []; // Multi-currency debts (only IQD portion)
       
       for (const debt of unpaidDebts) {
         const currentPaidIQD = debt.payment_iqd_amount || 0;
@@ -1141,29 +1167,32 @@ function payCompanyDebtTotalForcedIQD(db, companyName, paymentData) {
               remainingAmount: remainingDebtIQD
             });
           }
-        } else {
-          // Also include non-IQD debts for payment if IQD payment exceeds IQD debts
-          let remainingAmount = 0;
-          if (debt.currency === 'USD') {
-            const totalPaidUSDEquivalent = currentPaidUSD + (currentPaidIQD / currentUSDToIQD);
-            remainingAmount = Math.max(0, debt.amount - totalPaidUSDEquivalent);
-          } else if (debt.currency === 'MULTI') {
-            const remainingUSD = Math.max(0, (debt.usd_amount || 0) - currentPaidUSD);
-            const remainingIQD = Math.max(0, (debt.iqd_amount || 0) - currentPaidIQD);
-            remainingAmount = remainingUSD + (remainingIQD / currentUSDToIQD); // Convert to USD equivalent for sorting
-          }
+        } else if (debt.currency === 'MULTI') {
+          // For multi-currency debts with FORCED IQD payment, only pay IQD portion
+          // This is exactly like single-currency IQD debt logic
+          const remainingIQD = Math.max(0, (debt.iqd_amount || 0) - currentPaidIQD);
           
-          if (remainingAmount > 0) {
-            otherDebts.push({
-              ...debt,
-              remainingAmount: remainingAmount
-            });
+          if (remainingIQD > 0) {
+            // Try to pay with IQD balance first
+            if (remainingIQDPayment > 0) {
+              paymentFromIQDBalance = Math.min(remainingIQDPayment, remainingIQD);
+              remainingIQDPayment -= paymentFromIQDBalance;
+            }
+            
+            // If still debt remaining, pay with USD balance (converted to IQD equivalent)
+            const stillOwedAfterIQD = remainingIQD - paymentFromIQDBalance;
+            if (stillOwedAfterIQD > 0 && remainingUSDPayment > 0) {
+              const usdNeededForDebt = stillOwedAfterIQD / currentUSDToIQD;
+              paymentFromUSDBalance = Math.min(remainingUSDPayment, usdNeededForDebt);
+              remainingUSDPayment -= paymentFromUSDBalance;
+            }
           }
         }
+        // IGNORE USD-only debts completely for forced IQD payment
       }
       
-      // Combine debts: IQD debts first, then other debts
-      const allDebtsForPayment = [...iqdDebts, ...otherDebts];
+      // Combine only IQD and multi-currency debts
+      const allDebtsForPayment = [...iqdDebts, ...multiCurrencyDebts];
       
       if (allDebtsForPayment.length === 0) {
         return {
@@ -1194,7 +1223,7 @@ function payCompanyDebtTotalForcedIQD(db, companyName, paymentData) {
         let paymentFromUSDBalance = 0;
         let paymentFromIQDBalance = 0;
         
-        // Payment logic depends on debt type
+        // Payment logic: Only IQD and MULTI debts allowed in forced IQD payment
         if (debt.currency === 'IQD') {
           // Try to pay with IQD balance first for IQD debts
           if (remainingIQDPayment > 0) {
@@ -1209,33 +1238,25 @@ function payCompanyDebtTotalForcedIQD(db, companyName, paymentData) {
             paymentFromUSDBalance = Math.min(remainingUSDPayment, usdNeededForDebt);
             remainingUSDPayment -= paymentFromUSDBalance;
           }
-        } else if (debt.currency === 'USD') {
-          // For USD debts, prioritize USD payment but allow IQD cross-payment
-          if (remainingUSDPayment > 0) {
-            paymentFromUSDBalance = Math.min(remainingUSDPayment, debt.remainingAmount);
-            remainingUSDPayment -= paymentFromUSDBalance;
-          }
-          
-          // If still debt remaining, pay with IQD balance (converted to USD equivalent)
-          const stillOwedAfterUSD = debt.remainingAmount - paymentFromUSDBalance;
-          if (stillOwedAfterUSD > 0 && remainingIQDPayment > 0) {
-            const iqdNeededForDebt = stillOwedAfterUSD * currentUSDToIQD;
-            paymentFromIQDBalance = Math.min(remainingIQDPayment, iqdNeededForDebt);
-            remainingIQDPayment -= paymentFromIQDBalance;
-          }
         } else if (debt.currency === 'MULTI') {
-          // For multi-currency debts, apply both currencies proportionally
-          const remainingUSD = Math.max(0, (debt.usd_amount || 0) - currentPaidUSD);
+          // For multi-currency debts with FORCED IQD payment, only pay IQD portion
+          // This is exactly like single-currency IQD debt logic
           const remainingIQD = Math.max(0, (debt.iqd_amount || 0) - currentPaidIQD);
           
-          if (remainingUSD > 0 && remainingUSDPayment > 0) {
-            paymentFromUSDBalance = Math.min(remainingUSDPayment, remainingUSD);
-            remainingUSDPayment -= paymentFromUSDBalance;
-          }
-          
-          if (remainingIQD > 0 && remainingIQDPayment > 0) {
-            paymentFromIQDBalance = Math.min(remainingIQDPayment, remainingIQD);
-            remainingIQDPayment -= paymentFromIQDBalance;
+          if (remainingIQD > 0) {
+            // Try to pay with IQD balance first
+            if (remainingIQDPayment > 0) {
+              paymentFromIQDBalance = Math.min(remainingIQDPayment, remainingIQD);
+              remainingIQDPayment -= paymentFromIQDBalance;
+            }
+            
+            // If still debt remaining, pay with USD balance (converted to IQD equivalent)
+            const stillOwedAfterIQD = remainingIQD - paymentFromIQDBalance;
+            if (stillOwedAfterIQD > 0 && remainingUSDPayment > 0) {
+              const usdNeededForDebt = stillOwedAfterIQD / currentUSDToIQD;
+              paymentFromUSDBalance = Math.min(remainingUSDPayment, usdNeededForDebt);
+              remainingUSDPayment -= paymentFromUSDBalance;
+            }
           }
         }
         

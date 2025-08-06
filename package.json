@@ -1,7 +1,7 @@
 {
   "name": "mobile-roma",
   "private": true,
-  "version": "1.2.15",
+  "version": "1.2.16",
   "description": "Mobile Roma - Phone Shop Management System",
   "main": "src/main.cjs",
   "author": "Mobile Roma Team",

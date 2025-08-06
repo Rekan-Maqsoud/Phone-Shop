@@ -325,38 +325,27 @@ export const DataProvider = ({ children }) => {
       const remainingUSD = Math.max(0, (debt.usd_amount || 0) - (debt.payment_usd_amount || 0));
       const remainingIQD = Math.max(0, (debt.iqd_amount || 0) - (debt.payment_iqd_amount || 0));
       
-      // Check 250 IQD threshold: if total remaining is less than 250 IQD equivalent, ignore
-      const totalRemainingIQDEquivalent = remainingIQD + (remainingUSD * currentExchangeRate);
-      if (totalRemainingIQDEquivalent >= 250) {
-        return { USD: remainingUSD, IQD: remainingIQD };
-      } else {
-        return { USD: 0, IQD: 0 };
-      }
+      // For multi-currency debts, always show the actual remaining amounts
+      // Don't apply the 250 IQD threshold here as it would incorrectly hide debts that were just added
+      return { USD: remainingUSD, IQD: remainingIQD };
     } else if (debt.currency === 'USD') {
       // USD debt - subtract USD payments and IQD payments converted to USD using CURRENT rate for display
       const paidUSD = debt.payment_usd_amount || 0;
       const paidIQD = debt.payment_iqd_amount || 0;
       const remaining = Math.max(0, (debt.amount || 0) - paidUSD - (paidIQD / currentExchangeRate));
       
-      // Check 250 IQD threshold for USD debts
-      const remainingIQDEquivalent = remaining * currentExchangeRate;
-      if (remainingIQDEquivalent >= 250) {
-        return { USD: remaining, IQD: 0 };
-      } else {
-        return { USD: 0, IQD: 0 };
-      }
+      // For USD debts, always show the actual remaining amount
+      // Don't apply the 250 IQD threshold here as it would incorrectly hide debts that were just added
+      return { USD: remaining, IQD: 0 };
     } else {
       // IQD or unknown currency - subtract IQD payments and USD payments converted to IQD using CURRENT rate for display
       const paidUSD = debt.payment_usd_amount || 0;
       const paidIQD = debt.payment_iqd_amount || 0;
       const remaining = Math.max(0, (debt.amount || 0) - paidIQD - (paidUSD * currentExchangeRate));
       
-      // Check 250 IQD threshold
-      if (remaining >= 250) {
-        return { USD: 0, IQD: remaining };
-      } else {
-        return { USD: 0, IQD: 0 };
-      }
+      // For IQD debts, always show the actual remaining amount
+      // Don't apply the 250 IQD threshold here as it would incorrectly hide debts that were just added
+      return { USD: 0, IQD: remaining };
     }
   }, []);
 
