@@ -457,21 +457,47 @@ export default function PersonalLoansSection({ admin, t, showConfirm }) {
                               </div>
                               
                               <div className="flex gap-4">
-                                {(loan.usd_amount || 0) > 0 && (
-                                  <div className={`text-lg font-bold ${
-                                    loan.paid_at ? 'text-green-600 dark:text-green-400' : 'text-blue-600 dark:text-blue-400'
-                                  }`}>
-                                    {formatCurrency(loan.usd_amount, 'USD')}
-                                  </div>
-                                )}
-                                {(loan.iqd_amount || 0) > 0 && (
-                                  <div className={`text-lg font-bold ${
-                                    loan.paid_at ? 'text-green-600 dark:text-green-400' : 'text-orange-600 dark:text-orange-400'
-                                  }`}>
-                                    {formatCurrency(loan.iqd_amount, 'IQD')}
-                                  </div>
-                                )}
+                                {(() => {
+                                  // Calculate remaining amounts for display
+                                  const remainingUSD = loan.paid_at ? (loan.usd_amount || 0) : Math.max(0, (loan.usd_amount || 0) - (loan.payment_usd_amount || 0));
+                                  const remainingIQD = loan.paid_at ? (loan.iqd_amount || 0) : Math.max(0, (loan.iqd_amount || 0) - (loan.payment_iqd_amount || 0));
+                                  
+                                  return (
+                                    <>
+                                      {remainingUSD > 0 && (
+                                        <div className={`text-lg font-bold ${
+                                          loan.paid_at ? 'text-green-600 dark:text-green-400' : 'text-blue-600 dark:text-blue-400'
+                                        }`}>
+                                          {formatCurrency(remainingUSD, 'USD')}
+                                        </div>
+                                      )}
+                                      {remainingIQD > 0 && (
+                                        <div className={`text-lg font-bold ${
+                                          loan.paid_at ? 'text-green-600 dark:text-green-400' : 'text-orange-600 dark:text-orange-400'
+                                        }`}>
+                                          {formatCurrency(remainingIQD, 'IQD')}
+                                        </div>
+                                      )}
+                                    </>
+                                  );
+                                })()}
                               </div>
+                              
+                              {/* Show original amounts and payment details for partial payments */}
+                              {!loan.paid_at && (loan.payment_usd_amount > 0 || loan.payment_iqd_amount > 0) && (
+                                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                  {t?.originalAmount || 'Original'}: 
+                                  {(loan.usd_amount || 0) > 0 && ` ${formatCurrency(loan.usd_amount, 'USD')}`}
+                                  {(loan.usd_amount || 0) > 0 && (loan.iqd_amount || 0) > 0 && ' + '}
+                                  {(loan.iqd_amount || 0) > 0 && ` ${formatCurrency(loan.iqd_amount, 'IQD')}`}
+                                  <span className="ml-2">
+                                    | {t?.paid || 'Paid'}: 
+                                    {loan.payment_usd_amount > 0 && ` ${formatCurrency(loan.payment_usd_amount, 'USD')}`}
+                                    {loan.payment_usd_amount > 0 && loan.payment_iqd_amount > 0 && ' + '}
+                                    {loan.payment_iqd_amount > 0 && ` ${formatCurrency(loan.payment_iqd_amount, 'IQD')}`}
+                                  </span>
+                                </div>
+                              )}
                               
                               {loan.paid_at && (
                                 <div className="text-xs text-green-600 dark:text-green-400 mt-1">

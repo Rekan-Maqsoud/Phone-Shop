@@ -981,30 +981,64 @@ function payCompanyDebtTotalForcedUSD(db, companyName, paymentData) {
             remainingIQDPayment -= paymentFromIQDBalance;
           }
         } else if (debt.currency === 'MULTI') {
-          // For multi-currency debts with FORCED USD payment, only pay USD portion
-          // This is exactly like single-currency USD debt logic
+          // For multi-currency debts with FORCED USD payment:
+          // CRITICAL: Always prioritize USD debt, NEVER apply IQD payment to IQD debt directly
           const remainingUSD = Math.max(0, (debt.usd_amount || 0) - currentPaidUSD);
+          const remainingIQD = Math.max(0, (debt.iqd_amount || 0) - currentPaidIQD);
           
+          // Step 1: Pay USD portion first (ONLY USD DEBT PRIORITY)
           if (remainingUSD > 0) {
-            // Try to pay with USD balance first
+            // Pay with USD balance first
             if (remainingUSDPayment > 0) {
               paymentFromUSDBalance = Math.min(remainingUSDPayment, remainingUSD);
               remainingUSDPayment -= paymentFromUSDBalance;
             }
             
-            // If still debt remaining, pay with IQD balance (converted to USD equivalent)
-            const stillOwedAfterUSD = remainingUSD - paymentFromUSDBalance;
-            if (stillOwedAfterUSD > 0 && remainingIQDPayment > 0) {
-              const iqdNeededForDebt = stillOwedAfterUSD * currentUSDToIQD;
-              paymentFromIQDBalance = Math.min(remainingIQDPayment, iqdNeededForDebt);
-              remainingIQDPayment -= paymentFromIQDBalance;
+            // FORCED USD: Convert IQD payment to pay USD debt (NO direct IQD to IQD)
+            const stillOwedUSDAfterUSDPayment = remainingUSD - paymentFromUSDBalance;
+            if (stillOwedUSDAfterUSDPayment > 0 && remainingIQDPayment > 0) {
+              const iqdNeededForUSDDebt = stillOwedUSDAfterUSDPayment * currentUSDToIQD;
+              const iqdToUseForUSD = Math.min(remainingIQDPayment, iqdNeededForUSDDebt);
+              paymentFromIQDBalance += iqdToUseForUSD;
+              remainingIQDPayment -= iqdToUseForUSD;
             }
           }
+          
+          // Step 2: ONLY after USD portion is fully paid, pay IQD portion with remaining USD ONLY
+          const usdPortionFullyPaid = (currentPaidUSD + paymentFromUSDBalance) >= (debt.usd_amount || 0);
+          if (usdPortionFullyPaid && remainingIQD > 0 && remainingUSDPayment > 0) {
+            // FORCED USD: Convert remaining USD to pay IQD debt (NO direct IQD to IQD)
+            const usdToIQDForIQDDebt = remainingUSDPayment * currentUSDToIQD;
+            const iqdPaymentFromUSD = Math.min(usdToIQDForIQDDebt, remainingIQD);
+            paymentFromIQDBalance += iqdPaymentFromUSD;
+            remainingUSDPayment -= iqdPaymentFromUSD / currentUSDToIQD;
+          }
+          // CRITICAL: remainingIQDPayment is NEVER used for IQD debt in forced USD mode
         }
         
         if (paymentFromUSDBalance > 0 || paymentFromIQDBalance > 0) {
-          const updatedPaidUSD = currentPaidUSD + paymentFromUSDBalance;
-          const updatedPaidIQD = currentPaidIQD + paymentFromIQDBalance;
+          // CRITICAL FIX: For multi-currency debts in forced payment mode,
+          // record payments by TARGET DEBT CURRENCY, not SOURCE PAYMENT CURRENCY
+          let updatedPaidUSD = currentPaidUSD;
+          let updatedPaidIQD = currentPaidIQD;
+          
+          if (debt.currency === 'MULTI') {
+            // For multi-currency debts, convert all payments to target the prioritized currency
+            if (paymentFromUSDBalance > 0) {
+              // USD payment - always goes to USD debt tracking
+              updatedPaidUSD += paymentFromUSDBalance;
+            }
+            if (paymentFromIQDBalance > 0) {
+              // For FORCED USD mode: IQD payment is converted and applied to USD debt
+              // So we track it as USD payment in the database
+              const iqdConvertedToUSDDebt = paymentFromIQDBalance / currentUSDToIQD;
+              updatedPaidUSD += iqdConvertedToUSDDebt;
+            }
+          } else {
+            // For single-currency debts, use the original logic
+            updatedPaidUSD = currentPaidUSD + paymentFromUSDBalance;
+            updatedPaidIQD = currentPaidIQD + paymentFromIQDBalance;
+          }
           
           // Check if this specific debt is fully paid based on its currency type
           let isFullyPaid = false;
@@ -1168,24 +1202,15 @@ function payCompanyDebtTotalForcedIQD(db, companyName, paymentData) {
             });
           }
         } else if (debt.currency === 'MULTI') {
-          // For multi-currency debts with FORCED IQD payment, only pay IQD portion
-          // This is exactly like single-currency IQD debt logic
+          // For multi-currency debts, only consider the IQD portion
           const remainingIQD = Math.max(0, (debt.iqd_amount || 0) - currentPaidIQD);
           
           if (remainingIQD > 0) {
-            // Try to pay with IQD balance first
-            if (remainingIQDPayment > 0) {
-              paymentFromIQDBalance = Math.min(remainingIQDPayment, remainingIQD);
-              remainingIQDPayment -= paymentFromIQDBalance;
-            }
-            
-            // If still debt remaining, pay with USD balance (converted to IQD equivalent)
-            const stillOwedAfterIQD = remainingIQD - paymentFromIQDBalance;
-            if (stillOwedAfterIQD > 0 && remainingUSDPayment > 0) {
-              const usdNeededForDebt = stillOwedAfterIQD / currentUSDToIQD;
-              paymentFromUSDBalance = Math.min(remainingUSDPayment, usdNeededForDebt);
-              remainingUSDPayment -= paymentFromUSDBalance;
-            }
+            totalRemainingIQDDebt += remainingIQD;
+            multiCurrencyDebts.push({
+              ...debt,
+              remainingAmount: remainingIQD
+            });
           }
         }
         // IGNORE USD-only debts completely for forced IQD payment
@@ -1239,30 +1264,64 @@ function payCompanyDebtTotalForcedIQD(db, companyName, paymentData) {
             remainingUSDPayment -= paymentFromUSDBalance;
           }
         } else if (debt.currency === 'MULTI') {
-          // For multi-currency debts with FORCED IQD payment, only pay IQD portion
-          // This is exactly like single-currency IQD debt logic
+          // For multi-currency debts with FORCED IQD payment:
+          // CRITICAL: Always prioritize IQD debt, NEVER apply USD payment to USD debt directly
+          const remainingUSD = Math.max(0, (debt.usd_amount || 0) - currentPaidUSD);
           const remainingIQD = Math.max(0, (debt.iqd_amount || 0) - currentPaidIQD);
           
+          // Step 1: Pay IQD portion first (ONLY IQD DEBT PRIORITY)
           if (remainingIQD > 0) {
-            // Try to pay with IQD balance first
+            // Pay with IQD balance first
             if (remainingIQDPayment > 0) {
               paymentFromIQDBalance = Math.min(remainingIQDPayment, remainingIQD);
               remainingIQDPayment -= paymentFromIQDBalance;
             }
             
-            // If still debt remaining, pay with USD balance (converted to IQD equivalent)
-            const stillOwedAfterIQD = remainingIQD - paymentFromIQDBalance;
-            if (stillOwedAfterIQD > 0 && remainingUSDPayment > 0) {
-              const usdNeededForDebt = stillOwedAfterIQD / currentUSDToIQD;
-              paymentFromUSDBalance = Math.min(remainingUSDPayment, usdNeededForDebt);
-              remainingUSDPayment -= paymentFromUSDBalance;
+            // FORCED IQD: Convert USD payment to pay IQD debt (NO direct USD to USD)
+            const stillOwedIQDAfterIQDPayment = remainingIQD - paymentFromIQDBalance;
+            if (stillOwedIQDAfterIQDPayment > 0 && remainingUSDPayment > 0) {
+              const usdNeededForIQDDebt = stillOwedIQDAfterIQDPayment / currentUSDToIQD;
+              const usdToUseForIQD = Math.min(remainingUSDPayment, usdNeededForIQDDebt);
+              paymentFromUSDBalance += usdToUseForIQD;
+              remainingUSDPayment -= usdToUseForIQD;
             }
           }
+          
+          // Step 2: ONLY after IQD portion is fully paid, pay USD portion with remaining IQD ONLY
+          const iqdPortionFullyPaid = (currentPaidIQD + paymentFromIQDBalance) >= (debt.iqd_amount || 0);
+          if (iqdPortionFullyPaid && remainingUSD > 0 && remainingIQDPayment > 0) {
+            // FORCED IQD: Convert remaining IQD to pay USD debt (NO direct USD to USD)
+            const iqdToUSDForUSDDebt = remainingIQDPayment / currentUSDToIQD;
+            const usdPaymentFromIQD = Math.min(iqdToUSDForUSDDebt, remainingUSD);
+            paymentFromUSDBalance += usdPaymentFromIQD;
+            remainingIQDPayment -= usdPaymentFromIQD * currentUSDToIQD;
+          }
+          // CRITICAL: remainingUSDPayment is NEVER used for USD debt in forced IQD mode
         }
         
         if (paymentFromUSDBalance > 0 || paymentFromIQDBalance > 0) {
-          const updatedPaidUSD = currentPaidUSD + paymentFromUSDBalance;
-          const updatedPaidIQD = currentPaidIQD + paymentFromIQDBalance;
+          // CRITICAL FIX: For multi-currency debts in forced payment mode,
+          // record payments by TARGET DEBT CURRENCY, not SOURCE PAYMENT CURRENCY
+          let updatedPaidUSD = currentPaidUSD;
+          let updatedPaidIQD = currentPaidIQD;
+          
+          if (debt.currency === 'MULTI') {
+            // For multi-currency debts, convert all payments to target the prioritized currency
+            if (paymentFromIQDBalance > 0) {
+              // IQD payment - always goes to IQD debt tracking
+              updatedPaidIQD += paymentFromIQDBalance;
+            }
+            if (paymentFromUSDBalance > 0) {
+              // For FORCED IQD mode: USD payment is converted and applied to IQD debt
+              // So we track it as IQD payment in the database
+              const usdConvertedToIQDDebt = paymentFromUSDBalance * currentUSDToIQD;
+              updatedPaidIQD += usdConvertedToIQDDebt;
+            }
+          } else {
+            // For single-currency debts, use the original logic
+            updatedPaidUSD = currentPaidUSD + paymentFromUSDBalance;
+            updatedPaidIQD = currentPaidIQD + paymentFromIQDBalance;
+          }
           
           // Check if this specific debt is fully paid based on its currency type
           let isFullyPaid = false;
@@ -1519,7 +1578,7 @@ function addCompanyDebtWithItems(db, { company_name, description, items, currenc
         } else {
           // Create new product
           db.prepare(`INSERT INTO products 
-            (name, brand, model, ram, storage, unit_price, stock, currency, category) 
+            (name, brand, model, ram, storage, buying_price, stock, currency, category) 
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
             .run(
               item.item_name || [item.brand, item.model].filter(Boolean).join(' '),
@@ -1547,7 +1606,7 @@ function addCompanyDebtWithItems(db, { company_name, description, items, currenc
         } else {
           // Create new accessory
           db.prepare(`INSERT INTO accessories 
-            (name, brand, model, type, unit_price, stock, currency) 
+            (name, brand, model, type, buying_price, stock, currency) 
             VALUES (?, ?, ?, ?, ?, ?, ?)`)
             .run(
               item.item_name || [item.brand, item.model].filter(Boolean).join(' '),
