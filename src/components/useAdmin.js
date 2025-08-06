@@ -105,6 +105,15 @@ export default function useAdmin(showConfirm = null) {
     loadBalances();
   }, [loadBalances]);
 
+  // Expose refreshBalances for external use
+  const refreshBalances = useCallback(async () => {
+    try {
+      await loadBalances();
+    } catch (error) {
+      console.error('Error in refreshBalances:', error);
+    }
+  }, [loadBalances]);
+
   const handleMarkDebtPaid = async (id, paid_at) => {
     try {
       if (window.api?.markDebtPaid) {
@@ -719,6 +728,7 @@ export default function useAdmin(showConfirm = null) {
     goToAdmin,
     // Add refresh functions to admin object
     refreshProducts, refreshAccessories, refreshSales, refreshDebts, refreshCompanyDebts, refreshBuyingHistory, refreshMonthlyReports,
+    refreshBalances,
   }), [
     products, accessories, sales, showProductModal, editProduct, showAccessoryModal, editAccessory, viewSale, debts, debtSales, companyDebts, buyingHistory, monthlyReports,
     selectedCompanyDebt, showEnhancedCompanyDebtModal, activeSection, showPaidDebts, debtSearch, showAddPurchaseModal, isCompanyDebtMode,

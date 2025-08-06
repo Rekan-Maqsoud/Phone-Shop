@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { EXCHANGE_RATES, formatCurrency, roundIQDToNearestBill } from '../utils/exchangeRates';
 import { Icon } from '../utils/icons.jsx';
 
@@ -18,6 +18,28 @@ const UniversalPaymentModal = ({
     usdAmount: 0, 
     iqdAmount: 0 
   });
+  const [currentBalances, setCurrentBalances] = useState({ usd: 0, iqd: 0 });
+
+  // Load current balances when modal opens and when balances might have changed
+  useEffect(() => {
+    const loadBalances = async () => {
+      if (show && window.api?.getBalances) {
+        try {
+          const balances = await window.api.getBalances();
+          if (balances) {
+            setCurrentBalances({
+              usd: balances.usd_balance || 0,
+              iqd: balances.iqd_balance || 0
+            });
+          }
+        } catch (error) {
+          console.error('Error loading balances in UniversalPaymentModal:', error);
+        }
+      }
+    };
+    
+    loadBalances();
+  }, [show, admin?.balanceUSD, admin?.balanceIQD]); // Re-fetch when modal opens or when admin balances change
 
   // Calculate debt amount in USD for consistency
   const debtAmountUSD = useMemo(() => {
@@ -163,11 +185,20 @@ const UniversalPaymentModal = ({
     };
   }, [debtData, multiCurrency, customAmount, paymentCurrency, debtAmountUSD]);
 
-  const handleClose = () => {
+  const handleClose = async () => {
     onClose();
     setCustomAmount('');
     setMultiCurrency({ enabled: false, usdAmount: 0, iqdAmount: 0 });
     setPaymentCurrency('IQD');
+    
+    // Refresh balances when closing modal to ensure they're current for next time
+    if (admin?.refreshBalances) {
+      try {
+        await admin.refreshBalances();
+      } catch (error) {
+        console.error('Error refreshing balances on modal close:', error);
+      }
+    }
   };
 
   const processPayment = async () => {
@@ -297,6 +328,30 @@ const UniversalPaymentModal = ({
         const paymentTypeText = isFullPayment ? (t?.fullPayment || 'Full payment') : (t?.partialPayment || 'Partial payment');
         
         admin.setToast?.(`${paymentTypeText} received: ${amounts.join(' + ')}`, 'success');
+        
+        // Refresh balances immediately after successful payment
+        if (admin?.refreshBalances) {
+          try {
+            await admin.refreshBalances();
+          } catch (error) {
+            console.error('Error refreshing balances in UniversalPaymentModal:', error);
+          }
+        }
+        
+        // Also refresh local balances for immediate UI update
+        if (window.api?.getBalances) {
+          try {
+            const balances = await window.api.getBalances();
+            if (balances) {
+              setCurrentBalances({
+                usd: balances.usd_balance || 0,
+                iqd: balances.iqd_balance || 0
+              });
+            }
+          } catch (error) {
+            console.error('Error refreshing local balances:', error);
+          }
+        }
         
         // Force a small delay to ensure database write is complete before triggering callbacks
         await new Promise(resolve => setTimeout(resolve, 50)); // Reduced from 100ms
@@ -633,13 +688,13 @@ const UniversalPaymentModal = ({
             <div className="grid grid-cols-2 gap-4">
               <div className="text-center">
                 <div className="text-lg font-bold text-green-600 dark:text-green-400">
-                  {formatCurrency(admin.balanceUSD || 0, 'USD')}
+                  {formatCurrency(currentBalances.usd, 'USD')}
                 </div>
                 <div className="text-xs text-gray-500 dark:text-gray-400">{t?.usdBalance || 'USD Balance'}</div>
               </div>
               <div className="text-center">
                 <div className="text-lg font-bold text-yellow-600 dark:text-yellow-400">
-                  {formatCurrency(admin.balanceIQD || 0, 'IQD')}
+                  {formatCurrency(currentBalances.iqd, 'IQD')}
                 </div>
                 <div className="text-xs text-gray-500 dark:text-gray-400">{t?.iqdBalance || 'IQD Balance'}</div>
               </div>

@@ -149,7 +149,7 @@ function markCustomerDebtPaid(db, id, paymentData) {
         INSERT INTO debt_payments (debt_type, debt_id, payment_usd_amount, payment_iqd_amount, 
                                    payment_currency_used, exchange_rate_usd_to_iqd, exchange_rate_iqd_to_usd, 
                                    payment_date) 
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `);
       
       recordPaymentStmt.run(
@@ -532,7 +532,7 @@ function markCompanyDebtPaid(db, id, paymentData) {
         INSERT INTO debt_payments (debt_type, debt_id, payment_usd_amount, payment_iqd_amount, 
                                    payment_currency_used, exchange_rate_usd_to_iqd, exchange_rate_iqd_to_usd, 
                                    payment_date) 
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `);
       
       recordPaymentStmt.run(
@@ -918,7 +918,7 @@ function payCompanyDebtTotal(db, companyName, paymentData) {
             INSERT INTO debt_payments (debt_type, debt_id, payment_usd_amount, payment_iqd_amount, 
                                        payment_currency_used, exchange_rate_usd_to_iqd, exchange_rate_iqd_to_usd, 
                                        payment_date) 
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
           `);
           
           recordPaymentStmt.run(
@@ -1793,7 +1793,7 @@ function markPersonalLoanPaid(db, id, paymentData) {
         INSERT INTO debt_payments (debt_type, debt_id, payment_usd_amount, payment_iqd_amount, 
                                    payment_currency_used, exchange_rate_usd_to_iqd, exchange_rate_iqd_to_usd, 
                                    payment_date) 
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `);
       
       recordPaymentStmt.run(

@@ -225,8 +225,12 @@ export const DataProvider = ({ children }) => {
       console.log('📦 DataContext: Received company debts data:', data);
       console.log('📊 DataContext: Company debts count:', data?.length || 0);
       
-      setCompanyDebts(data || []);
+      // Force a state update by setting new array reference
+      setCompanyDebts(Array.isArray(data) ? [...data] : []);
       console.log('✅ DataContext: Company debts state updated');
+      
+      // Small delay to ensure state propagation
+      await new Promise(resolve => setTimeout(resolve, 10));
     } catch (error) {
       console.error('❌ DataContext: Error refreshing company debts:', error);
     }

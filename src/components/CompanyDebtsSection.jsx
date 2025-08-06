@@ -31,11 +31,24 @@ const CompanyDebtsSection = React.memo(({
 
   // Force refresh when component mounts ONCE to ensure latest data
   useEffect(() => {
+    let isMounted = true;
+    
     const refreshData = async () => {
-      await refreshCompanyDebts();
+      try {
+        if (isMounted) {
+          await refreshCompanyDebts();
+        }
+      } catch (error) {
+        console.error('Error refreshing company debts on mount:', error);
+      }
     };
+    
     refreshData();
-  }, []); // Remove refreshCompanyDebts dependency to prevent infinite re-renders
+    
+    return () => {
+      isMounted = false;
+    };
+  }, []); // Empty dependency array - only run on mount
 
   // Load payment history when viewing company details
   useEffect(() => {
@@ -157,7 +170,11 @@ const CompanyDebtsSection = React.memo(({
     setSelectedCompanyForView(null);
     setShowCompanyDetailsModal(false);
     // Refresh data after modal closes to ensure we have latest state
-    await refreshCompanyDebts();
+    try {
+      await refreshCompanyDebts();
+    } catch (error) {
+      console.error('Error refreshing data after closing company modal:', error);
+    }
   };
 
   const openPaymentModal = (companyName, companyDebts, forceCurrency = null) => {
@@ -183,7 +200,11 @@ const CompanyDebtsSection = React.memo(({
     setSelectedCompanyForPayment(null);
     setShowPaymentModal(false);
     // Refresh data after payment modal closes
-    await refreshCompanyDebts();
+    try {
+      await refreshCompanyDebts();
+    } catch (error) {
+      console.error('Error refreshing data after closing payment modal:', error);
+    }
   };
 
   const handlePaymentComplete = async (paymentData) => {
@@ -262,12 +283,23 @@ const CompanyDebtsSection = React.memo(({
         setShowPaymentModal(false);
         setSelectedCompanyForPayment(null);
         
-        // Refresh data
-        await refreshCompanyDebts();
-        await refreshTransactions();
-        
-        if (admin?.refreshBalances) {
-          await admin.refreshBalances();
+        // Refresh data sequentially with small delays to ensure proper update
+        try {
+          await refreshCompanyDebts();
+          await new Promise(resolve => setTimeout(resolve, 100));
+          await refreshTransactions();
+          
+          if (admin?.refreshBalances) {
+            await admin.refreshBalances();
+          }
+        } catch (refreshError) {
+          console.error('Error during data refresh after payment:', refreshError);
+          // Try to refresh at least the company debts if other refreshes fail
+          try {
+            await refreshCompanyDebts();
+          } catch (fallbackError) {
+            console.error('Even fallback refresh failed:', fallbackError);
+          }
         }
       } else {
         admin?.setToast?.(`Payment failed: ${result.error}`, 'error');
