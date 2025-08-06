@@ -214,6 +214,14 @@ module.exports = function(dbPath) {
     return debts.payCompanyDebtTotalTargeted(db, companyName, paymentData, targetCurrency);
   }
 
+  function payCompanyDebtTotalForcedUSD(companyName, paymentData) {
+    return debts.payCompanyDebtTotalForcedUSD(db, companyName, paymentData);
+  }
+
+  function payCompanyDebtTotalForcedIQD(companyName, paymentData) {
+    return debts.payCompanyDebtTotalForcedIQD(db, companyName, paymentData);
+  }
+
   function markCustomerDebtPaid(id, paymentData) {
     return debts.markCustomerDebtPaid(db, id, paymentData);
   }
@@ -2239,6 +2247,8 @@ module.exports = function(dbPath) {
     markCompanyDebtPaid,
     payCompanyDebtTotal,
     payCompanyDebtTotalTargeted,
+    payCompanyDebtTotalForcedUSD,
+    payCompanyDebtTotalForcedIQD,
     markCustomerDebtPaid,
     markPersonalLoanPaid,
     deleteCompanyDebt,

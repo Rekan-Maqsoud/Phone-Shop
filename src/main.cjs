@@ -957,9 +957,8 @@ ipcMain.handle('payCompanyDebtTotalForcedUSD', async (event, companyName, paymen
   try {
     console.log('[IPC] payCompanyDebtTotalForcedUSD called with:', companyName, paymentData);
     
-    // Use the targeted function to only pay USD debts
-    // The payment amounts remain as-is (don't convert currencies)
-    const result = db.payCompanyDebtTotalTargeted(companyName, paymentData, 'USD');
+    // Use the new specific ForcedUSD function
+    const result = db.payCompanyDebtTotalForcedUSD(companyName, paymentData);
     await runAutoBackupAfterSale();
     return result;
   } catch (error) {
@@ -972,9 +971,8 @@ ipcMain.handle('payCompanyDebtTotalForcedIQD', async (event, companyName, paymen
   try {
     console.log('[IPC] payCompanyDebtTotalForcedIQD called with:', companyName, paymentData);
     
-    // Use the targeted function to only pay IQD debts
-    // The payment amounts remain as-is (don't convert currencies)
-    const result = db.payCompanyDebtTotalTargeted(companyName, paymentData, 'IQD');
+    // Use the new specific ForcedIQD function
+    const result = db.payCompanyDebtTotalForcedIQD(companyName, paymentData);
     await runAutoBackupAfterSale();
     return result;
   } catch (error) {
