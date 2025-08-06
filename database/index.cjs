@@ -210,6 +210,10 @@ module.exports = function(dbPath) {
     return debts.payCompanyDebtTotal(db, companyName, paymentData);
   }
 
+  function payCompanyDebtTotalTargeted(companyName, paymentData, targetCurrency) {
+    return debts.payCompanyDebtTotalTargeted(db, companyName, paymentData, targetCurrency);
+  }
+
   function markCustomerDebtPaid(id, paymentData) {
     return debts.markCustomerDebtPaid(db, id, paymentData);
   }
@@ -2234,6 +2238,7 @@ module.exports = function(dbPath) {
     payCompanyDebt,
     markCompanyDebtPaid,
     payCompanyDebtTotal,
+    payCompanyDebtTotalTargeted,
     markCustomerDebtPaid,
     markPersonalLoanPaid,
     deleteCompanyDebt,

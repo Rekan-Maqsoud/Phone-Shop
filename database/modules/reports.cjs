@@ -56,16 +56,36 @@ function getMonthlyReport(db, year, month) {
     ORDER BY revenue DESC
   `).all(startDate, endDate);
   
-  // Buying costs from buying_history
+  // Buying costs from buying_history - this should match exactly what buying history section shows
   const buyingCosts = db.prepare(`
     SELECT 
-      currency,
-      SUM(total_price) as total_cost,
-      COUNT(*) as purchase_count
+      'USD' as currency,
+      SUM(
+        CASE 
+          WHEN currency = 'MULTI' THEN COALESCE(multi_currency_usd, 0)
+          WHEN currency = 'USD' THEN total_price
+          ELSE 0
+        END
+      ) as total_cost,
+      COUNT(CASE WHEN currency = 'USD' OR (currency = 'MULTI' AND COALESCE(multi_currency_usd, 0) > 0) THEN 1 END) as purchase_count
     FROM buying_history 
     WHERE DATE(date) BETWEEN ? AND ?
-    GROUP BY currency
-  `).all(startDate, endDate);
+    
+    UNION ALL
+    
+    SELECT 
+      'IQD' as currency,
+      SUM(
+        CASE 
+          WHEN currency = 'MULTI' THEN COALESCE(multi_currency_iqd, 0)
+          WHEN currency = 'IQD' THEN total_price
+          ELSE 0
+        END
+      ) as total_cost,
+      COUNT(CASE WHEN currency = 'IQD' OR (currency = 'MULTI' AND COALESCE(multi_currency_iqd, 0) > 0) THEN 1 END) as purchase_count
+    FROM buying_history 
+    WHERE DATE(date) BETWEEN ? AND ?
+  `).all(startDate, endDate, startDate, endDate);
 
   // Same-day returns that should be subtracted from spending
   const sameDayReturns = db.prepare(`
@@ -107,7 +127,27 @@ function getMonthlyReport(db, year, month) {
     GROUP BY currency
   `).all(startDate, endDate);
 
-  // Other spending transactions (negative amounts) - EXCLUDE sales returns to prevent double-counting
+  // Personal loans given out (tracked separately from operational spending)
+  const personalLoansGiven = db.prepare(`
+    SELECT 
+      CASE 
+        WHEN amount_usd < 0 AND amount_iqd < 0 THEN 'MULTI'
+        WHEN amount_usd < 0 THEN 'USD'
+        WHEN amount_iqd < 0 THEN 'IQD'
+        ELSE NULL
+      END as currency,
+      SUM(CASE WHEN amount_usd < 0 THEN ABS(amount_usd) ELSE 0 END) as usd_amount,
+      SUM(CASE WHEN amount_iqd < 0 THEN ABS(amount_iqd) ELSE 0 END) as iqd_amount,
+      COUNT(*) as loan_count
+    FROM transactions 
+    WHERE (amount_usd < 0 OR amount_iqd < 0)
+      AND type = 'personal_loan' -- Only personal loans
+      AND DATE(created_at) BETWEEN ? AND ?
+    GROUP BY currency
+    HAVING currency IS NOT NULL
+  `).all(startDate, endDate);
+
+  // Other spending transactions (negative amounts) - EXCLUDE sales returns AND personal loans
   const otherSpendingTransactions = db.prepare(`
     SELECT 
       CASE 
@@ -121,7 +161,7 @@ function getMonthlyReport(db, year, month) {
       COUNT(*) as transaction_count
     FROM transactions 
     WHERE (amount_usd < 0 OR amount_iqd < 0)
-      AND type NOT IN ('sale_return', 'debt_sale_return') -- Exclude sales returns
+      AND type NOT IN ('sale_return', 'debt_sale_return', 'personal_loan') -- Exclude sales returns AND personal loans
       AND DATE(created_at) BETWEEN ? AND ?
     GROUP BY currency
     HAVING currency IS NOT NULL
@@ -130,6 +170,7 @@ function getMonthlyReport(db, year, month) {
   // Combine buying costs with company debt payments
   const combinedPurchases = [...buyingCosts];
   
+  // Add company debt payments to spending (but log them separately for debugging)
   companyDebtPayments.forEach(payment => {
     if (payment.currency === 'MULTI') {
       // Add USD component
@@ -175,7 +216,7 @@ function getMonthlyReport(db, year, month) {
     }
   });
 
-  // Add other spending transactions (excluding sales returns)
+  // Add other spending transactions (excluding sales returns and personal loans)
   otherSpendingTransactions.forEach(transaction => {
     if (transaction.currency === 'MULTI') {
       // Add USD component
@@ -250,7 +291,15 @@ function getMonthlyReport(db, year, month) {
     period: { year, month, startDate, endDate },
     sales: salesData,
     products: productSales,
-    purchases: combinedPurchases
+    purchases: combinedPurchases,
+    personalLoans: personalLoansGiven,
+    // Include breakdown for debugging spending calculations
+    spendingBreakdown: {
+      buyingHistory: buyingCosts,
+      companyDebtPayments: companyDebtPayments,
+      otherSpending: otherSpendingTransactions,
+      sameDayReturns: sameDayReturns
+    }
   };
 }
 
@@ -621,7 +670,11 @@ function getMonthlyReports(db) {
           usd: report.avg_transaction_usd,
           iqd: report.avg_transaction_iqd
         },
-        totalTransactions: report.transaction_count
+        totalTransactions: report.transaction_count,
+        personalLoans: [
+          ...(report.total_personal_loans_usd > 0 ? [{ currency: 'USD', usd_amount: report.total_personal_loans_usd, iqd_amount: 0, loan_count: 1 }] : []),
+          ...(report.total_personal_loans_iqd > 0 ? [{ currency: 'IQD', usd_amount: 0, iqd_amount: report.total_personal_loans_iqd, loan_count: 1 }] : [])
+        ]
       };
     } catch (error) {
       console.error('Error parsing report JSON:', error);
@@ -652,6 +705,9 @@ function createMonthlyReport(db, month, year) {
   const totalPurchasesUSD = baseReport.purchases.find(p => p.currency === 'USD')?.total_cost || 0;
   const totalPurchasesIQD = baseReport.purchases.find(p => p.currency === 'IQD')?.total_cost || 0;
   
+  const totalPersonalLoansUSD = baseReport.personalLoans.find(p => p.currency === 'USD')?.usd_amount || 0;
+  const totalPersonalLoansIQD = baseReport.personalLoans.find(p => p.currency === 'IQD')?.iqd_amount || 0;
+  
   // Calculate profit (simplified)
   const profitUSD = totalSalesUSD - totalPurchasesUSD;
   const profitIQD = totalSalesIQD - totalPurchasesIQD;
@@ -666,25 +722,50 @@ function createMonthlyReport(db, month, year) {
     total_profit_iqd: profitIQD,
     total_spent_usd: totalPurchasesUSD,
     total_spent_iqd: totalPurchasesIQD,
+    total_personal_loans_usd: totalPersonalLoansUSD,
+    total_personal_loans_iqd: totalPersonalLoansIQD,
     created_at: new Date().toISOString()
   };
   
   try {
-    const result = db.prepare(`
-      INSERT OR REPLACE INTO monthly_reports 
-      (month, year, total_sales_usd, total_sales_iqd, total_profit_usd, total_profit_iqd, 
-       total_spent_usd, total_spent_iqd, transaction_count, avg_transaction_usd, avg_transaction_iqd,
-       top_products, analytics_data, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      reportData.month, reportData.year, reportData.total_sales_usd, reportData.total_sales_iqd,
-      reportData.total_profit_usd, reportData.total_profit_iqd, reportData.total_spent_usd,
-      reportData.total_spent_iqd, baseReport.totalTransactions, 
-      baseReport.avgTransactionValue?.usd || 0, baseReport.avgTransactionValue?.iqd || 0,
-      JSON.stringify(baseReport.topProducts || []), 
-      JSON.stringify(baseReport.enhanced || {}),
-      reportData.created_at
-    );
+    // Try with personal loans columns first
+    let result;
+    try {
+      result = db.prepare(`
+        INSERT OR REPLACE INTO monthly_reports 
+        (month, year, total_sales_usd, total_sales_iqd, total_profit_usd, total_profit_iqd, 
+         total_spent_usd, total_spent_iqd, total_personal_loans_usd, total_personal_loans_iqd,
+         transaction_count, avg_transaction_usd, avg_transaction_iqd,
+         top_products, analytics_data, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        reportData.month, reportData.year, reportData.total_sales_usd, reportData.total_sales_iqd,
+        reportData.total_profit_usd, reportData.total_profit_iqd, reportData.total_spent_usd,
+        reportData.total_spent_iqd, reportData.total_personal_loans_usd, reportData.total_personal_loans_iqd,
+        baseReport.totalTransactions, 
+        baseReport.avgTransactionValue?.usd || 0, baseReport.avgTransactionValue?.iqd || 0,
+        JSON.stringify(baseReport.topProducts || []), 
+        JSON.stringify(baseReport.enhanced || {}),
+        reportData.created_at
+      );
+    } catch (columnError) {
+      // Fallback to original schema without personal loans columns
+      result = db.prepare(`
+        INSERT OR REPLACE INTO monthly_reports 
+        (month, year, total_sales_usd, total_sales_iqd, total_profit_usd, total_profit_iqd, 
+         total_spent_usd, total_spent_iqd, transaction_count, avg_transaction_usd, avg_transaction_iqd,
+         top_products, analytics_data, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        reportData.month, reportData.year, reportData.total_sales_usd, reportData.total_sales_iqd,
+        reportData.total_profit_usd, reportData.total_profit_iqd, reportData.total_spent_usd,
+        reportData.total_spent_iqd, baseReport.totalTransactions, 
+        baseReport.avgTransactionValue?.usd || 0, baseReport.avgTransactionValue?.iqd || 0,
+        JSON.stringify(baseReport.topProducts || []), 
+        JSON.stringify(baseReport.enhanced || {}),
+        reportData.created_at
+      );
+    }
     
     return { 
       success: true, 

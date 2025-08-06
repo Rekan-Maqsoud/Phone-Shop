@@ -952,6 +952,37 @@ ipcMain.handle('payCompanyDebtTotal', async (event, companyName, paymentData) =>
   }
 });
 
+// Forced currency payment handlers
+ipcMain.handle('payCompanyDebtTotalForcedUSD', async (event, companyName, paymentData) => {
+  try {
+    console.log('[IPC] payCompanyDebtTotalForcedUSD called with:', companyName, paymentData);
+    
+    // Use the targeted function to only pay USD debts
+    // The payment amounts remain as-is (don't convert currencies)
+    const result = db.payCompanyDebtTotalTargeted(companyName, paymentData, 'USD');
+    await runAutoBackupAfterSale();
+    return result;
+  } catch (error) {
+    console.error('[IPC] Error in payCompanyDebtTotalForcedUSD:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('payCompanyDebtTotalForcedIQD', async (event, companyName, paymentData) => {
+  try {
+    console.log('[IPC] payCompanyDebtTotalForcedIQD called with:', companyName, paymentData);
+    
+    // Use the targeted function to only pay IQD debts
+    // The payment amounts remain as-is (don't convert currencies)
+    const result = db.payCompanyDebtTotalTargeted(companyName, paymentData, 'IQD');
+    await runAutoBackupAfterSale();
+    return result;
+  } catch (error) {
+    console.error('[IPC] Error in payCompanyDebtTotalForcedIQD:', error);
+    throw error;
+  }
+});
+
 // Incentive handlers
 ipcMain.handle('getIncentives', async () => {
   try {

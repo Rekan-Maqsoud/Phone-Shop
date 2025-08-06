@@ -12,6 +12,13 @@ dist
 dist-ssr
 *.local
 
+# Backup and temporary files
+*.backup
+*.bak
+*.tmp
+*.old
+*~
+
 # Environment variables
 .env
 .env.local
@@ -32,9 +39,15 @@ dist-ssr
 
 # Electron/Vite/Release build outputs
 /release/
+!release/Mobile Roma Setup *.exe
+!release/Mobile Roma Setup *.exe.blockmap
+!release/latest.yml
 *.AppImage
-*.exe
 *.dmg
 *.deb
 *.rpm
 *.snap
+
+# Build and debug files
+builder-debug.yml
+builder-effective-config.yaml

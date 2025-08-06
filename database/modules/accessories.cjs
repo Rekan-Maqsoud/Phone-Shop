@@ -35,8 +35,7 @@ function addAccessory(db, { name, buying_price, stock, archived = 0, brand, mode
   
   
   if (existingAccessory && existingAccessory.id) {
-    console.log('🔄 [accessories.cjs] Merging with existing accessory ID:', existingAccessory.id);
-    
+        
     // Calculate new weighted average buying price
     const currentStock = Number(existingAccessory.stock) || 0;
     const currentBuyingPrice = Number(existingAccessory.buying_price) || 0;
@@ -78,11 +77,9 @@ function addAccessory(db, { name, buying_price, stock, archived = 0, brand, mode
       repairNullIds(db);
     }
     
-    console.log('✅ [accessories.cjs] Accessory merged successfully:', { id: existingAccessory.id, newStock: totalStock, newPrice: averageBuyingPrice });
-    return { ...result, merged: true, accessoryId: existingAccessory.id };
+        return { ...result, merged: true, accessoryId: existingAccessory.id };
   } else {
-    console.log('➕ [accessories.cjs] Creating new accessory');
-    
+        
     // Create new accessory
     const result = db.prepare('INSERT INTO accessories (name, buying_price, stock, archived, brand, model, type, currency, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)')
       .run(normalizedName, buying_price, stock, archived, normalizedBrand || null, normalizedModel || null, normalizedType || null, normalizedCurrency);
@@ -95,8 +92,7 @@ function addAccessory(db, { name, buying_price, stock, archived = 0, brand, mode
     }
     
     const newAccessoryId = result.lastInsertRowid;
-    console.log('✅ [accessories.cjs] New accessory created:', { id: newAccessoryId });
-    return { ...result, merged: false, accessoryId: newAccessoryId };
+        return { ...result, merged: false, accessoryId: newAccessoryId };
   }
 }
 
@@ -124,8 +120,7 @@ function updateAccessory(db, { id, name, buying_price, stock, archived = 0, bran
     const result = db.prepare('UPDATE accessories SET name=?, buying_price=?, stock=?, archived=?, brand=?, model=?, type=?, currency=? WHERE id=?')
       .run(name, buying_price, stock, archived, brand || null, model || null, type || null, currency, id);
     
-    console.log('✅ [accessories.cjs] Accessory updated successfully:', { id, changes: result.changes });
-    
+        
     // Verify the update
     const updated = db.prepare('SELECT * FROM accessories WHERE id = ?').get(id);
     

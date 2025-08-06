@@ -67,7 +67,7 @@ const BuyingHistoryTable = React.memo(function BuyingHistoryTable({
     let totalEntries = historyData.length;
 
     historyData.forEach(entry => {
-      const currency = entry.currency || 'USD';
+      const currency = entry.currency || 'IQD'; // Default to IQD to match database default
       
       if (currency === 'MULTI') {
         // For multi-currency entries, add the actual amounts to their respective totals

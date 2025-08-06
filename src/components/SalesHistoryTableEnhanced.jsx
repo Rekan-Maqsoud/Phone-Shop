@@ -135,6 +135,7 @@ const SalesHistoryTableEnhanced = React.memo(function SalesHistoryTableEnhanced(
     let totalProfitIQD = 0;
     let totalSales = salesData.length;
     let totalProducts = 0;
+    let totalAccessories = 0;
 
     salesData.forEach(sale => {
       // Calculate revenue based on actual payment
@@ -156,9 +157,16 @@ const SalesHistoryTableEnhanced = React.memo(function SalesHistoryTableEnhanced(
       totalProfitUSD += breakdown.usd.actualProfit;
       totalProfitIQD += breakdown.iqd.actualProfit;
 
-      // Count total products
+      // Count products and accessories separately (same logic as Monthly Report)
       if (sale.items && Array.isArray(sale.items)) {
-        totalProducts += sale.items.reduce((sum, item) => sum + (item.quantity || 1), 0);
+        sale.items.forEach(item => {
+          const quantity = item.quantity || 1;
+          if (item.is_accessory) {
+            totalAccessories += quantity;
+          } else {
+            totalProducts += quantity;
+          }
+        });
       }
     });
 
@@ -168,7 +176,8 @@ const SalesHistoryTableEnhanced = React.memo(function SalesHistoryTableEnhanced(
       totalRevenueUSD,
       totalRevenueIQD,
       totalSales,
-      totalProducts
+      totalProducts,
+      totalAccessories
     };
   }, []);
 

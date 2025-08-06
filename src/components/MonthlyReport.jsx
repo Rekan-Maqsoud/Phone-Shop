@@ -32,7 +32,7 @@ const MonthlyReport = ({ t }) => {
     // Add months from buying history as well
     if (buyingHistory && Array.isArray(buyingHistory)) {
       buyingHistory.forEach(purchase => {
-        const date = new Date(purchase.created_at);
+        const date = new Date(purchase.date || purchase.created_at);
         const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
         monthsSet.add(monthKey);
       });
@@ -65,6 +65,7 @@ const MonthlyReport = ({ t }) => {
       return {
         totalSales: { USD: 0, IQD: 0 },
         totalSpending: { USD: 0, IQD: 0 },
+        totalPersonalLoans: { USD: 0, IQD: 0 },
         totalProfit: { USD: 0, IQD: 0 },
         totalProductsSold: 0,
         totalAccessoriesSold: 0,
@@ -110,8 +111,8 @@ const MonthlyReport = ({ t }) => {
         }
       }
 
-      // FIXED: Use stored profit values from database (profit_in_sale_currency) which accounts for discounts
-      if (sale.items && Array.isArray(sale.items)) {
+      // Count products and accessories only for paid sales (same logic as Sales History)
+      if (isPaid && sale.items && Array.isArray(sale.items)) {
         sale.items.forEach(item => {
           const quantity = item.quantity || 1;
           
@@ -126,12 +127,11 @@ const MonthlyReport = ({ t }) => {
           if (isAccessory) {
             totalAccessoriesSold += quantity;
           }
-
-          // Only include profit for paid sales - profit will be calculated at sale level below
         });
-        
-        // Calculate profit for this sale using the same logic as SalesHistoryTableEnhanced
-        if (isPaid && sale.items && Array.isArray(sale.items)) {
+      }
+
+      // Calculate profit for this sale using the same logic as SalesHistoryTableEnhanced
+      if (isPaid && sale.items && Array.isArray(sale.items)) {
           // Calculate total buying cost for this sale
           let totalBuyingCostUSD = 0;
           let totalBuyingCostIQD = 0;
@@ -208,14 +208,13 @@ const MonthlyReport = ({ t }) => {
             totalAccessoryProfit.USD += actualSaleProfitUSD * accessoryProfitRatio;
             totalAccessoryProfit.IQD += actualSaleProfitIQD * accessoryProfitRatio;
           }
-        }
       }
     });
 
-    // Calculate total spending - use transactions for accurate tracking PLUS buying history
+    // Calculate total spending - use EXACT same logic as BuyingHistoryTable calculateTotals
     const totalSpending = { USD: 0, IQD: 0 };
     
-    // First, add buying history spending for the month
+    // Filter buying history for the selected month
     if (buyingHistory && Array.isArray(buyingHistory)) {
       const monthBuyingHistory = buyingHistory.filter(purchase => {
         if (!purchase.date && !purchase.created_at) return false;
@@ -223,21 +222,30 @@ const MonthlyReport = ({ t }) => {
         return purchaseDate >= startDate && purchaseDate <= endDate;
       });
 
-      monthBuyingHistory.forEach(purchase => {
-        if (purchase.currency === 'MULTI') {
-          // Multi-currency purchases
-          totalSpending.USD += purchase.multi_currency_usd || 0;
-          totalSpending.IQD += purchase.multi_currency_iqd || 0;
-        } else if (purchase.currency === 'USD') {
-          totalSpending.USD += purchase.total_price || purchase.amount || 0;
+      // Use EXACT same calculation logic as BuyingHistoryTable
+      monthBuyingHistory.forEach(entry => {
+        const currency = entry.currency || 'IQD';
+        
+        if (currency === 'MULTI') {
+          // For multi-currency entries, add the actual amounts to their respective totals
+          totalSpending.USD += entry.multi_currency_usd || 0;
+          totalSpending.IQD += entry.multi_currency_iqd || 0;
         } else {
-          // IQD or default currency
-          totalSpending.IQD += purchase.total_price || purchase.amount || 0;
+          const amount = entry.total_price || entry.amount || 0;
+          if (currency === 'USD') {
+            totalSpending.USD += amount;
+          } else {
+            totalSpending.IQD += amount;
+          }
         }
       });
     }
-    
-    // Then, add transaction-based spending (company debt payments, etc.)
+
+    // DO NOT ADD TRANSACTIONS - only use buying history for spending
+    // Adding transactions was causing double counting since buying history already includes all purchases
+
+    // Calculate personal loans given out during the month (separate from operational spending)
+    const totalPersonalLoans = { USD: 0, IQD: 0 };
     if (transactions && Array.isArray(transactions)) {
       const monthTransactions = transactions.filter(transaction => {
         if (!transaction.created_at) return false;
@@ -246,26 +254,13 @@ const MonthlyReport = ({ t }) => {
       });
 
       monthTransactions.forEach(transaction => {
-        // Include company debt payments and other outgoing transactions
-        if (transaction.type === 'company_debt_payment') {
-          // For company debt payments, amounts are positive (money going out), so add directly
-          if (transaction.amount_usd > 0) {
-            totalSpending.USD += transaction.amount_usd;
+        // Only include personal loan transactions (money lent out)
+        if (transaction.type === 'personal_loan' && (transaction.amount_usd < 0 || transaction.amount_iqd < 0)) {
+          if (transaction.amount_usd < 0) {
+            totalPersonalLoans.USD += Math.abs(transaction.amount_usd);
           }
-          if (transaction.amount_iqd > 0) {
-            totalSpending.IQD += transaction.amount_iqd;
-          }
-        }
-        // Include other outgoing transactions (negative amounts)
-        else if (transaction.amount_usd < 0 || transaction.amount_iqd < 0) {
-          // Exclude sales returns as they don't represent spending
-          if (!['sale_return', 'debt_sale_return'].includes(transaction.type)) {
-            if (transaction.amount_usd < 0) {
-              totalSpending.USD += Math.abs(transaction.amount_usd);
-            }
-            if (transaction.amount_iqd < 0) {
-              totalSpending.IQD += Math.abs(transaction.amount_iqd);
-            }
+          if (transaction.amount_iqd < 0) {
+            totalPersonalLoans.IQD += Math.abs(transaction.amount_iqd);
           }
         }
       });
@@ -329,7 +324,8 @@ const MonthlyReport = ({ t }) => {
 
     return {
       totalSales,
-      totalSpending,
+      totalSpending, // Includes all purchases + debt payments
+      totalPersonalLoans, // Personal loans given out
       totalProfit,
       totalProductsSold,
       totalAccessoriesSold,
@@ -379,172 +375,180 @@ const MonthlyReport = ({ t }) => {
 
       {/* Monthly Metrics Grid */}
       {selectedMonth && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {/* Total Sales */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-200 dark:border-gray-700">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-green-100 dark:bg-green-900/20 rounded-lg">
-                  <Icon name="dollarSign" size={20} className="text-green-600 dark:text-green-400" />
+        <div className="space-y-6">
+          {/* Row 1: Main Financial Metrics (3 items) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {/* Total Sales */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-200 dark:border-gray-700">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-green-100 dark:bg-green-900/20 rounded-lg">
+                    <Icon name="dollarSign" size={20} className="text-green-600 dark:text-green-400" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    {t.totalSales || 'Total Sales'}
+                  </h3>
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  {t.totalSales || 'Total Sales'}
-                </h3>
+              </div>
+              <div className="space-y-2">
+                <div className="text-2xl font-bold text-green-600">
+                  {formatCurrency(monthlyMetrics.totalSales.USD, 'USD')}
+                </div>
+                <div className="text-xl font-bold text-green-600">
+                  {formatCurrency(monthlyMetrics.totalSales.IQD, 'IQD')}
+                </div>
               </div>
             </div>
-            <div className="space-y-2">
-              <div className="text-2xl font-bold text-green-600">
-                {formatCurrency(monthlyMetrics.totalSales.USD, 'USD')}
+
+            {/* Total Spending */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-200 dark:border-gray-700">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-red-100 dark:bg-red-900/20 rounded-lg">
+                    <Icon name="minus" size={20} className="text-red-600 dark:text-red-400" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    {t.totalSpending || 'Total Spending'}
+                  </h3>
+                </div>
               </div>
-              <div className="text-xl font-bold text-green-600">
-                {formatCurrency(monthlyMetrics.totalSales.IQD, 'IQD')}
+              <div className="space-y-2">
+                <div className="text-2xl font-bold text-red-600">
+                  {formatCurrency(monthlyMetrics.totalSpending.USD, 'USD')}
+                </div>
+                <div className="text-xl font-bold text-red-600">
+                  {formatCurrency(monthlyMetrics.totalSpending.IQD, 'IQD')}
+                </div>
+              </div>
+            </div>
+
+            {/* Total Profit */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-200 dark:border-gray-700">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-blue-100 dark:bg-blue-900/20 rounded-lg">
+                    <Icon name="trendingUp" size={20} className="text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    {t.totalProfit || 'Total Profit'}
+                  </h3>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <div className="text-2xl font-bold text-blue-600">
+                  {formatCurrency(monthlyMetrics.totalProfit.USD, 'USD')}
+                </div>
+                <div className="text-xl font-bold text-blue-600">
+                  {formatCurrency(monthlyMetrics.totalProfit.IQD, 'IQD')}
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Total Spending */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-200 dark:border-gray-700">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-red-100 dark:bg-red-900/20 rounded-lg">
-                  <Icon name="minus" size={20} className="text-red-600 dark:text-red-400" />
+          {/* Row 2: Sales and Profit Details (4 items) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {/* Total Products Sold */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-200 dark:border-gray-700">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
+                    <Icon name="smartphone" size={20} className="text-purple-600 dark:text-purple-400" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    {t.totalProductsSold || 'Total Products Sold'}
+                  </h3>
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  {t.totalSpending || 'Total Spending'}
-                </h3>
+              </div>
+              <div className="text-3xl font-bold text-purple-600">
+                {monthlyMetrics.totalProductsSold.toLocaleString()}
               </div>
             </div>
-            <div className="space-y-2">
-              <div className="text-2xl font-bold text-red-600">
-                {formatCurrency(monthlyMetrics.totalSpending.USD, 'USD')}
+
+            {/* Total Accessories Sold */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-200 dark:border-gray-700">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-orange-100 dark:bg-orange-900/20 rounded-lg">
+                    <Icon name="package" size={20} className="text-orange-600 dark:text-orange-400" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    {t.totalAccessoriesSold || 'Total Accessories Sold'}
+                  </h3>
+                </div>
               </div>
-              <div className="text-xl font-bold text-red-600">
-                {formatCurrency(monthlyMetrics.totalSpending.IQD, 'IQD')}
+              <div className="text-3xl font-bold text-orange-600">
+                {monthlyMetrics.totalAccessoriesSold.toLocaleString()}
+              </div>
+            </div>
+
+            {/* Total Product Profit */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-200 dark:border-gray-700">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-cyan-100 dark:bg-cyan-900/20 rounded-lg">
+                    <Icon name="smartphone" size={20} className="text-cyan-600 dark:text-cyan-400" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    {t.totalProductProfit || 'Total Product Profit'}
+                  </h3>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <div className="text-2xl font-bold text-cyan-600">
+                  {formatCurrency(monthlyMetrics.totalProductProfit.USD, 'USD')}
+                </div>
+                <div className="text-xl font-bold text-cyan-600">
+                  {formatCurrency(monthlyMetrics.totalProductProfit.IQD, 'IQD')}
+                </div>
+              </div>
+            </div>
+
+            {/* Total Accessory Profit */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-200 dark:border-gray-700">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-pink-100 dark:bg-pink-900/20 rounded-lg">
+                    <Icon name="package" size={20} className="text-pink-600 dark:text-pink-400" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    {t.totalAccessoryProfit || 'Total Accessory Profit'}
+                  </h3>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <div className="text-2xl font-bold text-pink-600">
+                  {formatCurrency(monthlyMetrics.totalAccessoryProfit.USD, 'USD')}
+                </div>
+                <div className="text-xl font-bold text-pink-600">
+                  {formatCurrency(monthlyMetrics.totalAccessoryProfit.IQD, 'IQD')}
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Total Profit */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-200 dark:border-gray-700">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-100 dark:bg-blue-900/20 rounded-lg">
-                  <Icon name="trendingUp" size={20} className="text-blue-600 dark:text-blue-400" />
+          {/* Row 3: Outstanding and Personal Loans (3 items) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {/* Outstanding of the Month (Customer Debts) */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-200 dark:border-gray-700">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-yellow-100 dark:bg-yellow-900/20 rounded-lg">
+                    <Icon name="alertCircle" size={20} className="text-yellow-600 dark:text-yellow-400" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    {t?.customerOutstandingOfMonth || 'Customer Outstanding'}
+                  </h3>
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  {t.totalProfit || 'Total Profit'}
-                </h3>
               </div>
-            </div>
-            <div className="space-y-2">
-              <div className="text-2xl font-bold text-blue-600">
-                {formatCurrency(monthlyMetrics.totalProfit.USD, 'USD')}
-              </div>
-              <div className="text-xl font-bold text-blue-600">
-                {formatCurrency(monthlyMetrics.totalProfit.IQD, 'IQD')}
-              </div>
-            </div>
-          </div>
-
-          {/* Total Products Sold */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-200 dark:border-gray-700">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
-                  <Icon name="smartphone" size={20} className="text-purple-600 dark:text-purple-400" />
+              <div className="space-y-2">
+                <div className="text-2xl font-bold text-yellow-600">
+                  {formatCurrency(monthlyMetrics.outstanding.USD, 'USD')}
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  {t.totalProductsSold || 'Total Products Sold'}
-                </h3>
-              </div>
-            </div>
-            <div className="text-3xl font-bold text-purple-600">
-              {monthlyMetrics.totalProductsSold.toLocaleString()}
-            </div>
-          </div>
-
-          {/* Total Accessories Sold */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-200 dark:border-gray-700">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-orange-100 dark:bg-orange-900/20 rounded-lg">
-                  <Icon name="package" size={20} className="text-orange-600 dark:text-orange-400" />
+                <div className="text-xl font-bold text-yellow-600">
+                  {formatCurrency(monthlyMetrics.outstanding.IQD, 'IQD')}
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  {t.totalAccessoriesSold || 'Total Accessories Sold'}
-                </h3>
               </div>
             </div>
-            <div className="text-3xl font-bold text-orange-600">
-              {monthlyMetrics.totalAccessoriesSold.toLocaleString()}
-            </div>
-          </div>
-
-          {/* Total Product Profit */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-200 dark:border-gray-700">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-cyan-100 dark:bg-cyan-900/20 rounded-lg">
-                  <Icon name="smartphone" size={20} className="text-cyan-600 dark:text-cyan-400" />
-                </div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  {t.totalProductProfit || 'Total Product Profit'}
-                </h3>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <div className="text-2xl font-bold text-cyan-600">
-                {formatCurrency(monthlyMetrics.totalProductProfit.USD, 'USD')}
-              </div>
-              <div className="text-xl font-bold text-cyan-600">
-                {formatCurrency(monthlyMetrics.totalProductProfit.IQD, 'IQD')}
-              </div>
-            </div>
-          </div>
-
-          {/* Total Accessory Profit */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-200 dark:border-gray-700">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-pink-100 dark:bg-pink-900/20 rounded-lg">
-                  <Icon name="package" size={20} className="text-pink-600 dark:text-pink-400" />
-                </div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  {t.totalAccessoryProfit || 'Total Accessory Profit'}
-                </h3>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <div className="text-2xl font-bold text-pink-600">
-                {formatCurrency(monthlyMetrics.totalAccessoryProfit.USD, 'USD')}
-              </div>
-              <div className="text-xl font-bold text-pink-600">
-                {formatCurrency(monthlyMetrics.totalAccessoryProfit.IQD, 'IQD')}
-              </div>
-            </div>
-          </div>
-
-          {/* Outstanding of the Month (Customer Debts) */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-200 dark:border-gray-700">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-yellow-100 dark:bg-yellow-900/20 rounded-lg">
-                  <Icon name="alertCircle" size={20} className="text-yellow-600 dark:text-yellow-400" />
-                </div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  {t?.customerOutstandingOfMonth || 'Customer Outstanding'}
-                </h3>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <div className="text-2xl font-bold text-yellow-600">
-                {formatCurrency(monthlyMetrics.outstanding.USD, 'USD')}
-              </div>
-              <div className="text-xl font-bold text-yellow-600">
-                {formatCurrency(monthlyMetrics.outstanding.IQD, 'IQD')}
-              </div>
-            </div>
-          </div>
 
           {/* Company Outstanding of the Month */}
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-200 dark:border-gray-700">
@@ -567,6 +571,35 @@ const MonthlyReport = ({ t }) => {
               </div>
             </div>
           </div>
+
+          {/* Total Personal Loans - Moved to the end */}
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-teal-100 dark:bg-teal-900/20 rounded-lg">
+                  <Icon name="handshake" size={20} className="text-teal-600 dark:text-teal-400" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  {t.totalPersonalLoans || 'Personal Loans Given'}
+                </h3>
+              </div>
+              <div className="text-sm text-gray-500 dark:text-gray-400">
+                {t.moneyLentOut || 'Money Lent Out'}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <div className="text-2xl font-bold text-teal-600">
+                {formatCurrency(monthlyMetrics.totalPersonalLoans.USD, 'USD')}
+              </div>
+              <div className="text-xl font-bold text-teal-600">
+                {formatCurrency(monthlyMetrics.totalPersonalLoans.IQD, 'IQD')}
+              </div>
+            </div>
+            <div className="mt-3 text-xs text-gray-500 dark:text-gray-400">
+              {t.personalLoansNote || 'These are assets (money owed to you), not expenses'}
+            </div>
+          </div>
+        </div>
         </div>
       )}
 

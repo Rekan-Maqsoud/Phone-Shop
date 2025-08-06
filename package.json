@@ -1,7 +1,7 @@
 {
   "name": "mobile-roma",
   "private": true,
-  "version": "1.2.11",
+  "version": "1.2.12",
   "description": "Mobile Roma - Phone Shop Management System",
   "main": "src/main.cjs",
   "author": "Mobile Roma Team",
@@ -17,7 +17,9 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "electron": "electron .",
-    "add-sample": "node add-sample-data.cjs && powershell -ExecutionPolicy Bypass -File apply-sample-data.ps1"
+    "add-sample": "node add-sample-data.cjs && powershell -ExecutionPolicy Bypass -File apply-sample-data.ps1",
+    "clean": "powershell -Command \"Remove-Item -Path 'dist' -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -Path 'node_modules' -Recurse -Force -ErrorAction SilentlyContinue; Remove-Item -Path 'package-lock.json' -Force -ErrorAction SilentlyContinue; Remove-Item -Path 'database/*.bak' -Force -ErrorAction SilentlyContinue; Remove-Item -Path 'release/builder-*.yml' -Force -ErrorAction SilentlyContinue; Remove-Item -Path 'release/builder-*.yaml' -Force -ErrorAction SilentlyContinue; Remove-Item -Path 'src/**/*.backup' -Force -ErrorAction SilentlyContinue\"",
+    "fresh-install": "npm run clean && npm install"
   },
   "dependencies": {
     "appwrite": "^18.1.1",

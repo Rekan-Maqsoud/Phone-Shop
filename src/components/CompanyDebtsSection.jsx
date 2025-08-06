@@ -45,17 +45,15 @@ const CompanyDebtsSection = React.memo(({
         return;
       }
 
-      console.log('🔍 Loading payment history for company:', selectedCompanyForView.company_name);
       setLoadingPaymentHistory(true);
 
       try {
         if (window.api?.getDebtPayments) {
           const payments = await window.api.getDebtPayments(selectedCompanyForView.company_name);
-          console.log('📋 Payment history loaded:', payments);
           setCompanyPaymentHistory(payments || []);
         }
       } catch (error) {
-        console.error('❌ Error loading payment history:', error);
+        console.error('Error loading payment history:', error);
         setCompanyPaymentHistory([]);
       } finally {
         setLoadingPaymentHistory(false);
@@ -162,15 +160,9 @@ const CompanyDebtsSection = React.memo(({
     await refreshCompanyDebts();
   };
 
-  const openPaymentModal = (companyName, companyDebts) => {
-    console.log('🚀 OPENING PAYMENT MODAL DEBUG:');
-    console.log('- Company name:', companyName);
-    console.log('- Company debts count:', companyDebts.length);
-    console.log('- Company debts:', companyDebts);
-    
+  const openPaymentModal = (companyName, companyDebts, forceCurrency = null) => {
     // Calculate total debt for this company
     const totalDebt = calculateCompanyTotalDebt(companyDebts);
-    console.log('- Calculated total debt:', totalDebt);
     
     // Create a unified debt object for UniversalPaymentModal
     const unifiedDebt = {
@@ -179,13 +171,12 @@ const CompanyDebtsSection = React.memo(({
       usd_amount: totalDebt.usd,
       iqd_amount: totalDebt.iqd,
       payment_usd_amount: 0,
-      payment_iqd_amount: 0
+      payment_iqd_amount: 0,
+      forceCurrency: forceCurrency // Add this flag to indicate forced currency deduction
     };
     
-    console.log('- Unified debt object:', unifiedDebt);
     setSelectedCompanyForPayment(unifiedDebt);
     setShowPaymentModal(true);
-    console.log('- Modal should now be open');
   };
 
   const handleClosePaymentModal = async () => {
@@ -197,46 +188,60 @@ const CompanyDebtsSection = React.memo(({
 
   const handlePaymentComplete = async (paymentData) => {
     try {
-      console.log('🎯 COMPANY PAYMENT HANDLER DEBUG:');
-      console.log('- Received paymentData:', paymentData);
-      console.log('- paymentData type:', typeof paymentData);
-      console.log('- paymentData keys:', Object.keys(paymentData || {}));
-      console.log('- selectedCompanyForPayment:', selectedCompanyForPayment);
-      
       if (!paymentData) {
-        console.error('❌ No paymentData received');
         throw new Error('No payment data received');
       }
       
       if (!paymentData.company_name) {
-        console.error('❌ Missing company_name in paymentData');
-        console.log('- Available keys in paymentData:', Object.keys(paymentData));
         throw new Error('Missing company name in payment data');
       }
-      
-      console.log('✅ Processing payment for company:', paymentData.company_name);
-      console.log('- USD amount:', paymentData.payment_usd_amount);
-      console.log('- IQD amount:', paymentData.payment_iqd_amount);
 
-      // Call the backend API for company debt payment
-      const result = await window.api.payCompanyDebtTotal(
-        paymentData.company_name,
-        {
-          payment_usd_amount: paymentData.payment_usd_amount || 0,
-          payment_iqd_amount: paymentData.payment_iqd_amount || 0,
-          payment_currency_used: paymentData.payment_currency_used || 'USD'
-        }
-      );
+      // Check if this is a forced currency payment
+      const forceCurrency = selectedCompanyForPayment?.forceCurrency;
       
-      console.log('💰 Payment result:', result);
+      let result;
+      
+      // Use appropriate API based on force currency setting
+      if (forceCurrency === 'USD') {
+        result = await window.api.payCompanyDebtTotalForcedUSD(
+          paymentData.company_name,
+          {
+            payment_usd_amount: paymentData.payment_usd_amount || 0,
+            payment_iqd_amount: paymentData.payment_iqd_amount || 0,
+            payment_currency_used: paymentData.payment_currency_used || 'USD'
+          }
+        );
+      } else if (forceCurrency === 'IQD') {
+        result = await window.api.payCompanyDebtTotalForcedIQD(
+          paymentData.company_name,
+          {
+            payment_usd_amount: paymentData.payment_usd_amount || 0,
+            payment_iqd_amount: paymentData.payment_iqd_amount || 0,
+            payment_currency_used: paymentData.payment_currency_used || 'IQD'
+          }
+        );
+      } else {
+        // Regular payment - no forced currency
+        result = await window.api.payCompanyDebtTotal(
+          paymentData.company_name,
+          {
+            payment_usd_amount: paymentData.payment_usd_amount || 0,
+            payment_iqd_amount: paymentData.payment_iqd_amount || 0,
+            payment_currency_used: paymentData.payment_currency_used || 'USD'
+          }
+        );
+      }
       
       if (result.success) {
-        console.log('✅ Payment successful, refreshing data...');
-        
         // Show detailed payment result
         let message = `Successfully paid debt for ${paymentData.company_name}`;
         if (result.paidDebts && result.paidDebts.length > 0) {
           message += ` (${result.paidDebts.length} debt${result.paidDebts.length > 1 ? 's' : ''} affected)`;
+        }
+        
+        // Add currency force information to the message
+        if (forceCurrency) {
+          message += ` (forced ${forceCurrency} deduction)`;
         }
         
         // Check for overpayment
@@ -257,32 +262,17 @@ const CompanyDebtsSection = React.memo(({
         setShowPaymentModal(false);
         setSelectedCompanyForPayment(null);
         
-        // Force refresh the company debts data
-        console.log('🔄 Calling refreshCompanyDebts...');
+        // Refresh data
         await refreshCompanyDebts();
-        console.log('✅ refreshCompanyDebts completed');
-        
-        // Also refresh transactions since payment creates transaction records
-        console.log('🔄 Calling refreshTransactions...');
         await refreshTransactions();
-        console.log('✅ refreshTransactions completed');
         
-        // Force admin to refresh balances if available
         if (admin?.refreshBalances) {
-          console.log('🔄 Calling admin.refreshBalances...');
           await admin.refreshBalances();
-          console.log('✅ admin.refreshBalances completed');
-        } else {
-          console.log('⚠️ admin.refreshBalances not available');
         }
-        
-        admin?.setToast?.(`Successfully paid debt for ${paymentData.company_name}`, 'success');
       } else {
-        console.error('Payment failed:', result.error);
         admin?.setToast?.(`Payment failed: ${result.error}`, 'error');
       }
     } catch (error) {
-      console.error('Error processing company payment:', error);
       admin?.setToast?.(error.message || 'Error processing payment', 'error');
     }
   };
@@ -410,7 +400,7 @@ const CompanyDebtsSection = React.memo(({
                       </div>
 
                       {/* Action Buttons */}
-                      <div className="flex flex-col gap-3 ml-6">
+                      <div className="flex flex-wrap gap-2 ml-6">
                         <button
                           onClick={() => openCompanyModal(companyName, debts)}
                           className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium flex items-center min-w-[120px] justify-center"
@@ -420,13 +410,36 @@ const CompanyDebtsSection = React.memo(({
                         </button>
                         
                         {debtAmountText && (
-                          <button
-                            onClick={() => openPaymentModal(companyName, debts)}
-                            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-medium flex items-center min-w-[120px] justify-center"
-                          >
-                            <Icon name="credit-card" size={16} className="mr-2" />
-                            {t.payDebt || 'Pay Debt'}
-                          </button>
+                          <>
+                            <button
+                              onClick={() => openPaymentModal(companyName, debts)}
+                              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-medium flex items-center min-w-[120px] justify-center"
+                            >
+                              <Icon name="credit-card" size={16} className="mr-2" />
+                              {t.payDebt || 'Pay'}
+                            </button>
+                            
+                            {/* Currency-specific payment buttons - only show if company has BOTH USD and IQD debts */}
+                            {totalDebt.usd > 0 && totalDebt.iqd > 0 && (
+                              <>
+                                <button
+                                  onClick={() => openPaymentModal(companyName, debts, 'USD')}
+                                  className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition text-sm font-medium flex items-center min-w-[120px] justify-center"
+                                >
+                                  <Icon name="dollar-sign" size={16} className="mr-2" />
+                                  {t.payUSD || 'Pay USD'}
+                                </button>
+                                
+                                <button
+                                  onClick={() => openPaymentModal(companyName, debts, 'IQD')}
+                                  className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition text-sm font-medium flex items-center min-w-[120px] justify-center"
+                                >
+                                  <Icon name="money" size={16} className="mr-2" />
+                                  {t.payIQD || 'Pay IQD'}
+                                </button>
+                              </>
+                            )}
+                          </>
                         )}
                       </div>
                     </div>

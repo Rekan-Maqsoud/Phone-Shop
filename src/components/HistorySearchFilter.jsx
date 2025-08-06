@@ -591,9 +591,17 @@ export default function HistorySearchFilter({
             )}
             {totals.totalProducts !== undefined && (
               <div className="text-center">
-                <div className="text-xs text-gray-600 dark:text-gray-400">{t?.totalProducts || 'Total Products'}</div>
+                <div className="text-xs text-gray-600 dark:text-gray-400">{t?.totalProductsSold || 'Total Products Sold'}</div>
                 <div className="text-lg font-bold text-indigo-600 dark:text-indigo-400">
                   {totals.totalProducts.toLocaleString()}
+                </div>
+              </div>
+            )}
+            {totals.totalAccessories !== undefined && (
+              <div className="text-center">
+                <div className="text-xs text-gray-600 dark:text-gray-400">{t?.totalAccessoriesSold || 'Total Accessories Sold'}</div>
+                <div className="text-lg font-bold text-green-600 dark:text-green-400">
+                  {totals.totalAccessories.toLocaleString()}
                 </div>
               </div>
             )}
