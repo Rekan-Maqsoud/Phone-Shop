@@ -91,22 +91,7 @@ function addDirectPurchaseWithItems(db, { supplier, date, items, currency = 'IQD
   const purchaseDate = date || new Date().toISOString();
   
   const transaction = db.transaction(() => {
-    // Use provided totalAmount or calculate from items
-    let finalTotalAmount = totalAmount;
-    if (finalTotalAmount === null) {
-      finalTotalAmount = 0;
-      items.forEach(item => {
-        finalTotalAmount += item.quantity * item.unit_price;
-      });
-    }
-    
-    // Check for mixed-currency scenario (item values in different currency than payment)
-    const itemCurrencies = [...new Set(items.map(item => item.currency || 'IQD'))];
-    const hasMixedCurrencies = itemCurrencies.length > 1;
-    const hasPaymentCurrencyMismatch = itemCurrencies.some(itemCurrency => itemCurrency !== currency);
-    const isMixedCurrencyPurchase = hasMixedCurrencies || hasPaymentCurrencyMismatch;
-    
-    // Calculate totals by original item currency
+    // Calculate totals by original item currency first
     const usdItemsTotal = items
       .filter(item => (item.currency || 'IQD') === 'USD')
       .reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
@@ -115,11 +100,49 @@ function addDirectPurchaseWithItems(db, { supplier, date, items, currency = 'IQD
       .filter(item => (item.currency || 'IQD') === 'IQD')
       .reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
     
+    // Check for mixed-currency scenario (item values in different currency than payment)
+    const itemCurrencies = [...new Set(items.map(item => item.currency || 'IQD'))];
+    const hasMixedCurrencies = itemCurrencies.length > 1;
+    const hasPaymentCurrencyMismatch = itemCurrencies.some(itemCurrency => itemCurrency !== currency);
+    const isMixedCurrencyPurchase = hasMixedCurrencies || hasPaymentCurrencyMismatch;
+    
+    // Use provided totalAmount or calculate from items in their original currencies
+    let finalTotalAmount = totalAmount;
+    if (finalTotalAmount === null) {
+      // When no totalAmount provided, calculate total in the payment currency
+      const { getExchangeRate } = require('./settings.cjs');
+      const exchangeRate = getExchangeRate(db, 'USD', 'IQD');
+      
+      if (currency === 'USD') {
+        // Payment in USD: convert IQD items to USD and add USD items
+        finalTotalAmount = usdItemsTotal + (iqdItemsTotal / exchangeRate);
+      } else {
+        // Payment in IQD: convert USD items to IQD and add IQD items  
+        finalTotalAmount = iqdItemsTotal + (usdItemsTotal * exchangeRate);
+      }
+    }
+    
     // Determine if we need to use multi-currency columns
     const shouldUseMultiCurrencyColumns = isMixedCurrencyPurchase && (usdItemsTotal > 0 || iqdItemsTotal > 0);
     
     let result;
     if (shouldUseMultiCurrencyColumns) {
+      // For mixed-currency purchases, store what was actually paid in each currency
+      // If payment currency matches item currency, store original amounts
+      // If payment currency differs, store the converted amount in payment currency only
+      let storedUSDAmount = 0;
+      let storedIQDAmount = 0;
+      
+      if (currency === 'USD') {
+        // Paid in USD: store full payment in USD, nothing in IQD
+        storedUSDAmount = finalTotalAmount;
+        storedIQDAmount = 0;
+      } else {
+        // Paid in IQD: store full payment in IQD, nothing in USD
+        storedUSDAmount = 0;
+        storedIQDAmount = finalTotalAmount;
+      }
+      
       // Create entry with multi-currency columns populated
       result = db.prepare(`
         INSERT INTO buying_history 
@@ -134,8 +157,8 @@ function addDirectPurchaseWithItems(db, { supplier, date, items, currency = 'IQD
         purchaseDate,
         currency,
         1, // has_items = true
-        usdItemsTotal, // Store original USD item values
-        iqdItemsTotal  // Store original IQD item values
+        storedUSDAmount, // Store actual payment amounts
+        storedIQDAmount  // Store actual payment amounts
       );
     } else {
       // Standard single-currency entry

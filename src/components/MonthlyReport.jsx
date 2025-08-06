@@ -130,8 +130,9 @@ const MonthlyReport = ({ t }) => {
         });
       }
 
-      // Calculate profit for this sale using the same logic as SalesHistoryTableEnhanced
-      if (isPaid && sale.items && Array.isArray(sale.items)) {
+      // Calculate profit for this sale - Include ALL sales for profit calculation (paid + unpaid debts)
+      // This ensures total profit includes future profits from unpaid customer debts
+      if (sale.items && Array.isArray(sale.items)) {
           // Calculate total buying cost for this sale
           let totalBuyingCostUSD = 0;
           let totalBuyingCostIQD = 0;
@@ -160,7 +161,7 @@ const MonthlyReport = ({ t }) => {
             }
           });
           
-          // Calculate actual profit based on payment received (accounts for discounts)
+          // Calculate profit based on sale total (includes unpaid debt profits)
           let actualSaleProfitUSD = 0;
           let actualSaleProfitIQD = 0;
           
@@ -189,7 +190,7 @@ const MonthlyReport = ({ t }) => {
             }
           }
           
-          // Add to total profits
+          // Add to total profits (now includes unpaid debt profits)
           totalProfit.USD += actualSaleProfitUSD;
           totalProfit.IQD += actualSaleProfitIQD;
           
@@ -202,7 +203,7 @@ const MonthlyReport = ({ t }) => {
             const productProfitRatio = productBuyingCostAllUSD / totalBuyingCostAllUSD;
             const accessoryProfitRatio = accessoryBuyingCostAllUSD / totalBuyingCostAllUSD;
             
-            // Allocate profits proportionally
+            // Allocate profits proportionally (now includes unpaid debt profits)
             totalProductProfit.USD += actualSaleProfitUSD * productProfitRatio;
             totalProductProfit.IQD += actualSaleProfitIQD * productProfitRatio;
             totalAccessoryProfit.USD += actualSaleProfitUSD * accessoryProfitRatio;

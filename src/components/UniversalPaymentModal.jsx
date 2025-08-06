@@ -204,13 +204,6 @@ const UniversalPaymentModal = ({
   const processPayment = async () => {
     if (!debtData) return;
     
-    console.log('🔄 PROCESS PAYMENT DEBUG:');
-    console.log('- debtData:', debtData);
-    console.log('- paymentType:', paymentType);
-    console.log('- multiCurrency.enabled:', multiCurrency.enabled);
-    console.log('- customAmount:', customAmount);
-    console.log('- paymentCurrency:', paymentCurrency);
-    
     try {
       let paymentData = {};
       
@@ -264,8 +257,6 @@ const UniversalPaymentModal = ({
         }
       }
 
-      console.log('💳 CREATED PAYMENT DATA:', paymentData);
-
       let result;
       
       // Call appropriate payment function based on type
@@ -297,17 +288,10 @@ const UniversalPaymentModal = ({
       } else if (paymentType === 'company') {
         // For company debts, let the parent component handle the payment processing
         // We just pass the payment data to the callback
-        console.log('🏢 COMPANY PAYMENT DEBUG:');
-        console.log('- paymentData before adding company_name:', paymentData);
-        console.log('- debtData:', debtData);
-        console.log('- onPaymentComplete exists:', !!onPaymentComplete);
-        
         // Add company name to payment data
         paymentData.company_name = debtData.company_name;
-        console.log('- paymentData after adding company_name:', paymentData);
         
         if (onPaymentComplete) {
-          console.log('📞 Calling onPaymentComplete with paymentData...');
           await onPaymentComplete(paymentData);
           handleClose();
           return;

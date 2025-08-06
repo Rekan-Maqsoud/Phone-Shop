@@ -454,12 +454,7 @@ function markCompanyDebtPaid(db, id, paymentData) {
       const originalIQDAmount = debtInfo.iqd_amount || 
                                 (debtInfo.currency === 'IQD' ? debtInfo.amount : 0);
       
-      // Enhanced debug logging
-      console.log('[DEBUG][CompanyDebt][CALC] Original debt:', debtInfo.amount, debtInfo.currency);
-      console.log('[DEBUG][CompanyDebt][CALC] Exchange rate USD->IQD:', currentUSDToIQD);
-      console.log('[DEBUG][CompanyDebt][CALC] Previous payments - USD:', currentPaidUSD, 'IQD:', currentPaidIQD);
-      console.log('[DEBUG][CompanyDebt][CALC] Current payment - USD:', finalUSDAmount, 'IQD:', finalIQDAmount);
-      console.log('[DEBUG][CompanyDebt][CALC] Total paid so far - USD:', newTotalPaidUSD, 'IQD:', newTotalPaidIQD);
+      // Calculate remaining debt and payment status
       
       if (debtInfo.currency === 'USD') {
         // For USD debts, convert total paid to USD equivalent (including both currencies)
@@ -467,20 +462,12 @@ function markCompanyDebtPaid(db, id, paymentData) {
         const totalPaidUSDEquivalent = newTotalPaidUSD + iqdToUSDEquivalent;
         remainingDebt = debtInfo.amount - totalPaidUSDEquivalent;
         isFullyPaid = remainingDebt <= 0.01; // USD tolerance
-        // Enhanced debug log
-        console.log('[DEBUG][CompanyDebt][USD] IQD->USD conversion:', newTotalPaidIQD, '/', currentUSDToIQD, '=', iqdToUSDEquivalent);
-        console.log('[DEBUG][CompanyDebt][USD] Total USD equivalent paid:', totalPaidUSDEquivalent);
-        console.log('[DEBUG][CompanyDebt][USD] Remaining debt:', remainingDebt, 'Fully paid:', isFullyPaid);
       } else if (debtInfo.currency === 'IQD') {
         // For IQD debts, convert total paid to IQD equivalent (including both currencies)
         const usdToIQDEquivalent = newTotalPaidUSD * currentUSDToIQD;
         const totalPaidIQDEquivalent = newTotalPaidIQD + usdToIQDEquivalent;
         remainingDebt = debtInfo.amount - totalPaidIQDEquivalent;
         isFullyPaid = remainingDebt <= 250; // 250 IQD threshold
-        // Enhanced debug log
-        console.log('[DEBUG][CompanyDebt][IQD] USD->IQD conversion:', newTotalPaidUSD, '*', currentUSDToIQD, '=', usdToIQDEquivalent);
-        console.log('[DEBUG][CompanyDebt][IQD] Total IQD equivalent paid:', totalPaidIQDEquivalent);
-        console.log('[DEBUG][CompanyDebt][IQD] Remaining debt:', remainingDebt, 'Fully paid:', isFullyPaid);
       } else if (debtInfo.currency === 'MULTI') {
         // For multi-currency debts, we need to handle cross-currency payments properly
         
@@ -557,8 +544,7 @@ function markCompanyDebtPaid(db, id, paymentData) {
             payment_exchange_rate_iqd_to_usd = ?
         WHERE id = ?
       `);
-      // Debug log
-      console.log('[DEBUG][CompanyDebt][UPDATE] paidAt:', paidAtValue, 'USD Paid:', newTotalPaidUSD, 'IQD Paid:', newTotalPaidIQD, 'Exchange Rate:', currentUSDToIQD);
+      
       const result = updateStmt.run(
         paidAtValue, 
         newTotalPaidUSD || 0, 
@@ -584,151 +570,16 @@ function markCompanyDebtPaid(db, id, paymentData) {
         now
       );
       
-      // Add entries to buying history for spending tracking - handle both currencies if paid
-      const EXCHANGE_RATES = { 
-        USD_TO_IQD: currentUSDToIQD, 
-        IQD_TO_USD: 1 / currentUSDToIQD 
-      };
-      
-      // Determine if this is actually a multi-currency payment based on original input
-      const isActualMultiCurrencyPayment = (payment_usd_amount > 0 && payment_iqd_amount > 0) ||
-                                           (payment_amount > 0 && payment_usd_amount > 0) ||
-                                           (payment_amount > 0 && payment_iqd_amount > 0);
-      
-      if (isActualMultiCurrencyPayment && finalUSDAmount > 0 && finalIQDAmount > 0) {
-        // Multi-currency payment, create separate entries for each currency
-        const baseDescription = `Company debt payment ${isFullyPaid ? '(FINAL)' : '(PARTIAL)'}: ${debtInfo.company_name}`;
-        
-        try {
-          const addBuyingHistory = db.prepare(`
-            INSERT INTO buying_history (item_name, quantity, unit_price, total_price, date, currency, type, reference_id, multi_currency_usd, multi_currency_iqd) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          `);
-          
-          // Create USD entry
-          if (finalUSDAmount > 0) {
-            addBuyingHistory.run(
-              `${baseDescription} (USD portion)`,
-              1,
-              finalUSDAmount,
-              finalUSDAmount,
-              now,
-              'USD',
-              'debt_payment',
-              id,
-              finalUSDAmount, // Set multi_currency_usd
-              0 // Set multi_currency_iqd to 0
-            );
-          }
-          
-          // Create IQD entry
-          if (finalIQDAmount > 0) {
-            addBuyingHistory.run(
-              `${baseDescription} (IQD portion)`,
-              1,
-              finalIQDAmount,
-              finalIQDAmount,
-              now,
-              'IQD',
-              'debt_payment',
-              id,
-              0, // Set multi_currency_usd to 0
-              finalIQDAmount // Set multi_currency_iqd
-            );
-          }
-        } catch (columnError) {
-          // Fallback without multi-currency columns
-          const addBuyingHistoryBasic = db.prepare(`
-            INSERT INTO buying_history (item_name, quantity, unit_price, total_price, date, currency, type, reference_id) 
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-          `);
-          
-          // Create USD entry
-          if (finalUSDAmount > 0) {
-            addBuyingHistoryBasic.run(
-              `${baseDescription} (USD portion)`,
-              1,
-              finalUSDAmount,
-              finalUSDAmount,
-              now,
-              'USD',
-              'debt_payment',
-              id
-            );
-          }
-          
-          // Create IQD entry
-          if (finalIQDAmount > 0) {
-            addBuyingHistoryBasic.run(
-              `${baseDescription} (IQD portion)`,
-              1,
-              finalIQDAmount,
-              finalIQDAmount,
-              now,
-              'IQD',
-              'debt_payment',
-              id
-            );
-          }
-        }
-      } else {
-        // Single currency payment
-        const primaryCurrency = finalUSDAmount > 0 ? 'USD' : 'IQD';
-        const primaryAmount = finalUSDAmount > 0 ? finalUSDAmount : finalIQDAmount;
-        
-        try {
-          const addBuyingHistory = db.prepare(`
-            INSERT INTO buying_history (item_name, quantity, unit_price, total_price, date, currency, type, reference_id, multi_currency_usd, multi_currency_iqd) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          `);
-          
-          const description = `Company debt payment ${isFullyPaid ? '(FINAL)' : '(PARTIAL)'}: ${debtInfo.company_name}`;
-          
-          addBuyingHistory.run(
-            description,
-            1,
-            primaryAmount,
-            primaryAmount,
-            now,
-            primaryCurrency,
-            'debt_payment',
-            id,
-            finalUSDAmount > 0 ? finalUSDAmount : 0, // Set multi_currency_usd
-            finalIQDAmount > 0 ? finalIQDAmount : 0  // Set multi_currency_iqd
-          );
-        } catch (columnError) {
-          // Fallback without multi-currency columns
-          const addBuyingHistoryBasic = db.prepare(`
-            INSERT INTO buying_history (item_name, quantity, unit_price, total_price, date, currency, type, reference_id) 
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-          `);
-          
-          const description = `Company debt payment ${isFullyPaid ? '(FINAL)' : '(PARTIAL)'}: ${debtInfo.company_name}`;
-          
-          addBuyingHistoryBasic.run(
-            description,
-            1,
-            primaryAmount,
-            primaryAmount,
-            now,
-            primaryCurrency,
-            'debt_payment',
-            id
-          );
-        }
-      }
+      // Note: Buying history entries are handled by the calling payment functions
+      // (payCompanyDebtTotal, payCompanyDebtTotalForcedUSD, etc.) to avoid duplicates
       
       // Deduct from the user's balance based on the actual payment amounts
-      // This is the key fix - deduct the currencies that were actually paid
-      console.log('[DEBUG][CompanyDebt][BALANCE] Before deduction - finalUSDAmount:', finalUSDAmount, 'finalIQDAmount:', finalIQDAmount);
       if (finalUSDAmount > 0) {
-        console.log('[DEBUG][CompanyDebt][BALANCE] Deducting USD:', finalUSDAmount);
         settings.updateBalance(db, 'USD', -finalUSDAmount);
       }
       
       // Deduct IQD amount if any IQD was paid  
       if (finalIQDAmount > 0) {
-        console.log('[DEBUG][CompanyDebt][BALANCE] Deducting IQD:', finalIQDAmount);
         settings.updateBalance(db, 'IQD', -finalIQDAmount);
       }
       
@@ -768,8 +619,6 @@ function payCompanyDebtTotal(db, companyName, paymentData) {
   
   const transaction = db.transaction(() => {
     try {
-      console.log(`[DEBUG][PayTotal] Looking for company debts for: "${companyName}"`);
-      
       // Get all unpaid debts for this company, ordered by creation date (oldest first)
       // Use case-insensitive comparison
       const unpaidDebts = db.prepare(`
@@ -780,8 +629,6 @@ function payCompanyDebtTotal(db, companyName, paymentData) {
         WHERE LOWER(company_name) = LOWER(?) AND paid_at IS NULL
         ORDER BY created_at ASC
       `).all(companyName);
-      
-      console.log(`[DEBUG][PayTotal] Found ${unpaidDebts.length} unpaid debts for company`);
       
       if (unpaidDebts.length === 0) {
         // Check if company exists with any debts (paid or unpaid)
@@ -806,8 +653,6 @@ function payCompanyDebtTotal(db, companyName, paymentData) {
       let totalPaidUSD = 0;
       let totalPaidIQD = 0;
       let paidDebts = [];
-      
-      console.log(`[DEBUG][PayTotal] Starting payment for ${companyName}: USD ${remainingUSDPayment}, IQD ${remainingIQDPayment}`);
       
       // Process each debt in order (oldest first)
       for (const debt of unpaidDebts) {
@@ -836,8 +681,6 @@ function payCompanyDebtTotal(db, companyName, paymentData) {
           remainingDebtUSD = 0;
         }
         
-        console.log(`[DEBUG][PayTotal] Debt ${debt.id}: Remaining USD ${remainingDebtUSD}, IQD ${remainingDebtIQD}`);
-        
         // Apply payment to this debt
         let usdToApply = 0;
         let iqdToApply = 0;
@@ -847,14 +690,12 @@ function payCompanyDebtTotal(db, companyName, paymentData) {
           usdToApply = Math.min(remainingDebtUSD, remainingUSDPayment);
           remainingUSDPayment -= usdToApply;
           remainingDebtUSD -= usdToApply;
-          console.log(`[DEBUG][PayTotal] Applied ${usdToApply} USD to debt ${debt.id}, remaining USD payment: ${remainingUSDPayment}`);
         }
         
         if (remainingDebtIQD > 0 && remainingIQDPayment > 0) {
           iqdToApply = Math.min(remainingDebtIQD, remainingIQDPayment);
           remainingIQDPayment -= iqdToApply;
           remainingDebtIQD -= iqdToApply;
-          console.log(`[DEBUG][PayTotal] Applied ${iqdToApply} IQD to debt ${debt.id}, remaining IQD payment: ${remainingIQDPayment}`);
         }
         
         // If debt still has remaining amount, use cross-currency payment
@@ -863,7 +704,6 @@ function payCompanyDebtTotal(db, companyName, paymentData) {
           iqdToApply += iqdToUSDForDebt;
           remainingIQDPayment -= iqdToUSDForDebt;
           remainingDebtUSD -= iqdToUSDForDebt / currentUSDToIQD;
-          console.log(`[DEBUG][PayTotal] Cross-currency: Applied ${iqdToUSDForDebt} IQD to USD debt ${debt.id}`);
         }
         
         if (remainingDebtIQD > 0 && remainingUSDPayment > 0) {
@@ -871,7 +711,6 @@ function payCompanyDebtTotal(db, companyName, paymentData) {
           usdToApply += usdToIQDForDebt;
           remainingUSDPayment -= usdToIQDForDebt;
           remainingDebtIQD -= usdToIQDForDebt * currentUSDToIQD;
-          console.log(`[DEBUG][PayTotal] Cross-currency: Applied ${usdToIQDForDebt} USD to IQD debt ${debt.id}`);
         }
         
         // Apply the payment to this debt
@@ -935,10 +774,6 @@ function payCompanyDebtTotal(db, companyName, paymentData) {
           totalPaidUSD += usdToApply;
           totalPaidIQD += iqdToApply;
           paidDebts.push({ ...debt, paidAmount: { usd: usdToApply, iqd: iqdToApply }, fullyPaid: isFullyPaid });
-          
-          console.log(`[DEBUG][PayTotal] Applied to debt ${debt.id}: USD ${usdToApply}, IQD ${iqdToApply}, Fully paid: ${isFullyPaid}`);
-          console.log(`[DEBUG][PayTotal] Running totals: USD ${totalPaidUSD}, IQD ${totalPaidIQD}`);
-          console.log(`[DEBUG][PayTotal] Remaining payments: USD ${remainingUSDPayment}, IQD ${remainingIQDPayment}`);
         }
       }
       
@@ -951,88 +786,23 @@ function payCompanyDebtTotal(db, companyName, paymentData) {
         
         addTransactionStmt.run(
           'company_debt_payment',
-          totalPaidUSD || 0,
-          totalPaidIQD || 0,
+          totalPaidUSD || 0, // Positive for spending
+          totalPaidIQD || 0, // Positive for spending
           `Total company debt payment: ${companyName} - Paid ${paidDebts.length} debt(s)`,
           null, // No single reference ID since we're paying multiple debts
           'company_debt_total',
           now
         );
-        
-        // Add buying history entries for spending tracking
-        if (totalPaidUSD > 0 && totalPaidIQD > 0) {
-          // Multi-currency payment
-          const buyingHistoryStmt = db.prepare(`
-            INSERT INTO buying_history (item_name, supplier, quantity, unit_price, currency, total_price, date, type, reference_id) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-          `);
-          
-          buyingHistoryStmt.run(
-            'Company debt payment (USD portion)',
-            companyName,
-            1,
-            totalPaidUSD,
-            'USD',
-            totalPaidUSD,
-            now,
-            'Company debt payment',
-            null
-          );
-          
-          buyingHistoryStmt.run(
-            'Company debt payment (IQD portion)',
-            companyName,
-            1,
-            totalPaidIQD,
-            'IQD',
-            totalPaidIQD,
-            now,
-            'Company debt payment',
-            null
-          );
-        } else if (totalPaidUSD > 0) {
-          // USD only payment
-          const buyingHistoryStmt = db.prepare(`
-            INSERT INTO buying_history (item_name, supplier, quantity, unit_price, currency, total_price, date, type, reference_id) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-          `);
-          
-          buyingHistoryStmt.run(
-            'Company debt payment',
-            companyName,
-            1,
-            totalPaidUSD,
-            'USD',
-            totalPaidUSD,
-            now,
-            'Company debt payment',
-            null
-          );
-        } else if (totalPaidIQD > 0) {
-          // IQD only payment
-          const buyingHistoryStmt = db.prepare(`
-            INSERT INTO buying_history (item_name, supplier, quantity, unit_price, currency, total_price, date, type, reference_id) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-          `);
-          
-          buyingHistoryStmt.run(
-            'Company debt payment',
-            companyName,
-            1,
-            totalPaidIQD,
-            'IQD',
-            totalPaidIQD,
-            now,
-            'Company debt payment',
-            null
-          );
-        }
       }
       
-      console.log(`[DEBUG][PayTotal] FINAL RESULT:`);
-      console.log(`[DEBUG][PayTotal] - Total paid: USD ${totalPaidUSD}, IQD ${totalPaidIQD}`);
-      console.log(`[DEBUG][PayTotal] - Remaining payment: USD ${remainingUSDPayment}, IQD ${remainingIQDPayment}`);
-      console.log(`[DEBUG][PayTotal] - Paid debts count: ${paidDebts.length}`);
+      // Deduct from user's balance based on what currency was actually used
+      // This is the critical fix for the balance deduction issue
+      if (totalPaidUSD > 0) {
+        settings.updateBalance(db, 'USD', -totalPaidUSD);
+      }
+      if (totalPaidIQD > 0) {
+        settings.updateBalance(db, 'IQD', -totalPaidIQD);
+      }
       
       return { 
         success: true, 
@@ -1090,14 +860,16 @@ function payCompanyDebtTotalForcedUSD(db, companyName, paymentData) {
         };
       }
       
-      // Calculate total remaining USD debt for this company
+      // Calculate total remaining USD debt for this company, but also collect all debts for payment
       let totalRemainingUSDDebt = 0;
-      const usdDebts = []; // Only collect USD debts for payment
+      const usdDebts = []; // USD debts (priority)
+      const otherDebts = []; // Non-USD debts (secondary)
       
       for (const debt of unpaidDebts) {
+        const currentPaidUSD = debt.payment_usd_amount || 0;
+        const currentPaidIQD = debt.payment_iqd_amount || 0;
+        
         if (debt.currency === 'USD') {
-          const currentPaidUSD = debt.payment_usd_amount || 0;
-          const currentPaidIQD = debt.payment_iqd_amount || 0;
           const totalPaidUSDEquivalent = currentPaidUSD + (currentPaidIQD / currentUSDToIQD);
           const remainingDebtUSD = Math.max(0, debt.amount - totalPaidUSDEquivalent);
           
@@ -1108,13 +880,34 @@ function payCompanyDebtTotalForcedUSD(db, companyName, paymentData) {
               remainingAmount: remainingDebtUSD
             });
           }
+        } else {
+          // Also include non-USD debts for payment if USD payment exceeds USD debts
+          let remainingAmount = 0;
+          if (debt.currency === 'IQD') {
+            const totalPaidIQDEquivalent = currentPaidIQD + (currentPaidUSD * currentUSDToIQD);
+            remainingAmount = Math.max(0, debt.amount - totalPaidIQDEquivalent);
+          } else if (debt.currency === 'MULTI') {
+            const remainingUSD = Math.max(0, (debt.usd_amount || 0) - currentPaidUSD);
+            const remainingIQD = Math.max(0, (debt.iqd_amount || 0) - currentPaidIQD);
+            remainingAmount = remainingUSD + (remainingIQD / currentUSDToIQD); // Convert to USD equivalent for sorting
+          }
+          
+          if (remainingAmount > 0) {
+            otherDebts.push({
+              ...debt,
+              remainingAmount: remainingAmount
+            });
+          }
         }
       }
       
-      if (totalRemainingUSDDebt === 0) {
+      // Combine debts: USD debts first, then other debts
+      const allDebtsForPayment = [...usdDebts, ...otherDebts];
+      
+      if (allDebtsForPayment.length === 0) {
         return {
           success: true,
-          message: 'No unpaid USD debts found for this company',
+          message: 'No unpaid debts found for this company',
           paidDebts: [],
           totalPaid: { usd: 0, iqd: 0 },
           remainingPayment: { usd: payment_usd_amount, iqd: payment_iqd_amount },
@@ -1122,44 +915,87 @@ function payCompanyDebtTotalForcedUSD(db, companyName, paymentData) {
         };
       }
       
-      // Apply payment to USD debts only, but track which currency is being used to pay
+      // Apply payment to all debts (USD priority), but track which currency is being used to pay
       let remainingUSDPayment = payment_usd_amount;
       let remainingIQDPayment = payment_iqd_amount;
       let totalPaidFromUSD = 0;
       let totalPaidFromIQD = 0;
       let paidDebts = [];
       
-      // Pay USD debts until payment is exhausted
-      for (const usdDebt of usdDebts) {
+      // Pay debts until payment is exhausted (USD debts first, then others)
+      for (const debt of allDebtsForPayment) {
+        // Continue as long as there's any payment available (USD OR IQD)
         if (remainingUSDPayment <= 0 && remainingIQDPayment <= 0) break;
         
-        const currentPaidUSD = usdDebt.payment_usd_amount || 0;
-        const currentPaidIQD = usdDebt.payment_iqd_amount || 0;
+        const currentPaidUSD = debt.payment_usd_amount || 0;
+        const currentPaidIQD = debt.payment_iqd_amount || 0;
         
         let paymentFromUSDBalance = 0;
         let paymentFromIQDBalance = 0;
         
-        // Try to pay with USD balance first
-        if (remainingUSDPayment > 0) {
-          paymentFromUSDBalance = Math.min(remainingUSDPayment, usdDebt.remainingAmount);
-          remainingUSDPayment -= paymentFromUSDBalance;
-        }
-        
-        // If still debt remaining, pay with IQD balance (converted to USD equivalent)
-        const stillOwedAfterUSD = usdDebt.remainingAmount - paymentFromUSDBalance;
-        if (stillOwedAfterUSD > 0 && remainingIQDPayment > 0) {
-          const iqdNeededForDebt = stillOwedAfterUSD * currentUSDToIQD;
-          paymentFromIQDBalance = Math.min(remainingIQDPayment, iqdNeededForDebt);
-          remainingIQDPayment -= paymentFromIQDBalance;
+        // Payment logic depends on debt type
+        if (debt.currency === 'USD') {
+          // Try to pay with USD balance first for USD debts
+          if (remainingUSDPayment > 0) {
+            paymentFromUSDBalance = Math.min(remainingUSDPayment, debt.remainingAmount);
+            remainingUSDPayment -= paymentFromUSDBalance;
+          }
+          
+          // If still debt remaining, pay with IQD balance (converted to USD equivalent)
+          const stillOwedAfterUSD = debt.remainingAmount - paymentFromUSDBalance;
+          if (stillOwedAfterUSD > 0 && remainingIQDPayment > 0) {
+            const iqdNeededForDebt = stillOwedAfterUSD * currentUSDToIQD;
+            paymentFromIQDBalance = Math.min(remainingIQDPayment, iqdNeededForDebt);
+            remainingIQDPayment -= paymentFromIQDBalance;
+          }
+        } else if (debt.currency === 'IQD') {
+          // For IQD debts, prioritize IQD payment but allow USD cross-payment
+          if (remainingIQDPayment > 0) {
+            paymentFromIQDBalance = Math.min(remainingIQDPayment, debt.remainingAmount);
+            remainingIQDPayment -= paymentFromIQDBalance;
+          }
+          
+          // If still debt remaining, pay with USD balance (converted to IQD equivalent)
+          const stillOwedAfterIQD = debt.remainingAmount - paymentFromIQDBalance;
+          if (stillOwedAfterIQD > 0 && remainingUSDPayment > 0) {
+            const usdNeededForDebt = stillOwedAfterIQD / currentUSDToIQD;
+            paymentFromUSDBalance = Math.min(remainingUSDPayment, usdNeededForDebt);
+            remainingUSDPayment -= paymentFromUSDBalance;
+          }
+        } else if (debt.currency === 'MULTI') {
+          // For multi-currency debts, apply both currencies proportionally
+          const remainingUSD = Math.max(0, (debt.usd_amount || 0) - currentPaidUSD);
+          const remainingIQD = Math.max(0, (debt.iqd_amount || 0) - currentPaidIQD);
+          
+          if (remainingUSD > 0 && remainingUSDPayment > 0) {
+            paymentFromUSDBalance = Math.min(remainingUSDPayment, remainingUSD);
+            remainingUSDPayment -= paymentFromUSDBalance;
+          }
+          
+          if (remainingIQD > 0 && remainingIQDPayment > 0) {
+            paymentFromIQDBalance = Math.min(remainingIQDPayment, remainingIQD);
+            remainingIQDPayment -= paymentFromIQDBalance;
+          }
         }
         
         if (paymentFromUSDBalance > 0 || paymentFromIQDBalance > 0) {
           const updatedPaidUSD = currentPaidUSD + paymentFromUSDBalance;
           const updatedPaidIQD = currentPaidIQD + paymentFromIQDBalance;
           
-          // Check if this specific debt is fully paid
-          const totalPaidUSDEquivalent = updatedPaidUSD + (updatedPaidIQD / currentUSDToIQD);
-          const isFullyPaid = totalPaidUSDEquivalent >= usdDebt.amount;
+          // Check if this specific debt is fully paid based on its currency type
+          let isFullyPaid = false;
+          if (debt.currency === 'USD') {
+            const totalPaidUSDEquivalent = updatedPaidUSD + (updatedPaidIQD / currentUSDToIQD);
+            isFullyPaid = totalPaidUSDEquivalent >= debt.amount;
+          } else if (debt.currency === 'IQD') {
+            const totalPaidIQDEquivalent = updatedPaidIQD + (updatedPaidUSD * currentUSDToIQD);
+            isFullyPaid = totalPaidIQDEquivalent >= debt.amount;
+          } else if (debt.currency === 'MULTI') {
+            const usdFullyPaid = updatedPaidUSD >= (debt.usd_amount || 0);
+            const iqdFullyPaid = updatedPaidIQD >= (debt.iqd_amount || 0);
+            isFullyPaid = usdFullyPaid && iqdFullyPaid;
+          }
+          
           const paidAt = isFullyPaid ? now : null;
           
           // Update debt record
@@ -1167,43 +1003,16 @@ function payCompanyDebtTotalForcedUSD(db, companyName, paymentData) {
             UPDATE company_debts 
             SET payment_usd_amount = ?, payment_iqd_amount = ?, paid_at = ?
             WHERE id = ?
-          `).run(updatedPaidUSD, updatedPaidIQD, paidAt, usdDebt.id);
+          `).run(updatedPaidUSD, updatedPaidIQD, paidAt, debt.id);
           
           paidDebts.push({
-            id: usdDebt.id,
-            company_name: usdDebt.company_name,
-            description: usdDebt.description,
+            id: debt.id,
+            company_name: debt.company_name,
+            description: debt.description,
             paymentUSD: paymentFromUSDBalance,
             paymentIQD: paymentFromIQDBalance,
             fullyPaid: isFullyPaid
           });
-          
-          // Add to buying history for balance deduction tracking
-          if (paymentFromUSDBalance > 0) {
-            db.prepare(`
-              INSERT INTO buying_history (
-                item_name, quantity, unit_price, currency, date, 
-                supplier, total_price
-              ) VALUES (?, ?, ?, ?, ?, ?, ?)
-            `).run(
-              `USD Debt Payment - ${usdDebt.description || 'Company Debt'}`,
-              1, paymentFromUSDBalance, 'USD', now,
-              usdDebt.company_name, paymentFromUSDBalance
-            );
-          }
-          
-          if (paymentFromIQDBalance > 0) {
-            db.prepare(`
-              INSERT INTO buying_history (
-                item_name, quantity, unit_price, currency, date, 
-                supplier, total_price
-              ) VALUES (?, ?, ?, ?, ?, ?, ?)
-            `).run(
-              `USD Debt Payment (paid with IQD) - ${usdDebt.description || 'Company Debt'}`,
-              1, paymentFromIQDBalance, 'IQD', now,
-              usdDebt.company_name, paymentFromIQDBalance
-            );
-          }
           
           totalPaidFromUSD += paymentFromUSDBalance;
           totalPaidFromIQD += paymentFromIQDBalance;
@@ -1218,13 +1027,50 @@ function payCompanyDebtTotalForcedUSD(db, companyName, paymentData) {
         settings.updateBalance(db, 'IQD', -totalPaidFromIQD);
       }
       
+      // Check if there's still any debt remaining after payment (all currencies)
+      const remainingAllDebts = db.prepare(`
+        SELECT SUM(
+          CASE 
+            WHEN currency = 'USD' THEN amount - COALESCE(payment_usd_amount, 0) - COALESCE(payment_iqd_amount, 0) / 1440
+            WHEN currency = 'IQD' THEN amount - COALESCE(payment_iqd_amount, 0) - COALESCE(payment_usd_amount, 0) * 1440
+            WHEN currency = 'MULTI' THEN 
+              (COALESCE(usd_amount, 0) - COALESCE(payment_usd_amount, 0)) + 
+              (COALESCE(iqd_amount, 0) - COALESCE(payment_iqd_amount, 0)) / 1440
+            ELSE amount
+          END
+        ) as total_remaining
+        FROM company_debts 
+        WHERE company_name = ? AND paid_at IS NULL
+      `).get(companyName);
+      
+      const finalRemainingDebt = remainingAllDebts?.total_remaining || 0;
+      const actualOverpayment = (remainingUSDPayment > 0 || remainingIQDPayment > 0) && finalRemainingDebt <= 0;
+
+      // Record the total transaction for forced USD payment
+      if (totalPaidFromUSD > 0 || totalPaidFromIQD > 0) {
+        const addTransactionStmt = db.prepare(`
+          INSERT INTO transactions (type, amount_usd, amount_iqd, description, reference_id, reference_type, created_at) 
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `);
+        
+        addTransactionStmt.run(
+          'company_debt_payment',
+          totalPaidFromUSD || 0, // Positive for spending
+          totalPaidFromIQD || 0, // Positive for spending
+          `Forced USD debt payment: ${companyName} - Paid ${paidDebts.length} debt(s)`,
+          null, // No single reference ID since we're paying multiple debts
+          'company_debt_forced_usd',
+          now
+        );
+      }
+
       return {
         success: true,
         message: `USD debt payment completed for ${companyName}`,
         paidDebts,
         totalPaid: { usd: totalPaidFromUSD, iqd: totalPaidFromIQD },
         remainingPayment: { usd: remainingUSDPayment, iqd: remainingIQDPayment },
-        hasOverpayment: remainingUSDPayment > 0 || remainingIQDPayment > 0,
+        hasOverpayment: actualOverpayment,
         paymentMethod: 'forced_usd'
       };
       
@@ -1275,14 +1121,16 @@ function payCompanyDebtTotalForcedIQD(db, companyName, paymentData) {
         };
       }
       
-      // Calculate total remaining IQD debt for this company
+      // Calculate total remaining IQD debt for this company, but also collect all debts for payment
       let totalRemainingIQDDebt = 0;
-      const iqdDebts = []; // Only collect IQD debts for payment
+      const iqdDebts = []; // IQD debts (priority)
+      const otherDebts = []; // Non-IQD debts (secondary)
       
       for (const debt of unpaidDebts) {
+        const currentPaidIQD = debt.payment_iqd_amount || 0;
+        const currentPaidUSD = debt.payment_usd_amount || 0;
+        
         if (debt.currency === 'IQD') {
-          const currentPaidIQD = debt.payment_iqd_amount || 0;
-          const currentPaidUSD = debt.payment_usd_amount || 0;
           const totalPaidIQDEquivalent = currentPaidIQD + (currentPaidUSD * currentUSDToIQD);
           const remainingDebtIQD = Math.max(0, debt.amount - totalPaidIQDEquivalent);
           
@@ -1293,13 +1141,34 @@ function payCompanyDebtTotalForcedIQD(db, companyName, paymentData) {
               remainingAmount: remainingDebtIQD
             });
           }
+        } else {
+          // Also include non-IQD debts for payment if IQD payment exceeds IQD debts
+          let remainingAmount = 0;
+          if (debt.currency === 'USD') {
+            const totalPaidUSDEquivalent = currentPaidUSD + (currentPaidIQD / currentUSDToIQD);
+            remainingAmount = Math.max(0, debt.amount - totalPaidUSDEquivalent);
+          } else if (debt.currency === 'MULTI') {
+            const remainingUSD = Math.max(0, (debt.usd_amount || 0) - currentPaidUSD);
+            const remainingIQD = Math.max(0, (debt.iqd_amount || 0) - currentPaidIQD);
+            remainingAmount = remainingUSD + (remainingIQD / currentUSDToIQD); // Convert to USD equivalent for sorting
+          }
+          
+          if (remainingAmount > 0) {
+            otherDebts.push({
+              ...debt,
+              remainingAmount: remainingAmount
+            });
+          }
         }
       }
       
-      if (totalRemainingIQDDebt === 0) {
+      // Combine debts: IQD debts first, then other debts
+      const allDebtsForPayment = [...iqdDebts, ...otherDebts];
+      
+      if (allDebtsForPayment.length === 0) {
         return {
           success: true,
-          message: 'No unpaid IQD debts found for this company',
+          message: 'No unpaid debts found for this company',
           paidDebts: [],
           totalPaid: { usd: 0, iqd: 0 },
           remainingPayment: { usd: payment_usd_amount, iqd: payment_iqd_amount },
@@ -1307,44 +1176,87 @@ function payCompanyDebtTotalForcedIQD(db, companyName, paymentData) {
         };
       }
       
-      // Apply payment to IQD debts only, but track which currency is being used to pay
+      // Apply payment to all debts (IQD priority), but track which currency is being used to pay
       let remainingUSDPayment = payment_usd_amount;
       let remainingIQDPayment = payment_iqd_amount;
       let totalPaidFromUSD = 0;
       let totalPaidFromIQD = 0;
       let paidDebts = [];
       
-      // Pay IQD debts until payment is exhausted
-      for (const iqdDebt of iqdDebts) {
+      // Pay debts until payment is exhausted (IQD debts first, then others)
+      for (const debt of allDebtsForPayment) {
+        // Continue as long as there's any payment available (USD OR IQD)
         if (remainingUSDPayment <= 0 && remainingIQDPayment <= 0) break;
         
-        const currentPaidUSD = iqdDebt.payment_usd_amount || 0;
-        const currentPaidIQD = iqdDebt.payment_iqd_amount || 0;
+        const currentPaidUSD = debt.payment_usd_amount || 0;
+        const currentPaidIQD = debt.payment_iqd_amount || 0;
         
         let paymentFromUSDBalance = 0;
         let paymentFromIQDBalance = 0;
         
-        // Try to pay with IQD balance first
-        if (remainingIQDPayment > 0) {
-          paymentFromIQDBalance = Math.min(remainingIQDPayment, iqdDebt.remainingAmount);
-          remainingIQDPayment -= paymentFromIQDBalance;
-        }
-        
-        // If still debt remaining, pay with USD balance (converted to IQD equivalent)
-        const stillOwedAfterIQD = iqdDebt.remainingAmount - paymentFromIQDBalance;
-        if (stillOwedAfterIQD > 0 && remainingUSDPayment > 0) {
-          const usdNeededForDebt = stillOwedAfterIQD / currentUSDToIQD;
-          paymentFromUSDBalance = Math.min(remainingUSDPayment, usdNeededForDebt);
-          remainingUSDPayment -= paymentFromUSDBalance;
+        // Payment logic depends on debt type
+        if (debt.currency === 'IQD') {
+          // Try to pay with IQD balance first for IQD debts
+          if (remainingIQDPayment > 0) {
+            paymentFromIQDBalance = Math.min(remainingIQDPayment, debt.remainingAmount);
+            remainingIQDPayment -= paymentFromIQDBalance;
+          }
+          
+          // If still debt remaining, pay with USD balance (converted to IQD equivalent)
+          const stillOwedAfterIQD = debt.remainingAmount - paymentFromIQDBalance;
+          if (stillOwedAfterIQD > 0 && remainingUSDPayment > 0) {
+            const usdNeededForDebt = stillOwedAfterIQD / currentUSDToIQD;
+            paymentFromUSDBalance = Math.min(remainingUSDPayment, usdNeededForDebt);
+            remainingUSDPayment -= paymentFromUSDBalance;
+          }
+        } else if (debt.currency === 'USD') {
+          // For USD debts, prioritize USD payment but allow IQD cross-payment
+          if (remainingUSDPayment > 0) {
+            paymentFromUSDBalance = Math.min(remainingUSDPayment, debt.remainingAmount);
+            remainingUSDPayment -= paymentFromUSDBalance;
+          }
+          
+          // If still debt remaining, pay with IQD balance (converted to USD equivalent)
+          const stillOwedAfterUSD = debt.remainingAmount - paymentFromUSDBalance;
+          if (stillOwedAfterUSD > 0 && remainingIQDPayment > 0) {
+            const iqdNeededForDebt = stillOwedAfterUSD * currentUSDToIQD;
+            paymentFromIQDBalance = Math.min(remainingIQDPayment, iqdNeededForDebt);
+            remainingIQDPayment -= paymentFromIQDBalance;
+          }
+        } else if (debt.currency === 'MULTI') {
+          // For multi-currency debts, apply both currencies proportionally
+          const remainingUSD = Math.max(0, (debt.usd_amount || 0) - currentPaidUSD);
+          const remainingIQD = Math.max(0, (debt.iqd_amount || 0) - currentPaidIQD);
+          
+          if (remainingUSD > 0 && remainingUSDPayment > 0) {
+            paymentFromUSDBalance = Math.min(remainingUSDPayment, remainingUSD);
+            remainingUSDPayment -= paymentFromUSDBalance;
+          }
+          
+          if (remainingIQD > 0 && remainingIQDPayment > 0) {
+            paymentFromIQDBalance = Math.min(remainingIQDPayment, remainingIQD);
+            remainingIQDPayment -= paymentFromIQDBalance;
+          }
         }
         
         if (paymentFromUSDBalance > 0 || paymentFromIQDBalance > 0) {
           const updatedPaidUSD = currentPaidUSD + paymentFromUSDBalance;
           const updatedPaidIQD = currentPaidIQD + paymentFromIQDBalance;
           
-          // Check if this specific debt is fully paid
-          const totalPaidIQDEquivalent = updatedPaidIQD + (updatedPaidUSD * currentUSDToIQD);
-          const isFullyPaid = totalPaidIQDEquivalent >= iqdDebt.amount;
+          // Check if this specific debt is fully paid based on its currency type
+          let isFullyPaid = false;
+          if (debt.currency === 'IQD') {
+            const totalPaidIQDEquivalent = updatedPaidIQD + (updatedPaidUSD * currentUSDToIQD);
+            isFullyPaid = totalPaidIQDEquivalent >= debt.amount;
+          } else if (debt.currency === 'USD') {
+            const totalPaidUSDEquivalent = updatedPaidUSD + (updatedPaidIQD / currentUSDToIQD);
+            isFullyPaid = totalPaidUSDEquivalent >= debt.amount;
+          } else if (debt.currency === 'MULTI') {
+            const usdFullyPaid = updatedPaidUSD >= (debt.usd_amount || 0);
+            const iqdFullyPaid = updatedPaidIQD >= (debt.iqd_amount || 0);
+            isFullyPaid = usdFullyPaid && iqdFullyPaid;
+          }
+          
           const paidAt = isFullyPaid ? now : null;
           
           // Update debt record
@@ -1352,43 +1264,16 @@ function payCompanyDebtTotalForcedIQD(db, companyName, paymentData) {
             UPDATE company_debts 
             SET payment_usd_amount = ?, payment_iqd_amount = ?, paid_at = ?
             WHERE id = ?
-          `).run(updatedPaidUSD, updatedPaidIQD, paidAt, iqdDebt.id);
+          `).run(updatedPaidUSD, updatedPaidIQD, paidAt, debt.id);
           
           paidDebts.push({
-            id: iqdDebt.id,
-            company_name: iqdDebt.company_name,
-            description: iqdDebt.description,
+            id: debt.id,
+            company_name: debt.company_name,
+            description: debt.description,
             paymentUSD: paymentFromUSDBalance,
             paymentIQD: paymentFromIQDBalance,
             fullyPaid: isFullyPaid
           });
-          
-          // Add to buying history for balance deduction tracking
-          if (paymentFromIQDBalance > 0) {
-            db.prepare(`
-              INSERT INTO buying_history (
-                item_name, quantity, unit_price, currency, date, 
-                supplier, total_price
-              ) VALUES (?, ?, ?, ?, ?, ?, ?)
-            `).run(
-              `IQD Debt Payment - ${iqdDebt.description || 'Company Debt'}`,
-              1, paymentFromIQDBalance, 'IQD', now,
-              iqdDebt.company_name, paymentFromIQDBalance
-            );
-          }
-          
-          if (paymentFromUSDBalance > 0) {
-            db.prepare(`
-              INSERT INTO buying_history (
-                item_name, quantity, unit_price, currency, date, 
-                supplier, total_price
-              ) VALUES (?, ?, ?, ?, ?, ?, ?)
-            `).run(
-              `IQD Debt Payment (paid with USD) - ${iqdDebt.description || 'Company Debt'}`,
-              1, paymentFromUSDBalance, 'USD', now,
-              iqdDebt.company_name, paymentFromUSDBalance
-            );
-          }
           
           totalPaidFromUSD += paymentFromUSDBalance;
           totalPaidFromIQD += paymentFromIQDBalance;
@@ -1403,13 +1288,50 @@ function payCompanyDebtTotalForcedIQD(db, companyName, paymentData) {
         settings.updateBalance(db, 'IQD', -totalPaidFromIQD);
       }
       
+      // Check if there's still any debt remaining after payment (all currencies)
+      const remainingAllDebts = db.prepare(`
+        SELECT SUM(
+          CASE 
+            WHEN currency = 'USD' THEN amount - COALESCE(payment_usd_amount, 0) - COALESCE(payment_iqd_amount, 0) / 1440
+            WHEN currency = 'IQD' THEN amount - COALESCE(payment_iqd_amount, 0) - COALESCE(payment_usd_amount, 0) * 1440
+            WHEN currency = 'MULTI' THEN 
+              (COALESCE(usd_amount, 0) - COALESCE(payment_usd_amount, 0)) + 
+              (COALESCE(iqd_amount, 0) - COALESCE(payment_iqd_amount, 0)) / 1440
+            ELSE amount
+          END
+        ) as total_remaining
+        FROM company_debts 
+        WHERE company_name = ? AND paid_at IS NULL
+      `).get(companyName);
+      
+      const finalRemainingDebt = remainingAllDebts?.total_remaining || 0;
+      const actualOverpayment = (remainingIQDPayment > 0 || remainingUSDPayment > 0) && finalRemainingDebt <= 0;
+
+      // Record the total transaction for forced IQD payment
+      if (totalPaidFromUSD > 0 || totalPaidFromIQD > 0) {
+        const addTransactionStmt = db.prepare(`
+          INSERT INTO transactions (type, amount_usd, amount_iqd, description, reference_id, reference_type, created_at) 
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `);
+        
+        addTransactionStmt.run(
+          'company_debt_payment',
+          totalPaidFromUSD || 0, // Positive for spending
+          totalPaidFromIQD || 0, // Positive for spending
+          `Forced IQD debt payment: ${companyName} - Paid ${paidDebts.length} debt(s)`,
+          null, // No single reference ID since we're paying multiple debts
+          'company_debt_forced_iqd',
+          now
+        );
+      }
+
       return {
         success: true,
         message: `IQD debt payment completed for ${companyName}`,
         paidDebts,
         totalPaid: { usd: totalPaidFromUSD, iqd: totalPaidFromIQD },
         remainingPayment: { usd: remainingUSDPayment, iqd: remainingIQDPayment },
-        hasOverpayment: remainingUSDPayment > 0 || remainingIQDPayment > 0,
+        hasOverpayment: actualOverpayment,
         paymentMethod: 'forced_iqd'
       };
       

@@ -267,10 +267,11 @@ function MultiCurrencyDashboard({ admin, t, onRefresh }) {
       const isToday = entryDate.toDateString() === today;
       const isUSD = entry.currency === 'USD';
       const isNotDebtPayment = entry.type !== 'debt_payment';
+      const isNotTransactionEntry = entry.entry_type !== 'transaction'; // Exclude transaction-generated entries
       
-      // Only include if it's a USD entry from today that's not a debt payment
+      // Only include if it's a USD entry from today that's not a debt payment and not a transaction-generated entry
       // AND there's no corresponding transaction (legacy entries)
-      if (isToday && isUSD && isNotDebtPayment) {
+      if (isToday && isUSD && isNotDebtPayment && isNotTransactionEntry) {
         // Check if there's a corresponding transaction
         const hasTransaction = (transactions || []).some(t => 
           t.reference_type === 'buying_history' && 
@@ -333,10 +334,11 @@ function MultiCurrencyDashboard({ admin, t, onRefresh }) {
       const isToday = entryDate.toDateString() === today;
       const isIQD = entry.currency === 'IQD' || !entry.currency; // IQD is default
       const isNotDebtPayment = entry.type !== 'debt_payment';
+      const isNotTransactionEntry = entry.entry_type !== 'transaction'; // Exclude transaction-generated entries
       
-      // Only include if it's an IQD entry from today that's not a debt payment
+      // Only include if it's an IQD entry from today that's not a debt payment and not a transaction-generated entry
       // AND there's no corresponding transaction (legacy entries)
-      if (isToday && isIQD && isNotDebtPayment) {
+      if (isToday && isIQD && isNotDebtPayment && isNotTransactionEntry) {
         // Check if there's a corresponding transaction
         const hasTransaction = (transactions || []).some(t => 
           t.reference_type === 'buying_history' && 
