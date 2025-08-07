@@ -163,12 +163,12 @@ function MultiCurrencyDashboard({ admin, t, onRefresh }) {
       return incentiveDate.toDateString() === today && (incentive.currency === 'IQD' || !incentive.currency);
     }).reduce((sum, incentive) => sum + (incentive.amount || 0), 0);
 
-    // Today's customer debt payments (partial and full) - these add to balance
+    // Today's customer debt payments - these add to balance
     const todaysCustomerDebtPaymentsUSD = (transactions || []).filter(transaction => {
       if (!transaction.created_at) return false;
       const transactionDate = new Date(transaction.created_at);
       return transactionDate.toDateString() === today && 
-             (transaction.type === 'customer_debt_payment_partial' || transaction.type === 'customer_debt_payment_final') && 
+             transaction.type === 'customer_debt_payment' && 
              transaction.amount_usd > 0;
     }).reduce((sum, transaction) => sum + transaction.amount_usd, 0);
 
@@ -176,26 +176,14 @@ function MultiCurrencyDashboard({ admin, t, onRefresh }) {
       if (!transaction.created_at) return false;
       const transactionDate = new Date(transaction.created_at);
       return transactionDate.toDateString() === today && 
-             (transaction.type === 'customer_debt_payment_partial' || transaction.type === 'customer_debt_payment_final') && 
+             transaction.type === 'customer_debt_payment' && 
              transaction.amount_iqd > 0;
     }).reduce((sum, transaction) => sum + transaction.amount_iqd, 0);
 
-    // Today's partial debt payments only (for daily balance display)
-    const todaysPartialDebtPaymentsUSD = (transactions || []).filter(transaction => {
-      if (!transaction.created_at) return false;
-      const transactionDate = new Date(transaction.created_at);
-      return transactionDate.toDateString() === today && 
-             transaction.type === 'customer_debt_payment_partial' && 
-             transaction.amount_usd > 0;
-    }).reduce((sum, transaction) => sum + transaction.amount_usd, 0);
+    // Today's customer debt payments (same as above for display purposes)
+    const todaysPartialDebtPaymentsUSD = todaysCustomerDebtPaymentsUSD;
 
-    const todaysPartialDebtPaymentsIQD = (transactions || []).filter(transaction => {
-      if (!transaction.created_at) return false;
-      const transactionDate = new Date(transaction.created_at);
-      return transactionDate.toDateString() === today && 
-             transaction.type === 'customer_debt_payment_partial' && 
-             transaction.amount_iqd > 0;
-    }).reduce((sum, transaction) => sum + transaction.amount_iqd, 0);
+    const todaysPartialDebtPaymentsIQD = todaysCustomerDebtPaymentsIQD;
 
     // This week's sales by currency - exclude unpaid debt sales
     const oneWeekAgo = new Date();
@@ -416,7 +404,7 @@ function MultiCurrencyDashboard({ admin, t, onRefresh }) {
       if (!transaction.created_at) return false;
       const transactionDate = new Date(transaction.created_at);
       return transactionDate.toDateString() === today && 
-             transaction.type === 'loan_payment' && 
+             transaction.type === 'personal_loan_payment' && 
              transaction.amount_usd > 0; // Positive means money coming in (debt payment received)
     }).reduce((sum, transaction) => sum + transaction.amount_usd, 0);
 
@@ -424,7 +412,7 @@ function MultiCurrencyDashboard({ admin, t, onRefresh }) {
       if (!transaction.created_at) return false;
       const transactionDate = new Date(transaction.created_at);
       return transactionDate.toDateString() === today && 
-             transaction.type === 'loan_payment' && 
+             transaction.type === 'personal_loan_payment' && 
              transaction.amount_iqd > 0; // Positive means money coming in (debt payment received)
     }).reduce((sum, transaction) => sum + transaction.amount_iqd, 0);
 
@@ -904,6 +892,10 @@ function MultiCurrencyDashboard({ admin, t, onRefresh }) {
                     transaction.type === 'sale' ? 'bg-green-500' :
                     transaction.type === 'debt_sale' ? 'bg-orange-500' :
                     transaction.type === 'purchase' ? 'bg-red-500' :
+                    transaction.type === 'personal_loan' ? 'bg-purple-500' :
+                    transaction.type === 'personal_loan_payment' ? 'bg-indigo-500' :
+                    transaction.type === 'customer_debt_payment' ? 'bg-teal-500' :
+                    transaction.type === 'company_debt_payment' ? 'bg-cyan-500' :
                     transaction.type === 'loan' ? 'bg-purple-500' :
                     transaction.type === 'debt_payment' ? 'bg-blue-500' :
                     'bg-gray-500'
@@ -912,6 +904,10 @@ function MultiCurrencyDashboard({ admin, t, onRefresh }) {
                       transaction.type === 'sale' ? 'dollarSign' :
                       transaction.type === 'debt_sale' ? 'creditCard' :
                       transaction.type === 'purchase' ? 'shoppingCart' :
+                      transaction.type === 'personal_loan' ? 'handHeart' :
+                      transaction.type === 'personal_loan_payment' ? 'coins' :
+                      transaction.type === 'customer_debt_payment' ? 'banknote' :
+                      transaction.type === 'company_debt_payment' ? 'building2' :
                       transaction.type === 'loan' ? 'handHeart' :
                       transaction.type === 'debt_payment' ? 'banknote' :
                       'fileText'
@@ -923,6 +919,10 @@ function MultiCurrencyDashboard({ admin, t, onRefresh }) {
                         transaction.type === 'sale' ? (t?.sale || 'Sale') :
                         transaction.type === 'debt_sale' ? (t?.debtSale || 'Debt Sale') :
                         transaction.type === 'purchase' ? (t?.purchase || 'Purchase') :
+                        transaction.type === 'personal_loan' ? (t?.personalLoan || 'Personal Loan') :
+                        transaction.type === 'personal_loan_payment' ? (t?.personalLoanPayment || 'Loan Payment') :
+                        transaction.type === 'customer_debt_payment' ? (t?.customerDebtPayment || 'Customer Debt Payment') :
+                        transaction.type === 'company_debt_payment' ? (t?.companyDebtPayment || 'Company Debt Payment') :
                         transaction.type === 'loan' ? (t?.loan || 'Loan') :
                         transaction.type === 'debt_payment' ? (t?.debtPayment || 'Debt Payment') :
                         transaction.type

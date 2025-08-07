@@ -50,10 +50,10 @@ export default function ModalBase({ open, show, onClose, children, className = '
 
   return (
     <div 
-      className="fixed inset-0 bg-gray-900/50 dark:bg-black/60 flex items-center justify-center z-50 animate-fade-in"
+      className="fixed inset-0 bg-gray-900/50 dark:bg-black/60 flex items-center justify-center z-50 animate-fade-in p-6"
       onClick={handleBackdropClick}
     >
-      <div className={`bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full ${maxWidthClasses[maxWidth] || 'max-w-2xl'} flex flex-col border border-blue-200 dark:border-blue-700 ${className} max-h-[90vh] overflow-hidden`}>
+      <div className={`bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full ${maxWidthClasses[maxWidth] || 'max-w-2xl'} flex flex-col border border-blue-200 dark:border-blue-700 ${className} max-h-[90vh] overflow-hidden m-4`}>
         {title && (
           <div className="p-6 border-b border-gray-200 dark:border-gray-700">
             <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">

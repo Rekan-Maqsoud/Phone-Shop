@@ -70,20 +70,10 @@ const ReturnModal = ({
       // Use the exchange rate from when the purchase was made
       usdToIqd = entry.exchange_rate_usd_to_iqd;
       iqdToUsd = entry.exchange_rate_iqd_to_usd;
-      console.log('🔍 [FRONTEND DEBUG] Using ORIGINAL exchange rates:', {
-        usdToIqd,
-        iqdToUsd,
-        source: 'purchase_record'
-      });
     } else {
       // Fallback to current rate if original rate not stored
       usdToIqd = getCurrentExchangeRate('USD', 'IQD');
       iqdToUsd = getCurrentExchangeRate('IQD', 'USD');
-      console.log('🔍 [FRONTEND DEBUG] Using CURRENT exchange rates:', {
-        usdToIqd,
-        iqdToUsd,
-        source: 'current_settings'
-      });
     }
 
     // Handle individual item returns
@@ -124,16 +114,6 @@ const ReturnModal = ({
         originalCurrency: 'MULTI'
       };
       
-      console.log('🔍 [FRONTEND DEBUG] Multi-currency calculation:', {
-        entry: { multi_currency_usd: entry.multi_currency_usd, multi_currency_iqd: entry.multi_currency_iqd },
-        quantityRatio,
-        usdPortion,
-        iqdPortion,
-        iqdToUsd,
-        totalValueUSD: result.totalValueUSD,
-        calculation: `${usdPortion} + (${iqdPortion} * ${iqdToUsd}) = ${result.totalValueUSD}`
-      });
-      
       return result;
     }
     
@@ -147,7 +127,6 @@ const ReturnModal = ({
         totalValueUSD: totalAmount,
         originalCurrency: 'USD'
       };
-      console.log('🔍 [FRONTEND DEBUG] USD single currency:', { totalAmount, result });
       return result;
     } else {
       const result = {
@@ -156,12 +135,6 @@ const ReturnModal = ({
         totalValueUSD: totalAmount * iqdToUsd,
         originalCurrency: 'IQD'
       };
-      console.log('🔍 [FRONTEND DEBUG] IQD single currency:', {
-        totalAmount,
-        iqdToUsd,
-        totalValueUSD: result.totalValueUSD,
-        calculation: `${totalAmount} * ${iqdToUsd} = ${result.totalValueUSD}`
-      });
       return result;
     }
   }, [returnData, returnQuantity]);
@@ -184,16 +157,6 @@ const ReturnModal = ({
       iqdToUsd = getCurrentExchangeRate('IQD', 'USD');
     }
     
-    console.log('🔍 [FRONTEND DEBUG] Current return calculation:', {
-      returnCurrency,
-      maxUSD,
-      maxIQD,
-      usdToIqd,
-      iqdToUsd,
-      usdAmount,
-      iqdAmount
-    });
-    
     if (returnCurrency === 'MIXED') {
       const requestedUSD = Math.min(parseFloat(usdAmount) || 0, maxUSD);
       const requestedIQD = Math.min(parseFloat(iqdAmount) || 0, maxIQD);
@@ -204,13 +167,6 @@ const ReturnModal = ({
         totalValueUSD: requestedUSD + (requestedIQD * iqdToUsd),
         isValid: (requestedUSD + requestedIQD) > 0
       };
-      
-      console.log('🔍 [FRONTEND DEBUG] MIXED return result:', {
-        requestedUSD,
-        requestedIQD,
-        totalValueUSD: result.totalValueUSD,
-        calculation: `${requestedUSD} + (${requestedIQD} * ${iqdToUsd}) = ${result.totalValueUSD}`
-      });
       
       return result;
     } else if (returnCurrency === 'USD') {
@@ -226,13 +182,6 @@ const ReturnModal = ({
         isValid: finalUSD > 0
       };
       
-      console.log('🔍 [FRONTEND DEBUG] USD return result:', {
-        totalAvailableUSD,
-        requestedUSD,
-        finalUSD,
-        calculation: `${maxUSD} + (${maxIQD} * ${iqdToUsd}) = ${totalAvailableUSD}`
-      });
-      
       return result;
     } else { // IQD
       // Return everything as IQD
@@ -246,15 +195,6 @@ const ReturnModal = ({
         totalValueUSD: finalIQD * iqdToUsd,
         isValid: finalIQD > 0
       };
-      
-      console.log('🔍 [FRONTEND DEBUG] IQD return result:', {
-        totalAvailableIQD,
-        requestedIQD,
-        finalIQD,
-        totalValueUSD: result.totalValueUSD,
-        calculation: `${maxIQD} + (${maxUSD} * ${usdToIqd}) = ${totalAvailableIQD}`,
-        usdEquivalent: `${finalIQD} * ${iqdToUsd} = ${result.totalValueUSD}`
-      });
       
       return result;
     }

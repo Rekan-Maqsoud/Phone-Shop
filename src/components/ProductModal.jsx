@@ -62,8 +62,8 @@ export default function ProductModal({
   if (!show) return null;
   
   return (
-    <div className="fixed inset-0 bg-gray-900/40 dark:bg-black/40 flex items-center justify-center z-50 transition-opacity duration-200 animate-modal-in" role="dialog" aria-modal="true">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8 w-full max-w-5xl max-h-[90vh] overflow-y-auto transform transition-all duration-200 scale-95 animate-modal-in" tabIndex="-1">
+    <div className="fixed inset-0 bg-gray-900/40 dark:bg-black/40 flex items-center justify-center z-50 transition-opacity duration-200 animate-modal-in p-6" role="dialog" aria-modal="true">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8 w-full max-w-5xl max-h-[90vh] overflow-y-auto transform transition-all duration-200 scale-95 animate-modal-in m-4" tabIndex="-1">
         <h2 className="text-xl font-bold mb-4 text-gray-800 dark:text-gray-100">
           {isEdit ? `${t.edit} ${t.products}` : t.addProductTitle}
         </h2>

@@ -185,15 +185,14 @@ function markCustomerDebtPaid(db, id, paymentData) {
       );
       
       // Record transaction - track the actual payment amounts made
-      // Use different transaction types for partial vs full payments
-      const transactionType = isFullyPaid ? 'customer_debt_payment_final' : 'customer_debt_payment_partial';
+      // Use consistent transaction type for customer debt payments
       const addTransactionStmt = db.prepare(`
         INSERT INTO transactions (type, amount_usd, amount_iqd, description, reference_id, reference_type, created_at) 
         VALUES (?, ?, ?, ?, ?, ?, ?)
       `);
       
       addTransactionStmt.run(
-        transactionType,
+        'customer_debt_payment',
         finalUSDAmount || 0,
         finalIQDAmount || 0,
         `Customer debt payment ${isFullyPaid ? '(FINAL)' : '(PARTIAL)'}: ${debtInfo.customer_name} - ${debtInfo.description || 'Payment'}`,
@@ -302,19 +301,14 @@ function deleteCustomerDebt(db, id) {
 
 // New function to pay total customer debt for a specific customer
 function payCustomerDebtTotal(db, customerName, paymentData) {
-  console.log('🔍 [DEBUG] payCustomerDebtTotal called with:', { customerName, paymentData });
-  
   const { 
     payment_usd_amount = 0, 
     payment_iqd_amount = 0 
   } = paymentData || {};
   
   if (!customerName) {
-    console.log('❌ [DEBUG] Customer name is required');
     throw new Error('Customer name is required');
   }
-  
-  console.log('🔍 [DEBUG] Processing payment - USD:', payment_usd_amount, 'IQD:', payment_iqd_amount);
   
   const now = new Date().toISOString();
   
@@ -329,16 +323,6 @@ function payCustomerDebtTotal(db, customerName, paymentData) {
         WHERE LOWER(customer_name) = LOWER(?) AND paid_at IS NULL
         ORDER BY created_at ASC
       `).all(customerName);
-      
-      console.log('🔍 [DEBUG] Found unpaid debts:', unpaidDebts.length);
-      console.log('🔍 [DEBUG] Unpaid debts details:', unpaidDebts.map(d => ({ 
-        id: d.id, 
-        amount: d.amount, 
-        currency: d.currency, 
-        description: d.description,
-        already_paid_usd: d.payment_usd_amount || 0,
-        already_paid_iqd: d.payment_iqd_amount || 0
-      })));
       
       if (unpaidDebts.length === 0) {
         // Check if customer exists with any debts (paid or unpaid)
@@ -358,29 +342,15 @@ function payCustomerDebtTotal(db, customerName, paymentData) {
       const currentUSDToIQD = getExchangeRate(db, 'USD', 'IQD');
       const currentIQDToUSD = 1 / currentUSDToIQD;
       
-      console.log('🔍 [DEBUG] Exchange rates - USD to IQD:', currentUSDToIQD, 'IQD to USD:', currentIQDToUSD);
-      console.log('🔍 [DEBUG] REGULAR PAYMENT MODE - Will pay both USD and IQD debts intelligently');
-      
       let remainingUSDPayment = payment_usd_amount;
       let remainingIQDPayment = payment_iqd_amount;
       let totalPaidUSD = 0;
       let totalPaidIQD = 0;
       let paidDebts = [];
       
-      console.log('🔍 [DEBUG] Starting payment process with USD:', remainingUSDPayment, 'IQD:', remainingIQDPayment);
-      
       // Process each debt in order (oldest first)
       for (const debt of unpaidDebts) {
-        console.log(`🔍 [DEBUG] Processing debt ID ${debt.id}:`, {
-          amount: debt.amount,
-          currency: debt.currency,
-          description: debt.description,
-          already_paid_usd: debt.payment_usd_amount || 0,
-          already_paid_iqd: debt.payment_iqd_amount || 0
-        });
-        
         if (remainingUSDPayment <= 0 && remainingIQDPayment <= 0) {
-          console.log('🔍 [DEBUG] No more payment remaining, stopping');
           break; // No more payment left
         }
         
@@ -395,20 +365,16 @@ function payCustomerDebtTotal(db, customerName, paymentData) {
           const paidIQDInUSD = currentPaidIQD / currentUSDToIQD;
           remainingDebtUSD = Math.max(0, debt.amount - currentPaidUSD - paidIQDInUSD);
           remainingDebtIQD = 0;
-          console.log(`🔍 [DEBUG] USD debt - remaining: $${remainingDebtUSD.toFixed(2)} (original: $${debt.amount}, paid USD: $${currentPaidUSD}, paid IQD equivalent: $${paidIQDInUSD.toFixed(2)})`);
         } else {
           // IQD or default
           const paidUSDInIQD = currentPaidUSD * currentUSDToIQD;
           remainingDebtIQD = Math.max(0, debt.amount - currentPaidIQD - paidUSDInIQD);
           remainingDebtUSD = 0;
-          console.log(`🔍 [DEBUG] IQD debt - remaining: ${remainingDebtIQD.toFixed(0)} IQD (original: ${debt.amount} IQD, paid IQD: ${currentPaidIQD}, paid USD equivalent: ${paidUSDInIQD.toFixed(0)} IQD)`);
         }
         
         // Apply payment to this debt
         let usdToApply = 0;
         let iqdToApply = 0;
-        
-        console.log(`🔍 [DEBUG] Available payments - USD: $${remainingUSDPayment}, IQD: ${remainingIQDPayment} IQD`);
         
         // For single-currency debts, use the existing logic
         // First, try to pay with matching currency
@@ -416,14 +382,12 @@ function payCustomerDebtTotal(db, customerName, paymentData) {
           usdToApply = Math.min(remainingDebtUSD, remainingUSDPayment);
           remainingUSDPayment -= usdToApply;
           remainingDebtUSD -= usdToApply;
-          console.log(`🔍 [DEBUG] Applied USD payment: $${usdToApply} to USD debt. Remaining USD payment: $${remainingUSDPayment}, Remaining USD debt: $${remainingDebtUSD}`);
         }
         
         if (remainingDebtIQD > 0 && remainingIQDPayment > 0) {
           iqdToApply = Math.min(remainingDebtIQD, remainingIQDPayment);
           remainingIQDPayment -= iqdToApply;
           remainingDebtIQD -= iqdToApply;
-          console.log(`🔍 [DEBUG] Applied IQD payment: ${iqdToApply} IQD to IQD debt. Remaining IQD payment: ${remainingIQDPayment} IQD, Remaining IQD debt: ${remainingDebtIQD} IQD`);
         }
         
         // Cross-currency payment for single-currency debts
@@ -432,7 +396,6 @@ function payCustomerDebtTotal(db, customerName, paymentData) {
           iqdToApply += iqdToUSDForDebt;
           remainingIQDPayment -= iqdToUSDForDebt;
           remainingDebtUSD -= iqdToUSDForDebt / currentUSDToIQD;
-          console.log(`🔍 [DEBUG] Cross-currency: Applied ${iqdToUSDForDebt} IQD to USD debt (equivalent to $${(iqdToUSDForDebt / currentUSDToIQD).toFixed(2)})`);
         }
         
         if (remainingDebtIQD > 0 && remainingUSDPayment > 0) {
@@ -440,28 +403,21 @@ function payCustomerDebtTotal(db, customerName, paymentData) {
           usdToApply += usdToIQDForDebt;
           remainingUSDPayment -= usdToIQDForDebt;
           remainingDebtIQD -= usdToIQDForDebt * currentUSDToIQD;
-          console.log(`🔍 [DEBUG] Cross-currency: Applied $${usdToIQDForDebt} to IQD debt (equivalent to ${(usdToIQDForDebt * currentUSDToIQD).toFixed(0)} IQD)`);
         }
-        
-        console.log(`🔍 [DEBUG] Final payment amounts for debt ${debt.id}: USD: $${usdToApply}, IQD: ${iqdToApply} IQD`);
         
         // Apply the payment to this debt
         if (usdToApply > 0 || iqdToApply > 0) {
           const newTotalPaidUSD = currentPaidUSD + usdToApply;
           const newTotalPaidIQD = currentPaidIQD + iqdToApply;
           
-          console.log(`🔍 [DEBUG] Updating debt ${debt.id} - New totals: USD paid: $${newTotalPaidUSD}, IQD paid: ${newTotalPaidIQD} IQD`);
-          
           // Check if this debt is now fully paid
           let isFullyPaid = false;
           if (debt.currency === 'USD') {
             const totalPaidUSDEquivalent = newTotalPaidUSD + (newTotalPaidIQD / currentUSDToIQD);
             isFullyPaid = totalPaidUSDEquivalent >= (debt.amount - 0.01);
-            console.log(`🔍 [DEBUG] USD debt ${debt.id} - Total paid equivalent: $${totalPaidUSDEquivalent.toFixed(2)}, Required: $${debt.amount}, Fully paid: ${isFullyPaid}`);
           } else {
             const totalPaidIQDEquivalent = newTotalPaidIQD + (newTotalPaidUSD * currentUSDToIQD);
             isFullyPaid = totalPaidIQDEquivalent >= (debt.amount - 250);
-            console.log(`🔍 [DEBUG] IQD debt ${debt.id} - Total paid equivalent: ${totalPaidIQDEquivalent.toFixed(0)} IQD, Required: ${debt.amount} IQD, Fully paid: ${isFullyPaid}`);
           }
           
           // Update the debt
@@ -2901,14 +2857,14 @@ function markPersonalLoanPaid(db, id, paymentData) {
       }
       
       // Record transaction - track the actual payment amounts received (original amounts paid by customer)
-      const description = `Loan payment from ${loanInfo.person_name}`;
+      const description = `Personal loan payment from ${loanInfo.person_name}`;
       const addTransactionStmt = db.prepare(`
         INSERT INTO transactions (type, amount_usd, amount_iqd, description, reference_id, reference_type, created_at) 
         VALUES (?, ?, ?, ?, ?, ?, ?)
       `);
       
       addTransactionStmt.run(
-        'loan_payment',
+        'personal_loan_payment',
         payment_usd_amount || 0, // Use original payment amounts for transaction record
         payment_iqd_amount || 0,
         description,
@@ -3100,8 +3056,8 @@ function payPersonalLoanTotal(db, personName, paymentData) {
         }
       }
       
-      // Record the total transaction
-      if (totalPaidUSD > 0 || totalPaidIQD > 0) {
+      // Record the total transaction - use original payment amounts for daily tracking
+      if (payment_usd_amount > 0 || payment_iqd_amount > 0) {
         const addTransactionStmt = db.prepare(`
           INSERT INTO transactions (type, amount_usd, amount_iqd, description, reference_id, reference_type, created_at) 
           VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -3109,8 +3065,8 @@ function payPersonalLoanTotal(db, personName, paymentData) {
         
         addTransactionStmt.run(
           'personal_loan_payment',
-          totalPaidUSD || 0, // Positive for receiving
-          totalPaidIQD || 0, // Positive for receiving
+          payment_usd_amount || 0, // Use original payment amounts for daily tracking
+          payment_iqd_amount || 0, // Use original payment amounts for daily tracking
           `Total personal loan payment: ${personName} - Paid ${paidLoans.length} loan(s)`,
           null, // No single reference ID since we're paying multiple loans
           'personal_loan_total',
@@ -3138,12 +3094,12 @@ function payPersonalLoanTotal(db, personName, paymentData) {
           }
         }
       } else {
-        // Regular payment: add to balance based on what was applied to loans
-        if (totalPaidUSD > 0) {
-          settings.updateBalance(db, 'USD', totalPaidUSD);
+        // Regular payment: add to balance based on what the customer actually paid (original amounts)
+        if (payment_usd_amount > 0) {
+          settings.updateBalance(db, 'USD', payment_usd_amount);
         }
-        if (totalPaidIQD > 0) {
-          settings.updateBalance(db, 'IQD', totalPaidIQD);
+        if (payment_iqd_amount > 0) {
+          settings.updateBalance(db, 'IQD', payment_iqd_amount);
         }
       }
       
@@ -3311,12 +3267,12 @@ function payPersonalLoanTotalForcedUSD(db, personName, paymentData) {
         }
       }
       
-      // Add to user's balance based on what currency was actually used
-      if (totalPaidFromUSD > 0) {
-        settings.updateBalance(db, 'USD', totalPaidFromUSD);
+      // Add to user's balance based on what the customer actually paid (original amounts)
+      if (payment_usd_amount > 0) {
+        settings.updateBalance(db, 'USD', payment_usd_amount);
       }
-      if (totalPaidFromIQD > 0) {
-        settings.updateBalance(db, 'IQD', totalPaidFromIQD);
+      if (payment_iqd_amount > 0) {
+        settings.updateBalance(db, 'IQD', payment_iqd_amount);
       }
       
       // Check if there's still any loan remaining after payment (all currencies)
@@ -3335,8 +3291,8 @@ function payPersonalLoanTotalForcedUSD(db, personName, paymentData) {
       const finalRemainingLoan = remainingAllLoans?.total_remaining || 0;
       const actualOverpayment = (remainingUSDPayment > 0 || remainingIQDPayment > 0) && finalRemainingLoan <= 0;
 
-      // Record the total transaction for forced USD payment
-      if (totalPaidFromUSD > 0 || totalPaidFromIQD > 0) {
+      // Record the total transaction for forced USD payment - use original amounts
+      if (payment_usd_amount > 0 || payment_iqd_amount > 0) {
         const addTransactionStmt = db.prepare(`
           INSERT INTO transactions (type, amount_usd, amount_iqd, description, reference_id, reference_type, created_at) 
           VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -3344,8 +3300,8 @@ function payPersonalLoanTotalForcedUSD(db, personName, paymentData) {
         
         addTransactionStmt.run(
           'personal_loan_payment',
-          totalPaidFromUSD || 0, // Positive for receiving
-          totalPaidFromIQD || 0, // Positive for receiving
+          payment_usd_amount || 0, // Use original payment amounts for daily tracking
+          payment_iqd_amount || 0, // Use original payment amounts for daily tracking
           `Forced USD loan payment: ${personName} - Paid ${paidLoans.length} loan(s)`,
           null, // No single reference ID since we're paying multiple loans
           'personal_loan_forced_usd',
@@ -3518,12 +3474,12 @@ function payPersonalLoanTotalForcedIQD(db, personName, paymentData) {
         }
       }
       
-      // Add to user's balance based on what currency was actually used
-      if (totalPaidFromUSD > 0) {
-        settings.updateBalance(db, 'USD', totalPaidFromUSD);
+      // Add to user's balance based on what the customer actually paid (original amounts)
+      if (payment_usd_amount > 0) {
+        settings.updateBalance(db, 'USD', payment_usd_amount);
       }
-      if (totalPaidFromIQD > 0) {
-        settings.updateBalance(db, 'IQD', totalPaidFromIQD);
+      if (payment_iqd_amount > 0) {
+        settings.updateBalance(db, 'IQD', payment_iqd_amount);
       }
       
       // Check if there's still any loan remaining after payment (all currencies)
@@ -3542,8 +3498,8 @@ function payPersonalLoanTotalForcedIQD(db, personName, paymentData) {
       const finalRemainingLoan = remainingAllLoans?.total_remaining || 0;
       const actualOverpayment = (remainingIQDPayment > 0 || remainingUSDPayment > 0) && finalRemainingLoan <= 0;
 
-      // Record the total transaction for forced IQD payment
-      if (totalPaidFromUSD > 0 || totalPaidFromIQD > 0) {
+      // Record the total transaction for forced IQD payment - use original amounts
+      if (payment_usd_amount > 0 || payment_iqd_amount > 0) {
         const addTransactionStmt = db.prepare(`
           INSERT INTO transactions (type, amount_usd, amount_iqd, description, reference_id, reference_type, created_at) 
           VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -3551,8 +3507,8 @@ function payPersonalLoanTotalForcedIQD(db, personName, paymentData) {
         
         addTransactionStmt.run(
           'personal_loan_payment',
-          totalPaidFromUSD || 0, // Positive for receiving
-          totalPaidFromIQD || 0, // Positive for receiving
+          payment_usd_amount || 0, // Use original payment amounts for daily tracking
+          payment_iqd_amount || 0, // Use original payment amounts for daily tracking
           `Forced IQD loan payment: ${personName} - Paid ${paidLoans.length} loan(s)`,
           null, // No single reference ID since we're paying multiple loans
           'personal_loan_forced_iqd',
@@ -3783,7 +3739,7 @@ function payPersonalLoanTotalSimplifiedForcedUSD(db, personName, paymentData) {
       const totalOriginalUSD = payment_usd_amount + (payment_iqd_amount / currentUSDToIQD);
       const totalUsedUSD = totalOriginalUSD - remainingPaymentUSD;
       
-      if (totalUsedUSD > 0) {
+      if (payment_usd_amount > 0 || payment_iqd_amount > 0) {
         const addTransactionStmt = db.prepare(`
           INSERT INTO transactions (type, amount_usd, amount_iqd, description, reference_id, reference_type, created_at) 
           VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -3791,8 +3747,8 @@ function payPersonalLoanTotalSimplifiedForcedUSD(db, personName, paymentData) {
         
         addTransactionStmt.run(
           'personal_loan_payment',
-          totalPaidUSD, // USD applied to USD loans
-          totalPaidIQD, // IQD applied to IQD loans (converted from USD)
+          payment_usd_amount || 0, // Use original payment amounts for daily tracking
+          payment_iqd_amount || 0, // Use original payment amounts for daily tracking
           `Forced USD payment: ${personName} - Paid ${paidLoans.length} loan(s) (Sequential: USD first, then IQD)`,
           null,
           'personal_loan_total_forced_usd',
@@ -3800,10 +3756,14 @@ function payPersonalLoanTotalSimplifiedForcedUSD(db, personName, paymentData) {
         );
       }
       
-      // Update balance (deduct from USD balance only)
-      if (totalUsedUSD > 0) {
+      // Update balance - add the original payment amounts the customer actually paid
+      if (payment_usd_amount > 0) {
         const settings = require('./settings.cjs');
-        settings.updateBalance(db, 'USD', totalUsedUSD);
+        settings.updateBalance(db, 'USD', payment_usd_amount);
+      }
+      if (payment_iqd_amount > 0) {
+        const settings = require('./settings.cjs');
+        settings.updateBalance(db, 'IQD', payment_iqd_amount);
       }
       
       return { 
@@ -4029,7 +3989,7 @@ function payPersonalLoanTotalSimplifiedForcedIQD(db, personName, paymentData) {
       const totalOriginalIQD = payment_iqd_amount + (payment_usd_amount * currentUSDToIQD);
       const totalUsedIQD = totalOriginalIQD - remainingPaymentIQD;
       
-      if (totalUsedIQD > 0) {
+      if (payment_usd_amount > 0 || payment_iqd_amount > 0) {
         const addTransactionStmt = db.prepare(`
           INSERT INTO transactions (type, amount_usd, amount_iqd, description, reference_id, reference_type, created_at) 
           VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -4037,8 +3997,8 @@ function payPersonalLoanTotalSimplifiedForcedIQD(db, personName, paymentData) {
         
         addTransactionStmt.run(
           'personal_loan_payment',
-          totalPaidUSD, // USD applied to USD loans (converted from IQD)
-          totalPaidIQD, // IQD applied to IQD loans
+          payment_usd_amount || 0, // Use original payment amounts for daily tracking
+          payment_iqd_amount || 0, // Use original payment amounts for daily tracking
           `Forced IQD payment: ${personName} - Paid ${paidLoans.length} loan(s) (Sequential: IQD first, then USD)`,
           null,
           'personal_loan_total_forced_iqd',
@@ -4046,10 +4006,14 @@ function payPersonalLoanTotalSimplifiedForcedIQD(db, personName, paymentData) {
         );
       }
       
-      // Update balance (deduct from IQD balance only)
-      if (totalUsedIQD > 0) {
+      // Update balance - add the original payment amounts the customer actually paid
+      if (payment_usd_amount > 0) {
         const settings = require('./settings.cjs');
-        settings.updateBalance(db, 'IQD', totalUsedIQD);
+        settings.updateBalance(db, 'USD', payment_usd_amount);
+      }
+      if (payment_iqd_amount > 0) {
+        const settings = require('./settings.cjs');
+        settings.updateBalance(db, 'IQD', payment_iqd_amount);
       }
       
       return { 

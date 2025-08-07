@@ -130,31 +130,11 @@ const FinancialSummaryModal = ({ isOpen, onClose, t }) => {
     const unpaidDebtSalesUSD = [];
     const unpaidDebtSalesIQD = [];
     
-    // DEBUG: Log all sales data for customer debt analysis
-    console.log('=== CUSTOMER DEBT DEBUG ===');
-    console.log('Total sales:', (sales || []).length);
-    console.log('Total debts:', (debts || []).length);
-    
     const debtSales = (sales || []).filter(sale => sale.is_debt);
-    console.log('Total debt sales:', debtSales.length);
-    debtSales.forEach(sale => {
-      console.log(`Debt Sale ID ${sale.id}:`, {
-        customer_name: sale.customer_name,
-        total: sale.total,
-        currency: sale.currency,
-        is_debt: sale.is_debt
-      });
-    });
     
     (sales || []).forEach(sale => {
       if (sale.is_debt) {
         const debt = (debts || []).find(d => d.sale_id === sale.id);
-        
-        console.log(`Processing debt sale ${sale.id}:`, {
-          sale_currency: sale.currency,
-          sale_total: sale.total,
-          debt_record: debt ? { id: debt.id, paid: debt.paid, paid_at: debt.paid_at } : 'NOT_FOUND',
-        });
         
         // FIX: If no debt record exists, treat the sale as an unpaid debt
         // This handles cases where the debt sale was created but the debt record creation failed
@@ -163,31 +143,16 @@ const FinancialSummaryModal = ({ isOpen, onClose, t }) => {
         if (!isPaid) {
           if (sale.currency === 'USD') {
             unpaidDebtSalesUSD.push(sale);
-            console.log(`Added USD debt: $${sale.total} ${debt ? '(has debt record)' : '(missing debt record - treating as unpaid)'}`);
           } else if (sale.currency === 'IQD') {
             unpaidDebtSalesIQD.push(sale);
-            console.log(`Added IQD debt: ${sale.total} IQD ${debt ? '(has debt record)' : '(missing debt record - treating as unpaid)'}`);
-          } else {
-            console.log(`Unknown currency for debt sale ${sale.id}:`, sale.currency);
           }
-        } else {
-          console.log(`Skipping paid debt sale ${sale.id}: ${sale.currency} ${sale.total}`);
         }
       }
     });
     
-    console.log('Final unpaid debt sales USD:', unpaidDebtSalesUSD.length, unpaidDebtSalesUSD.map(s => `$${s.total}`));
-    console.log('Final unpaid debt sales IQD:', unpaidDebtSalesIQD.length, unpaidDebtSalesIQD.map(s => `${s.total} IQD`));
-    
     const customerDebtsUSD = unpaidDebtSalesUSD.reduce((sum, sale) => sum + (sale.total || 0), 0);
     const customerDebtsIQD = unpaidDebtSalesIQD.reduce((sum, sale) => sum + (sale.total || 0), 0);
     const totalCustomerDebtsUSD = customerDebtsUSD + (customerDebtsIQD * EXCHANGE_RATES.IQD_TO_USD);
-    
-    console.log('Customer Debts Summary:');
-    console.log('- USD Amount:', customerDebtsUSD);
-    console.log('- IQD Amount:', customerDebtsIQD);
-    console.log('- Total USD Equivalent:', totalCustomerDebtsUSD);
-    console.log('=== END CUSTOMER DEBT DEBUG ===');
 
     // Calculate personal loans in USD equivalent - FIXED: Use correct data structure  
     const unpaidLoans = (personalLoans || []).filter(loan => !loan.paid_at && !loan.paid);

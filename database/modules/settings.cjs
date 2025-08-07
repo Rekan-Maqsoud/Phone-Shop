@@ -32,14 +32,12 @@ function getExchangeRate(db, fromCurrency, toCurrency) {
       if (currentUSDToIQD) {
         return parseFloat(currentUSDToIQD);
       }
-      console.log('Using default USD to IQD rate: 1400');
       return 1400; // Working default that matches frontend
     }
     if (fromCurrency === 'IQD' && toCurrency === 'USD') {
       if (currentIQDToUSD) {
         return parseFloat(currentIQDToUSD);
       }
-      console.log('Using default IQD to USD rate: 1/1400');
       return (1/1400); // Working default that matches frontend
     }
   }
