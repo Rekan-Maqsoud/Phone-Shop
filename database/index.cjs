@@ -1527,31 +1527,84 @@ module.exports = function(dbPath) {
           if (itemReturnQty > 0) {
             try {
               if (item.item_type === 'accessory') {
-                // Remove from accessories stock (returning to supplier)
-                const beforeAccessory = db.prepare('SELECT stock FROM accessories WHERE name = ?').get(item.item_name);
+                // Find and update the accessory with proper price recalculation
+                const existingAccessory = db.prepare(`
+                  SELECT * FROM accessories 
+                  WHERE name = ? AND brand = ? AND model = ? AND type = ? AND archived = 0
+                `).get(item.item_name, item.brand || '', item.model || '', item.type || '');
                 
-                db.prepare(`
-                  UPDATE accessories 
-                  SET stock = stock - ? 
-                  WHERE name = ?
-                `).run(itemReturnQty, item.item_name);
-                
-                const afterAccessory = db.prepare('SELECT stock FROM accessories WHERE name = ?').get(item.item_name);
-              } else {
-                // Remove from products stock (returning to supplier)
-                const beforeProduct = db.prepare('SELECT stock, name, model, ram, storage FROM products WHERE name = ? AND model = ? AND ram = ? AND storage = ?').get(item.item_name, item.model || '', item.ram || '', item.storage || '');
-                if (beforeProduct) {
+                if (existingAccessory) {
+                  const currentStock = Number(existingAccessory.stock) || 0;
+                  const currentPrice = Number(existingAccessory.buying_price) || 0;
+                  const returnPrice = Number(item.unit_price) || 0;
+                  
+                  // Calculate new stock (decrease by return quantity)
+                  const newStock = Math.max(0, currentStock - itemReturnQty);
+                  
+                  // Calculate new price by reverting the weighted average
+                  let newPrice = currentPrice;
+                  if (newStock > 0 && currentStock > 0) {
+                    const oldTotal = currentStock * currentPrice;
+                    const returnValue = itemReturnQty * returnPrice;
+                    newPrice = (oldTotal - returnValue) / newStock;
+                    
+                    // Round appropriately based on currency
+                    if ((item.currency || 'IQD').toUpperCase() === 'USD') {
+                      newPrice = Math.round(newPrice * 100) / 100;
+                    } else {
+                      newPrice = Math.round(newPrice);
+                    }
+                    
+                    newPrice = Math.max(0, newPrice);
+                  } else if (newStock === 0) {
+                    newPrice = 0;
+                  }
+                  
+                  db.prepare(`
+                    UPDATE accessories 
+                    SET stock = ?, buying_price = ? 
+                    WHERE id = ?
+                  `).run(newStock, newPrice, existingAccessory.id);
                 }
+              } else {
+                // Find and update the product with proper price recalculation
+                const existingProduct = db.prepare(`
+                  SELECT * FROM products 
+                  WHERE name = ? AND brand = ? AND model = ? AND ram = ? AND storage = ? AND archived = 0
+                `).get(item.item_name, item.brand || '', item.model || '', item.ram || '', item.storage || '');
                 
-                db.prepare(`
-                  UPDATE products 
-                  SET stock = stock - ? 
-                  WHERE name = ? AND model = ? AND ram = ? AND storage = ?
-                `).run(itemReturnQty, item.item_name, item.model || '', item.ram || '', item.storage || '');
-                
-                const afterProduct = db.prepare('SELECT stock, name, model, ram, storage FROM products WHERE name = ? AND model = ? AND ram = ? AND storage = ?').get(item.item_name, item.model || '', item.ram || '', item.storage || '');
-                if (afterProduct) {
-                } else {
+                if (existingProduct) {
+                  const currentStock = Number(existingProduct.stock) || 0;
+                  const currentPrice = Number(existingProduct.buying_price) || 0;
+                  const returnPrice = Number(item.unit_price) || 0;
+                  
+                  // Calculate new stock (decrease by return quantity)
+                  const newStock = Math.max(0, currentStock - itemReturnQty);
+                  
+                  // Calculate new price by reverting the weighted average
+                  let newPrice = currentPrice;
+                  if (newStock > 0 && currentStock > 0) {
+                    const oldTotal = currentStock * currentPrice;
+                    const returnValue = itemReturnQty * returnPrice;
+                    newPrice = (oldTotal - returnValue) / newStock;
+                    
+                    // Round appropriately based on currency
+                    if ((item.currency || 'IQD').toUpperCase() === 'USD') {
+                      newPrice = Math.round(newPrice * 100) / 100;
+                    } else {
+                      newPrice = Math.round(newPrice);
+                    }
+                    
+                    newPrice = Math.max(0, newPrice);
+                  } else if (newStock === 0) {
+                    newPrice = 0;
+                  }
+                  
+                  db.prepare(`
+                    UPDATE products 
+                    SET stock = ?, buying_price = ? 
+                    WHERE id = ?
+                  `).run(newStock, newPrice, existingProduct.id);
                 }
               }
               
@@ -1577,7 +1630,10 @@ module.exports = function(dbPath) {
             const remainingQty = itemOriginalQty - itemReturnQty;
             
             if (remainingQty > 0) {
-              db.prepare('UPDATE buying_history_items SET quantity = ? WHERE id = ?').run(remainingQty, item.id);
+              // Update the total price for the remaining quantity
+              const remainingTotalPrice = remainingQty * Number(item.unit_price || 0);
+              db.prepare('UPDATE buying_history_items SET quantity = ?, total_price = ? WHERE id = ?')
+                .run(remainingQty, remainingTotalPrice, item.id);
             } else {
               db.prepare('DELETE FROM buying_history_items WHERE id = ?').run(item.id);
             }
@@ -1587,12 +1643,45 @@ module.exports = function(dbPath) {
           db.prepare('DELETE FROM buying_history_items WHERE buying_history_id = ?').run(entry.id);
         }
       } else {
-        // Simple purchase - remove from stock if product/accessory exists (returns decrease stock)
+        // Simple purchase - remove from stock with proper price recalculation
         try {
-          // Check if it's a product
-          const product = db.prepare('SELECT id FROM products WHERE name = ?').get(entry.item_name);
+          // Check if it's a product first
+          const product = db.prepare(`
+            SELECT * FROM products 
+            WHERE name = ? AND archived = 0 
+            ORDER BY id DESC LIMIT 1
+          `).get(entry.item_name);
+          
           if (product) {
-            db.prepare('UPDATE products SET stock = stock - ? WHERE name = ?').run(returnQuantity, entry.item_name);
+            const currentStock = Number(product.stock) || 0;
+            const currentPrice = Number(product.buying_price) || 0;
+            const originalUnitPrice = Number(entry.unit_price) || Number(entry.total_price / entry.quantity) || 0;
+            
+            // Calculate new stock (decrease by return quantity)
+            const newStock = Math.max(0, currentStock - returnQuantity);
+            
+            // Calculate new price by reverting the weighted average
+            let newPrice = currentPrice;
+            if (newStock > 0 && currentStock > 0) {
+              const oldTotal = currentStock * currentPrice;
+              const returnValue = returnQuantity * originalUnitPrice;
+              newPrice = (oldTotal - returnValue) / newStock;
+              
+              // Round appropriately based on currency
+              if ((entry.currency || 'IQD').toUpperCase() === 'USD') {
+                newPrice = Math.round(newPrice * 100) / 100;
+              } else {
+                newPrice = Math.round(newPrice);
+              }
+              
+              newPrice = Math.max(0, newPrice);
+            } else if (newStock === 0) {
+              newPrice = 0;
+            }
+            
+            db.prepare('UPDATE products SET stock = ?, buying_price = ? WHERE id = ?')
+              .run(newStock, newPrice, product.id);
+              
             successfulReturns.push({
               name: entry.item_name,
               quantity: returnQuantity,
@@ -1600,15 +1689,47 @@ module.exports = function(dbPath) {
             });
           } else {
             // Check if it's an accessory
-            const accessory = db.prepare('SELECT id FROM accessories WHERE name = ?').get(entry.item_name);
+            const accessory = db.prepare(`
+              SELECT * FROM accessories 
+              WHERE name = ? AND archived = 0 
+              ORDER BY id DESC LIMIT 1
+            `).get(entry.item_name);
+            
             if (accessory) {
-              db.prepare('UPDATE accessories SET stock = stock - ? WHERE name = ?').run(returnQuantity, entry.item_name);
+              const currentStock = Number(accessory.stock) || 0;
+              const currentPrice = Number(accessory.buying_price) || 0;
+              const originalUnitPrice = Number(entry.unit_price) || Number(entry.total_price / entry.quantity) || 0;
+              
+              // Calculate new stock (decrease by return quantity)
+              const newStock = Math.max(0, currentStock - returnQuantity);
+              
+              // Calculate new price by reverting the weighted average
+              let newPrice = currentPrice;
+              if (newStock > 0 && currentStock > 0) {
+                const oldTotal = currentStock * currentPrice;
+                const returnValue = returnQuantity * originalUnitPrice;
+                newPrice = (oldTotal - returnValue) / newStock;
+                
+                // Round appropriately based on currency
+                if ((entry.currency || 'IQD').toUpperCase() === 'USD') {
+                  newPrice = Math.round(newPrice * 100) / 100;
+                } else {
+                  newPrice = Math.round(newPrice);
+                }
+                
+                newPrice = Math.max(0, newPrice);
+              } else if (newStock === 0) {
+                newPrice = 0;
+              }
+              
+              db.prepare('UPDATE accessories SET stock = ?, buying_price = ? WHERE id = ?')
+                .run(newStock, newPrice, accessory.id);
+                
               successfulReturns.push({
                 name: entry.item_name,
                 quantity: returnQuantity,
                 type: 'accessory'
               });
-            } else {
             }
           }
         } catch (error) {
@@ -1653,6 +1774,10 @@ module.exports = function(dbPath) {
         const remainingQuantity = originalQuantity - returnQuantity;
         const remainingRatio = remainingQuantity / originalQuantity;
         
+        // Get the actual remaining items and calculate total quantity from them
+        const remainingItems = db.prepare('SELECT * FROM buying_history_items WHERE buying_history_id = ?').all(entry.id);
+        const actualRemainingQuantity = remainingItems.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
+        
         // Handle different currency scenarios with precision
         if (entry.currency === 'MULTI' || (entry.multi_currency_usd > 0 && entry.multi_currency_iqd > 0)) {
           // Multi-currency entry - update both USD and IQD portions proportionally
@@ -1673,7 +1798,7 @@ module.exports = function(dbPath) {
                 multi_currency_iqd = ?, 
                 total_price = ?
             WHERE id = ?
-          `).run(remainingQuantity, newUSD, newIQD, newTotalPrice, entry.id);
+          `).run(actualRemainingQuantity, newUSD, newIQD, newTotalPrice, entry.id);
           
         } else if ((entry.multi_currency_usd || 0) > 0 || (entry.multi_currency_iqd || 0) > 0) {
           // Single currency stored in multi-currency columns
@@ -1692,7 +1817,7 @@ module.exports = function(dbPath) {
                 total_price = ?, 
                 amount = ?
             WHERE id = ?
-          `).run(remainingQuantity, newUSD, newIQD, newTotalPrice, newTotalPrice, entry.id);
+          `).run(actualRemainingQuantity, newUSD, newIQD, newTotalPrice, newTotalPrice, entry.id);
           
         } else {
           // Traditional single currency entry - maintain precision
@@ -1705,7 +1830,7 @@ module.exports = function(dbPath) {
                 total_price = ?, 
                 amount = ?
             WHERE id = ?
-          `).run(remainingQuantity, newTotalPrice, newTotalPrice, entry.id);
+          `).run(actualRemainingQuantity, newTotalPrice, newTotalPrice, entry.id);
         }
       } else {
         // For full returns, delete the buying history entry completely
@@ -1753,16 +1878,79 @@ module.exports = function(dbPath) {
         throw new Error('Invalid return quantity');
       }
 
-      // Remove item from stock (since it's a return, we're giving the item back to supplier)
+      // Remove item from stock and recalculate price properly
       if (item.item_type === 'accessory') {
-        db.prepare('UPDATE accessories SET stock = stock - ? WHERE name = ?').run(returnQty, item.item_name);
+        const existingAccessory = db.prepare(`
+          SELECT * FROM accessories 
+          WHERE name = ? AND brand = ? AND model = ? AND type = ? AND archived = 0
+        `).get(item.item_name, item.brand || '', item.model || '', item.type || '');
+        
+        if (existingAccessory) {
+          const currentStock = Number(existingAccessory.stock) || 0;
+          const currentPrice = Number(existingAccessory.buying_price) || 0;
+          const returnPrice = Number(item.unit_price) || 0;
+          
+          // Calculate new stock (decrease by return quantity)
+          const newStock = Math.max(0, currentStock - returnQty);
+          
+          // Calculate new price by reverting the weighted average
+          let newPrice = currentPrice;
+          if (newStock > 0 && currentStock > 0) {
+            const oldTotal = currentStock * currentPrice;
+            const returnValue = returnQty * returnPrice;
+            newPrice = (oldTotal - returnValue) / newStock;
+            
+            // Round appropriately based on currency
+            if ((item.currency || entry.currency || 'IQD').toUpperCase() === 'USD') {
+              newPrice = Math.round(newPrice * 100) / 100;
+            } else {
+              newPrice = Math.round(newPrice);
+            }
+            
+            newPrice = Math.max(0, newPrice);
+          } else if (newStock === 0) {
+            newPrice = 0;
+          }
+          
+          db.prepare('UPDATE accessories SET stock = ?, buying_price = ? WHERE id = ?')
+            .run(newStock, newPrice, existingAccessory.id);
+        }
       } else {
-        const productUpdate = db.prepare(`
-          UPDATE products 
-          SET stock = stock - ? 
-          WHERE name = ? AND model = ? AND ram = ? AND storage = ?
-        `);
-        productUpdate.run(returnQty, item.item_name, item.model || '', item.ram || '', item.storage || '');
+        const existingProduct = db.prepare(`
+          SELECT * FROM products 
+          WHERE name = ? AND brand = ? AND model = ? AND ram = ? AND storage = ? AND archived = 0
+        `).get(item.item_name, item.brand || '', item.model || '', item.ram || '', item.storage || '');
+        
+        if (existingProduct) {
+          const currentStock = Number(existingProduct.stock) || 0;
+          const currentPrice = Number(existingProduct.buying_price) || 0;
+          const returnPrice = Number(item.unit_price) || 0;
+          
+          // Calculate new stock (decrease by return quantity)
+          const newStock = Math.max(0, currentStock - returnQty);
+          
+          // Calculate new price by reverting the weighted average
+          let newPrice = currentPrice;
+          if (newStock > 0 && currentStock > 0) {
+            const oldTotal = currentStock * currentPrice;
+            const returnValue = returnQty * returnPrice;
+            newPrice = (oldTotal - returnValue) / newStock;
+            
+            // Round appropriately based on currency
+            if ((item.currency || entry.currency || 'IQD').toUpperCase() === 'USD') {
+              newPrice = Math.round(newPrice * 100) / 100;
+            } else {
+              newPrice = Math.round(newPrice);
+            }
+            
+            newPrice = Math.max(0, newPrice);
+          } else if (newStock === 0) {
+            newPrice = 0;
+          }
+          
+          db.prepare('UPDATE products SET stock = ?, buying_price = ? WHERE id = ?')
+            .run(newStock, newPrice, existingProduct.id);
+        }
       }
 
       const newQuantity = currentQuantity - returnQty;
@@ -1837,6 +2025,9 @@ module.exports = function(dbPath) {
       // Systematically update the buying history entry totals
       const remainingItems = db.prepare('SELECT * FROM buying_history_items WHERE buying_history_id = ?').all(entryId);
       
+      // Calculate the actual total quantity from remaining items
+      const actualTotalQuantity = remainingItems.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
+      
       // Check if this is a multi-currency purchase by looking at the multi-currency columns
       const isMultiCurrencyPurchase = (entry.multi_currency_usd && entry.multi_currency_usd > 0) || 
                                       (entry.multi_currency_iqd && entry.multi_currency_iqd > 0) ||
@@ -1853,12 +2044,13 @@ module.exports = function(dbPath) {
         
         db.prepare(`
           UPDATE buying_history 
-          SET multi_currency_usd = ?, 
+          SET quantity = ?, 
+              multi_currency_usd = ?, 
               multi_currency_iqd = ?, 
               total_price = ?,
               amount = ?
           WHERE id = ?
-        `).run(newUSDTotal, newIQDTotal, newTotalPrice, newTotalPrice, entryId);
+        `).run(actualTotalQuantity, newUSDTotal, newIQDTotal, newTotalPrice, newTotalPrice, entryId);
       } else {
         // Single currency purchase with potentially multi-currency return
         // We need to handle the case where someone returns in a different currency than purchased
@@ -1875,13 +2067,14 @@ module.exports = function(dbPath) {
             
             db.prepare(`
               UPDATE buying_history 
-              SET currency = 'MULTI',
+              SET quantity = ?,
+                  currency = 'MULTI',
                   multi_currency_usd = ?, 
                   multi_currency_iqd = ?, 
                   total_price = ?,
                   amount = ?
               WHERE id = ?
-            `).run(newUSDTotal, 0, remainingTotalFromItems, remainingTotalFromItems, entryId);
+            `).run(actualTotalQuantity, newUSDTotal, 0, remainingTotalFromItems, remainingTotalFromItems, entryId);
           } else {
             // Original was IQD, now becoming multi-currency
             const newIQDTotal = Math.round(Math.max(0, originalAmount - refundIQD) * 100) / 100;
@@ -1889,19 +2082,20 @@ module.exports = function(dbPath) {
             
             db.prepare(`
               UPDATE buying_history 
-              SET currency = 'MULTI',
+              SET quantity = ?,
+                  currency = 'MULTI',
                   multi_currency_usd = ?, 
                   multi_currency_iqd = ?, 
                   total_price = ?,
                   amount = ?
               WHERE id = ?
-            `).run(0, newIQDTotal, remainingTotalFromItems, remainingTotalFromItems, entryId);
+            `).run(actualTotalQuantity, 0, newIQDTotal, remainingTotalFromItems, remainingTotalFromItems, entryId);
           }
         } else {
           // Single currency return - standard update
           const newTotal = Math.round(remainingItems.reduce((sum, item) => sum + (item.total_price || 0), 0) * 100) / 100;
-          db.prepare('UPDATE buying_history SET total_price = ?, amount = ? WHERE id = ?')
-            .run(newTotal, newTotal, entryId);
+          db.prepare('UPDATE buying_history SET quantity = ?, total_price = ?, amount = ? WHERE id = ?')
+            .run(actualTotalQuantity, newTotal, newTotal, entryId);
         }
       }
       

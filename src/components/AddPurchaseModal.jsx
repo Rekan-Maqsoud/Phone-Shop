@@ -626,34 +626,35 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
             </div>
           </h2>
 
-        {/* Company Name */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            {t?.companyName || 'Company Name'} *
-          </label>
-          <AutocompleteInput
-            value={companyName}
-            onChange={setCompanyName}
-            suggestions={companyNameSuggestions}
-            placeholder={t?.enterCompanyName || 'Enter company name'}
-            className="w-full border rounded-lg px-4 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            required
-            t={t}
-          />
-        </div>
+        {/* Company Name and Description */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              {t?.companyName || 'Company Name'} *
+            </label>
+            <AutocompleteInput
+              value={companyName}
+              onChange={setCompanyName}
+              suggestions={companyNameSuggestions}
+              placeholder={t?.enterCompanyName || 'Enter company name'}
+              className="w-full border rounded-lg px-4 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+              t={t}
+            />
+          </div>
 
-        {/* Description */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            {t?.description || 'Description'} ({t?.optional || 'optional'})
-          </label>
-          <textarea
-            className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder={t?.enterDescription || 'Enter description'}
-            value={description}
-            onChange={e => setDescription(e.target.value)}
-            rows={2}
-          />
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              {t?.description || 'Description'} ({t?.optional || 'optional'})
+            </label>
+            <textarea
+              className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder={t?.enterDescription || 'Enter description'}
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              rows={2}
+            />
+          </div>
         </div>
 
         {/* Purchase Type Selection */}
@@ -665,18 +666,18 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
             <button
               type="button"
               onClick={() => setPurchaseType('simple')}
-              className={`p-4 rounded-xl border-2 transition-all ${
+              className={`p-2 rounded-lg border-2 transition-all ${
                 purchaseType === 'simple'
                   ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
                   : 'border-gray-300 dark:border-gray-600 hover:border-blue-300 dark:hover:border-blue-500 text-gray-700 dark:text-gray-300'
               }`}
             >
               <div className="text-center">
-                <div className="text-2xl mb-2 flex justify-center">
-                  <Icon name="dollarSign" size={32} />
+                <div className="text-lg mb-1 flex justify-center">
+                  <Icon name="dollarSign" size={20} />
                 </div>
-                <div className="font-semibold text-gray-800 dark:text-gray-100">{t?.simplePurchase || 'Simple Purchase'}</div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">
+                <div className="font-medium text-sm text-gray-800 dark:text-gray-100">{t?.simplePurchase || 'Simple Purchase'}</div>
+                <div className="text-xs text-gray-600 dark:text-gray-400">
                   {t?.justAmount || 'Just specify the amount'}
                 </div>
               </div>
@@ -684,18 +685,18 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
             <button
               type="button"
               onClick={() => setPurchaseType('withItems')}
-              className={`p-4 rounded-xl border-2 transition-all ${
+              className={`p-2 rounded-lg border-2 transition-all ${
                 purchaseType === 'withItems'
                   ? 'border-green-500 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300'
                   : 'border-gray-300 dark:border-gray-600 hover:border-green-300 dark:hover:border-green-500 text-gray-700 dark:text-gray-300'
               }`}
             >
               <div className="text-center">
-                <div className="text-2xl mb-2 flex justify-center">
-                  <Icon name="package" size={32} />
+                <div className="text-lg mb-1 flex justify-center">
+                  <Icon name="package" size={20} />
                 </div>
-                <div className="font-semibold text-gray-800 dark:text-gray-100">{t?.purchaseWithItems || 'Purchase with Items'}</div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">
+                <div className="font-medium text-sm text-gray-800 dark:text-gray-100">{t?.purchaseWithItems || 'Purchase with Items'}</div>
+                <div className="text-xs text-gray-600 dark:text-gray-400">
                   {t?.addItemsToInventory || 'Add items to inventory'}
                 </div>
               </div>
@@ -713,18 +714,18 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
               <button
                 type="button"
                 onClick={() => setPaymentStatus('debt')}
-                className={`p-4 rounded-xl border-2 transition-all ${
+                className={`p-2 rounded-lg border-2 transition-all ${
                   paymentStatus === 'debt'
                     ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300'
                     : 'border-gray-300 dark:border-gray-600 hover:border-orange-300 dark:hover:border-orange-500 text-gray-700 dark:text-gray-300'
                 }`}
               >
                 <div className="text-center">
-                  <div className="text-2xl mb-2 flex justify-center">
-                    <Icon name="edit" size={32} />
+                  <div className="text-lg mb-1 flex justify-center">
+                    <Icon name="edit" size={20} />
                   </div>
-                  <div className="font-semibold text-gray-800 dark:text-gray-100">{t?.buyOnCredit || 'Buy on Credit'}</div>
-                  <div className="text-sm text-gray-600 dark:text-gray-400">
+                  <div className="font-medium text-sm text-gray-800 dark:text-gray-100">{t?.buyOnCredit || 'Buy on Credit'}</div>
+                  <div className="text-xs text-gray-600 dark:text-gray-400">
                     {t?.payLaterCreatesDebt || 'Pay later - creates company debt'}
                   </div>
                 </div>
@@ -732,18 +733,18 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
               <button
                 type="button"
                 onClick={() => setPaymentStatus('paid')}
-                className={`p-4 rounded-xl border-2 transition-all ${
+                className={`p-2 rounded-lg border-2 transition-all ${
                   paymentStatus === 'paid'
                     ? 'border-green-500 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300'
                     : 'border-gray-300 dark:border-gray-600 hover:border-green-300 dark:hover:border-green-500 text-gray-700 dark:text-gray-300'
                 }`}
               >
                 <div className="text-center">
-                  <div className="text-2xl mb-2 flex justify-center">
-                    <Icon name="creditCard" size={32} />
+                  <div className="text-lg mb-1 flex justify-center">
+                    <Icon name="creditCard" size={20} />
                   </div>
-                  <div className="font-semibold text-gray-800 dark:text-gray-100">{t?.payNow || 'Pay Now'}</div>
-                  <div className="text-sm text-gray-600 dark:text-gray-400">
+                  <div className="font-medium text-sm text-gray-800 dark:text-gray-100">{t?.payNow || 'Pay Now'}</div>
+                  <div className="text-xs text-gray-600 dark:text-gray-400">
                     {t?.immediatePaymentHistory || 'Immediate payment - goes to buying history'}
                   </div>
                 </div>
@@ -781,18 +782,18 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
             <button
               type="button"
               onClick={() => setCurrency('USD')}
-              className={`p-4 rounded-xl border-2 transition-all ${
+              className={`p-2 rounded-lg border-2 transition-all ${
                 currency === 'USD'
                   ? 'border-green-500 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300'
                   : 'border-gray-300 dark:border-gray-600 hover:border-green-300 dark:hover:border-green-500 text-gray-700 dark:text-gray-300'
               }`}
             >
               <div className="text-center">
-                <div className="text-2xl mb-2 flex justify-center">
-                  <Icon name="dollarSign" size={32} />
+                <div className="text-lg mb-1 flex justify-center">
+                  <Icon name="dollarSign" size={20} />
                 </div>
-                <div className="font-semibold text-gray-800 dark:text-gray-100">USD ($)</div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">
+                <div className="font-medium text-sm text-gray-800 dark:text-gray-100">USD ($)</div>
+                <div className="text-xs text-gray-600 dark:text-gray-400">
                   {t?.usDollars || 'US Dollars'}
                 </div>
               </div>
@@ -800,18 +801,18 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
             <button
               type="button"
               onClick={() => setCurrency('IQD')}
-              className={`p-4 rounded-xl border-2 transition-all ${
+              className={`p-2 rounded-lg border-2 transition-all ${
                 currency === 'IQD'
                   ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
                   : 'border-gray-300 dark:border-gray-600 hover:border-blue-300 dark:hover:border-blue-500 text-gray-700 dark:text-gray-300'
               }`}
             >
               <div className="text-center">
-                <div className="text-2xl mb-2 flex justify-center">
-                  <Icon name="coins" size={32} />
+                <div className="text-lg mb-1 flex justify-center">
+                  <Icon name="coins" size={20} />
                 </div>
-                <div className="font-semibold text-gray-800 dark:text-gray-100">IQD (د.ع)</div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">
+                <div className="font-medium text-sm text-gray-800 dark:text-gray-100">IQD (د.ع)</div>
+                <div className="text-xs text-gray-600 dark:text-gray-400">
                   {t?.iraqiDinars || 'Iraqi Dinars'}
                 </div>
               </div>
@@ -1040,7 +1041,7 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
                   <button
                     type="button"
                     onClick={() => removeItem(item.id)}
-                    className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 transition-colors"
+                    className="text-white bg-red-500 hover:bg-red-600 dark:bg-red-600 dark:hover:bg-red-700 rounded-full p-1.5 transition-all shadow-sm hover:shadow-md"
                     title={t?.removeItem || 'Remove item'}
                   >
                     <Icon name="x" size={16} />
@@ -1251,9 +1252,10 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
                 <button
                   type="button"
                   onClick={() => setDiscount(prev => ({ ...prev, enabled: !prev.enabled }))}
-                  className="text-blue-600 hover:text-blue-700 text-sm font-medium"
+                  className="bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/30 dark:hover:bg-blue-800/40 text-blue-700 dark:text-blue-300 rounded-lg px-3 py-1.5 flex items-center justify-center text-sm font-bold transition-all min-w-[60px]"
+                  title={discount.enabled ? 'Disable discount' : 'Enable discount'}
                 >
-                  {discount.enabled ? '−' : '+'}
+                  {discount.enabled ? '− Remove' : '+ Add'}
                 </button>
               </div>
               
@@ -1471,106 +1473,67 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
                 )}
               </div>
             )}
+          </div>
+        )}
 
-            {/* Total Amount */}
-            {(items.length > 0 || (purchaseType === 'simple' && (simpleAmount || multiCurrency.enabled))) && (
-              <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4">
-                {discount.enabled && discount.value && calculateOriginalTotal() > 0 && (
-                  <>
-                    {/* Original Total */}
-                    <div className="flex justify-between items-center text-gray-600 dark:text-gray-400 mb-2">
-                      <span className="text-base font-medium">
-                        {t?.originalTotal || 'Original Total'}:
-                      </span>
-                      <span className="text-base font-semibold line-through">
-                        {purchaseType === 'simple' && multiCurrency.enabled ? (
-                          <div className="text-right">
-                            {multiCurrency.usdAmount > 0 && (
-                              <div className="text-sm">USD: ${multiCurrency.usdAmount.toFixed(2)}</div>
-                            )}
-                            {multiCurrency.iqdAmount > 0 && (
-                              <div className="text-sm">IQD: د.ع{multiCurrency.iqdAmount.toFixed(2)}</div>
-                            )}
-                          </div>
-                        ) : (
-                          `${currency === 'USD' ? '$' : 'د.ع'}${calculateOriginalTotal().toFixed(2)}`
-                        )}
-                      </span>
-                    </div>
-                    
-                    {/* Discount */}
-                    <div className="flex justify-between items-center text-red-600 dark:text-red-400 mb-2">
-                      <span className="text-base font-medium">
-                        {t?.discount || 'Discount'}:
-                      </span>
-                      <span className="text-base font-semibold">
-                        -{currency === 'USD' ? '$' : 'د.ع'}{getDiscountAmount().toFixed(2)}
-                        {discount.type === 'percentage' ? ` (${discount.value}%)` : ''}
-                      </span>
-                    </div>
-                    
-                    {/* Separator */}
-                    <div className="border-t border-gray-300 dark:border-gray-600 my-2"></div>
-                  </>
-                )}
-                
-                {/* Final Total */}
+        {/* Action Buttons with Total */}
+        <div className="flex flex-col sm:flex-row items-center gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+          {/* Total Display */}
+          {(items.length > 0 || (purchaseType === 'simple' && (simpleAmount || multiCurrency.enabled))) && (
+            <div className="flex-1">
+              <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-3">
                 <div className="flex justify-between items-center">
-                  <span className="text-lg font-semibold text-gray-800 dark:text-gray-200">
+                  <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">
                     {discount.enabled && discount.value && calculateOriginalTotal() > 0 
                       ? (t?.finalTotal || 'Final Total')
-                      : (t?.totalAmount || 'Total Amount')
+                      : (t?.total || 'Total')
                     }:
                   </span>
-                  <span className="text-xl font-bold text-blue-600 dark:text-blue-400">
+                  <span className="text-lg font-bold text-blue-600 dark:text-blue-400">
                     {purchaseType === 'simple' && multiCurrency.enabled ? (
                       <div className="text-right">
                         {multiCurrency.usdAmount > 0 && (
-                          <div className="text-sm">USD: ${multiCurrency.usdAmount.toFixed(2)}</div>
+                          <div className="text-xs">USD: ${multiCurrency.usdAmount.toFixed(2)}</div>
                         )}
                         {multiCurrency.iqdAmount > 0 && (
-                          <div className="text-sm">IQD: د.ع{multiCurrency.iqdAmount.toFixed(2)}</div>
+                          <div className="text-xs">IQD: د.ع{multiCurrency.iqdAmount.toFixed(2)}</div>
                         )}
-                        <div className="border-t pt-1">
-                          {currency === 'USD' ? '$' : 'د.ع'}{calculateTotal().toFixed(2)}
-                        </div>
                       </div>
                     ) : (
                       `${currency === 'USD' ? '$' : 'د.ع'}${calculateTotal().toFixed(2)}`
                     )}
                   </span>
                 </div>
-                
                 {/* Savings indicator */}
                 {discount.enabled && discount.value && getDiscountAmount() > 0 && (
-                  <div className="text-center mt-3 p-2 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-700">
-                    <span className="text-green-700 dark:text-green-400 font-medium text-sm">
-                      💰 {t?.youSave || 'You save'}: {currency === 'USD' ? '$' : 'د.ع'}{getDiscountAmount().toFixed(2)}
+                  <div className="text-center mt-1">
+                    <span className="text-green-700 dark:text-green-400 font-medium text-xs">
+                      💰 {t?.saved || 'Saved'}: {currency === 'USD' ? '$' : 'د.ع'}{getDiscountAmount().toFixed(2)}
                     </span>
                   </div>
                 )}
               </div>
-            )}
+            </div>
+          )}
+          
+          {/* Buttons */}
+          <div className="flex gap-3">
+            <button 
+              type="button" 
+              onClick={onClose} 
+              className="px-4 py-2 rounded-lg bg-gray-300 dark:bg-gray-600 text-gray-800 dark:text-gray-200 hover:bg-gray-400 dark:hover:bg-gray-500 transition flex items-center gap-2"
+            >
+              <Icon name="x" size={16} />
+              {t?.cancel || 'Cancel'}
+            </button>
+            <button 
+              type="submit" 
+              className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 font-semibold transition flex items-center gap-2"
+            >
+              <Icon name="plus" size={16} />
+              {isCompanyDebtMode ? (t?.addCompanyDebt || 'Add Company Debt') : (t?.addPurchase || 'Add Purchase')}
+            </button>
           </div>
-        )}
-
-        {/* Action Buttons */}
-        <div className="flex gap-3 justify-end pt-4 border-t border-gray-200 dark:border-gray-700">
-          <button 
-            type="button" 
-            onClick={onClose} 
-            className="px-4 py-1 rounded-lg bg-gray-300 dark:bg-gray-600 text-gray-800 dark:text-gray-200 hover:bg-gray-400 dark:hover:bg-gray-500 transition flex items-center gap-2"
-          >
-            <Icon name="x" size={16} />
-            {t?.cancel || 'Cancel'}
-          </button>
-          <button 
-            type="submit" 
-            className="px-4 py-1 rounded-lg bg-blue-600 text-white hover:bg-blue-700 font-semibold transition flex items-center gap-2"
-          >
-            <Icon name="plus" size={16} />
-            {isCompanyDebtMode ? (t?.addCompanyDebt || 'Add Company Debt') : (t?.addPurchase || 'Add Purchase')}
-          </button>
         </div>
         </form>
       </div>
