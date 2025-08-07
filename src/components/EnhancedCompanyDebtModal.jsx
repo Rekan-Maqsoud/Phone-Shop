@@ -259,9 +259,9 @@ export default function EnhancedCompanyDebtModal({ show, onClose, debt, onMarkPa
 
   return (
     <ModalBase show={show} onClose={onClose} maxWidth="6xl">
-      <div className="max-h-[90vh] overflow-y-auto space-y-6">
+      <div className="max-h-[90vh] overflow-y-auto space-y-6 p-6">
         {/* Header */}
-        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-700 p-6 rounded-xl">
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-700 p-6 rounded-xl -mx-6 -mt-6 mb-6">
           <div className="flex justify-between items-start mb-4">
             <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">
               � {t?.companyDebtDetails || 'Company Debt Details'}

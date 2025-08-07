@@ -49,9 +49,9 @@ const KeyboardShortcutsModal = ({ show, onClose, t, shortcuts = {} }) => {
 
   return (
     <ModalBase show={show} onClose={onClose} maxWidth="4xl">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-h-[90vh] flex flex-col">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-h-[90vh] flex flex-col p-6">
         {/* Header */}
-        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-6 rounded-t-lg flex-shrink-0">
+        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-6 rounded-t-lg flex-shrink-0 -mx-6 -mt-6 mb-6">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-2xl font-bold flex items-center gap-3">
@@ -72,7 +72,7 @@ const KeyboardShortcutsModal = ({ show, onClose, t, shortcuts = {} }) => {
         </div>
 
         {/* Content */}
-        <div className="p-6 overflow-y-auto flex-1">
+        <div className="overflow-y-auto flex-1">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {Object.entries(allShortcuts).map(([section, shortcuts]) => (
               <div
@@ -156,7 +156,7 @@ const KeyboardShortcutsModal = ({ show, onClose, t, shortcuts = {} }) => {
         </div>
 
         {/* Footer */}
-        <div className="p-6 border-t border-gray-200 dark:border-gray-700 flex justify-end flex-shrink-0">
+        <div className="border-t border-gray-200 dark:border-gray-700 flex justify-end flex-shrink-0 pt-6 -mx-6 -mb-6 px-6 pb-6">
           <button
             onClick={onClose}
             className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium flex items-center gap-2"

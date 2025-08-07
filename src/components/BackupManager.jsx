@@ -306,7 +306,7 @@ export default function BackupManager({ show, onClose, t, showConfirm = null }) 
 
   return (
     <ModalBase show={show} onClose={onClose} maxWidth="6xl">
-      <div className="w-full max-h-[80vh] overflow-y-auto">
+      <div className="w-full max-h-[80vh] overflow-y-auto p-6">
         {/* Header with title and close button */}
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">

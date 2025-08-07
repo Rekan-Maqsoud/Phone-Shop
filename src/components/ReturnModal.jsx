@@ -327,9 +327,9 @@ const ReturnModal = ({
 
   return (
     <ModalBase show={show} onClose={handleClose} maxWidth="2xl">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-h-[90vh] flex flex-col">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-h-[90vh] flex flex-col p-6">
         {/* Header */}
-        <div className="flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-700">
+        <div className="flex justify-between items-center pb-6 border-b border-gray-200 dark:border-gray-700 -mx-6 -mt-6 px-6 mb-6">
           <div>
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
               {t?.returnItem || 'Return Item'}
@@ -347,7 +347,7 @@ const ReturnModal = ({
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        <div className="flex-1 overflow-y-auto space-y-6">
           {/* Original Transaction Info */}
           <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
             <h3 className="font-medium text-gray-900 dark:text-white mb-3">
@@ -584,7 +584,7 @@ const ReturnModal = ({
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end space-x-3 p-6 border-t border-gray-200 dark:border-gray-700">
+        <div className="flex justify-end space-x-3 pt-6 border-t border-gray-200 dark:border-gray-700 -mx-6 -mb-6 px-6 pb-6">
           <button
             onClick={handleClose}
             disabled={isProcessing}

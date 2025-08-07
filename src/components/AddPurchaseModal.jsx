@@ -458,22 +458,120 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
         return;
       }
 
-      const processedItems = items.map(item => ({
-        ...item,
-        item_name: item.item_name || [item.brand, item.model].filter(Boolean).join(' '), // Ensure item_name is set
-        quantity: parseInt(item.quantity),
-        unit_price: parseFloat(item.unit_price),
-        stock: parseInt(item.quantity) || 0, // Use quantity as initial stock
-        total_price: parseInt(item.quantity) * parseFloat(item.unit_price),
-        buying_price: parseFloat(item.unit_price), // Same as unit price for buying
-        ram: item.ram?.trim() || null,
-        storage: item.storage?.trim() || null,
-        model: item.model?.trim() || null,
-        brand: item.brand?.trim() || null,
-        category: item.item_type === 'product' ? 'phones' : 'accessories', // Set category based on item type
-        type: item.type?.trim() || null, // Accessory type
-        currency: item.currency || 'IQD' // Item currency
-      }));
+      const processedItems = items.map(item => {
+        const originalUnitPrice = parseFloat(item.unit_price);
+        const quantity = parseInt(item.quantity);
+        
+        // Apply discount to individual item price
+        let discountedUnitPrice = originalUnitPrice;
+        let debugInfo = {
+          itemName: item.brand + ' ' + item.model,
+          originalUnitPrice,
+          discountApplied: false
+        };
+        
+        if (discount.enabled && discount.value) {
+          const discountValue = parseFloat(discount.value) || 0;
+          debugInfo.discountApplied = true;
+          debugInfo.discountType = discount.type;
+          debugInfo.discountValue = discountValue;
+          
+          if (discount.type === 'percentage') {
+            discountedUnitPrice = originalUnitPrice * (1 - discountValue / 100);
+            debugInfo.calculationType = 'percentage';
+          } else {
+            // For amount discount, we need to handle multi-currency properly
+            // Group items by currency and apply discount proportionally within each currency
+            const itemsByCurrency = items.reduce((acc, i) => {
+              const curr = i.currency || 'IQD';
+              if (!acc[curr]) acc[curr] = [];
+              acc[curr].push(i);
+              return acc;
+            }, {});
+
+            // Calculate total value in each currency
+            const totalsByCurrency = {};
+            Object.keys(itemsByCurrency).forEach(curr => {
+              totalsByCurrency[curr] = itemsByCurrency[curr].reduce((sum, i) => 
+                sum + (parseFloat(i.unit_price) * parseInt(i.quantity)), 0
+              );
+            });
+
+            // For simplicity, apply discount proportionally based on converted values
+            // Convert all to IQD for proportion calculation
+            const itemTotal = originalUnitPrice * quantity;
+            const itemTotalInIQD = item.currency === 'USD' 
+              ? itemTotal * (currentExchangeRates?.USD_TO_IQD || EXCHANGE_RATES.USD_TO_IQD)
+              : itemTotal;
+              
+            const totalValueInIQD = items.reduce((sum, i) => {
+              const iTotal = parseFloat(i.unit_price) * parseInt(i.quantity);
+              return sum + (i.currency === 'USD' 
+                ? iTotal * (currentExchangeRates?.USD_TO_IQD || EXCHANGE_RATES.USD_TO_IQD)
+                : iTotal);
+            }, 0);
+            
+            const itemProportion = totalValueInIQD > 0 ? itemTotalInIQD / totalValueInIQD : 0;
+            
+            // Apply discount in the item's original currency
+            const discountValueInItemCurrency = item.currency === 'USD' 
+              ? discountValue / (currentExchangeRates?.USD_TO_IQD || EXCHANGE_RATES.USD_TO_IQD)
+              : discountValue;
+              
+            const itemDiscountAmount = discountValueInItemCurrency * itemProportion;
+            const perUnitDiscount = itemDiscountAmount / quantity;
+            discountedUnitPrice = Math.max(0, originalUnitPrice - perUnitDiscount);
+            
+            debugInfo.calculationType = 'amount';
+            debugInfo.itemTotal = itemTotal;
+            debugInfo.itemTotalInIQD = itemTotalInIQD;
+            debugInfo.totalValueInIQD = totalValueInIQD;
+            debugInfo.itemProportion = itemProportion;
+            debugInfo.discountValueInItemCurrency = discountValueInItemCurrency;
+            debugInfo.itemDiscountAmount = itemDiscountAmount;
+            debugInfo.perUnitDiscount = perUnitDiscount;
+          }
+        }
+        
+        debugInfo.discountedUnitPrice = discountedUnitPrice;
+
+        console.log('[AddPurchaseModal] Processing item discount:', debugInfo);
+
+        return {
+          ...item,
+          item_name: item.item_name || [item.brand, item.model].filter(Boolean).join(' '), // Ensure item_name is set
+          quantity: quantity,
+          unit_price: Math.round(discountedUnitPrice * 100) / 100, // Round to 2 decimal places
+          stock: quantity || 0, // Use quantity as initial stock
+          total_price: Math.round(discountedUnitPrice * quantity * 100) / 100, // Calculate with discounted price
+          buying_price: Math.round(discountedUnitPrice * 100) / 100, // Same as discounted unit price for buying
+          ram: item.ram?.trim() || null,
+          storage: item.storage?.trim() || null,
+          model: item.model?.trim() || null,
+          brand: item.brand?.trim() || null,
+          category: item.item_type === 'product' ? 'phones' : 'accessories', // Set category based on item type
+          type: item.type?.trim() || null, // Accessory type
+          currency: item.currency || 'IQD' // Item currency
+        };
+      });
+
+      console.log('[AddPurchaseModal] Purchase submission with discount:', {
+        discountEnabled: discount.enabled,
+        discountType: discount.type,
+        discountValue: discount.value,
+        totalItemsCount: items.length,
+        originalTotalValue: items.reduce((sum, i) => sum + (parseFloat(i.unit_price) * parseInt(i.quantity)), 0),
+        originalTotalValueInIQD: items.reduce((sum, i) => {
+          const iTotal = parseFloat(i.unit_price) * parseInt(i.quantity);
+          return sum + (i.currency === 'USD' 
+            ? iTotal * (currentExchangeRates?.USD_TO_IQD || EXCHANGE_RATES.USD_TO_IQD)
+            : iTotal);
+        }, 0),
+        processedItemsCount: processedItems.length,
+        processedTotalValue: processedItems.reduce((sum, i) => sum + i.total_price, 0),
+        exchangeRate: currentExchangeRates?.USD_TO_IQD || EXCHANGE_RATES.USD_TO_IQD,
+        itemCurrencies: items.map(i => ({ name: i.brand + ' ' + i.model, currency: i.currency, price: i.unit_price }))
+      });
 
       const purchaseData = {
         company_name: companyName.trim(),
@@ -506,7 +604,7 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
 
   return (
     <ModalBase show={show} onClose={onClose} maxWidth="4xl">
-      <div className="max-h-[80vh] overflow-y-auto">
+      <div className="max-h-[80vh] overflow-y-auto p-6">
         <form onSubmit={handleSubmit} className="space-y-6">
           <h2 className="text-2xl font-bold mb-4 text-gray-800 dark:text-gray-100 flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -550,7 +648,7 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
             {t?.description || 'Description'} ({t?.optional || 'optional'})
           </label>
           <textarea
-            className="w-full border rounded-lg px-4 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder={t?.enterDescription || 'Enter description'}
             value={description}
             onChange={e => setDescription(e.target.value)}
@@ -732,7 +830,7 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
                 </label>
                 <div className="relative">
                   <input
-                    className="w-full border rounded-lg px-4 py-2 pl-8 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 pl-8 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="0.00"
                     value={simpleAmount}
                     onChange={e => setSimpleAmount(e.target.value)}
@@ -845,10 +943,10 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
                 <button
                   type="button"
                   onClick={() => setMultiCurrency(prev => ({ ...prev, enabled: !prev.enabled }))}
-                  className={`px-3 py-1 rounded text-sm transition-colors ${
+                  className={`px-3 py-1 rounded text-sm transition-colors border ${
                     multiCurrency.enabled
-                      ? 'bg-green-500 text-white'
-                      : 'bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-300'
+                      ? 'bg-green-500 text-white border-green-500 hover:bg-green-600'
+                      : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-500 hover:bg-gray-300 dark:hover:bg-gray-500'
                   }`}
                 >
                   {multiCurrency.enabled ? (t?.enabled || 'Enabled') : (t?.disabled || 'Disabled')}
@@ -907,14 +1005,14 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
                 <button
                   type="button"
                   onClick={() => addItem('product')}
-                  className="px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition text-sm flex items-center gap-2"
+                  className="px-3 py-1 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition text-sm flex items-center gap-2"
                 >
                   <Icon name="smartphone" size={16} /> {t?.addProduct || 'Add Product'}
                 </button>
                 <button
                   type="button"
                   onClick={() => addItem('accessory')}
-                  className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm flex items-center gap-2"
+                  className="px-3 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm flex items-center gap-2"
                 >
                   <Icon name="headphones" size={16} /> {t?.addAccessory || 'Add Accessory'}
                 </button>
@@ -990,7 +1088,7 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
                       {t?.quantity || 'Quantity'} *
                     </label>
                     <input
-                      className="w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                      className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                       placeholder="1"
                       value={item.quantity}
                       onChange={e => updateItem(item.id, 'quantity', e.target.value)}
@@ -1006,7 +1104,7 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
                       {t?.unitPrice || 'Unit Price'} *
                     </label>
                     <input
-                      className="w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                      className="w-full border border-gray-300 dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                       placeholder="0.00"
                       value={item.unit_price}
                       onChange={e => updateItem(item.id, 'unit_price', e.target.value)}
@@ -1026,7 +1124,7 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
                       <button
                         type="button"
                         onClick={() => updateItem(item.id, 'currency', 'USD')}
-                        className={`px-3 py-2 text-sm font-medium rounded-l border transition ${
+                        className={`px-3 py-1 text-sm font-medium rounded-l border transition ${
                           item.currency === 'USD'
                             ? 'bg-blue-600 text-white border-blue-600'
                             : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'
@@ -1037,7 +1135,7 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
                       <button
                         type="button"
                         onClick={() => updateItem(item.id, 'currency', 'IQD')}
-                        className={`px-3 py-2 text-sm font-medium rounded-r border transition ${
+                        className={`px-3 py-1 text-sm font-medium rounded-r border transition ${
                           item.currency === 'IQD'
                             ? 'bg-blue-600 text-white border-blue-600'
                             : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'
@@ -1166,7 +1264,7 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
                     <button
                       type="button"
                       onClick={() => setDiscount(prev => ({ ...prev, type: 'percentage' }))}
-                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
                         discount.type === 'percentage'
                           ? 'bg-blue-600 text-white'
                           : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-500'
@@ -1177,7 +1275,7 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
                     <button
                       type="button"
                       onClick={() => setDiscount(prev => ({ ...prev, type: 'amount' }))}
-                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
                         discount.type === 'amount'
                           ? 'bg-blue-600 text-white'
                           : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-500'
@@ -1461,14 +1559,14 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
           <button 
             type="button" 
             onClick={onClose} 
-            className="px-6 py-2 rounded-lg bg-gray-300 dark:bg-gray-600 text-gray-800 dark:text-gray-200 hover:bg-gray-400 dark:hover:bg-gray-500 transition flex items-center gap-2"
+            className="px-4 py-1 rounded-lg bg-gray-300 dark:bg-gray-600 text-gray-800 dark:text-gray-200 hover:bg-gray-400 dark:hover:bg-gray-500 transition flex items-center gap-2"
           >
             <Icon name="x" size={16} />
             {t?.cancel || 'Cancel'}
           </button>
           <button 
             type="submit" 
-            className="px-6 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 font-semibold transition flex items-center gap-2"
+            className="px-4 py-1 rounded-lg bg-blue-600 text-white hover:bg-blue-700 font-semibold transition flex items-center gap-2"
           >
             <Icon name="plus" size={16} />
             {isCompanyDebtMode ? (t?.addCompanyDebt || 'Add Company Debt') : (t?.addPurchase || 'Add Purchase')}

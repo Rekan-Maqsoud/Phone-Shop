@@ -43,8 +43,30 @@ export default function ModalBase({ open, show, onClose, children, className = '
   };
 
   const handleBackdropClick = (e) => {
+    // Only close if clicking on the backdrop, not on the modal content
+    // Also ensure we're clicking reasonably far from the modal edges
     if (e.target === e.currentTarget && onClose) {
-      onClose();
+      const modalElement = e.currentTarget.querySelector('div');
+      if (modalElement) {
+        const rect = modalElement.getBoundingClientRect();
+        const clickX = e.clientX;
+        const clickY = e.clientY;
+        
+        // Define a buffer zone around the modal (50px on all sides)
+        const buffer = 50;
+        const modalWithBuffer = {
+          left: rect.left - buffer,
+          right: rect.right + buffer,
+          top: rect.top - buffer,
+          bottom: rect.bottom + buffer
+        };
+        
+        // Only close if click is outside the buffered area
+        if (clickX < modalWithBuffer.left || clickX > modalWithBuffer.right || 
+            clickY < modalWithBuffer.top || clickY > modalWithBuffer.bottom) {
+          onClose();
+        }
+      }
     }
   };
 
