@@ -117,20 +117,17 @@ const BuyingHistoryTableSimplified = React.memo(function BuyingHistoryTableSimpl
     
     // Prevent multiple simultaneous calls
     if (processReturn.isProcessing) {
-      console.log('🚫 Return already in progress, ignoring duplicate call');
       return;
     }
     
     processReturn.isProcessing = true;
     
     try {
-      console.log('🔄 Processing return with info:', returnInfo);
       const result = await window.api.returnBuyingHistoryEntry(returnModalData.entry.id, {
         quantity: returnInfo.returnQuantity,
         returnAmounts: returnInfo.returnAmounts
       });
       
-      console.log('📋 Return result:', result);
       
       if (result.success) {
         let toastMessage = result.isPartialReturn 
@@ -194,12 +191,10 @@ const BuyingHistoryTableSimplified = React.memo(function BuyingHistoryTableSimpl
 
     // Prevent multiple simultaneous calls
     if (executeItemReturn.isProcessing) {
-      console.log('🚫 Item return already in progress, ignoring duplicate call');
       return;
     }
     
     executeItemReturn.isProcessing = true;
-    console.log('🔄 Starting item return...', returnInfo);
 
     try {
       const result = await window.api.returnBuyingHistoryItem(
@@ -211,7 +206,6 @@ const BuyingHistoryTableSimplified = React.memo(function BuyingHistoryTableSimpl
         }
       );
       
-      console.log('📤 Item return API result:', result);
       
       if (result.success) {
         let toastMessage = t?.returnSuccess || 'Item returned successfully!';

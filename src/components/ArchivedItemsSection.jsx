@@ -16,7 +16,6 @@ export default function ArchivedItemsSection({ t, admin }) {
     
     setLoading(true);
     try {
-      console.log('🔍 Fetching archived items...');
       
       // First, let's check what API functions are available
       console.log('  - getArchivedProducts:', typeof window.api.getArchivedProducts);
@@ -32,7 +31,6 @@ export default function ArchivedItemsSection({ t, admin }) {
         allProducts = await window.api.getAllProducts();
         console.log('📦 All products from getAllProducts:', allProducts.length);
         if (allProducts.length > 0) {
-          console.log('📋 Products with their archive status:');
           allProducts.forEach(p => {
             console.log(`  - ${p.name}: archived=${p.archived} (type: ${typeof p.archived})`);
           });
@@ -42,7 +40,6 @@ export default function ArchivedItemsSection({ t, admin }) {
       if (window.api.getAllAccessories) {
         allAccessories = await window.api.getAllAccessories();
         if (allAccessories.length > 0) {
-          console.log('📋 Accessories with their archive status:');
           allAccessories.forEach(a => {
             console.log(`  - ${a.name}: archived=${a.archived} (type: ${typeof a.archived})`);
           });
@@ -58,11 +55,9 @@ export default function ArchivedItemsSection({ t, admin }) {
       console.log('📦 Archived products fetched:', archivedProductsList?.length || 0);
 
       if (archivedProductsList.length > 0) {
-        console.log('📁 Found archived products:', archivedProductsList.map(p => p.name));
       }
       
       if (archivedAccessoriesList.length > 0) {
-        console.log('📁 Found archived accessories:', archivedAccessoriesList.map(a => a.name));
       }
       
       // If the specific archived API calls return empty but we have products with archived status,
@@ -70,7 +65,6 @@ export default function ArchivedItemsSection({ t, admin }) {
       if (archivedProductsList.length === 0 && allProducts.length > 0) {
         const manuallyFilteredProducts = allProducts.filter(p => p.archived === 1 || p.archived === '1' || p.archived === true);
         if (manuallyFilteredProducts.length > 0) {
-          console.log('📁 Manually found archived products:', manuallyFilteredProducts.map(p => p.name));
           setArchivedProducts(manuallyFilteredProducts);
         } else {
           setArchivedProducts(archivedProductsList);
@@ -82,7 +76,6 @@ export default function ArchivedItemsSection({ t, admin }) {
       if (archivedAccessoriesList.length === 0 && allAccessories.length > 0) {
         const manuallyFilteredAccessories = allAccessories.filter(a => a.archived === 1 || a.archived === '1' || a.archived === true);
         if (manuallyFilteredAccessories.length > 0) {
-          console.log('📁 Manually found archived accessories:', manuallyFilteredAccessories.map(a => a.name));
           setArchivedAccessories(manuallyFilteredAccessories);
         } else {
           setArchivedAccessories(archivedAccessoriesList);

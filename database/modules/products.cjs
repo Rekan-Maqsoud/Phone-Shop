@@ -42,7 +42,6 @@ function addProduct(db, { name, buying_price, stock, archived = 0, ram, storage,
   
   
   if (existingProduct && existingProduct.id) {
-    console.log('🔄 [products.cjs] Merging with existing product ID:', existingProduct.id);
     
     // Calculate new weighted average buying price
     const currentStock = Number(existingProduct.stock) || 0;
@@ -64,24 +63,13 @@ function addProduct(db, { name, buying_price, stock, archived = 0, ram, storage,
     } else {
       averageBuyingPrice = newBuyingPrice;
     }
-    
-    console.log('🔢 [products.cjs] Price calculation:', {
-      currentStock,
-      currentBuyingPrice,
-      newStock,
-      newBuyingPrice,
-      totalStock,
-      averageBuyingPrice
-    });
-    
+
     // Update existing product with new stock and average buying price
     const result = db.prepare('UPDATE products SET buying_price=?, stock=? WHERE id=?')
       .run(averageBuyingPrice, totalStock, existingProduct.id);
     
-    console.log('✅ [products.cjs] Product merged successfully:', { id: existingProduct.id, newStock: totalStock, newPrice: averageBuyingPrice });
     return { ...result, merged: true, productId: existingProduct.id };
   } else {
-    console.log('➕ [products.cjs] Creating new product');
     
     // Create new product - force ID to be set properly
     const result = db.prepare('INSERT INTO products (name, buying_price, stock, archived, ram, storage, model, brand, category, currency) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
@@ -91,12 +79,10 @@ function addProduct(db, { name, buying_price, stock, archived = 0, ram, storage,
     const newProductId = result.lastInsertRowid;
     const newProduct = db.prepare('SELECT * FROM products WHERE rowid = ?').get(newProductId);
     if (!newProduct || !newProduct.id) {
-      console.log('⚠️ [products.cjs] Repairing product ID...');
       // Force repair immediately
       db.prepare('UPDATE products SET id = ? WHERE rowid = ?').run(newProductId, newProductId);
     }
     
-    console.log('✅ [products.cjs] New product created:', { id: newProductId });
     return { ...result, merged: false, productId: newProductId };
   }
 }
@@ -105,7 +91,6 @@ function addProduct(db, { name, buying_price, stock, archived = 0, ram, storage,
 function ensureValidProductId(db, productId) {
   const product = db.prepare('SELECT id FROM products WHERE id = ?').get(productId);
   if (!product || !product.id) {
-    console.error('⚠️ Product has NULL ID, attempting repair...');
     // Try to find by rowid and fix
     const productByRowid = db.prepare('SELECT rowid, * FROM products WHERE rowid = ? AND id IS NULL').get(productId);
     if (productByRowid) {
@@ -126,11 +111,6 @@ function updateProduct(db, { id, name, buying_price, stock, archived = 0, ram, s
       throw new Error('Product name is required');
     }
     
-    // Log the update operation
-    console.log('🔄 [products.cjs] Updating product:', { 
-      id, name, buying_price, stock, archived, ram, storage, model, brand, category, currency 
-    });
-    
     // Check if product exists first
     const existing = db.prepare('SELECT id FROM products WHERE id = ?').get(id);
     if (!existing) {
@@ -140,7 +120,6 @@ function updateProduct(db, { id, name, buying_price, stock, archived = 0, ram, s
     const result = db.prepare('UPDATE products SET name=?, buying_price=?, stock=?, archived=?, ram=?, storage=?, model=?, brand=?, category=?, currency=? WHERE id=?')
       .run(name, buying_price, stock, archived, ram || null, storage || null, model || null, brand || null, category, currency, id);
     
-    console.log('✅ [products.cjs] Product updated successfully:', { id, changes: result.changes });
     
     // Verify the update
     const updated = db.prepare('SELECT * FROM products WHERE id = ?').get(id);

@@ -161,13 +161,11 @@ function getDatabaseInfo(db) {
   };
 }
 function updateBalance(db, currency, amount) {
-  console.log(`[BALANCE UPDATE] Currency: ${currency}, Amount: ${amount}`);
   // Update both balance systems simultaneously
   const balanceKey = currency === 'USD' ? 'balanceUSD' : 'balanceIQD';
   const balanceColumn = currency === 'USD' ? 'usd_balance' : 'iqd_balance';
   // Get current balance before update
   const currentBalance = getSetting(db, balanceKey);
-  console.log(`[BALANCE UPDATE] Current ${currency} balance: ${currentBalance}, New will be: ${parseFloat(currentBalance || 0) + amount}`);
   const transaction = db.transaction(() => {
     // Update settings table
     db.prepare(`
@@ -186,7 +184,6 @@ function updateBalance(db, currency, amount) {
   const result = transaction();
   // Get new balance after update
   const newBalance = getSetting(db, balanceKey);
-  console.log(`[BALANCE UPDATE] Updated ${currency} balance to: ${newBalance}`);
   return result;
 }
 function setBalance(db, currency, amount) {

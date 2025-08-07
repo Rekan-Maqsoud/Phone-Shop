@@ -277,13 +277,6 @@ export default function PersonalLoansSection({ admin, t, showConfirm }) {
       forceCurrency: forceCurrency // Add this flag to indicate forced currency deduction
     };
     
-    console.log('🔍 [DEBUG] Opening total payment modal:', {
-      personName,
-      totalDebt,
-      forceCurrency,
-      syntheticDebt
-    });
-    
     setSelectedPersonForPayment(syntheticDebt);
     setShowTotalPaymentModal(true);
   };
@@ -297,21 +290,6 @@ export default function PersonalLoansSection({ admin, t, showConfirm }) {
       // Check if this is a forced currency payment
       const forceCurrency = selectedPersonForPayment?.forceCurrency;
 
-      console.log('🔍 [DEBUG] Processing personal loan total payment:', {
-        personName: selectedPersonForPayment.person_name,
-        paymentData,
-        forceCurrency,
-        selectedPersonForPayment
-      });
-
-      // Debug: Check API availability
-      console.log('🔍 [DEBUG] API availability:', {
-        payPersonalLoanTotal: typeof window.api?.payPersonalLoanTotal,
-        payPersonalLoanTotalSimplifiedForcedUSD: typeof window.api?.payPersonalLoanTotalSimplifiedForcedUSD,
-        payPersonalLoanTotalSimplifiedForcedIQD: typeof window.api?.payPersonalLoanTotalSimplifiedForcedIQD,
-        windowApiExists: !!window.api
-      });
-
       let result;
       let apiFunction = null;
       let paymentPayload = {
@@ -320,12 +298,9 @@ export default function PersonalLoansSection({ admin, t, showConfirm }) {
         payment_currency_used: paymentData.payment_currency_used
       };
 
-      console.log('🔍 [DEBUG] Payment payload:', paymentPayload);
-      
       // Use appropriate API based on force currency setting
       if (forceCurrency === 'USD') {
         apiFunction = 'payPersonalLoanTotalSimplifiedForcedUSD';
-        console.log('🔍 [DEBUG] Using USD forced payment API');
         if (!window.api?.payPersonalLoanTotalSimplifiedForcedUSD) {
           throw new Error('USD forced payment API not available');
         }
@@ -335,7 +310,6 @@ export default function PersonalLoansSection({ admin, t, showConfirm }) {
         );
       } else if (forceCurrency === 'IQD') {
         apiFunction = 'payPersonalLoanTotalSimplifiedForcedIQD';
-        console.log('🔍 [DEBUG] Using IQD forced payment API');
         if (!window.api?.payPersonalLoanTotalSimplifiedForcedIQD) {
           throw new Error('IQD forced payment API not available');
         }
@@ -346,7 +320,6 @@ export default function PersonalLoansSection({ admin, t, showConfirm }) {
       } else {
         // Regular payment - no forced currency
         apiFunction = 'payPersonalLoanTotal';
-        console.log('🔍 [DEBUG] Using regular payment API');
         if (!window.api?.payPersonalLoanTotal) {
           throw new Error('Regular payment API not available');
         }
@@ -356,12 +329,6 @@ export default function PersonalLoansSection({ admin, t, showConfirm }) {
           paymentPayload
         );
       }
-
-      console.log('🔍 [DEBUG] API call result:', {
-        apiFunction,
-        result,
-        success: result?.success
-      });
 
       if (result?.success) {
         // Show detailed payment result
@@ -380,7 +347,6 @@ export default function PersonalLoansSection({ admin, t, showConfirm }) {
           message += ' - Overpayment detected';
         }
         
-        console.log('🔍 [DEBUG] Payment successful, showing success message:', message);
         admin.setToast?.(message, 'success');
         
         await fetchLoans();
@@ -412,7 +378,6 @@ export default function PersonalLoansSection({ admin, t, showConfirm }) {
       // Check if it's a database schema error
       if (error.message && error.message.includes('no such column: payment_exchange_rate')) {
         try {
-          console.log('Attempting to fix database schema...');
           admin.setToast?.('Updating database schema...', 'info');
           
           // Run database migration
@@ -423,7 +388,6 @@ export default function PersonalLoansSection({ admin, t, showConfirm }) {
             admin.setToast?.('Failed to update database schema. Please restart the app.', 'error');
           }
         } catch (migrationError) {
-          console.error('Migration failed:', migrationError);
           admin.setToast?.('Database schema update failed. Please restart the app.', 'error');
         }
       }
@@ -603,28 +567,27 @@ export default function PersonalLoansSection({ admin, t, showConfirm }) {
                                   {t?.payAll || 'Pay All'}
                                 </button>
                                 
-                                {/* Show USD button if person has any USD debt */}
-                                {group.unpaidUSD > 0 && (
-                                  <button
-                                    onClick={() => openTotalPaymentModal(group.person_name, { usd: group.unpaidUSD, iqd: group.unpaidIQD }, 'USD')}
-                                    className="px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs font-medium"
-                                    title={t?.payAllUSD || 'Pay All USD (use USD balance)'}
-                                  >
-                                    <Icon name="dollar-sign" size={12} className="inline mr-1" />
-                                    USD
-                                  </button>
-                                )}
-                                
-                                {/* Show IQD button if person has any IQD debt */}
-                                {group.unpaidIQD > 0 && (
-                                  <button
-                                    onClick={() => openTotalPaymentModal(group.person_name, { usd: group.unpaidUSD, iqd: group.unpaidIQD }, 'IQD')}
-                                    className="px-3 py-1 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition text-xs font-medium"
-                                    title={t?.payAllIQD || 'Pay All IQD (use IQD balance)'}
-                                  >
-                                    <Icon name="dollar-sign" size={12} className="inline mr-1" />
-                                    IQD
-                                  </button>
+                                {/* Only show USD/IQD buttons if person has debts in BOTH currencies */}
+                                {group.unpaidUSD > 0 && group.unpaidIQD > 0 && (
+                                  <>
+                                    <button
+                                      onClick={() => openTotalPaymentModal(group.person_name, { usd: group.unpaidUSD, iqd: group.unpaidIQD }, 'USD')}
+                                      className="px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs font-medium"
+                                      title={t?.payAllUSD || 'Pay All USD (use USD balance)'}
+                                    >
+                                      <Icon name="dollar-sign" size={12} className="inline mr-1" />
+                                      USD
+                                    </button>
+                                    
+                                    <button
+                                      onClick={() => openTotalPaymentModal(group.person_name, { usd: group.unpaidUSD, iqd: group.unpaidIQD }, 'IQD')}
+                                      className="px-3 py-1 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition text-xs font-medium"
+                                      title={t?.payAllIQD || 'Pay All IQD (use IQD balance)'}
+                                    >
+                                      <Icon name="dollar-sign" size={12} className="inline mr-1" />
+                                      IQD
+                                    </button>
+                                  </>
                                 )}
                               </div>
                             )}

@@ -57,14 +57,7 @@ function addAccessory(db, { name, buying_price, stock, archived = 0, brand, mode
       averageBuyingPrice = newBuyingPrice;
     }
     
-    console.log('🔢 [accessories.cjs] Price calculation:', {
-      currentStock,
-      currentBuyingPrice,
-      newStock,
-      newBuyingPrice,
-      totalStock,
-      averageBuyingPrice
-    });
+    
     
     // Update existing accessory with new stock and average buying price
     const result = db.prepare('UPDATE accessories SET buying_price=?, stock=?, updated_at=CURRENT_TIMESTAMP WHERE id=?')
@@ -105,11 +98,7 @@ function updateAccessory(db, { id, name, buying_price, stock, archived = 0, bran
     if (!name || name.trim() === '') {
       throw new Error('Accessory name is required');
     }
-    
-    // Log the update operation
-    console.log('🔄 [accessories.cjs] Updating accessory:', { 
-      id, name, buying_price, stock, archived, brand, model, type, currency 
-    });
+
     
     // Check if accessory exists first
     const existing = db.prepare('SELECT id FROM accessories WHERE id = ?').get(id);
@@ -171,7 +160,6 @@ function repairNullIds(db) {
   try {
     const nullAccessories = db.prepare('SELECT rowid, * FROM accessories WHERE id IS NULL').all();
     if (nullAccessories.length > 0) {
-      console.error(`🔧 Repairing ${nullAccessories.length} accessories with NULL IDs...`);
       
       for (const accessory of nullAccessories) {
         // Use rowid as the new ID

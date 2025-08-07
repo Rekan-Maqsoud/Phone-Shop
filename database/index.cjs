@@ -177,6 +177,22 @@ module.exports = function(dbPath) {
     return debts.payCustomerDebt(db, id);
   }
 
+  function payCustomerDebtTotal(customerName, paymentData) {
+    return debts.payCustomerDebtTotal(db, customerName, paymentData);
+  }
+
+  function payCustomerDebtTotalTargeted(customerName, paymentData, targetCurrency) {
+    return debts.payCustomerDebtTotalTargeted(db, customerName, paymentData, targetCurrency);
+  }
+
+  function payCustomerDebtTotalForcedUSD(customerName, paymentData) {
+    return debts.payCustomerDebtTotalForcedUSD(db, customerName, paymentData);
+  }
+
+  function payCustomerDebtTotalForcedIQD(customerName, paymentData) {
+    return debts.payCustomerDebtTotalForcedIQD(db, customerName, paymentData);
+  }
+
   // Legacy function for backward compatibility
   function markDebtPaid(id, paid_at) {
     return debts.markCustomerDebtPaid(db, id, { paid_at });
@@ -2258,6 +2274,10 @@ module.exports = function(dbPath) {
     getDebtPayments,
     addCustomerDebt,
     payCustomerDebt,
+    payCustomerDebtTotal,
+    payCustomerDebtTotalTargeted,
+    payCustomerDebtTotalForcedUSD,
+    payCustomerDebtTotalForcedIQD,
     markDebtPaid, // Legacy function for backward compatibility
     deleteCustomerDebt,
     getCompanyDebts,

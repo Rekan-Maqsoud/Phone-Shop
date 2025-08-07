@@ -445,9 +445,7 @@ function runMigrations(db) {
     const hasCurrencyColumn = customerDebtsTableInfo.some(col => col.name === 'currency');
 
     if (!hasCurrencyColumn) {
-      console.log('Adding currency column to customer_debts table...');
       db.prepare('ALTER TABLE customer_debts ADD COLUMN currency TEXT DEFAULT \'IQD\'').run();
-      console.log('✅ Currency column added to customer_debts table');
     }
     
     // Also ensure payment tracking columns exist
@@ -483,18 +481,14 @@ function runMigrations(db) {
     const hasUpdatedAt = accessoriesTableInfo.some(col => col.name === 'updated_at');
 
     if (!hasCreatedAt) {
-      console.log('Adding created_at column to accessories table...');
       db.prepare('ALTER TABLE accessories ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP').run();
-      console.log('✅ created_at column added to accessories table');
       
       // Update existing accessories with current timestamp
       db.prepare('UPDATE accessories SET created_at = CURRENT_TIMESTAMP WHERE created_at IS NULL').run();
     }
     
     if (!hasUpdatedAt) {
-      console.log('Adding updated_at column to accessories table...');
       db.prepare('ALTER TABLE accessories ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP').run();
-      console.log('✅ updated_at column added to accessories table');
       
       // Update existing accessories with current timestamp
       db.prepare('UPDATE accessories SET updated_at = CURRENT_TIMESTAMP WHERE updated_at IS NULL').run();
