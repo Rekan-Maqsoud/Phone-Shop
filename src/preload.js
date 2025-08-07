@@ -37,6 +37,9 @@ contextBridge.exposeInMainWorld('api', {
   getDebtPayments: (debtType, debtId) => ipcRenderer.invoke('getDebtPayments', debtType, debtId),
   addCustomerDebt: (debt) => ipcRenderer.invoke('addCustomerDebt', debt),
   markCustomerDebtPaid: (id, paid_at, paymentData) => ipcRenderer.invoke('markCustomerDebtPaid', id, paid_at, paymentData),
+  payCustomerDebtTotal: (customerName, paymentData) => ipcRenderer.invoke('payCustomerDebtTotal', customerName, paymentData),
+  payCustomerDebtTotalForcedUSD: (customerName, paymentData) => ipcRenderer.invoke('payCustomerDebtTotalForcedUSD', customerName, paymentData),
+  payCustomerDebtTotalForcedIQD: (customerName, paymentData) => ipcRenderer.invoke('payCustomerDebtTotalForcedIQD', customerName, paymentData),
   
   // Company debt functionality
   getCompanyDebts: () => ipcRenderer.invoke('getCompanyDebts'),
@@ -145,6 +148,14 @@ contextBridge.exposeInMainWorld('api', {
   addPersonalLoan: (loanData) => ipcRenderer.invoke('addPersonalLoan', loanData),
   getPersonalLoans: () => ipcRenderer.invoke('getPersonalLoans'),
   markPersonalLoanPaid: (id, paymentData) => ipcRenderer.invoke('markPersonalLoanPaid', id, paymentData),
+  payPersonalLoanTotal: (personName, paymentData) => ipcRenderer.invoke('payPersonalLoanTotal', personName, paymentData),
+  payPersonalLoanTotalForcedUSD: (personName, paymentData) => ipcRenderer.invoke('payPersonalLoanTotalForcedUSD', personName, paymentData),
+  payPersonalLoanTotalForcedIQD: (personName, paymentData) => ipcRenderer.invoke('payPersonalLoanTotalForcedIQD', personName, paymentData),
+  payPersonalLoanTotalSimplifiedForcedUSD: (personName, paymentData) => ipcRenderer.invoke('payPersonalLoanTotalSimplifiedForcedUSD', personName, paymentData),
+  payPersonalLoanTotalSimplifiedForcedIQD: (personName, paymentData) => ipcRenderer.invoke('payPersonalLoanTotalSimplifiedForcedIQD', personName, paymentData),
+  
+  // Database migration
+  migrateDatabaseSchema: () => ipcRenderer.invoke('migrateDatabaseSchema'),
   
   // Discount functionality
   addDiscount: (discountData) => ipcRenderer.invoke('addDiscount', discountData),

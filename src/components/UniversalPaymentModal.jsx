@@ -6,7 +6,8 @@ const UniversalPaymentModal = ({
   show, 
   onClose, 
   debtData,
-  paymentType, // 'customer', 'company', 'personal'
+  paymentType, // 'customer', 'company', 'personal', 'customer_total', 'personal_total'
+  forceCurrency, // For forced currency payments
   onPaymentComplete,
   admin, 
   t 
@@ -40,6 +41,14 @@ const UniversalPaymentModal = ({
     
     loadBalances();
   }, [show, admin?.balanceUSD, admin?.balanceIQD]); // Re-fetch when modal opens or when admin balances change
+
+  // Effect to handle forced currency - SET DEFAULT PAYMENT CURRENCY
+  useEffect(() => {
+    if (forceCurrency || debtData?.forceCurrency) {
+      const currency = forceCurrency || debtData?.forceCurrency;
+      setPaymentCurrency(currency);
+    }
+  }, [forceCurrency, debtData?.forceCurrency]);
 
   // Calculate debt amount in USD for consistency
   const debtAmountUSD = useMemo(() => {
@@ -100,6 +109,18 @@ const UniversalPaymentModal = ({
       
       // Convert to USD equivalent for consistent calculation
       return remainingUSD + (remainingIQD / EXCHANGE_RATES.USD_TO_IQD);
+    } else if (paymentType === 'customer_total') {
+      // For customer total payments, use the calculated totalDebt
+      if (debtData?.totalDebt) {
+        return debtData.totalDebt.usd + (debtData.totalDebt.iqd / EXCHANGE_RATES.USD_TO_IQD);
+      }
+      return 0;
+    } else if (paymentType === 'personal_total') {
+      // For personal loan total payments, use the calculated totalDebt
+      if (debtData?.totalDebt) {
+        return debtData.totalDebt.usd + (debtData.totalDebt.iqd / EXCHANGE_RATES.USD_TO_IQD);
+      }
+      return 0;
     } else if (paymentType === 'personal') {
       // For personal loans, calculate remaining amount
       const remainingUSD = Math.max(0, (debtData.usd_amount || 0) - (debtData.payment_usd_amount || 0));
@@ -298,6 +319,30 @@ const UniversalPaymentModal = ({
         } else {
           console.error('❌ No onPaymentComplete callback provided for company payment');
         }
+      } else if (paymentType === 'customer_total') {
+        // For customer total payments, let the parent component handle the payment processing
+        // Add customer name to payment data
+        paymentData.customer_name = debtData.customer_name;
+        
+        if (onPaymentComplete) {
+          await onPaymentComplete(paymentData);
+          handleClose();
+          return;
+        } else {
+          console.error('❌ No onPaymentComplete callback provided for customer total payment');
+        }
+      } else if (paymentType === 'personal_total') {
+        // For personal total payments, let the parent component handle the payment processing
+        // Add person name to payment data
+        paymentData.person_name = debtData.person_name;
+        
+        if (onPaymentComplete) {
+          await onPaymentComplete(paymentData);
+          handleClose();
+          return;
+        } else {
+          console.error('❌ No onPaymentComplete callback provided for personal total payment');
+        }
       } else if (paymentType === 'personal') {
         result = await window.api?.markPersonalLoanPaid?.(debtData.id, paymentData);
       }
@@ -359,8 +404,10 @@ const UniversalPaymentModal = ({
   const getTitle = () => {
     switch (paymentType) {
       case 'customer': return t?.customerDebtPayment || 'Customer Debt Payment';
+      case 'customer_total': return t?.customerTotalPayment || 'Customer Total Payment';
       case 'company': return t?.companyDebtPayment || 'Company Debt Payment';
       case 'personal': return t?.personalLoanPayment || 'Personal Loan Payment';
+      case 'personal_total': return t?.personalTotalPayment || 'Personal Total Payment';
       default: return t?.payment || 'Payment';
     }
   };
@@ -368,8 +415,10 @@ const UniversalPaymentModal = ({
   const getDebtorName = () => {
     switch (paymentType) {
       case 'customer': return debtData.originalCustomer || debtData.sale?.customer_name || t?.unknownCustomer || 'Unknown Customer';
+      case 'customer_total': return debtData.customer_name || t?.unknownCustomer || 'Unknown Customer';
       case 'company': return debtData.company_name || t?.unknownCompany || 'Unknown Company';
       case 'personal': return debtData.person_name || t?.unknownPerson || 'Unknown Person';
+      case 'personal_total': return debtData.person_name || t?.unknownPerson || 'Unknown Person';
       default: return '';
     }
   };
@@ -397,7 +446,7 @@ const UniversalPaymentModal = ({
           <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
             <div className="flex justify-between items-center mb-2">
               <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                {paymentType === 'customer' ? t?.customer || 'Customer' : 
+                {(paymentType === 'customer' || paymentType === 'customer_total') ? t?.customer || 'Customer' : 
                  paymentType === 'company' ? t?.company || 'Company' :
                  t?.person || 'Person'}:
               </span>
@@ -407,7 +456,7 @@ const UniversalPaymentModal = ({
             </div>
             <div className="flex justify-between items-center">
               <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                {paymentType === 'personal' ? t?.loanAmount || 'Loan Amount' : t?.debtAmount || 'Debt Amount'}:
+                {(paymentType === 'personal' || paymentType === 'personal_total') ? t?.loanAmount || 'Loan Amount' : t?.debtAmount || 'Debt Amount'}:
               </span>
               <span className="text-xl font-bold text-red-600 dark:text-red-400">
                 {paymentType === 'company' ? (
@@ -464,6 +513,25 @@ const UniversalPaymentModal = ({
 
         {/* Payment Options */}
         <div className="p-6 space-y-6">
+          {/* Force Currency Indicator */}
+          {forceCurrency && (
+            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-4">
+              <div className="flex items-center gap-3">
+                <svg className="w-5 h-5 text-blue-600 dark:text-blue-400" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17h2v-6h-2v6zm0-8h2V7h-2v4z"/>
+                </svg>
+                <div>
+                  <p className="text-sm font-medium text-blue-800 dark:text-blue-200">
+                    {forceCurrency === 'USD' ? 'USD Debt Deduction Mode' : 'IQD Debt Deduction Mode'}
+                  </p>
+                  <p className="text-xs text-blue-600 dark:text-blue-300">
+                    Only {forceCurrency} debt will be decreased, regardless of payment currency used.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+          
           {/* Currency Selection */}
           <div>
             <div className="flex justify-between items-center mb-4">

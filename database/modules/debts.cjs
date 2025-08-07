@@ -300,6 +300,641 @@ function deleteCustomerDebt(db, id) {
   }
 }
 
+// New function to pay total customer debt for a specific customer
+function payCustomerDebtTotal(db, customerName, paymentData) {
+  const { 
+    payment_usd_amount = 0, 
+    payment_iqd_amount = 0 
+  } = paymentData || {};
+  
+  if (!customerName) {
+    throw new Error('Customer name is required');
+  }
+  
+  const now = new Date().toISOString();
+  
+  const transaction = db.transaction(() => {
+    try {
+      // Get all unpaid debts for this customer, ordered by creation date (oldest first)
+      // Use case-insensitive comparison
+      const unpaidDebts = db.prepare(`
+        SELECT id, customer_name, amount, description, currency,
+               payment_usd_amount, payment_iqd_amount, created_at
+        FROM customer_debts 
+        WHERE LOWER(customer_name) = LOWER(?) AND paid_at IS NULL
+        ORDER BY created_at ASC
+      `).all(customerName);
+      
+      if (unpaidDebts.length === 0) {
+        // Check if customer exists with any debts (paid or unpaid)
+        const anyDebts = db.prepare(`
+          SELECT COUNT(*) as count FROM customer_debts WHERE LOWER(customer_name) = LOWER(?)
+        `).get(customerName);
+        
+        if (anyDebts.count === 0) {
+          return { success: false, message: `No debts found for customer: ${customerName}` };
+        } else {
+          return { success: false, message: `No unpaid debts found for customer: ${customerName}` };
+        }
+      }
+      
+      // Get current exchange rates
+      const { getExchangeRate } = require('./settings.cjs');
+      const currentUSDToIQD = getExchangeRate(db, 'USD', 'IQD');
+      const currentIQDToUSD = 1 / currentUSDToIQD;
+      
+      let remainingUSDPayment = payment_usd_amount;
+      let remainingIQDPayment = payment_iqd_amount;
+      let totalPaidUSD = 0;
+      let totalPaidIQD = 0;
+      let paidDebts = [];
+      
+      // Process each debt in order (oldest first)
+      for (const debt of unpaidDebts) {
+        if (remainingUSDPayment <= 0 && remainingIQDPayment <= 0) {
+          break; // No more payment left
+        }
+        
+        // Calculate remaining debt for this specific debt
+        const currentPaidUSD = debt.payment_usd_amount || 0;
+        const currentPaidIQD = debt.payment_iqd_amount || 0;
+        
+        let remainingDebtUSD = 0;
+        let remainingDebtIQD = 0;
+        
+        if (debt.currency === 'USD') {
+          const paidIQDInUSD = currentPaidIQD / currentUSDToIQD;
+          remainingDebtUSD = Math.max(0, debt.amount - currentPaidUSD - paidIQDInUSD);
+          remainingDebtIQD = 0;
+        } else {
+          // IQD or default
+          const paidUSDInIQD = currentPaidUSD * currentUSDToIQD;
+          remainingDebtIQD = Math.max(0, debt.amount - currentPaidIQD - paidUSDInIQD);
+          remainingDebtUSD = 0;
+        }
+        
+        // Apply payment to this debt
+        let usdToApply = 0;
+        let iqdToApply = 0;
+        
+        // For single-currency debts, use the existing logic
+        // First, try to pay with matching currency
+        if (remainingDebtUSD > 0 && remainingUSDPayment > 0) {
+          usdToApply = Math.min(remainingDebtUSD, remainingUSDPayment);
+          remainingUSDPayment -= usdToApply;
+          remainingDebtUSD -= usdToApply;
+        }
+        
+        if (remainingDebtIQD > 0 && remainingIQDPayment > 0) {
+          iqdToApply = Math.min(remainingDebtIQD, remainingIQDPayment);
+          remainingIQDPayment -= iqdToApply;
+          remainingDebtIQD -= iqdToApply;
+        }
+        
+        // Cross-currency payment for single-currency debts
+        if (remainingDebtUSD > 0 && remainingIQDPayment > 0) {
+          const iqdToUSDForDebt = Math.min(remainingIQDPayment, remainingDebtUSD * currentUSDToIQD);
+          iqdToApply += iqdToUSDForDebt;
+          remainingIQDPayment -= iqdToUSDForDebt;
+          remainingDebtUSD -= iqdToUSDForDebt / currentUSDToIQD;
+        }
+        
+        if (remainingDebtIQD > 0 && remainingUSDPayment > 0) {
+          const usdToIQDForDebt = Math.min(remainingUSDPayment, remainingDebtIQD / currentUSDToIQD);
+          usdToApply += usdToIQDForDebt;
+          remainingUSDPayment -= usdToIQDForDebt;
+          remainingDebtIQD -= usdToIQDForDebt * currentUSDToIQD;
+        }
+        
+        // Apply the payment to this debt
+        if (usdToApply > 0 || iqdToApply > 0) {
+          const newTotalPaidUSD = currentPaidUSD + usdToApply;
+          const newTotalPaidIQD = currentPaidIQD + iqdToApply;
+          
+          // Check if this debt is now fully paid
+          let isFullyPaid = false;
+          if (debt.currency === 'USD') {
+            const totalPaidUSDEquivalent = newTotalPaidUSD + (newTotalPaidIQD / currentUSDToIQD);
+            isFullyPaid = totalPaidUSDEquivalent >= (debt.amount - 0.01);
+          } else {
+            const totalPaidIQDEquivalent = newTotalPaidIQD + (newTotalPaidUSD * currentUSDToIQD);
+            isFullyPaid = totalPaidIQDEquivalent >= (debt.amount - 250);
+          }
+          
+          // Update the debt
+          const updateStmt = db.prepare(`
+            UPDATE customer_debts 
+            SET paid_at = ?, 
+                payment_usd_amount = ?, 
+                payment_iqd_amount = ?,
+                payment_exchange_rate_usd_to_iqd = ?,
+                payment_exchange_rate_iqd_to_usd = ?
+            WHERE id = ?
+          `);
+          
+          updateStmt.run(
+            isFullyPaid ? now : null,
+            newTotalPaidUSD,
+            newTotalPaidIQD,
+            currentUSDToIQD,
+            currentIQDToUSD,
+            debt.id
+          );
+          
+          // Record this payment in debt_payments table
+          const recordPaymentStmt = db.prepare(`
+            INSERT INTO debt_payments (debt_type, debt_id, payment_usd_amount, payment_iqd_amount, 
+                                       payment_currency_used, exchange_rate_usd_to_iqd, exchange_rate_iqd_to_usd, 
+                                       payment_date) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          `);
+          
+          recordPaymentStmt.run(
+            'customer',
+            debt.id,
+            usdToApply || 0,
+            iqdToApply || 0,
+            (usdToApply > 0 && iqdToApply > 0) ? 'MULTI' : (usdToApply > 0 ? 'USD' : 'IQD'),
+            currentUSDToIQD,
+            currentIQDToUSD,
+            now
+          );
+          
+          totalPaidUSD += usdToApply;
+          totalPaidIQD += iqdToApply;
+          paidDebts.push({ ...debt, paidAmount: { usd: usdToApply, iqd: iqdToApply }, fullyPaid: isFullyPaid });
+        }
+      }
+      
+      // Record the total transaction
+      if (totalPaidUSD > 0 || totalPaidIQD > 0) {
+        const addTransactionStmt = db.prepare(`
+          INSERT INTO transactions (type, amount_usd, amount_iqd, description, reference_id, reference_type, created_at) 
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `);
+        
+        addTransactionStmt.run(
+          'customer_debt_payment',
+          totalPaidUSD || 0, // Positive for receiving
+          totalPaidIQD || 0, // Positive for receiving
+          `Total customer debt payment: ${customerName} - Paid ${paidDebts.length} debt(s)`,
+          null, // No single reference ID since we're paying multiple debts
+          'customer_debt_total',
+          now
+        );
+      }
+      
+      // Add to the user's balance based on what currency was actually used
+      if (totalPaidUSD > 0) {
+        settings.updateBalance(db, 'USD', totalPaidUSD);
+      }
+      if (totalPaidIQD > 0) {
+        settings.updateBalance(db, 'IQD', totalPaidIQD);
+      }
+      
+      return { 
+        success: true, 
+        message: `Successfully processed payment for ${customerName}`,
+        paidDebts,
+        totalPaid: { usd: totalPaidUSD, iqd: totalPaidIQD },
+        remainingPayment: { usd: remainingUSDPayment, iqd: remainingIQDPayment },
+        hasOverpayment: remainingUSDPayment > 0 || remainingIQDPayment > 0
+      };
+      
+    } catch (error) {
+      console.error('❌ [debts.cjs] Error in payCustomerDebtTotal:', error);
+      throw error;
+    }
+  });
+  
+  return transaction();
+}
+
+// Force USD debt payment - only pay USD debts, but allow any currency balance to be used
+function payCustomerDebtTotalForcedUSD(db, customerName, paymentData) {
+  const { 
+    payment_usd_amount = 0, 
+    payment_iqd_amount = 0 
+  } = paymentData || {};
+  
+  if (!customerName) {
+    throw new Error('Customer name is required');
+  }
+  
+  const now = new Date().toISOString();
+  
+  // Get current exchange rates from settings instead of hardcoded fallback
+  const { getExchangeRate } = require('./settings.cjs');
+  const currentUSDToIQD = getExchangeRate(db, 'USD', 'IQD');
+  
+  const transaction = db.transaction(() => {
+    try {
+      // Get all unpaid debts for this customer
+      const unpaidDebts = db.prepare(`
+        SELECT id, customer_name, amount, description, currency,
+               payment_usd_amount, payment_iqd_amount, created_at
+        FROM customer_debts 
+        WHERE LOWER(customer_name) = LOWER(?) AND paid_at IS NULL
+        ORDER BY created_at ASC
+      `).all(customerName);
+      
+      if (unpaidDebts.length === 0) {
+        return {
+          success: true,
+          message: 'No unpaid debts found for this customer',
+          paidDebts: [],
+          totalPaid: { usd: 0, iqd: 0 },
+          remainingPayment: { usd: payment_usd_amount, iqd: payment_iqd_amount },
+          hasOverpayment: payment_usd_amount > 0 || payment_iqd_amount > 0
+        };
+      }
+      
+      // Calculate total remaining USD debt for this customer - ONLY USD debts
+      let totalRemainingUSDDebt = 0;
+      const usdDebts = []; // USD debts only
+      
+      for (const debt of unpaidDebts) {
+        const currentPaidUSD = debt.payment_usd_amount || 0;
+        const currentPaidIQD = debt.payment_iqd_amount || 0;
+        
+        if (debt.currency === 'USD') {
+          const totalPaidUSDEquivalent = currentPaidUSD + (currentPaidIQD / currentUSDToIQD);
+          const remainingDebtUSD = Math.max(0, debt.amount - totalPaidUSDEquivalent);
+          
+          if (remainingDebtUSD > 0) {
+            totalRemainingUSDDebt += remainingDebtUSD;
+            usdDebts.push({
+              ...debt,
+              remainingAmount: remainingDebtUSD
+            });
+          }
+        }
+        // IGNORE IQD-only debts completely for forced USD payment
+      }
+      
+      // Only USD debts for forced USD payment
+      const allDebtsForPayment = [...usdDebts];
+      
+      if (allDebtsForPayment.length === 0) {
+        return {
+          success: true,
+          message: 'No unpaid USD debts found for this customer',
+          paidDebts: [],
+          totalPaid: { usd: 0, iqd: 0 },
+          remainingPayment: { usd: payment_usd_amount, iqd: payment_iqd_amount },
+          hasOverpayment: payment_usd_amount > 0 || payment_iqd_amount > 0
+        };
+      }
+      
+      // Apply payment to all debts (USD priority), but track which currency is being used to pay
+      let remainingUSDPayment = payment_usd_amount;
+      let remainingIQDPayment = payment_iqd_amount;
+      let totalPaidFromUSD = 0;
+      let totalPaidFromIQD = 0;
+      let paidDebts = [];
+      
+      // Pay debts until payment is exhausted (USD debts only)
+      for (const debt of allDebtsForPayment) {
+        // Continue as long as there's any payment available (USD OR IQD)
+        if (remainingUSDPayment <= 0 && remainingIQDPayment <= 0) break;
+        
+        const currentPaidUSD = debt.payment_usd_amount || 0;
+        const currentPaidIQD = debt.payment_iqd_amount || 0;
+        
+        let paymentFromUSDBalance = 0;
+        let paymentFromIQDBalance = 0;
+        
+        // Payment logic: Only USD debts allowed in forced USD payment
+        if (debt.currency === 'USD') {
+          // Try to pay with USD balance first for USD debts
+          if (remainingUSDPayment > 0) {
+            paymentFromUSDBalance = Math.min(remainingUSDPayment, debt.remainingAmount);
+            remainingUSDPayment -= paymentFromUSDBalance;
+          }
+          
+          // If still debt remaining, pay with IQD balance (converted to USD equivalent)
+          const stillOwedAfterUSD = debt.remainingAmount - paymentFromUSDBalance;
+          if (stillOwedAfterUSD > 0 && remainingIQDPayment > 0) {
+            const iqdNeededForDebt = stillOwedAfterUSD * currentUSDToIQD;
+            paymentFromIQDBalance = Math.min(remainingIQDPayment, iqdNeededForDebt);
+            remainingIQDPayment -= paymentFromIQDBalance;
+          }
+        }
+        
+        if (paymentFromUSDBalance > 0 || paymentFromIQDBalance > 0) {
+          // For single-currency debts, use the original logic
+          const updatedPaidUSD = currentPaidUSD + paymentFromUSDBalance;
+          const updatedPaidIQD = currentPaidIQD + paymentFromIQDBalance;
+          
+          // Check if this specific debt is fully paid based on its currency type
+          let isFullyPaid = false;
+          if (debt.currency === 'USD') {
+            const totalPaidUSDEquivalent = updatedPaidUSD + (updatedPaidIQD / currentUSDToIQD);
+            isFullyPaid = totalPaidUSDEquivalent >= debt.amount;
+          }
+          
+          const paidAt = isFullyPaid ? now : null;
+          
+          // Update debt record
+          db.prepare(`
+            UPDATE customer_debts 
+            SET payment_usd_amount = ?, payment_iqd_amount = ?, paid_at = ?
+            WHERE id = ?
+          `).run(updatedPaidUSD, updatedPaidIQD, paidAt, debt.id);
+          
+          paidDebts.push({
+            id: debt.id,
+            customer_name: debt.customer_name,
+            description: debt.description,
+            paymentUSD: paymentFromUSDBalance,
+            paymentIQD: paymentFromIQDBalance,
+            fullyPaid: isFullyPaid
+          });
+          
+          totalPaidFromUSD += paymentFromUSDBalance;
+          totalPaidFromIQD += paymentFromIQDBalance;
+        }
+      }
+      
+      // Add to user's balance based on what currency was actually used
+      if (totalPaidFromUSD > 0) {
+        settings.updateBalance(db, 'USD', totalPaidFromUSD);
+      }
+      if (totalPaidFromIQD > 0) {
+        settings.updateBalance(db, 'IQD', totalPaidFromIQD);
+      }
+      
+      // Check if there's still any debt remaining after payment (all currencies)
+      const remainingAllDebts = db.prepare(`
+        SELECT SUM(
+          CASE 
+            WHEN currency = 'USD' THEN amount - COALESCE(payment_usd_amount, 0) - COALESCE(payment_iqd_amount, 0) / 1440
+            WHEN currency = 'IQD' THEN amount - COALESCE(payment_iqd_amount, 0) - COALESCE(payment_usd_amount, 0) * 1440
+            ELSE amount
+          END
+        ) as total_remaining
+        FROM customer_debts 
+        WHERE customer_name = ? AND paid_at IS NULL
+      `).get(customerName);
+      
+      const finalRemainingDebt = remainingAllDebts?.total_remaining || 0;
+      const actualOverpayment = (remainingUSDPayment > 0 || remainingIQDPayment > 0) && finalRemainingDebt <= 0;
+
+      // Record the total transaction for forced USD payment
+      if (totalPaidFromUSD > 0 || totalPaidFromIQD > 0) {
+        const addTransactionStmt = db.prepare(`
+          INSERT INTO transactions (type, amount_usd, amount_iqd, description, reference_id, reference_type, created_at) 
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `);
+        
+        addTransactionStmt.run(
+          'customer_debt_payment',
+          totalPaidFromUSD || 0, // Positive for receiving
+          totalPaidFromIQD || 0, // Positive for receiving
+          `Forced USD debt payment: ${customerName} - Paid ${paidDebts.length} debt(s)`,
+          null, // No single reference ID since we're paying multiple debts
+          'customer_debt_forced_usd',
+          now
+        );
+      }
+
+      return {
+        success: true,
+        message: `USD debt payment completed for ${customerName}`,
+        paidDebts,
+        totalPaid: { usd: totalPaidFromUSD, iqd: totalPaidFromIQD },
+        remainingPayment: { usd: remainingUSDPayment, iqd: remainingIQDPayment },
+        hasOverpayment: actualOverpayment,
+        paymentMethod: 'forced_usd'
+      };
+      
+    } catch (error) {
+      console.error('❌ [debts.cjs] Error in payCustomerDebtTotalForcedUSD:', error);
+      throw error;
+    }
+  });
+  
+  return transaction();
+}
+
+// Force IQD debt payment - only pay IQD debts, but allow any currency balance to be used
+function payCustomerDebtTotalForcedIQD(db, customerName, paymentData) {
+  const { 
+    payment_usd_amount = 0, 
+    payment_iqd_amount = 0 
+  } = paymentData || {};
+  
+  if (!customerName) {
+    throw new Error('Customer name is required');
+  }
+  
+  const now = new Date().toISOString();
+  
+  // Get current exchange rates from settings instead of hardcoded fallback
+  const { getExchangeRate } = require('./settings.cjs');
+  const currentUSDToIQD = getExchangeRate(db, 'USD', 'IQD');
+  
+  const transaction = db.transaction(() => {
+    try {
+      // Get all unpaid debts for this customer
+      const unpaidDebts = db.prepare(`
+        SELECT id, customer_name, amount, description, currency,
+               payment_usd_amount, payment_iqd_amount, created_at
+        FROM customer_debts 
+        WHERE LOWER(customer_name) = LOWER(?) AND paid_at IS NULL
+        ORDER BY created_at ASC
+      `).all(customerName);
+      
+      if (unpaidDebts.length === 0) {
+        return {
+          success: true,
+          message: 'No unpaid debts found for this customer',
+          paidDebts: [],
+          totalPaid: { usd: 0, iqd: 0 },
+          remainingPayment: { usd: payment_usd_amount, iqd: payment_iqd_amount },
+          hasOverpayment: payment_usd_amount > 0 || payment_iqd_amount > 0
+        };
+      }
+      
+      // Calculate total remaining IQD debt for this customer - ONLY IQD debts
+      let totalRemainingIQDDebt = 0;
+      const iqdDebts = []; // IQD debts only
+      
+      for (const debt of unpaidDebts) {
+        const currentPaidIQD = debt.payment_iqd_amount || 0;
+        const currentPaidUSD = debt.payment_usd_amount || 0;
+        
+        if (debt.currency === 'IQD') {
+          const totalPaidIQDEquivalent = currentPaidIQD + (currentPaidUSD * currentUSDToIQD);
+          const remainingDebtIQD = Math.max(0, debt.amount - totalPaidIQDEquivalent);
+          
+          if (remainingDebtIQD > 0) {
+            totalRemainingIQDDebt += remainingDebtIQD;
+            iqdDebts.push({
+              ...debt,
+              remainingAmount: remainingDebtIQD
+            });
+          }
+        }
+        // IGNORE USD-only debts completely for forced IQD payment
+      }
+      
+      // Only IQD debts for forced IQD payment
+      const allDebtsForPayment = [...iqdDebts];
+      
+      if (allDebtsForPayment.length === 0) {
+        return {
+          success: true,
+          message: 'No unpaid IQD debts found for this customer',
+          paidDebts: [],
+          totalPaid: { usd: 0, iqd: 0 },
+          remainingPayment: { usd: payment_usd_amount, iqd: payment_iqd_amount },
+          hasOverpayment: payment_usd_amount > 0 || payment_iqd_amount > 0
+        };
+      }
+      
+      // Apply payment to all debts (IQD priority), but track which currency is being used to pay
+      let remainingUSDPayment = payment_usd_amount;
+      let remainingIQDPayment = payment_iqd_amount;
+      let totalPaidFromUSD = 0;
+      let totalPaidFromIQD = 0;
+      let paidDebts = [];
+      
+      // Pay debts until payment is exhausted (IQD debts only)
+      for (const debt of allDebtsForPayment) {
+        // Continue as long as there's any payment available (USD OR IQD)
+        if (remainingUSDPayment <= 0 && remainingIQDPayment <= 0) break;
+        
+        const currentPaidUSD = debt.payment_usd_amount || 0;
+        const currentPaidIQD = debt.payment_iqd_amount || 0;
+        
+        let paymentFromUSDBalance = 0;
+        let paymentFromIQDBalance = 0;
+        
+        // Payment logic: Only IQD debts allowed in forced IQD payment
+        if (debt.currency === 'IQD') {
+          // Try to pay with IQD balance first for IQD debts
+          if (remainingIQDPayment > 0) {
+            paymentFromIQDBalance = Math.min(remainingIQDPayment, debt.remainingAmount);
+            remainingIQDPayment -= paymentFromIQDBalance;
+          }
+          
+          // If still debt remaining, pay with USD balance (converted to IQD equivalent)
+          const stillOwedAfterIQD = debt.remainingAmount - paymentFromIQDBalance;
+          if (stillOwedAfterIQD > 0 && remainingUSDPayment > 0) {
+            const usdNeededForDebt = stillOwedAfterIQD / currentUSDToIQD;
+            paymentFromUSDBalance = Math.min(remainingUSDPayment, usdNeededForDebt);
+            remainingUSDPayment -= paymentFromUSDBalance;
+          }
+        }
+        
+        if (paymentFromUSDBalance > 0 || paymentFromIQDBalance > 0) {
+          // For single-currency debts, use the original logic
+          const updatedPaidUSD = currentPaidUSD + paymentFromUSDBalance;
+          const updatedPaidIQD = currentPaidIQD + paymentFromIQDBalance;
+          
+          // Check if this specific debt is fully paid based on its currency type
+          let isFullyPaid = false;
+          if (debt.currency === 'IQD') {
+            const totalPaidIQDEquivalent = updatedPaidIQD + (updatedPaidUSD * currentUSDToIQD);
+            isFullyPaid = totalPaidIQDEquivalent >= debt.amount;
+          }
+          
+          const paidAt = isFullyPaid ? now : null;
+          
+          // Update debt record
+          db.prepare(`
+            UPDATE customer_debts 
+            SET payment_usd_amount = ?, payment_iqd_amount = ?, paid_at = ?
+            WHERE id = ?
+          `).run(updatedPaidUSD, updatedPaidIQD, paidAt, debt.id);
+          
+          paidDebts.push({
+            id: debt.id,
+            customer_name: debt.customer_name,
+            description: debt.description,
+            paymentUSD: paymentFromUSDBalance,
+            paymentIQD: paymentFromIQDBalance,
+            fullyPaid: isFullyPaid
+          });
+          
+          totalPaidFromUSD += paymentFromUSDBalance;
+          totalPaidFromIQD += paymentFromIQDBalance;
+        }
+      }
+      
+      // Add to user's balance based on what currency was actually used
+      if (totalPaidFromUSD > 0) {
+        settings.updateBalance(db, 'USD', totalPaidFromUSD);
+      }
+      if (totalPaidFromIQD > 0) {
+        settings.updateBalance(db, 'IQD', totalPaidFromIQD);
+      }
+      
+      // Check if there's still any debt remaining after payment (all currencies)
+      const remainingAllDebts = db.prepare(`
+        SELECT SUM(
+          CASE 
+            WHEN currency = 'USD' THEN amount - COALESCE(payment_usd_amount, 0) - COALESCE(payment_iqd_amount, 0) / 1440
+            WHEN currency = 'IQD' THEN amount - COALESCE(payment_iqd_amount, 0) - COALESCE(payment_usd_amount, 0) * 1440
+            ELSE amount
+          END
+        ) as total_remaining
+        FROM customer_debts 
+        WHERE customer_name = ? AND paid_at IS NULL
+      `).get(customerName);
+      
+      const finalRemainingDebt = remainingAllDebts?.total_remaining || 0;
+      const actualOverpayment = (remainingIQDPayment > 0 || remainingUSDPayment > 0) && finalRemainingDebt <= 0;
+
+      // Record the total transaction for forced IQD payment
+      if (totalPaidFromUSD > 0 || totalPaidFromIQD > 0) {
+        const addTransactionStmt = db.prepare(`
+          INSERT INTO transactions (type, amount_usd, amount_iqd, description, reference_id, reference_type, created_at) 
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `);
+        
+        addTransactionStmt.run(
+          'customer_debt_payment',
+          totalPaidFromUSD || 0, // Positive for receiving
+          totalPaidFromIQD || 0, // Positive for receiving
+          `Forced IQD debt payment: ${customerName} - Paid ${paidDebts.length} debt(s)`,
+          null, // No single reference ID since we're paying multiple debts
+          'customer_debt_forced_iqd',
+          now
+        );
+      }
+
+      return {
+        success: true,
+        message: `IQD debt payment completed for ${customerName}`,
+        paidDebts,
+        totalPaid: { usd: totalPaidFromUSD, iqd: totalPaidFromIQD },
+        remainingPayment: { usd: remainingUSDPayment, iqd: remainingIQDPayment },
+        hasOverpayment: actualOverpayment,
+        paymentMethod: 'forced_iqd'
+      };
+      
+    } catch (error) {
+      console.error('❌ [debts.cjs] Error in payCustomerDebtTotalForcedIQD:', error);
+      throw error;
+    }
+  });
+  
+  return transaction();
+}
+
+// Targeted currency payment function
+function payCustomerDebtTotalTargeted(db, customerName, paymentData, targetCurrency) {
+  if (targetCurrency === 'USD') {
+    return payCustomerDebtTotalForcedUSD(db, customerName, paymentData);
+  } else if (targetCurrency === 'IQD') {
+    return payCustomerDebtTotalForcedIQD(db, customerName, paymentData);
+  } else {
+    return payCustomerDebtTotal(db, customerName, paymentData);
+  }
+}
+
 function getCompanyDebts(db) {
   try {
     return db.prepare('SELECT * FROM company_debts ORDER BY created_at DESC').all();
@@ -1877,6 +2512,1215 @@ function deletePersonalLoan(db, id) {
   }
 }
 
+// New function to pay total personal loans for a specific person
+function payPersonalLoanTotal(db, personName, paymentData) {
+  console.log('🔍 [DEBUG] payPersonalLoanTotal called:', {
+    personName,
+    paymentData
+  });
+  
+  const { 
+    payment_usd_amount = 0, 
+    payment_iqd_amount = 0 
+  } = paymentData || {};
+  
+  if (!personName) {
+    throw new Error('Person name is required');
+  }
+  
+  const now = new Date().toISOString();
+  
+  const transaction = db.transaction(() => {
+    try {
+      // Get all unpaid loans for this person, ordered by creation date (oldest first)
+      // Use case-insensitive comparison and get multi-currency columns
+      const unpaidLoans = db.prepare(`
+        SELECT id, person_name, amount, description, currency,
+               usd_amount, iqd_amount,
+               payment_usd_amount, payment_iqd_amount, created_at
+        FROM personal_loans 
+        WHERE LOWER(person_name) = LOWER(?) AND paid_at IS NULL
+        ORDER BY created_at ASC
+      `).all(personName);
+      
+      if (unpaidLoans.length === 0) {
+        // Check if person exists with any loans (paid or unpaid)
+        const anyLoans = db.prepare(`
+          SELECT COUNT(*) as count FROM personal_loans WHERE LOWER(person_name) = LOWER(?)
+        `).get(personName);
+        
+        if (anyLoans.count === 0) {
+          return { success: false, message: `No loans found for person: ${personName}` };
+        } else {
+          return { success: false, message: `No unpaid loans found for person: ${personName}` };
+        }
+      }
+      
+      // Get current exchange rates
+      const { getExchangeRate } = require('./settings.cjs');
+      const currentUSDToIQD = getExchangeRate(db, 'USD', 'IQD');
+      const currentIQDToUSD = 1 / currentUSDToIQD;
+      
+      let remainingUSDPayment = payment_usd_amount;
+      let remainingIQDPayment = payment_iqd_amount;
+      let totalPaidUSD = 0;
+      let totalPaidIQD = 0;
+      let paidLoans = [];
+      
+      // Process each loan in order (oldest first)
+      for (const loan of unpaidLoans) {
+        if (remainingUSDPayment <= 0 && remainingIQDPayment <= 0) {
+          break; // No more payment left
+        }
+        
+        // Calculate remaining loan for this specific loan using multi-currency approach
+        const currentPaidUSD = loan.payment_usd_amount || 0;
+        const currentPaidIQD = loan.payment_iqd_amount || 0;
+        
+        // Get loan amounts (use multi-currency columns if available, fallback to old schema)
+        const loanUSDAmount = loan.usd_amount || (loan.currency === 'USD' ? (loan.amount || 0) : 0);
+        const loanIQDAmount = loan.iqd_amount || (loan.currency === 'IQD' ? (loan.amount || 0) : 0);
+        
+        // Calculate remaining amounts for each currency
+        const remainingLoanUSD = Math.max(0, loanUSDAmount - currentPaidUSD);
+        const remainingLoanIQD = Math.max(0, loanIQDAmount - currentPaidIQD);
+        
+        // Apply payment to this loan
+        let usdToApply = 0;
+        let iqdToApply = 0;
+        
+        // First, apply payments in matching currencies
+        if (remainingLoanUSD > 0 && remainingUSDPayment > 0) {
+          usdToApply = Math.min(remainingLoanUSD, remainingUSDPayment);
+          remainingUSDPayment -= usdToApply;
+        }
+        
+        if (remainingLoanIQD > 0 && remainingIQDPayment > 0) {
+          iqdToApply = Math.min(remainingLoanIQD, remainingIQDPayment);
+          remainingIQDPayment -= iqdToApply;
+        }
+        
+        // Then apply cross-currency payments if there are remaining loan amounts
+        const stillRemainingUSD = remainingLoanUSD - usdToApply;
+        const stillRemainingIQD = remainingLoanIQD - iqdToApply;
+        
+        // Use IQD to pay remaining USD debt
+        if (stillRemainingUSD > 0 && remainingIQDPayment > 0) {
+          const iqdNeededForUSD = stillRemainingUSD * currentUSDToIQD;
+          const iqdToUseForUSD = Math.min(remainingIQDPayment, iqdNeededForUSD);
+          iqdToApply += iqdToUseForUSD;
+          remainingIQDPayment -= iqdToUseForUSD;
+        }
+        
+        // Use USD to pay remaining IQD debt
+        if (stillRemainingIQD > 0 && remainingUSDPayment > 0) {
+          const usdNeededForIQD = stillRemainingIQD / currentUSDToIQD;
+          const usdToUseForIQD = Math.min(remainingUSDPayment, usdNeededForIQD);
+          usdToApply += usdToUseForIQD;
+          remainingUSDPayment -= usdToUseForIQD;
+        }
+        
+        // Apply the payment to this loan
+        if (usdToApply > 0 || iqdToApply > 0) {
+          const newTotalPaidUSD = currentPaidUSD + usdToApply;
+          const newTotalPaidIQD = currentPaidIQD + iqdToApply;
+          
+          // Check if this loan is now fully paid
+          const totalUSDPaidEquivalent = newTotalPaidUSD + (newTotalPaidIQD / currentUSDToIQD);
+          const totalIQDPaidEquivalent = newTotalPaidIQD + (newTotalPaidUSD * currentUSDToIQD);
+          const totalUSDLoanAmount = loanUSDAmount + (loanIQDAmount / currentUSDToIQD);
+          const totalIQDLoanAmount = loanIQDAmount + (loanUSDAmount * currentUSDToIQD);
+          
+          // A loan is fully paid if either the USD equivalent or IQD equivalent is fully covered
+          const isFullyPaid = (totalUSDPaidEquivalent >= (totalUSDLoanAmount - 0.01)) || 
+                              (totalIQDPaidEquivalent >= (totalIQDLoanAmount - 250));
+          
+          // Update the loan
+          const updateStmt = db.prepare(`
+            UPDATE personal_loans 
+            SET paid_at = ?, 
+                payment_usd_amount = ?, 
+                payment_iqd_amount = ?,
+                payment_exchange_rate_usd_to_iqd = ?,
+                payment_exchange_rate_iqd_to_usd = ?
+            WHERE id = ?
+          `);
+          
+          updateStmt.run(
+            isFullyPaid ? now : null,
+            newTotalPaidUSD,
+            newTotalPaidIQD,
+            currentUSDToIQD,
+            currentIQDToUSD,
+            loan.id
+          );
+          
+          // Record this payment in debt_payments table
+          const recordPaymentStmt = db.prepare(`
+            INSERT INTO debt_payments (debt_type, debt_id, payment_usd_amount, payment_iqd_amount, 
+                                       payment_currency_used, exchange_rate_usd_to_iqd, exchange_rate_iqd_to_usd, 
+                                       payment_date) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          `);
+          
+          recordPaymentStmt.run(
+            'personal_loan',
+            loan.id,
+            usdToApply || 0,
+            iqdToApply || 0,
+            (usdToApply > 0 && iqdToApply > 0) ? 'MULTI' : (usdToApply > 0 ? 'USD' : 'IQD'),
+            currentUSDToIQD,
+            currentIQDToUSD,
+            now
+          );
+          
+          totalPaidUSD += usdToApply;
+          totalPaidIQD += iqdToApply;
+          paidLoans.push({ ...loan, paidAmount: { usd: usdToApply, iqd: iqdToApply }, fullyPaid: isFullyPaid });
+        }
+      }
+      
+      // Record the total transaction
+      if (totalPaidUSD > 0 || totalPaidIQD > 0) {
+        const addTransactionStmt = db.prepare(`
+          INSERT INTO transactions (type, amount_usd, amount_iqd, description, reference_id, reference_type, created_at) 
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `);
+        
+        addTransactionStmt.run(
+          'personal_loan_payment',
+          totalPaidUSD || 0, // Positive for receiving
+          totalPaidIQD || 0, // Positive for receiving
+          `Total personal loan payment: ${personName} - Paid ${paidLoans.length} loan(s)`,
+          null, // No single reference ID since we're paying multiple loans
+          'personal_loan_total',
+          now
+        );
+      }
+      
+      // Add to the user's balance based on what currency was actually used
+      // CRITICAL: Handle forced currency payments correctly
+      const originalPayment = paymentData._original_payment;
+      
+      if (originalPayment && originalPayment.force_currency) {
+        // For forced currency payments, deduct from the forced currency balance
+        console.log('🔍 [DEBUG] Processing forced currency payment:', {
+          originalPayment,
+          totalPaidUSD,
+          totalPaidIQD
+        });
+        
+        if (originalPayment.force_currency === 'USD') {
+          // Forced USD: deduct original payment amounts from USD balance only
+          const totalOriginalPaymentInUSD = originalPayment.usd + (originalPayment.iqd / currentUSDToIQD);
+          if (totalOriginalPaymentInUSD > 0) {
+            settings.updateBalance(db, 'USD', totalOriginalPaymentInUSD);
+            console.log('🔍 [DEBUG] Updated USD balance by:', totalOriginalPaymentInUSD);
+          }
+        } else if (originalPayment.force_currency === 'IQD') {
+          // Forced IQD: deduct original payment amounts from IQD balance only
+          const totalOriginalPaymentInIQD = originalPayment.iqd + (originalPayment.usd * currentUSDToIQD);
+          if (totalOriginalPaymentInIQD > 0) {
+            settings.updateBalance(db, 'IQD', totalOriginalPaymentInIQD);
+            console.log('🔍 [DEBUG] Updated IQD balance by:', totalOriginalPaymentInIQD);
+          }
+        }
+      } else {
+        // Regular payment: add to balance based on what was applied to loans
+        if (totalPaidUSD > 0) {
+          settings.updateBalance(db, 'USD', totalPaidUSD);
+        }
+        if (totalPaidIQD > 0) {
+          settings.updateBalance(db, 'IQD', totalPaidIQD);
+        }
+      }
+      
+      return { 
+        success: true, 
+        message: `Successfully processed payment for ${personName}`,
+        paidLoans,
+        totalPaid: { usd: totalPaidUSD, iqd: totalPaidIQD },
+        remainingPayment: { usd: remainingUSDPayment, iqd: remainingIQDPayment },
+        hasOverpayment: remainingUSDPayment > 0 || remainingIQDPayment > 0
+      };
+      
+    } catch (error) {
+      console.error('❌ [debts.cjs] Error in payPersonalLoanTotal:', error);
+      throw error;
+    }
+  });
+  
+  return transaction();
+}
+
+// Force USD loan payment - only pay USD loans, but allow any currency balance to be used
+function payPersonalLoanTotalForcedUSD(db, personName, paymentData) {
+  const { 
+    payment_usd_amount = 0, 
+    payment_iqd_amount = 0 
+  } = paymentData || {};
+  
+  if (!personName) {
+    throw new Error('Person name is required');
+  }
+  
+  const now = new Date().toISOString();
+  
+  // Get current exchange rates from settings instead of hardcoded fallback
+  const { getExchangeRate } = require('./settings.cjs');
+  const currentUSDToIQD = getExchangeRate(db, 'USD', 'IQD');
+  
+  const transaction = db.transaction(() => {
+    try {
+      // Get all unpaid loans for this person
+      const unpaidLoans = db.prepare(`
+        SELECT id, person_name, amount, description, currency,
+               payment_usd_amount, payment_iqd_amount, created_at
+        FROM personal_loans 
+        WHERE LOWER(person_name) = LOWER(?) AND paid_at IS NULL
+        ORDER BY created_at ASC
+      `).all(personName);
+      
+      if (unpaidLoans.length === 0) {
+        return {
+          success: true,
+          message: 'No unpaid loans found for this person',
+          paidLoans: [],
+          totalPaid: { usd: 0, iqd: 0 },
+          remainingPayment: { usd: payment_usd_amount, iqd: payment_iqd_amount },
+          hasOverpayment: payment_usd_amount > 0 || payment_iqd_amount > 0
+        };
+      }
+      
+      // Calculate total remaining USD loan for this person - ONLY USD loans
+      let totalRemainingUSDLoan = 0;
+      const usdLoans = []; // USD loans only
+      
+      for (const loan of unpaidLoans) {
+        const currentPaidUSD = loan.payment_usd_amount || 0;
+        const currentPaidIQD = loan.payment_iqd_amount || 0;
+        
+        if (loan.currency === 'USD') {
+          const totalPaidUSDEquivalent = currentPaidUSD + (currentPaidIQD / currentUSDToIQD);
+          const remainingLoanUSD = Math.max(0, loan.amount - totalPaidUSDEquivalent);
+          
+          if (remainingLoanUSD > 0) {
+            totalRemainingUSDLoan += remainingLoanUSD;
+            usdLoans.push({
+              ...loan,
+              remainingAmount: remainingLoanUSD
+            });
+          }
+        }
+        // IGNORE IQD-only loans completely for forced USD payment
+      }
+      
+      // Only USD loans for forced USD payment
+      const allLoansForPayment = [...usdLoans];
+      
+      if (allLoansForPayment.length === 0) {
+        return {
+          success: true,
+          message: 'No unpaid USD loans found for this person',
+          paidLoans: [],
+          totalPaid: { usd: 0, iqd: 0 },
+          remainingPayment: { usd: payment_usd_amount, iqd: payment_iqd_amount },
+          hasOverpayment: payment_usd_amount > 0 || payment_iqd_amount > 0
+        };
+      }
+      
+      // Apply payment to all loans (USD priority), but track which currency is being used to pay
+      let remainingUSDPayment = payment_usd_amount;
+      let remainingIQDPayment = payment_iqd_amount;
+      let totalPaidFromUSD = 0;
+      let totalPaidFromIQD = 0;
+      let paidLoans = [];
+      
+      // Pay loans until payment is exhausted (USD loans only)
+      for (const loan of allLoansForPayment) {
+        // Continue as long as there's any payment available (USD OR IQD)
+        if (remainingUSDPayment <= 0 && remainingIQDPayment <= 0) break;
+        
+        const currentPaidUSD = loan.payment_usd_amount || 0;
+        const currentPaidIQD = loan.payment_iqd_amount || 0;
+        
+        let paymentFromUSDBalance = 0;
+        let paymentFromIQDBalance = 0;
+        
+        // Payment logic: Only USD loans allowed in forced USD payment
+        if (loan.currency === 'USD') {
+          // Try to pay with USD balance first for USD loans
+          if (remainingUSDPayment > 0) {
+            paymentFromUSDBalance = Math.min(remainingUSDPayment, loan.remainingAmount);
+            remainingUSDPayment -= paymentFromUSDBalance;
+          }
+          
+          // If still loan remaining, pay with IQD balance (converted to USD equivalent)
+          const stillOwedAfterUSD = loan.remainingAmount - paymentFromUSDBalance;
+          if (stillOwedAfterUSD > 0 && remainingIQDPayment > 0) {
+            const iqdNeededForLoan = stillOwedAfterUSD * currentUSDToIQD;
+            paymentFromIQDBalance = Math.min(remainingIQDPayment, iqdNeededForLoan);
+            remainingIQDPayment -= paymentFromIQDBalance;
+          }
+        }
+        
+        if (paymentFromUSDBalance > 0 || paymentFromIQDBalance > 0) {
+          // For single-currency loans, use the original logic
+          const updatedPaidUSD = currentPaidUSD + paymentFromUSDBalance;
+          const updatedPaidIQD = currentPaidIQD + paymentFromIQDBalance;
+          
+          // Check if this specific loan is fully paid based on its currency type
+          let isFullyPaid = false;
+          if (loan.currency === 'USD') {
+            const totalPaidUSDEquivalent = updatedPaidUSD + (updatedPaidIQD / currentUSDToIQD);
+            isFullyPaid = totalPaidUSDEquivalent >= loan.amount;
+          }
+          
+          const paidAt = isFullyPaid ? now : null;
+          
+          // Update loan record
+          db.prepare(`
+            UPDATE personal_loans 
+            SET payment_usd_amount = ?, payment_iqd_amount = ?, paid_at = ?
+            WHERE id = ?
+          `).run(updatedPaidUSD, updatedPaidIQD, paidAt, loan.id);
+          
+          paidLoans.push({
+            id: loan.id,
+            person_name: loan.person_name,
+            description: loan.description,
+            paymentUSD: paymentFromUSDBalance,
+            paymentIQD: paymentFromIQDBalance,
+            fullyPaid: isFullyPaid
+          });
+          
+          totalPaidFromUSD += paymentFromUSDBalance;
+          totalPaidFromIQD += paymentFromIQDBalance;
+        }
+      }
+      
+      // Add to user's balance based on what currency was actually used
+      if (totalPaidFromUSD > 0) {
+        settings.updateBalance(db, 'USD', totalPaidFromUSD);
+      }
+      if (totalPaidFromIQD > 0) {
+        settings.updateBalance(db, 'IQD', totalPaidFromIQD);
+      }
+      
+      // Check if there's still any loan remaining after payment (all currencies)
+      const remainingAllLoans = db.prepare(`
+        SELECT SUM(
+          CASE 
+            WHEN currency = 'USD' THEN amount - COALESCE(payment_usd_amount, 0) - COALESCE(payment_iqd_amount, 0) / 1440
+            WHEN currency = 'IQD' THEN amount - COALESCE(payment_iqd_amount, 0) - COALESCE(payment_usd_amount, 0) * 1440
+            ELSE amount
+          END
+        ) as total_remaining
+        FROM personal_loans 
+        WHERE person_name = ? AND paid_at IS NULL
+      `).get(personName);
+      
+      const finalRemainingLoan = remainingAllLoans?.total_remaining || 0;
+      const actualOverpayment = (remainingUSDPayment > 0 || remainingIQDPayment > 0) && finalRemainingLoan <= 0;
+
+      // Record the total transaction for forced USD payment
+      if (totalPaidFromUSD > 0 || totalPaidFromIQD > 0) {
+        const addTransactionStmt = db.prepare(`
+          INSERT INTO transactions (type, amount_usd, amount_iqd, description, reference_id, reference_type, created_at) 
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `);
+        
+        addTransactionStmt.run(
+          'personal_loan_payment',
+          totalPaidFromUSD || 0, // Positive for receiving
+          totalPaidFromIQD || 0, // Positive for receiving
+          `Forced USD loan payment: ${personName} - Paid ${paidLoans.length} loan(s)`,
+          null, // No single reference ID since we're paying multiple loans
+          'personal_loan_forced_usd',
+          now
+        );
+      }
+
+      return {
+        success: true,
+        message: `USD loan payment completed for ${personName}`,
+        paidLoans,
+        totalPaid: { usd: totalPaidFromUSD, iqd: totalPaidFromIQD },
+        remainingPayment: { usd: remainingUSDPayment, iqd: remainingIQDPayment },
+        hasOverpayment: actualOverpayment,
+        paymentMethod: 'forced_usd'
+      };
+      
+    } catch (error) {
+      console.error('❌ [debts.cjs] Error in payPersonalLoanTotalForcedUSD:', error);
+      throw error;
+    }
+  });
+  
+  return transaction();
+}
+
+// Force IQD loan payment - only pay IQD loans, but allow any currency balance to be used
+function payPersonalLoanTotalForcedIQD(db, personName, paymentData) {
+  const { 
+    payment_usd_amount = 0, 
+    payment_iqd_amount = 0 
+  } = paymentData || {};
+  
+  if (!personName) {
+    throw new Error('Person name is required');
+  }
+  
+  const now = new Date().toISOString();
+  
+  // Get current exchange rates from settings instead of hardcoded fallback
+  const { getExchangeRate } = require('./settings.cjs');
+  const currentUSDToIQD = getExchangeRate(db, 'USD', 'IQD');
+  
+  const transaction = db.transaction(() => {
+    try {
+      // Get all unpaid loans for this person
+      const unpaidLoans = db.prepare(`
+        SELECT id, person_name, amount, description, currency,
+               payment_usd_amount, payment_iqd_amount, created_at
+        FROM personal_loans 
+        WHERE LOWER(person_name) = LOWER(?) AND paid_at IS NULL
+        ORDER BY created_at ASC
+      `).all(personName);
+      
+      if (unpaidLoans.length === 0) {
+        return {
+          success: true,
+          message: 'No unpaid loans found for this person',
+          paidLoans: [],
+          totalPaid: { usd: 0, iqd: 0 },
+          remainingPayment: { usd: payment_usd_amount, iqd: payment_iqd_amount },
+          hasOverpayment: payment_usd_amount > 0 || payment_iqd_amount > 0
+        };
+      }
+      
+      // Calculate total remaining IQD loan for this person - ONLY IQD loans
+      let totalRemainingIQDLoan = 0;
+      const iqdLoans = []; // IQD loans only
+      
+      for (const loan of unpaidLoans) {
+        const currentPaidIQD = loan.payment_iqd_amount || 0;
+        const currentPaidUSD = loan.payment_usd_amount || 0;
+        
+        if (loan.currency === 'IQD') {
+          const totalPaidIQDEquivalent = currentPaidIQD + (currentPaidUSD * currentUSDToIQD);
+          const remainingLoanIQD = Math.max(0, loan.amount - totalPaidIQDEquivalent);
+          
+          if (remainingLoanIQD > 0) {
+            totalRemainingIQDLoan += remainingLoanIQD;
+            iqdLoans.push({
+              ...loan,
+              remainingAmount: remainingLoanIQD
+            });
+          }
+        }
+        // IGNORE USD-only loans completely for forced IQD payment
+      }
+      
+      // Only IQD loans for forced IQD payment
+      const allLoansForPayment = [...iqdLoans];
+      
+      if (allLoansForPayment.length === 0) {
+        return {
+          success: true,
+          message: 'No unpaid IQD loans found for this person',
+          paidLoans: [],
+          totalPaid: { usd: 0, iqd: 0 },
+          remainingPayment: { usd: payment_usd_amount, iqd: payment_iqd_amount },
+          hasOverpayment: payment_usd_amount > 0 || payment_iqd_amount > 0
+        };
+      }
+      
+      // Apply payment to all loans (IQD priority), but track which currency is being used to pay
+      let remainingUSDPayment = payment_usd_amount;
+      let remainingIQDPayment = payment_iqd_amount;
+      let totalPaidFromUSD = 0;
+      let totalPaidFromIQD = 0;
+      let paidLoans = [];
+      
+      // Pay loans until payment is exhausted (IQD loans only)
+      for (const loan of allLoansForPayment) {
+        // Continue as long as there's any payment available (USD OR IQD)
+        if (remainingUSDPayment <= 0 && remainingIQDPayment <= 0) break;
+        
+        const currentPaidUSD = loan.payment_usd_amount || 0;
+        const currentPaidIQD = loan.payment_iqd_amount || 0;
+        
+        let paymentFromUSDBalance = 0;
+        let paymentFromIQDBalance = 0;
+        
+        // Payment logic: Only IQD loans allowed in forced IQD payment
+        if (loan.currency === 'IQD') {
+          // Try to pay with IQD balance first for IQD loans
+          if (remainingIQDPayment > 0) {
+            paymentFromIQDBalance = Math.min(remainingIQDPayment, loan.remainingAmount);
+            remainingIQDPayment -= paymentFromIQDBalance;
+          }
+          
+          // If still loan remaining, pay with USD balance (converted to IQD equivalent)
+          const stillOwedAfterIQD = loan.remainingAmount - paymentFromIQDBalance;
+          if (stillOwedAfterIQD > 0 && remainingUSDPayment > 0) {
+            const usdNeededForLoan = stillOwedAfterIQD / currentUSDToIQD;
+            paymentFromUSDBalance = Math.min(remainingUSDPayment, usdNeededForLoan);
+            remainingUSDPayment -= paymentFromUSDBalance;
+          }
+        }
+        
+        if (paymentFromUSDBalance > 0 || paymentFromIQDBalance > 0) {
+          // For single-currency loans, use the original logic
+          const updatedPaidUSD = currentPaidUSD + paymentFromUSDBalance;
+          const updatedPaidIQD = currentPaidIQD + paymentFromIQDBalance;
+          
+          // Check if this specific loan is fully paid based on its currency type
+          let isFullyPaid = false;
+          if (loan.currency === 'IQD') {
+            const totalPaidIQDEquivalent = updatedPaidIQD + (updatedPaidUSD * currentUSDToIQD);
+            isFullyPaid = totalPaidIQDEquivalent >= loan.amount;
+          }
+          
+          const paidAt = isFullyPaid ? now : null;
+          
+          // Update loan record
+          db.prepare(`
+            UPDATE personal_loans 
+            SET payment_usd_amount = ?, payment_iqd_amount = ?, paid_at = ?
+            WHERE id = ?
+          `).run(updatedPaidUSD, updatedPaidIQD, paidAt, loan.id);
+          
+          paidLoans.push({
+            id: loan.id,
+            person_name: loan.person_name,
+            description: loan.description,
+            paymentUSD: paymentFromUSDBalance,
+            paymentIQD: paymentFromIQDBalance,
+            fullyPaid: isFullyPaid
+          });
+          
+          totalPaidFromUSD += paymentFromUSDBalance;
+          totalPaidFromIQD += paymentFromIQDBalance;
+        }
+      }
+      
+      // Add to user's balance based on what currency was actually used
+      if (totalPaidFromUSD > 0) {
+        settings.updateBalance(db, 'USD', totalPaidFromUSD);
+      }
+      if (totalPaidFromIQD > 0) {
+        settings.updateBalance(db, 'IQD', totalPaidFromIQD);
+      }
+      
+      // Check if there's still any loan remaining after payment (all currencies)
+      const remainingAllLoans = db.prepare(`
+        SELECT SUM(
+          CASE 
+            WHEN currency = 'USD' THEN amount - COALESCE(payment_usd_amount, 0) - COALESCE(payment_iqd_amount, 0) / 1440
+            WHEN currency = 'IQD' THEN amount - COALESCE(payment_iqd_amount, 0) - COALESCE(payment_usd_amount, 0) * 1440
+            ELSE amount
+          END
+        ) as total_remaining
+        FROM personal_loans 
+        WHERE person_name = ? AND paid_at IS NULL
+      `).get(personName);
+      
+      const finalRemainingLoan = remainingAllLoans?.total_remaining || 0;
+      const actualOverpayment = (remainingIQDPayment > 0 || remainingUSDPayment > 0) && finalRemainingLoan <= 0;
+
+      // Record the total transaction for forced IQD payment
+      if (totalPaidFromUSD > 0 || totalPaidFromIQD > 0) {
+        const addTransactionStmt = db.prepare(`
+          INSERT INTO transactions (type, amount_usd, amount_iqd, description, reference_id, reference_type, created_at) 
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `);
+        
+        addTransactionStmt.run(
+          'personal_loan_payment',
+          totalPaidFromUSD || 0, // Positive for receiving
+          totalPaidFromIQD || 0, // Positive for receiving
+          `Forced IQD loan payment: ${personName} - Paid ${paidLoans.length} loan(s)`,
+          null, // No single reference ID since we're paying multiple loans
+          'personal_loan_forced_iqd',
+          now
+        );
+      }
+
+      return {
+        success: true,
+        message: `IQD loan payment completed for ${personName}`,
+        paidLoans,
+        totalPaid: { usd: totalPaidFromUSD, iqd: totalPaidFromIQD },
+        remainingPayment: { usd: remainingUSDPayment, iqd: remainingIQDPayment },
+        hasOverpayment: actualOverpayment,
+        paymentMethod: 'forced_iqd'
+      };
+      
+    } catch (error) {
+      console.error('❌ [debts.cjs] Error in payPersonalLoanTotalForcedIQD:', error);
+      throw error;
+    }
+  });
+  
+  return transaction();
+}
+
+// Targeted currency payment function for personal loans
+// Simplified forced currency payment functions that work correctly
+function payPersonalLoanTotalSimplifiedForcedUSD(db, personName, paymentData) {
+  console.log('🔍 [DEBUG] payPersonalLoanTotalSimplifiedForcedUSD called:', {
+    personName,
+    paymentData
+  });
+  
+  const { 
+    payment_usd_amount = 0, 
+    payment_iqd_amount = 0 
+  } = paymentData || {};
+  
+  if (!personName) {
+    throw new Error('Person name is required');
+  }
+  
+  const now = new Date().toISOString();
+  
+  const transaction = db.transaction(() => {
+    try {
+      // Get all unpaid loans for this person
+      const unpaidLoans = db.prepare(`
+        SELECT id, person_name, amount, description, currency,
+               usd_amount, iqd_amount,
+               payment_usd_amount, payment_iqd_amount, created_at
+        FROM personal_loans 
+        WHERE LOWER(person_name) = LOWER(?) AND paid_at IS NULL
+        ORDER BY created_at ASC
+      `).all(personName);
+      
+      if (unpaidLoans.length === 0) {
+        return { success: false, message: `No unpaid loans found for person: ${personName}` };
+      }
+      
+      // Get current exchange rates
+      const { getExchangeRate } = require('./settings.cjs');
+      const currentUSDToIQD = getExchangeRate(db, 'USD', 'IQD');
+      const currentIQDToUSD = 1 / currentUSDToIQD;
+      
+      // Convert all payment amounts to USD for forced USD deduction
+      let remainingPaymentUSD = payment_usd_amount + (payment_iqd_amount / currentUSDToIQD);
+      let totalPaidUSD = 0;
+      let totalPaidIQD = 0;
+      let paidLoans = [];
+      
+      console.log('🔍 [DEBUG] Starting forced USD payment with total:', {
+        originalUSD: payment_usd_amount,
+        originalIQD: payment_iqd_amount,
+        convertedTotalUSD: remainingPaymentUSD,
+        exchangeRate: currentUSDToIQD
+      });
+      
+      // STEP 1: Pay all USD loans first (in full priority)
+      for (const loan of unpaidLoans) {
+        if (remainingPaymentUSD <= 0) break;
+        
+        const currentPaidUSD = loan.payment_usd_amount || 0;
+        const loanUSDAmount = loan.usd_amount || (loan.currency === 'USD' ? (loan.amount || 0) : 0);
+        const remainingLoanUSD = Math.max(0, loanUSDAmount - currentPaidUSD);
+        
+        if (remainingLoanUSD > 0) {
+          const usdToApply = Math.min(remainingLoanUSD, remainingPaymentUSD);
+          remainingPaymentUSD -= usdToApply;
+          
+          const newTotalPaidUSD = currentPaidUSD + usdToApply;
+          const currentPaidIQD = loan.payment_iqd_amount || 0;
+          const loanIQDAmount = loan.iqd_amount || (loan.currency === 'IQD' ? (loan.amount || 0) : 0);
+          
+          // Check if USD portion is fully paid
+          const isUSDFullyPaid = newTotalPaidUSD >= loanUSDAmount - 0.01;
+          const isIQDFullyPaid = currentPaidIQD >= loanIQDAmount - 250;
+          const isFullyPaid = isUSDFullyPaid && (loanIQDAmount === 0 || isIQDFullyPaid);
+          
+          // Update the loan
+          const updateStmt = db.prepare(`
+            UPDATE personal_loans 
+            SET paid_at = ?, 
+                payment_usd_amount = ?,
+                payment_exchange_rate_usd_to_iqd = ?,
+                payment_exchange_rate_iqd_to_usd = ?
+            WHERE id = ?
+          `);
+          
+          updateStmt.run(
+            isFullyPaid ? now : null,
+            newTotalPaidUSD,
+            currentUSDToIQD,
+            currentIQDToUSD,
+            loan.id
+          );
+          
+          // Record payment
+          const recordPaymentStmt = db.prepare(`
+            INSERT INTO debt_payments (debt_type, debt_id, payment_usd_amount, payment_iqd_amount, 
+                                       payment_currency_used, exchange_rate_usd_to_iqd, exchange_rate_iqd_to_usd, 
+                                       payment_date) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          `);
+          
+          recordPaymentStmt.run(
+            'personal_loan',
+            loan.id,
+            usdToApply,
+            0,
+            'USD',
+            currentUSDToIQD,
+            currentIQDToUSD,
+            now
+          );
+          
+          totalPaidUSD += usdToApply;
+          paidLoans.push({ 
+            ...loan, 
+            paidAmount: { usd: usdToApply, iqd: 0 }, 
+            fullyPaid: isFullyPaid,
+            phase: 'USD_FIRST'
+          });
+          
+          console.log('🔍 [DEBUG] Applied USD payment:', {
+            loanId: loan.id,
+            usdToApply,
+            remainingPaymentUSD,
+            isFullyPaid
+          });
+        }
+      }
+      
+      // STEP 2: Convert remaining USD payment to IQD and pay IQD loans
+      if (remainingPaymentUSD > 0) {
+        const remainingIQDFromUSD = remainingPaymentUSD * currentUSDToIQD;
+        
+        console.log('🔍 [DEBUG] Converting remaining USD to IQD for IQD loans:', {
+          remainingUSD: remainingPaymentUSD,
+          convertedToIQD: remainingIQDFromUSD
+        });
+        
+        for (const loan of unpaidLoans) {
+          if (remainingPaymentUSD <= 0) break;
+          
+          const currentPaidIQD = loan.payment_iqd_amount || 0;
+          const loanIQDAmount = loan.iqd_amount || (loan.currency === 'IQD' ? (loan.amount || 0) : 0);
+          const remainingLoanIQD = Math.max(0, loanIQDAmount - currentPaidIQD);
+          
+          if (remainingLoanIQD > 0) {
+            const iqdNeeded = remainingLoanIQD;
+            const usdNeededForThisIQD = iqdNeeded / currentUSDToIQD;
+            const usdToUseForIQD = Math.min(remainingPaymentUSD, usdNeededForThisIQD);
+            const iqdToApply = usdToUseForIQD * currentUSDToIQD;
+            
+            remainingPaymentUSD -= usdToUseForIQD;
+            
+            const newTotalPaidIQD = currentPaidIQD + iqdToApply;
+            const currentPaidUSD = loan.payment_usd_amount || 0;
+            const loanUSDAmount = loan.usd_amount || (loan.currency === 'USD' ? (loan.amount || 0) : 0);
+            
+            // Check if this loan is now fully paid
+            const isIQDFullyPaid = newTotalPaidIQD >= loanIQDAmount - 250;
+            const isUSDFullyPaid = currentPaidUSD >= loanUSDAmount - 0.01;
+            const isFullyPaid = isIQDFullyPaid && (loanUSDAmount === 0 || isUSDFullyPaid);
+            
+            // Update the loan
+            const updateStmt = db.prepare(`
+              UPDATE personal_loans 
+              SET paid_at = ?, 
+                  payment_iqd_amount = ?,
+                  payment_exchange_rate_usd_to_iqd = ?,
+                  payment_exchange_rate_iqd_to_usd = ?
+              WHERE id = ?
+            `);
+            
+            updateStmt.run(
+              isFullyPaid ? now : null,
+              newTotalPaidIQD,
+              currentUSDToIQD,
+              currentIQDToUSD,
+              loan.id
+            );
+            
+            // Record payment (converted from USD)
+            const recordPaymentStmt = db.prepare(`
+              INSERT INTO debt_payments (debt_type, debt_id, payment_usd_amount, payment_iqd_amount, 
+                                         payment_currency_used, exchange_rate_usd_to_iqd, exchange_rate_iqd_to_usd, 
+                                         payment_date) 
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            `);
+            
+            recordPaymentStmt.run(
+              'personal_loan',
+              loan.id,
+              usdToUseForIQD, // Original USD used
+              iqdToApply, // IQD equivalent applied
+              'USD_TO_IQD', // Indicates conversion
+              currentUSDToIQD,
+              currentIQDToUSD,
+              now
+            );
+            
+            totalPaidIQD += iqdToApply;
+            
+            // Check if this loan was already in paidLoans from Phase 1
+            const existingPaidLoan = paidLoans.find(p => p.id === loan.id);
+            if (existingPaidLoan) {
+              existingPaidLoan.paidAmount.iqd += iqdToApply;
+              existingPaidLoan.fullyPaid = isFullyPaid;
+              existingPaidLoan.phase = 'USD_THEN_IQD';
+            } else {
+              paidLoans.push({ 
+                ...loan, 
+                paidAmount: { usd: 0, iqd: iqdToApply }, 
+                fullyPaid: isFullyPaid,
+                phase: 'IQD_FROM_USD'
+              });
+            }
+            
+            console.log('🔍 [DEBUG] Applied converted USD→IQD payment:', {
+              loanId: loan.id,
+              usdUsed: usdToUseForIQD,
+              iqdApplied: iqdToApply,
+              remainingPaymentUSD,
+              isFullyPaid
+            });
+          }
+        }
+      }
+      
+      // Record the total transaction
+      const totalOriginalUSD = payment_usd_amount + (payment_iqd_amount / currentUSDToIQD);
+      const totalUsedUSD = totalOriginalUSD - remainingPaymentUSD;
+      
+      if (totalUsedUSD > 0) {
+        const addTransactionStmt = db.prepare(`
+          INSERT INTO transactions (type, amount_usd, amount_iqd, description, reference_id, reference_type, created_at) 
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `);
+        
+        addTransactionStmt.run(
+          'personal_loan_payment',
+          totalPaidUSD, // USD applied to USD loans
+          totalPaidIQD, // IQD applied to IQD loans (converted from USD)
+          `Forced USD payment: ${personName} - Paid ${paidLoans.length} loan(s) (Sequential: USD first, then IQD)`,
+          null,
+          'personal_loan_total_forced_usd',
+          now
+        );
+      }
+      
+      // Update balance (deduct from USD balance only)
+      if (totalUsedUSD > 0) {
+        const settings = require('./settings.cjs');
+        settings.updateBalance(db, 'USD', totalUsedUSD);
+        console.log('🔍 [DEBUG] Updated USD balance by:', totalUsedUSD);
+      }
+      
+      return { 
+        success: true, 
+        message: `Successfully processed forced USD payment for ${personName}`,
+        paidLoans,
+        totalPaid: { usd: totalPaidUSD, iqd: totalPaidIQD },
+        remainingPayment: { usd: remainingPaymentUSD, iqd: 0 },
+        hasOverpayment: remainingPaymentUSD > 0.01,
+        paymentStrategy: 'SEQUENTIAL_USD_FIRST'
+      };
+      
+    } catch (error) {
+      console.error('🔍 [DEBUG] Error in payPersonalLoanTotalSimplifiedForcedUSD:', error);
+      throw error;
+    }
+  });
+  
+  return transaction();
+}
+
+function payPersonalLoanTotalSimplifiedForcedIQD(db, personName, paymentData) {
+  console.log('🔍 [DEBUG] payPersonalLoanTotalSimplifiedForcedIQD called:', {
+    personName,
+    paymentData
+  });
+  
+  const { 
+    payment_usd_amount = 0, 
+    payment_iqd_amount = 0 
+  } = paymentData || {};
+  
+  if (!personName) {
+    throw new Error('Person name is required');
+  }
+  
+  const now = new Date().toISOString();
+  
+  const transaction = db.transaction(() => {
+    try {
+      // Get all unpaid loans for this person
+      const unpaidLoans = db.prepare(`
+        SELECT id, person_name, amount, description, currency,
+               usd_amount, iqd_amount,
+               payment_usd_amount, payment_iqd_amount, created_at
+        FROM personal_loans 
+        WHERE LOWER(person_name) = LOWER(?) AND paid_at IS NULL
+        ORDER BY created_at ASC
+      `).all(personName);
+      
+      if (unpaidLoans.length === 0) {
+        return { success: false, message: `No unpaid loans found for person: ${personName}` };
+      }
+      
+      // Get current exchange rates
+      const { getExchangeRate } = require('./settings.cjs');
+      const currentUSDToIQD = getExchangeRate(db, 'USD', 'IQD');
+      const currentIQDToUSD = 1 / currentUSDToIQD;
+      
+      // Convert all payment amounts to IQD for forced IQD deduction
+      let remainingPaymentIQD = payment_iqd_amount + (payment_usd_amount * currentUSDToIQD);
+      let totalPaidUSD = 0;
+      let totalPaidIQD = 0;
+      let paidLoans = [];
+      
+      console.log('🔍 [DEBUG] Starting forced IQD payment with total:', {
+        originalUSD: payment_usd_amount,
+        originalIQD: payment_iqd_amount,
+        convertedTotalIQD: remainingPaymentIQD,
+        exchangeRate: currentUSDToIQD
+      });
+      
+      // STEP 1: Pay all IQD loans first (in full priority)
+      for (const loan of unpaidLoans) {
+        if (remainingPaymentIQD <= 0) break;
+        
+        const currentPaidIQD = loan.payment_iqd_amount || 0;
+        const loanIQDAmount = loan.iqd_amount || (loan.currency === 'IQD' ? (loan.amount || 0) : 0);
+        const remainingLoanIQD = Math.max(0, loanIQDAmount - currentPaidIQD);
+        
+        if (remainingLoanIQD > 0) {
+          const iqdToApply = Math.min(remainingLoanIQD, remainingPaymentIQD);
+          remainingPaymentIQD -= iqdToApply;
+          
+          const newTotalPaidIQD = currentPaidIQD + iqdToApply;
+          const currentPaidUSD = loan.payment_usd_amount || 0;
+          const loanUSDAmount = loan.usd_amount || (loan.currency === 'USD' ? (loan.amount || 0) : 0);
+          
+          // Check if IQD portion is fully paid
+          const isIQDFullyPaid = newTotalPaidIQD >= loanIQDAmount - 250;
+          const isUSDFullyPaid = currentPaidUSD >= loanUSDAmount - 0.01;
+          const isFullyPaid = isIQDFullyPaid && (loanUSDAmount === 0 || isUSDFullyPaid);
+          
+          // Update the loan
+          const updateStmt = db.prepare(`
+            UPDATE personal_loans 
+            SET paid_at = ?, 
+                payment_iqd_amount = ?,
+                payment_exchange_rate_usd_to_iqd = ?,
+                payment_exchange_rate_iqd_to_usd = ?
+            WHERE id = ?
+          `);
+          
+          updateStmt.run(
+            isFullyPaid ? now : null,
+            newTotalPaidIQD,
+            currentUSDToIQD,
+            currentIQDToUSD,
+            loan.id
+          );
+          
+          // Record payment
+          const recordPaymentStmt = db.prepare(`
+            INSERT INTO debt_payments (debt_type, debt_id, payment_usd_amount, payment_iqd_amount, 
+                                       payment_currency_used, exchange_rate_usd_to_iqd, exchange_rate_iqd_to_usd, 
+                                       payment_date) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          `);
+          
+          recordPaymentStmt.run(
+            'personal_loan',
+            loan.id,
+            0,
+            iqdToApply,
+            'IQD',
+            currentUSDToIQD,
+            currentIQDToUSD,
+            now
+          );
+          
+          totalPaidIQD += iqdToApply;
+          paidLoans.push({ 
+            ...loan, 
+            paidAmount: { usd: 0, iqd: iqdToApply }, 
+            fullyPaid: isFullyPaid,
+            phase: 'IQD_FIRST'
+          });
+          
+          console.log('🔍 [DEBUG] Applied IQD payment:', {
+            loanId: loan.id,
+            iqdToApply,
+            remainingPaymentIQD,
+            isFullyPaid
+          });
+        }
+      }
+      
+      // STEP 2: Convert remaining IQD payment to USD and pay USD loans
+      if (remainingPaymentIQD > 0) {
+        const remainingUSDFromIQD = remainingPaymentIQD * currentIQDToUSD;
+        
+        console.log('🔍 [DEBUG] Converting remaining IQD to USD for USD loans:', {
+          remainingIQD: remainingPaymentIQD,
+          convertedToUSD: remainingUSDFromIQD
+        });
+        
+        for (const loan of unpaidLoans) {
+          if (remainingPaymentIQD <= 0) break;
+          
+          const currentPaidUSD = loan.payment_usd_amount || 0;
+          const loanUSDAmount = loan.usd_amount || (loan.currency === 'USD' ? (loan.amount || 0) : 0);
+          const remainingLoanUSD = Math.max(0, loanUSDAmount - currentPaidUSD);
+          
+          if (remainingLoanUSD > 0) {
+            const usdNeeded = remainingLoanUSD;
+            const iqdNeededForThisUSD = usdNeeded * currentUSDToIQD;
+            const iqdToUseForUSD = Math.min(remainingPaymentIQD, iqdNeededForThisUSD);
+            const usdToApply = iqdToUseForUSD * currentIQDToUSD;
+            
+            remainingPaymentIQD -= iqdToUseForUSD;
+            
+            const newTotalPaidUSD = currentPaidUSD + usdToApply;
+            const currentPaidIQD = loan.payment_iqd_amount || 0;
+            const loanIQDAmount = loan.iqd_amount || (loan.currency === 'IQD' ? (loan.amount || 0) : 0);
+            
+            // Check if this loan is now fully paid
+            const isUSDFullyPaid = newTotalPaidUSD >= loanUSDAmount - 0.01;
+            const isIQDFullyPaid = currentPaidIQD >= loanIQDAmount - 250;
+            const isFullyPaid = isUSDFullyPaid && (loanIQDAmount === 0 || isIQDFullyPaid);
+            
+            // Update the loan
+            const updateStmt = db.prepare(`
+              UPDATE personal_loans 
+              SET paid_at = ?, 
+                  payment_usd_amount = ?,
+                  payment_exchange_rate_usd_to_iqd = ?,
+                  payment_exchange_rate_iqd_to_usd = ?
+              WHERE id = ?
+            `);
+            
+            updateStmt.run(
+              isFullyPaid ? now : null,
+              newTotalPaidUSD,
+              currentUSDToIQD,
+              currentIQDToUSD,
+              loan.id
+            );
+            
+            // Record payment (converted from IQD)
+            const recordPaymentStmt = db.prepare(`
+              INSERT INTO debt_payments (debt_type, debt_id, payment_usd_amount, payment_iqd_amount, 
+                                         payment_currency_used, exchange_rate_usd_to_iqd, exchange_rate_iqd_to_usd, 
+                                         payment_date) 
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            `);
+            
+            recordPaymentStmt.run(
+              'personal_loan',
+              loan.id,
+              usdToApply, // USD equivalent applied
+              iqdToUseForUSD, // Original IQD used
+              'IQD_TO_USD', // Indicates conversion
+              currentUSDToIQD,
+              currentIQDToUSD,
+              now
+            );
+            
+            totalPaidUSD += usdToApply;
+            
+            // Check if this loan was already in paidLoans from Phase 1
+            const existingPaidLoan = paidLoans.find(p => p.id === loan.id);
+            if (existingPaidLoan) {
+              existingPaidLoan.paidAmount.usd += usdToApply;
+              existingPaidLoan.fullyPaid = isFullyPaid;
+              existingPaidLoan.phase = 'IQD_THEN_USD';
+            } else {
+              paidLoans.push({ 
+                ...loan, 
+                paidAmount: { usd: usdToApply, iqd: 0 }, 
+                fullyPaid: isFullyPaid,
+                phase: 'USD_FROM_IQD'
+              });
+            }
+            
+            console.log('🔍 [DEBUG] Applied converted IQD→USD payment:', {
+              loanId: loan.id,
+              iqdUsed: iqdToUseForUSD,
+              usdApplied: usdToApply,
+              remainingPaymentIQD,
+              isFullyPaid
+            });
+          }
+        }
+      }
+      
+      // Record the total transaction
+      const totalOriginalIQD = payment_iqd_amount + (payment_usd_amount * currentUSDToIQD);
+      const totalUsedIQD = totalOriginalIQD - remainingPaymentIQD;
+      
+      if (totalUsedIQD > 0) {
+        const addTransactionStmt = db.prepare(`
+          INSERT INTO transactions (type, amount_usd, amount_iqd, description, reference_id, reference_type, created_at) 
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `);
+        
+        addTransactionStmt.run(
+          'personal_loan_payment',
+          totalPaidUSD, // USD applied to USD loans (converted from IQD)
+          totalPaidIQD, // IQD applied to IQD loans
+          `Forced IQD payment: ${personName} - Paid ${paidLoans.length} loan(s) (Sequential: IQD first, then USD)`,
+          null,
+          'personal_loan_total_forced_iqd',
+          now
+        );
+      }
+      
+      // Update balance (deduct from IQD balance only)
+      if (totalUsedIQD > 0) {
+        const settings = require('./settings.cjs');
+        settings.updateBalance(db, 'IQD', totalUsedIQD);
+        console.log('🔍 [DEBUG] Updated IQD balance by:', totalUsedIQD);
+      }
+      
+      return { 
+        success: true, 
+        message: `Successfully processed forced IQD payment for ${personName}`,
+        paidLoans,
+        totalPaid: { usd: totalPaidUSD, iqd: totalPaidIQD },
+        remainingPayment: { usd: 0, iqd: remainingPaymentIQD },
+        hasOverpayment: remainingPaymentIQD > 250,
+        paymentStrategy: 'SEQUENTIAL_IQD_FIRST'
+      };
+      
+    } catch (error) {
+      console.error('🔍 [DEBUG] Error in payPersonalLoanTotalSimplifiedForcedIQD:', error);
+      throw error;
+    }
+  });
+  
+  return transaction();
+}
+
+function payPersonalLoanTotalTargeted(db, personName, paymentData, targetCurrency) {
+  if (targetCurrency === 'USD') {
+    return payPersonalLoanTotalForcedUSD(db, personName, paymentData);
+  } else if (targetCurrency === 'IQD') {
+    return payPersonalLoanTotalForcedIQD(db, personName, paymentData);
+  } else {
+    return payPersonalLoanTotal(db, personName, paymentData);
+  }
+}
+
 function getTotalDebts(db) {
   // Get current exchange rate for 250 IQD threshold calculations
   const { getExchangeRate } = require('./settings.cjs');
@@ -2044,6 +3888,10 @@ module.exports = {
   addCustomerDebt,
   payCustomerDebt,
   markCustomerDebtPaid,
+  payCustomerDebtTotal,
+  payCustomerDebtTotalForcedUSD,
+  payCustomerDebtTotalForcedIQD,
+  payCustomerDebtTotalTargeted,
   deleteCustomerDebt,
   getCompanyDebts,
   addCompanyDebt,
@@ -2063,6 +3911,12 @@ module.exports = {
   addPersonalLoan,
   payPersonalLoan,
   markPersonalLoanPaid,
+  payPersonalLoanTotal,
+  payPersonalLoanTotalForcedUSD,
+  payPersonalLoanTotalForcedIQD,
+  payPersonalLoanTotalSimplifiedForcedUSD,
+  payPersonalLoanTotalSimplifiedForcedIQD,
+  payPersonalLoanTotalTargeted,
   deletePersonalLoan,
   getTotalDebts
 };

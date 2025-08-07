@@ -229,7 +229,7 @@ const CompanyDebtsSection = React.memo(({
           {
             payment_usd_amount: paymentData.payment_usd_amount || 0,
             payment_iqd_amount: paymentData.payment_iqd_amount || 0,
-            payment_currency_used: paymentData.payment_currency_used || 'USD'
+            payment_currency_used: paymentData.payment_currency_used
           }
         );
       } else if (forceCurrency === 'IQD') {
@@ -238,7 +238,7 @@ const CompanyDebtsSection = React.memo(({
           {
             payment_usd_amount: paymentData.payment_usd_amount || 0,
             payment_iqd_amount: paymentData.payment_iqd_amount || 0,
-            payment_currency_used: paymentData.payment_currency_used || 'IQD'
+            payment_currency_used: paymentData.payment_currency_used
           }
         );
       } else {

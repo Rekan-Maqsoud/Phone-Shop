@@ -6,6 +6,7 @@ import PaymentHistory from './PaymentHistory';
 import { Icon } from '../utils/icons.jsx';
 import { useLocale } from '../contexts/LocaleContext';
 import { getSeparator, getTextAlign, formatCompoundText } from '../utils/rtlUtils';
+import { formatCurrency } from '../utils/exchangeRates';
 
 const CustomerDebtsSection = ({ 
   t, 
@@ -30,6 +31,8 @@ const CustomerDebtsSection = ({
   const [expandedCustomers, setExpandedCustomers] = useState(new Set());
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedDebt, setSelectedDebt] = useState(null);
+  const [selectedCustomerForPayment, setSelectedCustomerForPayment] = useState(null);
+  const [showTotalPaymentModal, setShowTotalPaymentModal] = useState(false);
   const [expandedPaymentHistories, setExpandedPaymentHistories] = useState(new Set());
 
   const toggleCustomerExpanded = (customer) => {
@@ -90,6 +93,105 @@ const CustomerDebtsSection = ({
   const handleMarkDebtPaid = async (debt, sale, originalCustomer) => {
     setSelectedDebt({ debt, sale, originalCustomer });
     setShowPaymentModal(true);
+  };
+
+  // New function to open total payment modal
+  const openPaymentModal = (customerName, customerDebts, forceCurrency = null) => {
+    // Calculate total debt for this customer
+    const totalDebt = { usd: 0, iqd: 0 };
+    
+    customerDebts.forEach(({ debt, sale }) => {
+      if (!debt || !debt.paid_at) { // Only unpaid debts
+        const remainingDebt = calculateRemainingCustomerDebt(sale, debt);
+        if (remainingDebt.currency === 'USD') {
+          totalDebt.usd += remainingDebt.amount;
+        } else {
+          totalDebt.iqd += remainingDebt.amount;
+        }
+      }
+    });
+
+    // Create a debt object that looks like individual debt for UniversalPaymentModal
+    const syntheticDebt = {
+      customer_name: customerName,
+      totalDebt: totalDebt,
+      isTotal: true, // Flag to indicate this is a total payment
+      debts: customerDebts, // Include all debts for reference
+      forceCurrency: forceCurrency // Add this flag to indicate forced currency deduction
+    };
+
+    setSelectedCustomerForPayment(syntheticDebt);
+    setShowTotalPaymentModal(true);
+  };
+
+  // Process customer total payment
+  const processCustomerTotalPayment = async (paymentData) => {
+    try {
+      // Check if this is a forced currency payment
+      const forceCurrency = selectedCustomerForPayment?.forceCurrency;
+      
+      let result;
+      
+      // Use appropriate API based on force currency setting
+      if (forceCurrency === 'USD') {
+        result = await window.api.payCustomerDebtTotalForcedUSD(
+          paymentData.customer_name,
+          {
+            payment_usd_amount: paymentData.payment_usd_amount || 0,
+            payment_iqd_amount: paymentData.payment_iqd_amount || 0,
+            payment_currency_used: paymentData.payment_currency_used
+          }
+        );
+      } else if (forceCurrency === 'IQD') {
+        result = await window.api.payCustomerDebtTotalForcedIQD(
+          paymentData.customer_name,
+          {
+            payment_usd_amount: paymentData.payment_usd_amount || 0,
+            payment_iqd_amount: paymentData.payment_iqd_amount || 0,
+            payment_currency_used: paymentData.payment_currency_used
+          }
+        );
+      } else {
+        // Regular payment - no forced currency
+        result = await window.api.payCustomerDebtTotal(
+          paymentData.customer_name,
+          {
+            payment_usd_amount: paymentData.payment_usd_amount || 0,
+            payment_iqd_amount: paymentData.payment_iqd_amount || 0,
+            payment_currency_used: paymentData.payment_currency_used || 'USD'
+          }
+        );
+      }
+      
+      if (result.success) {
+        // Show detailed payment result
+        let message = `Successfully received payment from ${paymentData.customer_name}`;
+        if (result.paidDebts && result.paidDebts.length > 0) {
+          message += ` (${result.paidDebts.length} debt${result.paidDebts.length > 1 ? 's' : ''} affected)`;
+        }
+        
+        if (forceCurrency) {
+          message += ` (forced ${forceCurrency} deduction)`;
+        }
+        
+        if (result.hasOverpayment) {
+          message += ' - Overpayment detected';
+        }
+        
+        admin.setToast?.(message, 'success');
+        
+        // Close modal and refresh data
+        setShowTotalPaymentModal(false);
+        setSelectedCustomerForPayment(null);
+        await handlePaymentComplete();
+        
+      } else {
+        throw new Error(result.message || 'Payment failed');
+      }
+    } catch (error) {
+      console.error('❌ [CustomerDebts] Error processing customer total payment:', error);
+      admin.setToast?.(`Payment failed: ${error.message}`, 'error');
+    }
   };
 
   const handlePaymentComplete = async () => {
@@ -381,27 +483,50 @@ const CustomerDebtsSection = ({
                             </div>
                           </div>
                           
-                          {/* Pay All Debts Button - only for unpaid debts */}
+                          {/* Pay All Debts Buttons - only for unpaid debts */}
                           {!showPaidDebts && data.sales.some(({ debt, sale }) => {
                             // Show pay button if debt sale is unpaid (no debt record or unpaid debt record)
                             return debt ? !debt.paid_at : true;
                           }) && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                // Find the first unpaid debt and open payment modal
-                                const firstUnpaidDebt = data.sales.find(({ debt, sale }) => {
-                                  return debt ? !debt.paid_at : true;
-                                });
-                                if (firstUnpaidDebt) {
-                                  handleMarkDebtPaid(firstUnpaidDebt.debt, firstUnpaidDebt.sale, firstUnpaidDebt.originalCustomer);
-                                }
-                              }}
-                              className="px-3 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm flex items-center gap-1 whitespace-nowrap"
-                            >
-                              <Icon name="dollar-sign" size={16} className="mr-2" />
-                              {t.payDebt || 'Pay Debt'}
-                            </button>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openPaymentModal(customer, data.sales);
+                                }}
+                                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-medium flex items-center min-w-[120px] justify-center"
+                              >
+                                <Icon name="credit-card" size={16} className="mr-2" />
+                                {t.payDebt || 'Pay All'}
+                              </button>
+                              
+                              {/* Currency-specific payment buttons - only show if customer has BOTH USD and IQD debts */}
+                              {data.totalAmountUSD > 0 && data.totalAmountIQD > 0 && (
+                                <>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      openPaymentModal(customer, data.sales, 'USD');
+                                    }}
+                                    className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition text-sm font-medium flex items-center min-w-[120px] justify-center"
+                                  >
+                                    <Icon name="dollar-sign" size={16} className="mr-2" />
+                                    {t.payUSD || 'Pay USD'}
+                                  </button>
+                                  
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      openPaymentModal(customer, data.sales, 'IQD');
+                                    }}
+                                    className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition text-sm font-medium flex items-center min-w-[120px] justify-center"
+                                  >
+                                    <Icon name="money" size={16} className="mr-2" />
+                                    {t.payIQD || 'Pay IQD'}
+                                  </button>
+                                </>
+                              )}
+                            </div>
                           )}
                           
                           <div className={`transform transition-transform ${isExpanded ? 'rotate-180' : ''}`}>
@@ -612,6 +737,31 @@ const CustomerDebtsSection = ({
         debtData={selectedDebt}
         paymentType="customer"
         onPaymentComplete={handlePaymentComplete}
+        admin={admin}
+        t={t}
+      />
+
+      {/* Customer Total Payment Modal */}
+      <UniversalPaymentModal
+        show={showTotalPaymentModal}
+        onClose={() => {
+          setShowTotalPaymentModal(false);
+          setSelectedCustomerForPayment(null);
+        }}
+        debtData={selectedCustomerForPayment}
+        paymentType="customer_total"
+        forceCurrency={selectedCustomerForPayment?.forceCurrency}
+        onPaymentComplete={async (paymentData) => {
+          try {
+            await processCustomerTotalPayment({
+              ...paymentData,
+              customer_name: selectedCustomerForPayment?.customer_name
+            });
+          } catch (error) {
+            console.error('Payment error:', error);
+            throw error;
+          }
+        }}
         admin={admin}
         t={t}
       />

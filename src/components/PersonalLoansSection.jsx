@@ -20,6 +20,8 @@ export default function PersonalLoansSection({ admin, t, showConfirm }) {
   const [showPaidLoans, setShowPaidLoans] = useState(false);
   const [expandedPersons, setExpandedPersons] = useState(new Set());
   const [expandedPaymentHistories, setExpandedPaymentHistories] = useState(new Set());
+  const [showTotalPaymentModal, setShowTotalPaymentModal] = useState(false);
+  const [selectedPersonForPayment, setSelectedPersonForPayment] = useState(null);
   const [formData, setFormData] = useState({
     person_name: '',
     usd_amount: '',
@@ -266,6 +268,170 @@ export default function PersonalLoansSection({ admin, t, showConfirm }) {
     });
   };
 
+  const openTotalPaymentModal = (personName, totalDebt, forceCurrency = null) => {
+    // Create a debt object that looks like individual debt for UniversalPaymentModal
+    const syntheticDebt = {
+      person_name: personName,
+      totalDebt: totalDebt,
+      isTotal: true, // Flag to indicate this is a total payment
+      forceCurrency: forceCurrency // Add this flag to indicate forced currency deduction
+    };
+    
+    console.log('🔍 [DEBUG] Opening total payment modal:', {
+      personName,
+      totalDebt,
+      forceCurrency,
+      syntheticDebt
+    });
+    
+    setSelectedPersonForPayment(syntheticDebt);
+    setShowTotalPaymentModal(true);
+  };
+
+  const processPersonalLoanTotalPayment = async (paymentData) => {
+    try {
+      if (!selectedPersonForPayment) {
+        throw new Error('No person selected for payment');
+      }
+
+      // Check if this is a forced currency payment
+      const forceCurrency = selectedPersonForPayment?.forceCurrency;
+
+      console.log('🔍 [DEBUG] Processing personal loan total payment:', {
+        personName: selectedPersonForPayment.person_name,
+        paymentData,
+        forceCurrency,
+        selectedPersonForPayment
+      });
+
+      // Debug: Check API availability
+      console.log('🔍 [DEBUG] API availability:', {
+        payPersonalLoanTotal: typeof window.api?.payPersonalLoanTotal,
+        payPersonalLoanTotalSimplifiedForcedUSD: typeof window.api?.payPersonalLoanTotalSimplifiedForcedUSD,
+        payPersonalLoanTotalSimplifiedForcedIQD: typeof window.api?.payPersonalLoanTotalSimplifiedForcedIQD,
+        windowApiExists: !!window.api
+      });
+
+      let result;
+      let apiFunction = null;
+      let paymentPayload = {
+        payment_usd_amount: paymentData.payment_usd_amount || 0,
+        payment_iqd_amount: paymentData.payment_iqd_amount || 0,
+        payment_currency_used: paymentData.payment_currency_used
+      };
+
+      console.log('🔍 [DEBUG] Payment payload:', paymentPayload);
+      
+      // Use appropriate API based on force currency setting
+      if (forceCurrency === 'USD') {
+        apiFunction = 'payPersonalLoanTotalSimplifiedForcedUSD';
+        console.log('🔍 [DEBUG] Using USD forced payment API');
+        if (!window.api?.payPersonalLoanTotalSimplifiedForcedUSD) {
+          throw new Error('USD forced payment API not available');
+        }
+        result = await window.api.payPersonalLoanTotalSimplifiedForcedUSD(
+          selectedPersonForPayment.person_name,
+          paymentPayload
+        );
+      } else if (forceCurrency === 'IQD') {
+        apiFunction = 'payPersonalLoanTotalSimplifiedForcedIQD';
+        console.log('🔍 [DEBUG] Using IQD forced payment API');
+        if (!window.api?.payPersonalLoanTotalSimplifiedForcedIQD) {
+          throw new Error('IQD forced payment API not available');
+        }
+        result = await window.api.payPersonalLoanTotalSimplifiedForcedIQD(
+          selectedPersonForPayment.person_name,
+          paymentPayload
+        );
+      } else {
+        // Regular payment - no forced currency
+        apiFunction = 'payPersonalLoanTotal';
+        console.log('🔍 [DEBUG] Using regular payment API');
+        if (!window.api?.payPersonalLoanTotal) {
+          throw new Error('Regular payment API not available');
+        }
+        paymentPayload.payment_currency_used = paymentData.payment_currency_used || 'USD';
+        result = await window.api.payPersonalLoanTotal(
+          selectedPersonForPayment.person_name,
+          paymentPayload
+        );
+      }
+
+      console.log('🔍 [DEBUG] API call result:', {
+        apiFunction,
+        result,
+        success: result?.success
+      });
+
+      if (result?.success) {
+        // Show detailed payment result
+        let message = `Successfully received payment from ${selectedPersonForPayment.person_name}`;
+        if (result.paidDebts && result.paidDebts.length > 0) {
+          message += ` (${result.paidDebts.length} loan${result.paidDebts.length > 1 ? 's' : ''} affected)`;
+        } else if (result.paidLoans && result.paidLoans.length > 0) {
+          message += ` (${result.paidLoans.length} loan${result.paidLoans.length > 1 ? 's' : ''} affected)`;
+        }
+        
+        if (forceCurrency) {
+          message += ` (${forceCurrency} balance preference)`;
+        }
+        
+        if (result.hasOverpayment) {
+          message += ' - Overpayment detected';
+        }
+        
+        console.log('🔍 [DEBUG] Payment successful, showing success message:', message);
+        admin.setToast?.(message, 'success');
+        
+        await fetchLoans();
+        await fetchBalances();
+        
+        // Refresh data contexts
+        if (refreshTransactions) {
+          await refreshTransactions();
+        }
+        if (refreshPersonalLoans) {
+          await refreshPersonalLoans();
+        }
+        
+        setShowTotalPaymentModal(false);
+        setSelectedPersonForPayment(null);
+      } else {
+        console.error('🔍 [DEBUG] Payment failed - result not successful:', result);
+        throw new Error(result?.message || result?.error || 'Payment failed');
+      }
+    } catch (error) {
+      console.error('🔍 [DEBUG] Error processing total payment:', error);
+      console.error('🔍 [DEBUG] Error details:', {
+        message: error.message,
+        stack: error.stack,
+        selectedPersonForPayment,
+        forceCurrency: selectedPersonForPayment?.forceCurrency
+      });
+      
+      // Check if it's a database schema error
+      if (error.message && error.message.includes('no such column: payment_exchange_rate')) {
+        try {
+          console.log('Attempting to fix database schema...');
+          admin.setToast?.('Updating database schema...', 'info');
+          
+          // Run database migration
+          const migrationResult = await window.api?.migrateDatabaseSchema?.();
+          if (migrationResult?.success) {
+            admin.setToast?.('Database schema updated. Please try the payment again.', 'success');
+          } else {
+            admin.setToast?.('Failed to update database schema. Please restart the app.', 'error');
+          }
+        } catch (migrationError) {
+          console.error('Migration failed:', migrationError);
+          admin.setToast?.('Database schema update failed. Please restart the app.', 'error');
+        }
+      }
+      
+      throw error;
+    }
+  };
+
   return (
     <div className="w-full h-full p-8 space-y-8">
       {/* Header Section */}
@@ -411,15 +577,55 @@ export default function PersonalLoansSection({ admin, t, showConfirm }) {
                             )}
                           </div>
                         ) : (
-                          <div>
-                            {group.unpaidUSD > 0 && (
-                              <div className="text-lg font-bold text-purple-600 dark:text-purple-400">
-                                {formatCurrency(group.unpaidUSD, 'USD')}
-                              </div>
-                            )}
-                            {group.unpaidIQD > 0 && (
-                              <div className="text-lg font-bold text-purple-600 dark:text-purple-400">
-                                {formatCurrency(group.unpaidIQD, 'IQD')}
+                          <div className="flex items-center gap-3">
+                            <div>
+                              {group.unpaidUSD > 0 && (
+                                <div className="text-lg font-bold text-purple-600 dark:text-purple-400">
+                                  {formatCurrency(group.unpaidUSD, 'USD')}
+                                </div>
+                              )}
+                              {group.unpaidIQD > 0 && (
+                                <div className="text-lg font-bold text-purple-600 dark:text-purple-400">
+                                  {formatCurrency(group.unpaidIQD, 'IQD')}
+                                </div>
+                              )}
+                            </div>
+                            
+                            {/* Pay All Buttons */}
+                            {(group.unpaidUSD > 0 || group.unpaidIQD > 0) && (
+                              <div className="flex flex-col gap-1" onClick={(e) => e.stopPropagation()}>
+                                <button
+                                  onClick={() => openTotalPaymentModal(group.person_name, { usd: group.unpaidUSD, iqd: group.unpaidIQD })}
+                                  className="px-3 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-xs font-medium"
+                                  title={t?.payAllLoans || 'Pay All Loans'}
+                                >
+                                  <Icon name="dollar-sign" size={12} className="inline mr-1" />
+                                  {t?.payAll || 'Pay All'}
+                                </button>
+                                
+                                {/* Show USD button if person has any USD debt */}
+                                {group.unpaidUSD > 0 && (
+                                  <button
+                                    onClick={() => openTotalPaymentModal(group.person_name, { usd: group.unpaidUSD, iqd: group.unpaidIQD }, 'USD')}
+                                    className="px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs font-medium"
+                                    title={t?.payAllUSD || 'Pay All USD (use USD balance)'}
+                                  >
+                                    <Icon name="dollar-sign" size={12} className="inline mr-1" />
+                                    USD
+                                  </button>
+                                )}
+                                
+                                {/* Show IQD button if person has any IQD debt */}
+                                {group.unpaidIQD > 0 && (
+                                  <button
+                                    onClick={() => openTotalPaymentModal(group.person_name, { usd: group.unpaidUSD, iqd: group.unpaidIQD }, 'IQD')}
+                                    className="px-3 py-1 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition text-xs font-medium"
+                                    title={t?.payAllIQD || 'Pay All IQD (use IQD balance)'}
+                                  >
+                                    <Icon name="dollar-sign" size={12} className="inline mr-1" />
+                                    IQD
+                                  </button>
+                                )}
                               </div>
                             )}
                           </div>
@@ -707,6 +913,31 @@ export default function PersonalLoansSection({ admin, t, showConfirm }) {
           }
           if (refreshPersonalLoans) {
             await refreshPersonalLoans();
+          }
+        }}
+        admin={admin}
+        t={t}
+      />
+
+      {/* Personal Loan Total Payment Modal */}
+      <UniversalPaymentModal
+        show={showTotalPaymentModal}
+        onClose={() => {
+          setShowTotalPaymentModal(false);
+          setSelectedPersonForPayment(null);
+        }}
+        debtData={selectedPersonForPayment}
+        paymentType="personal_total"
+        forceCurrency={selectedPersonForPayment?.forceCurrency}
+        onPaymentComplete={async (paymentData) => {
+          try {
+            await processPersonalLoanTotalPayment({
+              ...paymentData,
+              person_name: selectedPersonForPayment?.person_name
+            });
+          } catch (error) {
+            console.error('Payment error:', error);
+            throw error;
           }
         }}
         admin={admin}

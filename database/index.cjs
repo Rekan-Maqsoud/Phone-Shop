@@ -291,6 +291,26 @@ module.exports = function(dbPath) {
     return debts.payPersonalLoan(db, id);
   }
 
+  function payPersonalLoanTotal(personName, paymentData) {
+    return debts.payPersonalLoanTotal(db, personName, paymentData);
+  }
+
+  function payPersonalLoanTotalForcedUSD(personName, paymentData) {
+    return debts.payPersonalLoanTotalForcedUSD(db, personName, paymentData);
+  }
+
+  function payPersonalLoanTotalForcedIQD(personName, paymentData) {
+    return debts.payPersonalLoanTotalForcedIQD(db, personName, paymentData);
+  }
+
+  function payPersonalLoanTotalSimplifiedForcedUSD(personName, paymentData) {
+    return debts.payPersonalLoanTotalSimplifiedForcedUSD(db, personName, paymentData);
+  }
+
+  function payPersonalLoanTotalSimplifiedForcedIQD(personName, paymentData) {
+    return debts.payPersonalLoanTotalSimplifiedForcedIQD(db, personName, paymentData);
+  }
+
   function deletePersonalLoan(id) {
     return debts.deletePersonalLoan(db, id);
   }
@@ -2269,6 +2289,11 @@ module.exports = function(dbPath) {
     getPersonalLoans,
     addPersonalLoan,
     payPersonalLoan,
+    payPersonalLoanTotal,
+    payPersonalLoanTotalForcedUSD,
+    payPersonalLoanTotalForcedIQD,
+    payPersonalLoanTotalSimplifiedForcedUSD,
+    payPersonalLoanTotalSimplifiedForcedIQD,
     deletePersonalLoan,
     getTotalDebts,
     

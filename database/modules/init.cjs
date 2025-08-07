@@ -374,6 +374,8 @@ function runMigrations(db) {
     const hasIqdAmount = tableInfo.some(col => col.name === 'iqd_amount');
     const hasPaymentUsdAmount = tableInfo.some(col => col.name === 'payment_usd_amount');
     const hasPaymentIqdAmount = tableInfo.some(col => col.name === 'payment_iqd_amount');
+    const hasPaymentExchangeRateUsdToIqd = tableInfo.some(col => col.name === 'payment_exchange_rate_usd_to_iqd');
+    const hasPaymentExchangeRateIqdToUsd = tableInfo.some(col => col.name === 'payment_exchange_rate_iqd_to_usd');
 
     if (!hasUsdAmount) {
       // Add new columns for multi-currency support
@@ -387,6 +389,12 @@ function runMigrations(db) {
     }
     if (!hasPaymentIqdAmount) {
       db.prepare('ALTER TABLE personal_loans ADD COLUMN payment_iqd_amount REAL DEFAULT 0').run();
+    }
+    if (!hasPaymentExchangeRateUsdToIqd) {
+      db.prepare('ALTER TABLE personal_loans ADD COLUMN payment_exchange_rate_usd_to_iqd REAL DEFAULT 1440').run();
+    }
+    if (!hasPaymentExchangeRateIqdToUsd) {
+      db.prepare('ALTER TABLE personal_loans ADD COLUMN payment_exchange_rate_iqd_to_usd REAL DEFAULT 0.000694').run();
     }
 
     // Migrate existing data from single amount/currency to multi-currency

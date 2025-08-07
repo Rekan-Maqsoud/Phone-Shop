@@ -891,6 +891,44 @@ ipcMain.handle('markCustomerDebtPaid', async (event, id, paid_at, paymentData) =
   }
 });
 
+// Customer debt total payment handlers
+ipcMain.handle('payCustomerDebtTotal', async (event, customerName, paymentData) => {
+  try {
+    console.log('[IPC] payCustomerDebtTotal called with:', { customerName, paymentData });
+    const result = db.payCustomerDebtTotal(customerName, paymentData);
+    console.log('[IPC] payCustomerDebtTotal result:', result);
+    await runAutoBackupAfterSale();
+    return result;
+  } catch (error) {
+    console.error('[IPC] Error in payCustomerDebtTotal:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('payCustomerDebtTotalForcedUSD', async (event, customerName, paymentData) => {
+  try {
+    console.log('[IPC] payCustomerDebtTotalForcedUSD called with:', customerName, paymentData);
+    const result = db.payCustomerDebtTotalForcedUSD(customerName, paymentData);
+    await runAutoBackupAfterSale();
+    return result;
+  } catch (error) {
+    console.error('[IPC] Error in payCustomerDebtTotalForcedUSD:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('payCustomerDebtTotalForcedIQD', async (event, customerName, paymentData) => {
+  try {
+    console.log('[IPC] payCustomerDebtTotalForcedIQD called with:', customerName, paymentData);
+    const result = db.payCustomerDebtTotalForcedIQD(customerName, paymentData);
+    await runAutoBackupAfterSale();
+    return result;
+  } catch (error) {
+    console.error('[IPC] Error in payCustomerDebtTotalForcedIQD:', error);
+    throw error;
+  }
+});
+
 // Company debt handlers
 ipcMain.handle('addCompanyDebt', async (event, { company_name, amount, description, currency = 'IQD', multi_currency = null, discount = null }) => {
   try {
@@ -1351,6 +1389,96 @@ ipcMain.handle('markPersonalLoanPaid', async (event, id, paymentData) => {
   } catch (error) {
     console.error('[IPC] markPersonalLoanPaid error:', error);
     return { success: false, message: error.message };
+  }
+});
+
+// Personal loan total payment handlers
+ipcMain.handle('payPersonalLoanTotal', async (event, personName, paymentData) => {
+  try {
+    console.log('[IPC] payPersonalLoanTotal called with:', { personName, paymentData });
+    const result = db.payPersonalLoanTotal(personName, paymentData);
+    console.log('[IPC] payPersonalLoanTotal result:', result);
+    await runAutoBackupAfterSale();
+    return result;
+  } catch (error) {
+    console.error('[IPC] Error in payPersonalLoanTotal:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('payPersonalLoanTotalForcedUSD', async (event, personName, paymentData) => {
+  try {
+    console.log('[IPC] payPersonalLoanTotalForcedUSD called with:', personName, paymentData);
+    const result = db.payPersonalLoanTotalForcedUSD(personName, paymentData);
+    await runAutoBackupAfterSale();
+    return result;
+  } catch (error) {
+    console.error('[IPC] Error in payPersonalLoanTotalForcedUSD:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('payPersonalLoanTotalForcedIQD', async (event, personName, paymentData) => {
+  try {
+    console.log('[IPC] payPersonalLoanTotalForcedIQD called with:', personName, paymentData);
+    const result = db.payPersonalLoanTotalForcedIQD(personName, paymentData);
+    await runAutoBackupAfterSale();
+    return result;
+  } catch (error) {
+    console.error('[IPC] Error in payPersonalLoanTotalForcedIQD:', error);
+    throw error;
+  }
+});
+
+// Simplified forced currency handlers (improved versions)
+ipcMain.handle('payPersonalLoanTotalSimplifiedForcedUSD', async (event, personName, paymentData) => {
+  try {
+    console.log('[IPC] payPersonalLoanTotalSimplifiedForcedUSD called with:', personName, paymentData);
+    const result = db.payPersonalLoanTotalSimplifiedForcedUSD(personName, paymentData);
+    await runAutoBackupAfterSale();
+    return result;
+  } catch (error) {
+    console.error('[IPC] Error in payPersonalLoanTotalSimplifiedForcedUSD:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('payPersonalLoanTotalSimplifiedForcedIQD', async (event, personName, paymentData) => {
+  try {
+    console.log('[IPC] payPersonalLoanTotalSimplifiedForcedIQD called with:', personName, paymentData);
+    const result = db.payPersonalLoanTotalSimplifiedForcedIQD(personName, paymentData);
+    await runAutoBackupAfterSale();
+    return result;
+  } catch (error) {
+    console.error('[IPC] Error in payPersonalLoanTotalSimplifiedForcedIQD:', error);
+    throw error;
+  }
+});
+
+// Database migration handler for missing columns
+ipcMain.handle('migrateDatabaseSchema', async () => {
+  try {
+    console.log('[IPC] Running database schema migration...');
+    
+    // Check and add missing personal_loans columns
+    const personalLoansTableInfo = db.db.prepare("PRAGMA table_info(personal_loans)").all();
+    const hasPaymentExchangeRateUsdToIqd = personalLoansTableInfo.some(col => col.name === 'payment_exchange_rate_usd_to_iqd');
+    const hasPaymentExchangeRateIqdToUsd = personalLoansTableInfo.some(col => col.name === 'payment_exchange_rate_iqd_to_usd');
+    
+    if (!hasPaymentExchangeRateUsdToIqd) {
+      db.db.prepare('ALTER TABLE personal_loans ADD COLUMN payment_exchange_rate_usd_to_iqd REAL DEFAULT 1440').run();
+      console.log('[IPC] Added payment_exchange_rate_usd_to_iqd column to personal_loans table');
+    }
+    
+    if (!hasPaymentExchangeRateIqdToUsd) {
+      db.db.prepare('ALTER TABLE personal_loans ADD COLUMN payment_exchange_rate_iqd_to_usd REAL DEFAULT 0.000694').run();
+      console.log('[IPC] Added payment_exchange_rate_iqd_to_usd column to personal_loans table');
+    }
+    
+    return { success: true, message: 'Database schema migration completed successfully' };
+  } catch (error) {
+    console.error('[IPC] Database migration error:', error);
+    return { success: false, error: error.message };
   }
 });
 
