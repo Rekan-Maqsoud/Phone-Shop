@@ -2457,10 +2457,17 @@ function deleteCompanyDebt(db, id) {
   
   const transaction = db.transaction(() => {
     deleteItems.run(id);
-    deleteDebt.run(id);
+    const result = deleteDebt.run(id);
+    return result;
   });
   
-  return transaction();
+  try {
+    const result = transaction();
+    return { success: true, changes: result.changes };
+  } catch (error) {
+    console.error('Error deleting company debt:', error);
+    return { success: false, error: error.message };
+  }
 }
 
 function addCompanyDebtWithItems(db, { company_name, description, items, currency = 'IQD', multi_currency = null, discount = null }) {
@@ -2483,7 +2490,7 @@ function addCompanyDebtWithItems(db, { company_name, description, items, currenc
     }
   });
   
-  // Determine storage method based on currency mix
+  // Determine storage method based on currency mix and user choice
   let finalAmount, finalCurrency;
   let isMultiCurrency = false;
   
@@ -2495,18 +2502,55 @@ function addCompanyDebtWithItems(db, { company_name, description, items, currenc
     finalCurrency = 'MULTI';
     finalAmount = totalUSDAmount; // Store USD amount as primary for reference
   } else if (totalUSDAmount > 0 && totalIQDAmount > 0) {
-    // Mixed currency items - store as multi-currency
-    isMultiCurrency = true;
-    finalCurrency = 'MULTI';
-    finalAmount = totalUSDAmount; // Store USD amount as primary for reference
-  } else if (currency === 'USD' || totalUSDAmount > 0) {
-    // Single currency USD
-    finalCurrency = 'USD';
-    finalAmount = totalUSDAmount;
+    // Mixed currency items - check if user chose a specific payment currency
+    if (currency && currency !== 'MULTI') {
+      // User chose a specific currency for payment - respect their choice
+      finalCurrency = currency;
+      if (currency === 'USD') {
+        // Convert all to USD using exchange rate
+        const exchangeRate = settings.getExchangeRate(db, 'USD', 'IQD');
+        finalAmount = totalUSDAmount + (totalIQDAmount / exchangeRate);
+      } else {
+        // Convert all to IQD using exchange rate
+        const exchangeRate = settings.getExchangeRate(db, 'USD', 'IQD');
+        finalAmount = totalIQDAmount + (totalUSDAmount * exchangeRate);
+      }
+    } else {
+      // No specific currency chosen - store as multi-currency
+      isMultiCurrency = true;
+      finalCurrency = 'MULTI';
+      finalAmount = totalUSDAmount; // Store USD amount as primary for reference
+    }
   } else {
-    // Single currency IQD
-    finalCurrency = 'IQD';
-    finalAmount = totalIQDAmount;
+    // All items are in the same currency - use the selected payment currency or item currency
+    if (currency && (currency === 'USD' || currency === 'IQD')) {
+      finalCurrency = currency;
+      if (currency === 'USD') {
+        if (totalUSDAmount > 0) {
+          finalAmount = totalUSDAmount;
+        } else {
+          // Convert IQD to USD
+          const exchangeRate = settings.getExchangeRate(db, 'USD', 'IQD');
+          finalAmount = totalIQDAmount / exchangeRate;
+        }
+      } else {
+        if (totalIQDAmount > 0) {
+          finalAmount = totalIQDAmount;
+        } else {
+          // Convert USD to IQD
+          const exchangeRate = settings.getExchangeRate(db, 'USD', 'IQD');
+          finalAmount = totalUSDAmount * exchangeRate;
+        }
+      }
+    } else if (totalUSDAmount > 0) {
+      // Default to USD if items are in USD
+      finalCurrency = 'USD';
+      finalAmount = totalUSDAmount;
+    } else {
+      // Default to IQD if items are in IQD
+      finalCurrency = 'IQD';
+      finalAmount = totalIQDAmount;
+    }
   }
   
   // Apply discount if provided

@@ -218,6 +218,16 @@ app.whenReady().then(async () => {
     
     createWindow();
     
+    // Trigger a background backup shortly after startup to capture latest state
+    try {
+      const dbPath = getDatabasePath();
+      setTimeout(() => {
+        try {
+          cloudBackupService.autoBackup(dbPath).catch(() => {});
+        } catch (_) {}
+      }, 3000);
+    } catch (_) {}
+    
     // Check for updates on startup (only in production)
     if (app.isPackaged) {
       // Delay update check to allow window to fully load
@@ -751,21 +761,15 @@ async function autoBackupAfterChange(operationType = 'unknown') {
     if (!cloudBackupService.autoBackupEnabled) {
       return { success: false, message: 'Auto backup disabled' };
     }
-    
-    if (cloudBackupService.isAuthenticated) {
-      const dbPath = getDatabasePath();
-      
-      // Don't await - let backup run in background
-      cloudBackupService.autoBackup(dbPath).catch(error => {
-        // Silently fail for authentication errors to avoid spam
-        if (!error.message?.includes('authenticated') && !error.message?.includes('401')) {
-          console.error('Background backup failed:', error);
-        }
-      });
-      return { success: true, message: 'Auto backup started' };
-    } else {
-      return { success: false, message: 'Cloud backup not authenticated' };
-    }
+    const dbPath = getDatabasePath();
+    // Don't await - let backup run in background. It will queue if offline/not authenticated
+    cloudBackupService.autoBackup(dbPath).catch(error => {
+      // Silently fail for authentication errors to avoid spam
+      if (!error.message?.includes('authenticated') && !error.message?.includes('401')) {
+        console.error('Background backup failed:', error);
+      }
+    });
+    return { success: true, message: 'Auto backup triggered' };
   } catch (error) {
     console.error('Auto backup trigger failed:', error);
     return { success: false, error: error.message };
@@ -1015,6 +1019,18 @@ ipcMain.handle('payCompanyDebtTotalForcedIQD', async (event, companyName, paymen
     return result;
   } catch (error) {
     console.error('[IPC] Error in payCompanyDebtTotalForcedIQD:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('deleteCompanyDebt', async (event, id) => {
+  try {
+    console.log('[IPC] deleteCompanyDebt called with:', id);
+    const result = db.deleteCompanyDebt(id);
+    await runAutoBackupAfterSale();
+    return result;
+  } catch (error) {
+    console.error('[IPC] Error in deleteCompanyDebt:', error);
     throw error;
   }
 });
@@ -2454,6 +2470,11 @@ ipcMain.handle('getAppVersion', async () => {
 
 // Cleanup when app is closing
 app.on('before-quit', () => {
+  try {
+    // Enqueue a final snapshot to ensure latest data is backed up later if offline
+    const dbPath = getDatabasePath();
+    cloudBackupService.enqueuePendingBackup(dbPath, 'Shutdown backup').catch(() => {});
+  } catch (_) {}
   if (autoUpdateService) {
     autoUpdateService.destroy();
   }

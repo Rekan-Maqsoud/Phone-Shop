@@ -468,7 +468,7 @@ export default function Admin() {
                 setConfirm={setConfirm}
                 triggerCloudBackup={triggerCloudBackupAsync} 
               />}
-              {section === 'companyDebts' && <CompanyDebtsSection admin={admin} t={t} openEnhancedCompanyDebtModal={openEnhancedCompanyDebtModal} openAddPurchaseModal={openAddPurchaseModal} />}
+              {section === 'companyDebts' && <CompanyDebtsSection admin={admin} t={t} showConfirm={showConfirm} setConfirm={setConfirm} openEnhancedCompanyDebtModal={openEnhancedCompanyDebtModal} openAddPurchaseModal={openAddPurchaseModal} />}
               {section === 'incentives' && <IncentivesSection admin={admin} t={t} triggerCloudBackup={triggerCloudBackupAsync} />}
               {section === 'active' && <ProductsSection admin={admin} t={t} handleEditProduct={(product) => {
                 admin.setEditProduct(product);

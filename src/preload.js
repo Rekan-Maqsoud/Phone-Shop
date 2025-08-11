@@ -50,6 +50,7 @@ contextBridge.exposeInMainWorld('api', {
   payCompanyDebtTotal: (companyName, paymentData) => ipcRenderer.invoke('payCompanyDebtTotal', companyName, paymentData),
   payCompanyDebtTotalForcedUSD: (companyName, paymentData) => ipcRenderer.invoke('payCompanyDebtTotalForcedUSD', companyName, paymentData),
   payCompanyDebtTotalForcedIQD: (companyName, paymentData) => ipcRenderer.invoke('payCompanyDebtTotalForcedIQD', companyName, paymentData),
+  deleteCompanyDebt: (id) => ipcRenderer.invoke('deleteCompanyDebt', id),
   
   // Incentive functionality
   getIncentives: () => ipcRenderer.invoke('getIncentives'),

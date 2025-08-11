@@ -10,6 +10,8 @@ import { getSeparator, getTextAlign, getFlexDirection } from '../utils/rtlUtils'
 const CompanyDebtsSection = React.memo(({ 
   t, 
   admin,
+  showConfirm,
+  setConfirm,
   openAddPurchaseModal
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -309,6 +311,36 @@ const CompanyDebtsSection = React.memo(({
     }
   };
 
+  const handleRemoveDebt = async (debt) => {
+    if (!debt || !debt.id) return;
+    
+    // Simple confirmation
+    const confirmMessage = `${t?.confirmRemoveDebt || 'Are you sure you want to remove this debt?'}\n\n${t?.company || 'Company'}: ${debt.company_name}\n${t?.amount || 'Amount'}: ${
+      debt.currency === 'IQD' ? `د.ع${(debt.amount || 0).toFixed(0)} IQD` :
+      debt.currency === 'USD' ? `$${(debt.amount || 0).toFixed(2)} USD` :
+      debt.currency === 'MULTI' ? `$${(debt.usd_amount || 0).toFixed(2)} USD + د.ع${(debt.iqd_amount || 0).toFixed(0)} IQD` :
+      `د.ع${(debt.amount || 0).toFixed(0)} IQD`
+    }\n\n${t?.removeDebtWarning || 'This will permanently delete the debt record without affecting balances or returning items.'}`;
+    
+    if (!window.confirm(confirmMessage)) return;
+    
+    try {
+      const result = await window.api.deleteCompanyDebt(debt.id);
+      
+      if (result && result.success) {
+        admin?.setToast?.(`${t?.debtRemoved || 'Debt removed successfully'}`, 'success');
+        
+        // Refresh company debts data
+        await refreshCompanyDebts();
+      } else {
+        admin?.setToast?.(`${t?.failedToRemoveDebt || 'Failed to remove debt'}: ${result?.message || t?.unknownError || 'Unknown error'}`, 'error');
+      }
+    } catch (error) {
+      console.error('Error removing debt:', error);
+      admin?.setToast?.(error.message || t?.errorRemovingDebt || 'Error removing debt', 'error');
+    }
+  };
+
   return (
     <div className="w-full h-full p-8 space-y-8">
       {/* Header Section */}
@@ -494,6 +526,10 @@ const CompanyDebtsSection = React.memo(({
           paymentHistory={companyPaymentHistory}
           loadingPaymentHistory={loadingPaymentHistory}
           t={t}
+          admin={admin}
+          refreshCompanyDebts={refreshCompanyDebts}
+          showConfirm={showConfirm}
+          setConfirm={setConfirm}
         />
       )}
 
@@ -512,11 +548,87 @@ const CompanyDebtsSection = React.memo(({
 });
 
 // Simple modal to show company purchase history
-function CompanyDetailsModal({ show, onClose, companyName, companyDebts, paymentHistory, loadingPaymentHistory, t }) {
+function CompanyDetailsModal({ 
+  show, 
+  onClose, 
+  companyName, 
+  companyDebts, 
+  paymentHistory, 
+  loadingPaymentHistory, 
+  t, 
+  admin, 
+  refreshCompanyDebts, 
+  showConfirm,
+  setConfirm 
+}) {
   const [expandedDebtItems, setExpandedDebtItems] = useState(new Set());
   const [expandedPayments, setExpandedPayments] = useState(new Set());
   const [debtPaymentHistory, setDebtPaymentHistory] = useState({});
   const { calculateRemainingCompanyDebt } = useData();
+
+  // Local handleRemoveDebt function that uses the universal confirmation modal
+  const handleRemoveDebtLocal = async (debt) => {
+    if (!debt || !debt.id) return;
+    
+    const amountText = debt.currency === 'IQD' ? `د.ع${(debt.amount || 0).toFixed(0)} IQD` :
+      debt.currency === 'USD' ? `$${(debt.amount || 0).toFixed(2)} USD` :
+      debt.currency === 'MULTI' ? `$${(debt.usd_amount || 0).toFixed(2)} USD + د.ع${(debt.iqd_amount || 0).toFixed(0)} IQD` :
+      `د.ع${(debt.amount || 0).toFixed(0)} IQD`;
+    
+    const confirmMessage = `${t?.confirmDelete || 'Are you sure you want to delete'}?
+
+${t?.company || 'Company'}: ${debt.company_name}
+${t?.amount || 'Amount'}: ${amountText}
+
+${t?.thisActionCannotBeUndone || 'This action cannot be undone.'}`;
+    
+    if (showConfirm) {
+      // Use universal confirmation modal
+      showConfirm(confirmMessage, async () => {
+        // Close the confirmation modal first
+        if (setConfirm) {
+          setConfirm({ show: false, open: false, message: '', onConfirm: null });
+        }
+        
+        try {
+          const result = await window.api.deleteCompanyDebt(debt.id);
+          
+          if (result && result.success) {
+            admin?.setToast?.(t?.successful || 'Successful', 'success');
+            
+            // Refresh company debts data
+            await refreshCompanyDebts();
+            
+            // Close the modal to update UI
+            onClose();
+          } else {
+            admin?.setToast?.(`${t?.failedToDeleteBackup || 'Failed to delete'}: ${result?.error || result?.message || t?.unknownError || 'Unknown error'}`, 'error');
+          }
+        } catch (error) {
+          console.error('Error removing debt:', error);
+          admin?.setToast?.(error.message || t?.unknownError || 'Unknown error', 'error');
+        }
+      });
+    } else {
+      // Fallback to native confirm if showConfirm not available
+      if (!window.confirm(confirmMessage)) return;
+      
+      try {
+        const result = await window.api.deleteCompanyDebt(debt.id);
+        
+        if (result && result.success) {
+          admin?.setToast?.(t?.successful || 'Successful', 'success');
+          await refreshCompanyDebts();
+          onClose(); // Close modal after successful removal
+        } else {
+          admin?.setToast?.(`${t?.failedToDeleteBackup || 'Failed to delete'}: ${result?.error || result?.message || t?.unknownError || 'Unknown error'}`, 'error');
+        }
+      } catch (error) {
+        console.error('Error removing debt:', error);
+        admin?.setToast?.(error.message || t?.unknownError || 'Unknown error', 'error');
+      }
+    }
+  };
 
   if (!show || !companyName) return null;
 
@@ -775,15 +887,28 @@ function CompanyDetailsModal({ show, onClose, companyName, companyDebts, payment
                       </div>
                     )}
                     
-                    {debt.has_items && (
+                    <div className="flex items-center gap-2">
+                      {/* Remove Debt Button */}
                       <button
-                        onClick={() => toggleDebtItems(debt.id)}
-                        className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition text-sm flex items-center"
+                        onClick={() => handleRemoveDebtLocal(debt)}
+                        className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 transition text-sm flex items-center"
+                        title={t?.removeDebt || 'Remove Debt'}
                       >
-                        <Icon name="eye" size={14} className="mr-1" />
-                        {isExpanded ? (t?.hideItems || 'Hide Items') : (t?.viewItems || 'View Items')}
+                        <Icon name="delete" size={14} className="mr-1" />
+                        {t?.remove || 'Remove'}
                       </button>
-                    )}
+                      
+                      {/* View Items Button */}
+                      {debt.has_items && (
+                        <button
+                          onClick={() => toggleDebtItems(debt.id)}
+                          className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition text-sm flex items-center"
+                        >
+                          <Icon name="eye" size={14} className="mr-1" />
+                          {isExpanded ? (t?.hideItems || 'Hide Items') : (t?.viewItems || 'View Items')}
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
                 

@@ -52,6 +52,8 @@ class CloudBackupService {
     this.isAuthenticated = false;
     this.currentUser = null;
     this.autoBackupEnabled = true;
+  this.flushIntervalMs = 60 * 1000; // 1 minute
+  this._flushTimer = null;
     
     // Initialize Appwrite client
     this.client
@@ -66,6 +68,17 @@ class CloudBackupService {
     this.DATABASE_ID = process.env.VITE_APPWRITE_DATABASE_ID || '685ddd3d003b13f80483';
     this.BACKUPS_COLLECTION_ID = process.env.VITE_APPWRITE_BACKUPS_COLLECTION_ID || '685ddd94003cac4491a5';
     this.BACKUP_BUCKET_ID = process.env.VITE_APPWRITE_BACKUP_BUCKET_ID || '685ddea60039b672ee60';
+
+    // Ensure pending backups directory exists and start periodic flush
+    try {
+      const pendingDir = this._getPendingDir();
+      if (!fs.existsSync(pendingDir)) {
+        fs.mkdirSync(pendingDir, { recursive: true });
+      }
+    } catch (e) {
+      console.warn('[CloudBackupService] Failed to prepare pending dir:', e?.message);
+    }
+    this._startFlushTimer();
   }
 
   // Set user session for authentication
@@ -75,6 +88,8 @@ class CloudBackupService {
         this.client.setJWT(sessionData.jwt);
         this.isAuthenticated = true;
         this.currentUser = sessionData;
+  // Try to flush any pending backups once authenticated
+  this.flushPendingBackups().catch(() => {});
         return true;
       }
       return false;
@@ -100,10 +115,97 @@ class CloudBackupService {
     this.autoBackupEnabled = enabled;
   }
 
+  // Internal: get local pending directory path
+  _getPendingDir() {
+    const documentsPath = path.join(os.homedir(), 'Documents');
+    return path.join(documentsPath, 'Mobile Roma BackUp', 'PendingUploads');
+  }
+
+  // Internal: start periodic flush timer
+  _startFlushTimer() {
+    if (this._flushTimer) clearInterval(this._flushTimer);
+    this._flushTimer = setInterval(() => {
+      this.flushPendingBackups().catch(() => {});
+    }, this.flushIntervalMs);
+  }
+
+  // Queue a backup file for later upload (copies a snapshot of DB to pending dir)
+  async enqueuePendingBackup(dbPath, description = '') {
+    try {
+      if (!fs.existsSync(dbPath)) return false;
+      const pendingDir = this._getPendingDir();
+      if (!fs.existsSync(pendingDir)) fs.mkdirSync(pendingDir, { recursive: true });
+      const ts = Date.now();
+      const fileName = `pending-${ts}.sqlite`;
+      const dest = path.join(pendingDir, fileName);
+      fs.copyFileSync(dbPath, dest);
+      // Quick sanity check header
+      try {
+        const buf = Buffer.alloc(16);
+        const fd = fs.openSync(dest, 'r');
+        fs.readSync(fd, buf, 0, 16, 0); fs.closeSync(fd);
+        if (!buf.toString('utf8', 0, 15).startsWith('SQLite format 3')) {
+          // Not a valid SQLite snapshot, delete and skip
+          fs.unlinkSync(dest);
+          return false;
+        }
+      } catch (_) {}
+      // Write a small sidecar JSON for metadata (optional)
+      try {
+        fs.writeFileSync(dest + '.json', JSON.stringify({ description, ts }), 'utf8');
+      } catch (_) {}
+      return true;
+    } catch (e) {
+      console.warn('[CloudBackupService] Failed to enqueue pending backup:', e?.message);
+      return false;
+    }
+  }
+
+  // Flush all pending backups (best-effort). Deletes local file upon successful upload.
+  async flushPendingBackups() {
+    if (!this.autoBackupEnabled) return { success: false, message: 'Auto backup disabled' };
+    if (!this.isAuthenticated) return { success: false, message: 'Not authenticated', silent: true };
+    const pendingDir = this._getPendingDir();
+    if (!fs.existsSync(pendingDir)) return { success: true, flushed: 0 };
+    try {
+      const files = fs.readdirSync(pendingDir).filter(f => f.endsWith('.sqlite'));
+      let flushed = 0;
+      for (const f of files) {
+        const full = path.join(pendingDir, f);
+        let meta = {};
+        try {
+          const metaPath = full + '.json';
+          if (fs.existsSync(metaPath)) meta = JSON.parse(fs.readFileSync(metaPath, 'utf8')) || {};
+        } catch (_) {}
+        // Use upload of this snapshot buffer
+        const dbBuffer = fs.readFileSync(full);
+        const description = meta.description || `Auto backup (queued) - ${new Date(meta.ts || Date.now()).toISOString()}`;
+        const fileName = `phone-shop-backup-${meta.ts || Date.now()}.sqlite`;
+        try {
+          await this._uploadBuffer(dbBuffer, fileName, description);
+          flushed++;
+          try { fs.unlinkSync(full); } catch (_) {}
+          try { fs.unlinkSync(full + '.json'); } catch (_) {}
+        } catch (e) {
+          // Stop on first network error to avoid spamming
+          if (e?.message?.includes('ENOTFOUND') || e?.message?.includes('ECONN') || e?.message?.includes('network')) {
+            break;
+          }
+        }
+      }
+      return { success: true, flushed };
+    } catch (e) {
+      console.warn('[CloudBackupService] flushPendingBackups failed:', e?.message);
+      return { success: false, message: e?.message };
+    }
+  }
+
   // Create backup and upload to cloud
   async createBackup(dbPath, description = '') {
     if (!this.isAuthenticated) {
-      return { success: false, message: 'Not authenticated' };
+      // Queue for later and return gracefully
+      await this.enqueuePendingBackup(dbPath, description);
+      return { success: false, message: 'Not authenticated', queued: true };
     }
 
     try {
@@ -111,9 +213,10 @@ class CloudBackupService {
         throw new Error('Database file not found');
       }
 
-      // Read database file
-      const dbBuffer = fs.readFileSync(dbPath);
-      const fileName = `phone-shop-backup-${Date.now()}.sqlite`;
+  // Read database file
+  const dbBuffer = fs.readFileSync(dbPath);
+  const now = Date.now();
+  const fileName = `phone-shop-backup-${now}.sqlite`;
       
       // Check if backup already exists and delete it
       try {
@@ -133,105 +236,14 @@ class CloudBackupService {
       } catch (error) {
       }
 
-      // Upload file to storage
-      // Create file upload for AppWrite - use direct buffer approach
-      const fileId = ID.unique();
       try {
-        // Try to upload directly with buffer first using our File polyfill
-        let file;
-        try {
-          // Validate buffer before upload
-          if (!dbBuffer || dbBuffer.length === 0) {
-            throw new Error('Database buffer is empty or invalid');
-          }
-          
-          // For newer versions of AppWrite, try direct buffer upload
-          const fileObj = new File([dbBuffer], fileName, { type: 'application/vnd.sqlite3' });
-          
-          // Validate File object
-          if (!fileObj || fileObj.size === 0) {
-            throw new Error('Failed to create valid File object from buffer');
-          }
-          
-          file = await this.storage.createFile(
-            this.BACKUP_BUCKET_ID,
-            fileId,
-            fileObj,
-            []
-          );
-        } catch (directUploadError) {
-          // Fallback to temporary file approach
-          const tempDir = path.join(os.tmpdir(), 'mobile-roma-backups');
-          
-          // Ensure temp directory exists
-          if (!fs.existsSync(tempDir)) {
-            fs.mkdirSync(tempDir, { recursive: true });
-          }
-          
-          const tempPath = path.join(tempDir, `temp-backup-${fileId}.sqlite`);
-          
-          // Write buffer to temporary file
-          fs.writeFileSync(tempPath, dbBuffer);
-          
-          // Verify file was created and has correct content
-          if (!fs.existsSync(tempPath)) {
-            throw new Error('Failed to create temporary backup file');
-          }
-          const tempStats = fs.statSync(tempPath);
-          
-          // Verify the temp file is a valid SQLite file
-          const tempBuffer = Buffer.alloc(16);
-          const tempFd = fs.openSync(tempPath, 'r');
-          fs.readSync(tempFd, tempBuffer, 0, 16, 0);
-          fs.closeSync(tempFd);
-          
-          const tempHeader = tempBuffer.toString('utf8', 0, 15);
-          if (!tempHeader.startsWith('SQLite format 3')) {
-            throw new Error('Source database file is not valid SQLite');
-          }
-
-          try {
-            // Create readable stream for upload
-            const fileBuffer = fs.readFileSync(tempPath);
-            const finalFileObj = new File([fileBuffer], fileName, { type: 'application/vnd.sqlite3' });
-            
-            file = await this.storage.createFile(
-              this.BACKUP_BUCKET_ID,
-              fileId,
-              finalFileObj,
-              []
-            );
-          } finally {
-            // Clean up temporary file
-            if (fs.existsSync(tempPath)) {
-              fs.unlinkSync(tempPath);
-            }
-          }
-        }
-        
-        // Create backup record
-        const backupRecord = await this.databases.createDocument(
-          this.DATABASE_ID,
-          this.BACKUPS_COLLECTION_ID,
-          ID.unique(),
-          {
-            userId: this.currentUser.userId,
-            fileName: fileName,
-            fileId: file.$id,
-            description: description || `Backup created at ${new Date().toISOString()}`,
-            fileSize: dbBuffer.length,
-            uploadDate: new Date().toISOString(),
-            version: '1.0'
-          }
-        );
-
-        return { 
-          success: true, 
-          message: 'Backup created successfully',
-          backupId: backupRecord.$id,
-          fileName: fileName
-        };
+        const backupRecord = await this._uploadBuffer(dbBuffer, fileName, description);
+        return { success: true, message: 'Backup created successfully', backupId: backupRecord.$id, fileName };
       } catch (uploadError) {
+        // On network error, queue the backup for later
+        if (uploadError?.message?.includes('ENOTFOUND') || uploadError?.message?.includes('ECONN') || uploadError?.message?.includes('network')) {
+          await this.enqueuePendingBackup(dbPath, description);
+        }
         console.error('[CloudBackupService] Upload error:', uploadError);
         throw uploadError;
       }
@@ -242,6 +254,47 @@ class CloudBackupService {
         message: error.message || 'Backup creation failed'
       };
     }
+  }
+
+  // Internal: upload a buffer to storage and create DB record
+  async _uploadBuffer(dbBuffer, fileName, description = '') {
+    const fileId = ID.unique();
+    // Try direct buffer via File polyfill first
+    let file;
+    try {
+      if (!dbBuffer || dbBuffer.length === 0) throw new Error('Database buffer is empty or invalid');
+      const fileObj = new File([dbBuffer], fileName, { type: 'application/vnd.sqlite3' });
+      if (!fileObj || fileObj.size === 0) throw new Error('Failed to create valid File object from buffer');
+      file = await this.storage.createFile(this.BACKUP_BUCKET_ID, fileId, fileObj, []);
+    } catch (directUploadError) {
+      // Fallback to tmp file
+      const tempDir = path.join(os.tmpdir(), 'mobile-roma-backups');
+      if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
+      const tempPath = path.join(tempDir, `temp-backup-${fileId}.sqlite`);
+      fs.writeFileSync(tempPath, dbBuffer);
+      try {
+        const fileBuffer = fs.readFileSync(tempPath);
+        const finalFileObj = new File([fileBuffer], fileName, { type: 'application/vnd.sqlite3' });
+        file = await this.storage.createFile(this.BACKUP_BUCKET_ID, fileId, finalFileObj, []);
+      } finally {
+        try { fs.unlinkSync(tempPath); } catch (_) {}
+      }
+    }
+    const backupRecord = await this.databases.createDocument(
+      this.DATABASE_ID,
+      this.BACKUPS_COLLECTION_ID,
+      ID.unique(),
+      {
+        userId: this.currentUser.userId,
+        fileName,
+        fileId: file.$id,
+        description: description || `Backup created at ${new Date().toISOString()}`,
+        fileSize: dbBuffer.length,
+        uploadDate: new Date().toISOString(),
+        version: '1.0'
+      }
+    );
+    return backupRecord;
   }
 
   // Download backup from cloud
@@ -465,8 +518,9 @@ class CloudBackupService {
     }
     
     if (!this.isAuthenticated) {
-      // Silently fail if not authenticated to prevent 401 error spam
-      return { success: false, message: 'Not authenticated', silent: true };
+      // Queue it locally and return silently
+      await this.enqueuePendingBackup(dbPath, `Auto backup (offline) - ${new Date().toISOString()}`);
+      return { success: false, message: 'Not authenticated', silent: true, queued: true };
     }
 
     try {
@@ -479,8 +533,8 @@ class CloudBackupService {
       });
       
       // Create the new auto backup
-      const description = `Auto backup - ${new Date().toISOString()}`;
-      const result = await this.createBackup(dbPath, description);
+  const description = `Auto backup - ${new Date().toISOString()}`;
+  const result = await this.createBackup(dbPath, description);
       
       return result;
     } catch (error) {
@@ -488,7 +542,8 @@ class CloudBackupService {
       if (!error.message?.includes('authenticated') && !error.message?.includes('401')) {
         console.error('[CloudBackupService] Auto backup failed:', error);
       }
-      // Don't fail - just log and continue
+  // Queue for later and don't fail
+  try { await this.enqueuePendingBackup(dbPath, 'Auto backup (retry later)'); } catch (_) {}
       return { success: false, message: error.message, silent: true };
     }
   }

@@ -575,6 +575,150 @@ function runMigrations(db) {
     console.warn('Debt payments table migration warning:', e.message);
   }
 
+  // Fix ZMC debt that had double discount applied
+  try {
+    // Check if migration was already applied
+    const migrationExists = db.prepare(`
+      SELECT 1 FROM sqlite_master 
+      WHERE type='table' AND name='migrations'
+    `).get();
+    
+    let migrationApplied = false;
+    if (migrationExists) {
+      migrationApplied = db.prepare(`
+        SELECT 1 FROM migrations WHERE id = 'fix-zmc-debt-discount'
+      `).get();
+    }
+    
+    if (!migrationApplied) {
+      // Create migrations table if it doesn't exist
+      db.prepare(`
+        CREATE TABLE IF NOT EXISTS migrations (
+          id TEXT PRIMARY KEY,
+          applied_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+      `).run();
+      
+      // Find the specific ZMC debt that needs fixing with multiple search strategies
+      let zmcDebt = null;
+      
+      // Strategy 1: Look for exact company name and amount
+      zmcDebt = db.prepare(`
+        SELECT id, company_name, amount, currency, created_at, paid_at
+        FROM company_debts 
+        WHERE LOWER(TRIM(company_name)) IN ('zmc', 'znc', 'z.m.c', 'z m c')
+        AND amount = 1421000
+        AND currency = 'IQD'
+        AND paid_at IS NULL
+        ORDER BY created_at DESC
+        LIMIT 1
+      `).get();
+      
+      // Strategy 2: If not found, search by amount only for unpaid debts
+      if (!zmcDebt) {
+        console.log('🔍 Exact ZMC name not found, searching by amount 1421000...');
+        zmcDebt = db.prepare(`
+          SELECT id, company_name, amount, currency, created_at, paid_at
+          FROM company_debts 
+          WHERE amount = 1421000
+          AND currency = 'IQD'
+          AND paid_at IS NULL
+          ORDER BY created_at DESC
+          LIMIT 1
+        `).get();
+      }
+      
+      // Strategy 3: If still not found, search for similar amounts (within 1000 IQD range)
+      if (!zmcDebt) {
+        console.log('🔍 Amount 1421000 not found, searching for similar amounts...');
+        const similarDebts = db.prepare(`
+          SELECT id, company_name, amount, currency, created_at, paid_at
+          FROM company_debts 
+          WHERE amount BETWEEN 1420000 AND 1422000
+          AND currency = 'IQD'
+          AND paid_at IS NULL
+          ORDER BY created_at DESC
+        `).all();
+        
+        if (similarDebts.length === 1) {
+          zmcDebt = similarDebts[0];
+          console.log(`💡 Found potential ZMC debt with amount ${zmcDebt.amount}`);
+        } else if (similarDebts.length > 1) {
+          console.log('📋 Multiple similar debts found:', similarDebts.map(d => `ID: ${d.id}, Company: ${d.company_name}, Amount: ${d.amount}`));
+        }
+      }
+      
+      if (zmcDebt) {
+        console.log(`🔧 Fixing ZMC debt: ID ${zmcDebt.id}, Company: ${zmcDebt.company_name}, Amount: ${zmcDebt.amount} ${zmcDebt.currency}`);
+        
+        // Update the debt amount to 1443000
+        const updateStmt = db.prepare(`
+          UPDATE company_debts 
+          SET amount = 1443000,
+              iqd_amount = CASE 
+                WHEN iqd_amount = amount THEN 1443000
+                WHEN iqd_amount > 0 THEN iqd_amount + (1443000 - ?)
+                ELSE iqd_amount
+              END
+          WHERE id = ?
+        `);
+        
+        const result = updateStmt.run(zmcDebt.amount, zmcDebt.id);
+        
+        if (result.changes > 0) {
+          console.log(`✅ Successfully updated ZMC debt from ${zmcDebt.amount} to 1443000 (difference: +${1443000 - zmcDebt.amount} IQD)`);
+          
+          // Also update any related debt items proportionally if they exist
+          try {
+            const updateItemsStmt = db.prepare(`
+              UPDATE company_debt_items 
+              SET subtotal = ROUND(subtotal * 1443000.0 / ?, 2)
+              WHERE company_debt_id = ?
+            `);
+            
+            const itemsResult = updateItemsStmt.run(zmcDebt.amount, zmcDebt.id);
+            if (itemsResult.changes > 0) {
+              console.log(`✅ Updated ${itemsResult.changes} debt items proportionally`);
+            }
+          } catch (itemsError) {
+            console.log('ℹ️ No debt items table found or no items to update');
+          }
+        } else {
+          console.log('❌ Failed to update ZMC debt - no changes made');
+        }
+      } else {
+        console.log('ℹ️ No ZMC debt found matching search criteria');
+        
+        // Show all unpaid debts for debugging
+        const allUnpaidDebts = db.prepare(`
+          SELECT id, company_name, amount, currency, created_at
+          FROM company_debts 
+          WHERE paid_at IS NULL
+          ORDER BY created_at DESC
+          LIMIT 10
+        `).all();
+        
+        if (allUnpaidDebts.length > 0) {
+          console.log('📋 Recent unpaid debts in database:');
+          allUnpaidDebts.forEach(debt => {
+            console.log(`   ID: ${debt.id}, Company: ${debt.company_name}, Amount: ${debt.amount} ${debt.currency}, Date: ${debt.created_at}`);
+          });
+        } else {
+          console.log('📋 No unpaid debts found in database');
+        }
+      }
+      
+      // Mark migration as completed
+      db.prepare(`
+        INSERT INTO migrations (id) VALUES ('fix-zmc-debt-discount')
+      `).run();
+      
+      console.log('✅ ZMC debt fix migration completed');
+    }
+  } catch (e) {
+    console.warn('ZMC debt fix migration warning:', e.message);
+  }
+
   // Initialize sample data if tables are empty
   initializeSampleData(db);
 }

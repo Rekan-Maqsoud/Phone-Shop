@@ -364,6 +364,35 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
           admin?.setToast?.(t.pleaseProvideValidAmount || 'Please provide a valid amount in at least one currency', 'error');
           return;
         }
+        // Apply discount for ALL purchases, but handle debt vs paid differently  
+        let finalUsdAmount = multiCurrency.usdAmount;
+        let finalIqdAmount = multiCurrency.iqdAmount;
+        let shouldSendDiscountInfo = false;
+        
+        if (discount.enabled && discount.value) {
+          const discountValue = parseFloat(discount.value) || 0;
+          if (paymentStatus === 'paid') {
+            // For paid purchases: apply discount to amounts, don't send discount info to backend
+            if (discount.type === 'percentage') {
+              finalUsdAmount = multiCurrency.usdAmount * (1 - discountValue / 100);
+              finalIqdAmount = multiCurrency.iqdAmount * (1 - discountValue / 100);
+            } else if (discount.type === 'amount') {
+              // Split amount discount proportionally
+              const total = multiCurrency.usdAmount + (multiCurrency.iqdAmount / (currentExchangeRates?.USD_TO_IQD || EXCHANGE_RATES.USD_TO_IQD));
+              if (total > 0) {
+                const usdShare = multiCurrency.usdAmount / total;
+                const iqdShare = (multiCurrency.iqdAmount / (currentExchangeRates?.USD_TO_IQD || EXCHANGE_RATES.USD_TO_IQD)) / total;
+                finalUsdAmount = Math.max(0, multiCurrency.usdAmount - (discountValue * usdShare));
+                finalIqdAmount = Math.max(0, multiCurrency.iqdAmount - (discountValue * iqdShare * (currentExchangeRates?.USD_TO_IQD || EXCHANGE_RATES.USD_TO_IQD)));
+              }
+            }
+          } else {
+            // For debt purchases: send original amounts but include discount info for backend
+            finalUsdAmount = multiCurrency.usdAmount;
+            finalIqdAmount = multiCurrency.iqdAmount;
+            shouldSendDiscountInfo = true;
+          }
+        }
         
         const purchaseData = {
           company_name: companyName.trim(),
@@ -374,43 +403,59 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
           currency: 'MULTI', // Special indicator for multi-currency
           multi_currency: {
             enabled: true,
-            usdAmount: multiCurrency.usdAmount,
-            iqdAmount: multiCurrency.iqdAmount
+            usdAmount: finalUsdAmount,
+            iqdAmount: finalIqdAmount
           },
-          discount: discount.enabled && discount.value ? {
+          discount: shouldSendDiscountInfo ? {
             discount_type: discount.type,
             discount_value: parseFloat(discount.value)
           } : null,
           exchange_rate: currentExchangeRates?.USD_TO_IQD || EXCHANGE_RATES.USD_TO_IQD
         };
-
         await onSubmit(purchaseData);
       } else {
         // Single currency validation
-        const amt = parseFloat(simpleAmount);
-        if (!simpleAmount || isNaN(amt) || amt <= 0) {
+        const originalAmount = parseFloat(simpleAmount);
+        if (!simpleAmount || isNaN(originalAmount) || originalAmount <= 0) {
           admin?.setToast?.(t.pleaseProvideValidAmount || 'Please provide a valid amount greater than 0', 'error');
           return;
         }
-
+        // Apply discount for ALL purchases, but handle debt vs paid differently
+        let finalAmount = originalAmount;
+        let shouldSendDiscountInfo = false;
+        
+        if (discount.enabled && discount.value) {
+          const discountValue = parseFloat(discount.value) || 0;
+          if (paymentStatus === 'paid') {
+            // For paid purchases: apply discount to amount, don't send discount info to backend
+            if (discount.type === 'percentage') {
+              finalAmount = originalAmount * (1 - discountValue / 100);
+            } else if (discount.type === 'amount') {
+              finalAmount = Math.max(0, originalAmount - discountValue);
+            }
+          } else {
+            // For debt purchases: send original amount but include discount info for backend
+            finalAmount = originalAmount;
+            shouldSendDiscountInfo = true;
+          }
+        }
+        
         const purchaseData = {
           company_name: companyName.trim(),
-          amount: Math.round(amt * 100) / 100,
+          amount: Math.round(finalAmount * 100) / 100,
           description: description.trim(),
           type: 'simple',
           payment_status: paymentStatus,
           currency: currency, // Keep the exact selected currency (USD or IQD)
           multi_currency: null,
-          discount: discount.enabled && discount.value ? {
+          discount: shouldSendDiscountInfo ? {
             discount_type: discount.type,
             discount_value: parseFloat(discount.value)
           } : null,
           exchange_rate: currentExchangeRates?.USD_TO_IQD || EXCHANGE_RATES.USD_TO_IQD
         };
-
         await onSubmit(purchaseData);
       }
-      
       // Reset form only on successful submission
       setCompanyName('');
       setDescription('');
@@ -458,93 +503,37 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
         return;
       }
 
+      // Apply discount to item prices for ALL purchases (both paid and debt)
+      // This ensures items are stored with discounted prices regardless of payment status
       const processedItems = items.map(item => {
         const originalUnitPrice = parseFloat(item.unit_price);
         const quantity = parseInt(item.quantity);
+        let finalUnitPrice = originalUnitPrice;
+        let finalTotalPrice = originalUnitPrice * quantity;
         
-        // Apply discount to individual item price
-        let discountedUnitPrice = originalUnitPrice;
-        let debugInfo = {
-          itemName: item.brand + ' ' + item.model,
-          originalUnitPrice,
-          discountApplied: false
-        };
-        
+        // Apply discount to item prices for both paid and debt purchases
         if (discount.enabled && discount.value) {
           const discountValue = parseFloat(discount.value) || 0;
-          debugInfo.discountApplied = true;
-          debugInfo.discountType = discount.type;
-          debugInfo.discountValue = discountValue;
-          
           if (discount.type === 'percentage') {
-            discountedUnitPrice = originalUnitPrice * (1 - discountValue / 100);
-            debugInfo.calculationType = 'percentage';
-          } else {
-            // For amount discount, we need to handle multi-currency properly
-            // Group items by currency and apply discount proportionally within each currency
-            const itemsByCurrency = items.reduce((acc, i) => {
-              const curr = i.currency || 'IQD';
-              if (!acc[curr]) acc[curr] = [];
-              acc[curr].push(i);
-              return acc;
-            }, {});
-
-            // Calculate total value in each currency
-            const totalsByCurrency = {};
-            Object.keys(itemsByCurrency).forEach(curr => {
-              totalsByCurrency[curr] = itemsByCurrency[curr].reduce((sum, i) => 
-                sum + (parseFloat(i.unit_price) * parseInt(i.quantity)), 0
-              );
-            });
-
-            // For simplicity, apply discount proportionally based on converted values
-            // Convert all to IQD for proportion calculation
-            const itemTotal = originalUnitPrice * quantity;
-            const itemTotalInIQD = item.currency === 'USD' 
-              ? itemTotal * (currentExchangeRates?.USD_TO_IQD || EXCHANGE_RATES.USD_TO_IQD)
-              : itemTotal;
-              
-            const totalValueInIQD = items.reduce((sum, i) => {
-              const iTotal = parseFloat(i.unit_price) * parseInt(i.quantity);
-              return sum + (i.currency === 'USD' 
-                ? iTotal * (currentExchangeRates?.USD_TO_IQD || EXCHANGE_RATES.USD_TO_IQD)
-                : iTotal);
-            }, 0);
-            
-            const itemProportion = totalValueInIQD > 0 ? itemTotalInIQD / totalValueInIQD : 0;
-            
-            // Apply discount in the item's original currency
-            const discountValueInItemCurrency = item.currency === 'USD' 
-              ? discountValue / (currentExchangeRates?.USD_TO_IQD || EXCHANGE_RATES.USD_TO_IQD)
-              : discountValue;
-              
-            const itemDiscountAmount = discountValueInItemCurrency * itemProportion;
-            const perUnitDiscount = itemDiscountAmount / quantity;
-            discountedUnitPrice = Math.max(0, originalUnitPrice - perUnitDiscount);
-            
-            debugInfo.calculationType = 'amount';
-            debugInfo.itemTotal = itemTotal;
-            debugInfo.itemTotalInIQD = itemTotalInIQD;
-            debugInfo.totalValueInIQD = totalValueInIQD;
-            debugInfo.itemProportion = itemProportion;
-            debugInfo.discountValueInItemCurrency = discountValueInItemCurrency;
-            debugInfo.itemDiscountAmount = itemDiscountAmount;
-            debugInfo.perUnitDiscount = perUnitDiscount;
+            finalUnitPrice = originalUnitPrice * (1 - discountValue / 100);
+          } else if (discount.type === 'amount') {
+            // For amount discount, apply proportionally to each item
+            const totalOriginalValue = items.reduce((sum, i) => sum + (parseFloat(i.unit_price) * parseInt(i.quantity)), 0);
+            const itemProportion = (originalUnitPrice * quantity) / totalOriginalValue;
+            const itemDiscountAmount = discountValue * itemProportion;
+            finalUnitPrice = Math.max(0, originalUnitPrice - (itemDiscountAmount / quantity));
           }
+          finalTotalPrice = finalUnitPrice * quantity;
         }
         
-        debugInfo.discountedUnitPrice = discountedUnitPrice;
-
-        console.log('[AddPurchaseModal] Processing item discount:', debugInfo);
-
         return {
           ...item,
           item_name: item.item_name || [item.brand, item.model].filter(Boolean).join(' '), // Ensure item_name is set
           quantity: quantity,
-          unit_price: Math.round(discountedUnitPrice * 100) / 100, // Round to 2 decimal places
+          unit_price: Math.round(finalUnitPrice * 100) / 100, // Use original price for debt, discounted for paid
           stock: quantity || 0, // Use quantity as initial stock
-          total_price: Math.round(discountedUnitPrice * quantity * 100) / 100, // Calculate with discounted price
-          buying_price: Math.round(discountedUnitPrice * 100) / 100, // Same as discounted unit price for buying
+          total_price: Math.round(finalTotalPrice * 100) / 100, // Use original total for debt, discounted for paid
+          buying_price: Math.round(finalUnitPrice * 100) / 100, // Use original price for debt, discounted for paid
           ram: item.ram?.trim() || null,
           storage: item.storage?.trim() || null,
           model: item.model?.trim() || null,
@@ -573,22 +562,17 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
         itemCurrencies: items.map(i => ({ name: i.brand + ' ' + i.model, currency: i.currency, price: i.unit_price }))
       });
 
-      const purchaseData = {
-        company_name: companyName.trim(),
-        description: description.trim(),
-        items: processedItems,
-        type: 'withItems',
-        payment_status: paymentStatus,
-        currency: currency,
-        multi_currency: multiCurrency.enabled ? multiCurrency : null,
-        discount: discount.enabled && discount.value ? {
-          discount_type: discount.type,
-          discount_value: parseFloat(discount.value)
-        } : null,
-        exchange_rate: currentExchangeRates?.USD_TO_IQD || EXCHANGE_RATES.USD_TO_IQD
-      };
-
-      await onSubmit(purchaseData);
+        const purchaseData = {
+          company_name: companyName.trim(),
+          description: description.trim(),
+          items: processedItems,
+          type: 'withItems',
+          payment_status: paymentStatus,
+          currency: currency, // This should be the purchase currency, not item currency
+          multi_currency: multiCurrency.enabled ? multiCurrency : null,
+          discount: null, // Don't send discount to backend since it's already applied to item prices
+          exchange_rate: currentExchangeRates?.USD_TO_IQD || EXCHANGE_RATES.USD_TO_IQD
+        };      await onSubmit(purchaseData);
       
       // Reset form only on successful submission
       setCompanyName('');
@@ -855,7 +839,18 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
                   <div className="flex justify-between">
                     <span>{t.totalRequired || 'Total Required'}:</span>
                     <span className="font-medium">
-                      {currency === 'USD' ? '$' : 'د.ع'}{calculateTotal().toFixed(2)}
+                      {currency === 'USD' ? '$' : 'د.ع'}{(() => {
+                        const total = calculateTotal();
+                        if (currency === 'USD') {
+                          // For USD: hide .00, show whole numbers or minimal decimals
+                          if (Math.abs(total) < 0.1) return Math.round(total);
+                          const rounded = Math.round(total * 100) / 100;
+                          return rounded % 1 === 0 ? Math.floor(rounded) : rounded.toFixed(2).replace(/\.?0+$/, '');
+                        } else {
+                          // For IQD: always round to whole numbers, never show decimals
+                          return Math.round(total).toLocaleString();
+                        }
+                      })()}
                     </span>
                   </div>
                   <div className="flex justify-between">
@@ -1291,10 +1286,32 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
                   <input
                     type="number"
                     value={discount.value}
-                    onChange={(e) => setDiscount(prev => ({ ...prev, value: e.target.value }))}
+                    onChange={(e) => {
+                      // Normalize decimal separators and restrict input to valid numeric format
+                      let val = (e.target.value ?? '').toString();
+                      // Convert comma to dot for locales where ',' is decimal separator
+                      val = val.replace(/,/g, '.');
+                      // Remove invalid characters (keep digits and a single dot)
+                      val = val.replace(/[^0-9.]/g, '');
+                      // Ensure only one dot
+                      const parts = val.split('.');
+                      if (parts.length > 2) {
+                        val = parts[0] + '.' + parts.slice(1).join('');
+                      }
+                      // Clamp percentage to [0,100]
+                      if (discount.type === 'percentage' && val !== '') {
+                        const n = parseFloat(val);
+                        if (!Number.isNaN(n)) {
+                          if (n < 0) val = '0';
+                          if (n > 100) val = '100';
+                        }
+                      }
+                      setDiscount(prev => ({ ...prev, value: val }));
+                    }}
                     placeholder={discount.type === 'percentage' ? '10' : '50'}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     min="0"
+                    step="0.01"
                     max={discount.type === 'percentage' ? '100' : undefined}
                   />
                   
@@ -1304,24 +1321,60 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
                         <div className="flex justify-between items-center text-gray-600 dark:text-gray-400">
                           <span>{t?.originalAmount || 'Original Amount'}:</span>
                           <span className="line-through">
-                            {currency === 'USD' ? '$' : 'د.ع'}{calculateOriginalTotal().toFixed(2)}
+                            {(() => {
+                              const original = calculateOriginalTotal();
+                              if (currency === 'USD') {
+                                if (Math.abs(original) < 0.1) return `$${Math.round(original)}`;
+                                const rounded = Math.round(original * 100) / 100;
+                                return rounded % 1 === 0 ? `$${Math.floor(rounded)}` : `$${rounded.toFixed(2).replace(/\.?0+$/, '')}`;
+                              } else {
+                                return `د.ع${Math.round(original).toLocaleString()}`;
+                              }
+                            })()}
                           </span>
                         </div>
                         <div className="flex justify-between items-center text-red-600 dark:text-red-400">
                           <span>{t?.discountAmount || 'Discount'}:</span>
                           <span>
-                            -{currency === 'USD' ? '$' : 'د.ع'}{getDiscountAmount().toFixed(2)}
+                            -{(() => {
+                              const discountAmt = getDiscountAmount();
+                              if (currency === 'USD') {
+                                if (Math.abs(discountAmt) < 0.1) return `$${Math.round(discountAmt)}`;
+                                const rounded = Math.round(discountAmt * 100) / 100;
+                                return rounded % 1 === 0 ? `$${Math.floor(rounded)}` : `$${rounded.toFixed(2).replace(/\.?0+$/, '')}`;
+                              } else {
+                                return `د.ع${Math.round(discountAmt).toLocaleString()}`;
+                              }
+                            })()}
                             {discount.type === 'percentage' ? ` (${discount.value}%)` : ''}
                           </span>
                         </div>
                         <div className="flex justify-between items-center font-bold text-green-600 dark:text-green-400 text-base border-t pt-1">
                           <span>{t?.finalAmount || 'Final Amount'}:</span>
                           <span>
-                            {currency === 'USD' ? '$' : 'د.ع'}{calculateTotal().toFixed(2)}
+                            {(() => {
+                              const final = calculateTotal();
+                              if (currency === 'USD') {
+                                if (Math.abs(final) < 0.1) return `$${Math.round(final)}`;
+                                const rounded = Math.round(final * 100) / 100;
+                                return rounded % 1 === 0 ? `$${Math.floor(rounded)}` : `$${rounded.toFixed(2).replace(/\.?0+$/, '')}`;
+                              } else {
+                                return `د.ع${Math.round(final).toLocaleString()}`;
+                              }
+                            })()}
                           </span>
                         </div>
                         <div className="text-center text-xs text-gray-500 dark:text-gray-400 mt-2">
-                          {t?.youSave || 'You save'}: {currency === 'USD' ? '$' : 'د.ع'}{getDiscountAmount().toFixed(2)}
+                          {t?.youSave || 'You save'}: {(() => {
+                            const discountAmt = getDiscountAmount();
+                            if (currency === 'USD') {
+                              if (Math.abs(discountAmt) < 0.1) return `$${Math.round(discountAmt)}`;
+                              const rounded = Math.round(discountAmt * 100) / 100;
+                              return rounded % 1 === 0 ? `$${Math.floor(rounded)}` : `$${rounded.toFixed(2).replace(/\.?0+$/, '')}`;
+                            } else {
+                              return `د.ع${Math.round(discountAmt).toLocaleString()}`;
+                            }
+                          })()}
                         </div>
                       </div>
                     </div>
@@ -1500,7 +1553,16 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
                         )}
                       </div>
                     ) : (
-                      `${currency === 'USD' ? '$' : 'د.ع'}${calculateTotal().toFixed(2)}`
+                      `${currency === 'USD' ? '$' : 'د.ع'}${(() => {
+                        const total = calculateTotal();
+                        if (currency === 'USD') {
+                          if (Math.abs(total) < 0.1) return Math.round(total);
+                          const rounded = Math.round(total * 100) / 100;
+                          return rounded % 1 === 0 ? Math.floor(rounded) : rounded.toFixed(2).replace(/\.?0+$/, '');
+                        } else {
+                          return Math.round(total).toLocaleString();
+                        }
+                      })()}`
                     )}
                   </span>
                 </div>
@@ -1508,7 +1570,16 @@ export default function AddPurchaseModal({ show, onClose, onSubmit, t, isCompany
                 {discount.enabled && discount.value && getDiscountAmount() > 0 && (
                   <div className="text-center mt-1">
                     <span className="text-green-700 dark:text-green-400 font-medium text-xs">
-                      💰 {t?.saved || 'Saved'}: {currency === 'USD' ? '$' : 'د.ع'}{getDiscountAmount().toFixed(2)}
+                      💰 {t?.saved || 'Saved'}: {(() => {
+                        const discountAmt = getDiscountAmount();
+                        if (currency === 'USD') {
+                          if (Math.abs(discountAmt) < 0.1) return `$${Math.round(discountAmt)}`;
+                          const rounded = Math.round(discountAmt * 100) / 100;
+                          return rounded % 1 === 0 ? `$${Math.floor(rounded)}` : `$${rounded.toFixed(2).replace(/\.?0+$/, '')}`;
+                        } else {
+                          return `د.ع${Math.round(discountAmt).toLocaleString()}`;
+                        }
+                      })()}
                     </span>
                   </div>
                 )}

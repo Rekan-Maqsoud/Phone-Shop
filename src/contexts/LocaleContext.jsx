@@ -276,6 +276,21 @@ const translations = {
     loanAddedSuccessfully: 'Loan added successfully!',
     remainingAmount: 'Remaining Amount',
     originalLoan: 'Original Loan',
+  originalAmount: 'Original',
+  searchLoans: 'Search loans...',
+  paidLoans: 'Paid Loans',
+  noPaidLoans: 'No paid loans',
+  noActiveLoans: 'No active loans',
+  outstandingUSD: 'Outstanding USD',
+  outstandingIQD: 'Outstanding IQD',
+  totalLoaned: 'Total Loaned',
+  payAllLoans: 'Pay All Loans',
+  payAll: 'Pay All',
+  payAllUSD: 'Pay All USD (use USD balance)',
+  payAllIQD: 'Pay All IQD (use IQD balance)',
+  borrowerName: 'Borrower Name',
+  exchangeRateInfo: 'Exchange Rate Info',
+  adding: 'Adding...',
     
     // Cart messages
     stockEmptyIncrement: 'Stock is empty. Do you want to increment the stock by 1?',
@@ -539,6 +554,11 @@ const translations = {
     enterNameModel: 'Enter accessory name/model',
     accessoryUpdated: 'Accessory updated',
     productUpdated: 'Product updated',
+  // Accessory modal validations & actions (missing)
+  pleaseEnterName: 'Please enter accessory name',
+  pleaseEnterValidPrice: 'Please enter a valid price',
+  pleaseEnterValidStock: 'Please enter valid stock',
+  editAccessory: 'Edit Accessory',
     
     // Settings modal
     confirmResetAllData: 'Are you sure you want to delete ALL products, archived, and sales history? This cannot be undone!',
@@ -679,8 +699,11 @@ const translations = {
     addFirstAccessory: 'Add your first accessory to get started',      // Archived Items Section
       archivedAccessories: 'Archived Accessories',
     
-    // Sales History Section
-    confirmReturnSale: 'Are you sure you want to return this entire sale? This will restore stock and remove the sale from records.',
+  // Sales History Section
+  salesHistoryDesc: 'Track all your business sales and revenue',
+  previous: 'Previous',
+  next: 'Next',
+  confirmReturnSale: 'Are you sure you want to return this entire sale? This will restore stock and remove the sale from records.',
     returnEntry: 'Return',
     confirmReturnEntry: 'Are you sure you want to return this purchase? This will decrease stock and refund the amount.',
     returnItem: 'Return Item',
@@ -730,6 +753,7 @@ const translations = {
     returnSummary: 'Return Summary',
     confirmReturn: 'Confirm Return',
     mixed: 'Mixed',
+  totalValue: 'Total Value',
     confirm: 'Confirm',
     
     // Dashboard returns display
@@ -923,14 +947,25 @@ const translations = {
     nearest250: 'Nearest 250',
     nearest1000: 'Nearest 1000',
     nearest5000: 'Nearest 5000',
-    nearest10000: 'Nearest 10000',
-    quickAmounts: 'Quick Amounts',
+  nearest10000: 'Nearest 10000',
+  // USD quick rounding labels
+  nearest1: '~$1',
+  nearest5: '~$5',
+  nearest10: '~$10',
+  payCompanyDebt: 'Pay Company Debt',
+  quickAmounts: 'Quick Amounts',
     paymentOptions: 'Payment Options',
     paymentSummary: 'Payment Summary',
     multicurrency: 'Multi-currency',
     currentBalances: 'Current Balances',
-    processPayment: 'Process Payment',
-    IQD: 'IQD',
+  processPayment: 'Process Payment',
+  IQD: 'IQD',
+  // Universal payment modal titles & labels
+  customerTotalPayment: 'Customer Total Payment',
+  personalLoanPayment: 'Personal Loan Payment',
+  personalTotalPayment: 'Personal Total Payment',
+  person: 'Person',
+  unknownPerson: 'Unknown Person',
     customerUSD: 'Customer USD',
     customerIQD: 'Customer IQD',
     companyUSD: 'Company USD',
@@ -979,13 +1014,15 @@ const translations = {
     editIncentive: 'Edit Incentive',
     addMore: 'Add More',
     addAnotherIncentive: 'Add another incentive for this company',
-    confirmDelete: 'Confirm Delete',
-    searchLoan: 'Search Loan',
-    totalLoaned: 'Total Loaned',
-    outstandingUSD: 'Outstanding USD',
-    outstandingIQD: 'Outstanding IQD',
-    activeLoans: 'Active Loans',
-    loan: 'Loan',
+  both: 'Both',
+  totalDebt: 'Total Debt',
+  paymentAmount: 'Payment Amount',
+  payingAmount: 'Paying',
+  willBeDeducted: 'Will be deducted',
+  debtInfo: 'Debt Information',
+  showItems: 'Show Items',
+  specifications: 'Specifications',
+  changeNote: 'Changes less than $1 USD or 1000 IQD will be ignored to avoid small transactions.',
     enterBorrowerName: 'Enter Borrower Name',
     multiCurrencyLoanSupport: 'Multi-currency loan support - enter amounts in USD and/or IQD',
     
@@ -1168,6 +1205,8 @@ const translations = {
 
     // Error Messages & System
     applicationError: 'Application Error',
+  adminRenderError: 'Admin Render Error',
+  adminRenderErrorDesc: 'The admin interface encountered a rendering error. This might be due to data corruption or missing dependencies.',
     unexpectedError: 'The application encountered an unexpected error. Don\'t worry, your data is safe.',
     maxRetriesReached: 'Max retries reached',
     tryAgain: 'Try Again',
@@ -1234,6 +1273,7 @@ const translations = {
     time: 'Time',
     mobileRomaAdmin: 'Mobile Roma Admin',
     mobileRoma: 'Mobile Roma',
+  adminPanel: 'Admin Panel',
 
     // Menu & Navigation Labels
     analytics: 'Analytics',
@@ -1285,6 +1325,32 @@ const translations = {
     archivedItemsDescription: 'View and manage archived products and accessories',
     invalidDate: 'Invalid Date',
     max: 'Max',
+  min: 'Min',
+  priceRange: 'Price Range',
+  tryDifferentFilter: 'Try a different filter or search term',
+  noProductsFound: 'No Products Found',
+
+  // Cashier rounding and exchange rate helpers
+  roundedToNearest250: 'Amounts rounded to nearest 250 IQD',
+  pleaseAcknowledgeWarning: 'Please acknowledge the warning first',
+  failedToLoadExchangeRate: 'Failed to load exchange rates',
+  loadingExchangeRate: 'Loading exchange rate...',
+  failedToSaveRate: 'Failed to save exchange rate',
+  customerNameOrSearch: 'Customer name (start typing for suggestions)',
+
+  // Company Debts Section additions
+  unpaidPurchase: 'unpaid purchase',
+  unpaidPurchases: 'unpaid purchases',
+  paidPurchase: 'paid purchase',
+  paidPurchases: 'paid purchases',
+  allPaid: 'All Paid',
+  payUSD: 'Pay USD',
+  payIQD: 'Pay IQD',
+  paymentMethod: 'Method',
+
+  // Customer Debt Payment modal additions
+  payWith: 'Pay with',
+  defaultPayment: 'Default Payment',
 
   },
   ku: {
@@ -1662,7 +1728,22 @@ const translations = {
     loanAddedSuccessfully: 'قەرز بە سەرکەوتوویی زیاد کرا!',
     failedToAddLoan: 'شکستی هێنا لە زیادکردنی قەرز',
     remainingAmount: 'بڕەکەی ماوە',
-    originalLoan: 'قەرزی یەکەم',
+  originalLoan: 'قەرزی یەکەم',
+  originalAmount: 'ڕەسەن',
+  searchLoans: 'گەڕان بە دوای قەرز...',
+  paidLoans: 'قەرزی پارەدراو',
+  noPaidLoans: 'هیچ قەرزی پارەدراو نییە',
+  noActiveLoans: 'هیچ قەرزی چالاک نییە',
+  outstandingUSD: 'ماوەی دۆلار',
+  outstandingIQD: 'ماوەی دینار',
+  totalLoaned: 'کۆی قەرزدراو',
+  payAllLoans: 'پارەدان بە هەموو قەرزەکان',
+  payAll: 'پارەدان بە هەموو',
+  payAllUSD: 'پارەدان بە هەموو USD (بە بەکارهێنانی بالانسی USD)',
+  payAllIQD: 'پارەدان بە هەموو IQD (بە بەکارهێنانی بالانسی IQD)',
+  borrowerName: 'ناوی قەرزەکەر',
+  exchangeRateInfo: 'زانیاری ڕێژەی گۆڕان',
+  adding: 'زیادکردن...',
     
     // Accessory modal dropdowns
     selectType: 'جۆر هەڵبژێرە',
@@ -1679,6 +1760,11 @@ const translations = {
     enterNameModel: 'ناو/مۆدێلی ئامێری یارمەتیدەر بنووسە',
     accessoryUpdated: 'ئامێری یارمەتیدەر نوێکرایەوە',
     productUpdated: 'بەرهەم نوێکرایەوە',
+  // Accessory modal validations & actions (missing)
+  pleaseEnterName: 'تکایە ناوی ئامێری یارمەتیدەر بنووسە',
+  pleaseEnterValidPrice: 'تکایە نرخی دروست بنووسە',
+  pleaseEnterValidStock: 'تکایە کۆگای دروست بنووسە',
+  editAccessory: 'دەستکاری ئامێری یارمەتیدەر',
     
     // Settings modal
     confirmResetAllData: 'دڵنیایت کە دەتەوێت هەموو بەرهەمەکان، ئارشیو کراوەکان، و مێژووی فرۆشتن بسڕیتەوە؟ ئەمە ناگەڕێتەوە!',
@@ -1849,9 +1935,10 @@ const translations = {
     allInIQD: 'هەموویان بە دینار',
     mixedCurrency: 'درۆگمیکس',
     customAmounts: 'بڕی تایبەت',
-    returnSummary: 'کورتەی گەڕاندنەوە',
-    confirmReturn: 'دووپاتکردنی گەڕاندنەوە',
-    mixed: 'تێکەڵ',
+  returnSummary: 'کورتەی گەڕاندنەوە',
+  confirmReturn: 'دووپاتکردنی گەڕاندنەوە',
+  mixed: 'تێکەڵ',
+  totalValue: 'کۆی بەهای',
     confirm: 'دووپاتکردن',
     
     // Dashboard returns display
@@ -2089,18 +2176,38 @@ const translations = {
     payWithIQD: 'پارەدان بە دینار',
     payWithUSD: 'پارەدان بە دۆلار',
     customerDebtPayment: 'پارەدانی قەرزی کڕیار',
+  payCompanyDebt: 'پارەدانی قەرزی کۆمپانیا',
     exact: 'وردە',
     nearest250: 'نزیکترین ٢٥٠',
     nearest1000: 'نزیکترین ١٠٠٠',
     nearest5000: 'نزیکترین ٥٠٠٠',
     nearest10000: 'نزیکترین ١٠٠٠٠',
-    quickAmounts: 'بڕە خێراکان',
+  // USD quick rounding labels
+  nearest1: '~$1',
+  nearest5: '~$5',
+  nearest10: '~$10',
+  both: 'هەردوو',
+  totalDebt: 'کۆی قەرز',
+  quickAmounts: 'بڕە خێراکان',
     paymentOptions: 'هەڵبژاردەکانی پارەدان',
     paymentSummary: 'کورتەی پارەدان',
     multicurrency: 'چەند دراویی',
     currentBalances: 'بالانسەکانی ئێستا',
+  paymentAmount: 'بڕی پارەدان',
+  payingAmount: 'پارەدان',
+  willBeDeducted: 'کەم دەکرێت',
+  debtInfo: 'زانیاری قەرز',
+  showItems: 'پیشاندانی بڕگەکان',
+  specifications: 'تایبەتمەندییەکان',
+  changeNote: 'گۆڕانەکانی کەمتر لە $1 یان 1000 دینار پاشهێنان ناکرێن بۆ دووربوونەوە لە مامەڵەی بچوک.',
     processPayment: 'پرۆسێسکردنی پارەدان',
-    IQD: 'دینار',
+  IQD: 'دینار',
+  // Universal payment modal titles & labels
+  customerTotalPayment: 'پارەدانی کۆی قەرزی کڕیار',
+  personalLoanPayment: 'پارەدانی قەرزی کەسی',
+  personalTotalPayment: 'پارەدانی کۆی قەرزی کەسی',
+  person: 'کەس',
+  unknownPerson: 'کەسی نەزانراو',
     customerUSD: 'کڕیاری دۆلار',
     customerIQD: 'کڕیاری دینار',
     companyUSD: 'کۆمپانیای دۆلار',
@@ -2151,9 +2258,6 @@ const translations = {
     addAnotherIncentive: 'هاندانی دیکە بۆ ئەم کۆمپانیایە زیادبکە',
     confirmDelete: 'دووپاتکردنەوەی سڕینەوە',
     searchLoan: 'گەڕانی قەرز',
-    totalLoaned: 'کۆی قەرزدراو',
-    outstandingUSD: 'ماوەی دۆلار',
-    outstandingIQD: 'ماوەی دینار',
     activeLoans: 'قەرزە چالاکەکان',
     loan: 'قەرز',
     enterBorrowerName: 'ناوی قەرزەکەر بنووسە',
@@ -2365,6 +2469,8 @@ const translations = {
 
     // Error Messages & System
     applicationError: 'هەڵەی بەرنامە',
+  adminRenderError: 'هەڵەی پیشاندانی ئەدمین',
+  adminRenderErrorDesc: 'ڕووبەڕوی هەڵەیەکی پیشاندان بووین لە پەڕەی ئەدمین. لەوانەیە هۆکاری لە تێکشکبوونی داتا یان پێداویستییە نەماوەکان بێت.',
     unexpectedError: 'بەرنامەکە بەرکەوتوویەتی هەڵەیەکی نەخوازراو. نیگەران مەبە، داتاکانت سەلامەتن.',
     maxRetriesReached: 'گەیشتووە بە زۆرترین ژمارەی هەوڵ',
     tryAgain: 'دووبارە هەوڵبدەوە',
@@ -2422,6 +2528,7 @@ const translations = {
     time: 'کات',
     mobileRomaAdmin: 'بەڕێوەبەری مۆبایل ڕۆما',
     mobileRoma: 'مۆبایل ڕۆما',
+  adminPanel: 'پانێڵی ئەدمین',
 
     // Menu & Navigation Labels
     analytics: 'شیکردنەوە',
@@ -2470,6 +2577,32 @@ const translations = {
     archivedItemsDescription: 'بینین و بەڕێوەبردنی بەرهەم و ئەکسسوارە ئەرشیڤکراوەکان',
     invalidDate: 'بەرواری نادروست',
     max: 'زۆرترین',
+  min: 'کەمترین',
+  priceRange: 'مەودای نرخ',
+  tryDifferentFilter: 'هەوڵی فلتەرێکی تر یان وشەیەکی تر بدە',
+  noProductsFound: 'هیچ بەرهەمێک نەدۆزرایەوە',
+
+  // Cashier rounding and exchange rate helpers
+  roundedToNearest250: 'بڕەکان خڕ کراونە بۆ نزیکترین ٢٥٠ دینار',
+  pleaseAcknowledgeWarning: 'تکایە یەکەم ئاگادارکردنەوەکە پشتڕاست بکە',
+  failedToLoadExchangeRate: 'شکستی هێنا لە بارکردنی ڕێژەی گۆڕینی پارە',
+  loadingExchangeRate: 'بارکردنی ڕێژەی گۆڕینی پارە...',
+  failedToSaveRate: 'شکستی هێنا لە پاشەکەوتکردنی ڕێژە',
+  customerNameOrSearch: 'ناوی کڕیار (دەست بکە بە نووسین بۆ پێشنیارەکان)',
+
+  // Company Debts Section additions
+  unpaidPurchase: 'کڕینی نەدراو',
+  unpaidPurchases: 'کڕینە نەدراوەکان',
+  paidPurchase: 'کڕینی پارەدراو',
+  paidPurchases: 'کڕینە پارەدراوەکان',
+  allPaid: 'هەموویان پارەدرا',
+  payUSD: 'پارەدان بە USD',
+  payIQD: 'پارەدان بە IQD',
+  paymentMethod: 'شێوازی پارەدان',
+
+  // Customer Debt Payment modal additions
+  payWith: 'پارە بدە بە',
+  defaultPayment: 'پارەدانی بنەڕەت',
 
   },
   ar: {
@@ -2829,6 +2962,11 @@ const translations = {
     enterNameModel: 'أدخل اسم/موديل الإكسسوار',
     accessoryUpdated: 'تم تحديث الإكسسوار',
     productUpdated: 'تم تحديث المنتج',
+  // Accessory modal validations & actions (missing)
+  pleaseEnterName: 'يرجى إدخال اسم الإكسسوار',
+  pleaseEnterValidPrice: 'يرجى إدخال سعر صالح',
+  pleaseEnterValidStock: 'يرجى إدخال مخزون صالح',
+  editAccessory: 'تعديل الإكسسوار',
     
     // Settings modal
     confirmResetAllData: 'هل أنت متأكد من أنك تريد حذف جميع المنتجات والمؤرشفة وتاريخ المبيعات؟ لا يمكن التراجع عن هذا!',
@@ -2949,7 +3087,10 @@ const translations = {
     archivedItems: 'العناصر المؤرشفة',
     archivedAccessories: 'الإكسسوارات المؤرشفة',
     
-    // Sales History Section
+  // Sales History Section
+  salesHistoryDesc: 'تتبع جميع مبيعات عملك وإيراداتك',
+  previous: 'السابق',
+  next: 'التالي',
     confirmReturnSale: 'هل أنت متأكد من أنك تريد إرجاع هذا البيع بالكامل؟ سيتم استعادة المخزون وإزالة البيع من السجلات.',
     returnEntry: 'إرجاع',
     confirmReturnEntry: 'هل أنت متأكد من أنك تريد إرجاع هذا الشراء؟ سيتم تقليل المخزون وإرداد المبلغ.',
@@ -3299,18 +3440,38 @@ const translations = {
     payWithIQD: 'الدفع بالدينار',
     payWithUSD: 'الدفع بالدولار',
     customerDebtPayment: 'دفع دين العميل',
+  payCompanyDebt: 'دفع دين الشركة',
     exact: 'مضبوط',
     nearest250: 'أقرب 250',
     nearest1000: 'أقرب 1000',
     nearest5000: 'أقرب 5000',
     nearest10000: 'أقرب 10000',
-    quickAmounts: 'المبالغ السريعة',
+  // USD quick rounding labels
+  nearest1: 'أقرب $1',
+  nearest5: 'أقرب $5',
+  nearest10: 'أقرب $10',
+  both: 'كلاهما',
+  totalDebt: 'إجمالي الدين',
+  quickAmounts: 'المبالغ السريعة',
     paymentOptions: 'خيارات الدفع',
     paymentSummary: 'ملخص الدفع',
     multicurrency: 'متعدد العملات',
     currentBalances: 'الأرصدة الحالية',
+  paymentAmount: 'مبلغ الدفع',
+  payingAmount: 'الدفع',
+  willBeDeducted: 'سيتم خصمه',
+  debtInfo: 'معلومات الدين',
+  showItems: 'إظهار العناصر',
+  specifications: 'المواصفات',
+  changeNote: 'سيتم تجاهل الفروقات الأقل من 1$ أو 1000 دينار لتجنب العمليات الصغيرة.',
     processPayment: 'معالجة الدفع',
-    IQD: 'دينار',
+  IQD: 'دينار',
+  // Universal payment modal titles & labels
+  customerTotalPayment: 'الدفع الكلي للعميل',
+  personalLoanPayment: 'دفع قرض شخصي',
+  personalTotalPayment: 'الدفع الكلي الشخصي',
+  person: 'شخص',
+  unknownPerson: 'شخص غير معروف',
     customerUSD: 'عميل دولار',
     customerIQD: 'عميل دينار',
     companyUSD: 'شركة دولار',
@@ -3574,6 +3735,8 @@ const translations = {
 
     // Error Messages & System
     applicationError: 'خطأ في التطبيق',
+  adminRenderError: 'خطأ في عرض الإدارة',
+  adminRenderErrorDesc: 'واجهت واجهة الإدارة خطأ في العرض. قد يكون ذلك بسبب تلف البيانات أو نقص التبعيات.',
     unexpectedError: 'واجه التطبيق خطأ غير متوقع. لا تقلق، بياناتك آمنة.',
     maxRetriesReached: 'تم الوصول للحد الأقصى من المحاولات',
     tryAgain: 'حاول مرة أخرى',
@@ -3627,6 +3790,7 @@ const translations = {
     time: 'الوقت',
     mobileRomaAdmin: 'إدارة موبايل روما',
     mobileRoma: 'موبايل روما',
+  adminPanel: 'لوحة الإدارة',
 
     // Menu & Navigation Labels
     reports: 'التقارير',
@@ -3662,6 +3826,32 @@ const translations = {
 
     // Currency equivalents
     iqdEquivalent: 'ما يعادل الدينار',
+  min: 'الأدنى',
+  priceRange: 'نطاق السعر',
+  tryDifferentFilter: 'جرّب مرشحاً أو عبارة بحث مختلفة',
+  noProductsFound: 'لم يتم العثور على منتجات',
+
+  // Cashier rounding and exchange rate helpers
+  roundedToNearest250: 'تم تقريب المبالغ لأقرب 250 دينار',
+  pleaseAcknowledgeWarning: 'يرجى تأكيد التحذير أولاً',
+  failedToLoadExchangeRate: 'فشل في تحميل أسعار الصرف',
+  loadingExchangeRate: 'جاري تحميل سعر الصرف...',
+  failedToSaveRate: 'فشل في حفظ سعر الصرف',
+  customerNameOrSearch: 'اسم العميل (ابدأ بالكتابة لاقتراحات)',
+
+  // Company Debts Section additions
+  unpaidPurchase: 'شراء غير مدفوع',
+  unpaidPurchases: 'مشتريات غير مدفوعة',
+  paidPurchase: 'شراء مدفوع',
+  paidPurchases: 'مشتريات مدفوعة',
+  allPaid: 'الكل مدفوع',
+  payUSD: 'ادفع USD',
+  payIQD: 'ادفع IQD',
+  paymentMethod: 'الطريقة',
+
+  // Customer Debt Payment modal additions
+  payWith: 'ادفع بـ',
+  defaultPayment: 'الدفع الافتراضي',
 
   },
 };

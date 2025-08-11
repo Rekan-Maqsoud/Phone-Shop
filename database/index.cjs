@@ -142,17 +142,10 @@ module.exports = function(dbPath) {
     return debts.getCustomerDebts(db);
   }
 
-  function getDebtPayments(debtType, debtId) {
-    return debts.getDebtPayments(db, debtType, debtId);
-  }
-
   function addCustomerDebt(debtData) {
     return debts.addCustomerDebt(db, debtData);
   }
 
-  function getDebtPayments(debtType, debtId) {
-    return debts.getDebtPayments(db, debtType, debtId);
-  }
 
   // Legacy addDebt function for backward compatibility with frontend
   function addDebt({ sale_id, customer_name }) {
@@ -2465,7 +2458,6 @@ module.exports = function(dbPath) {
     // Debts
     getCustomerDebts,
     getDebts: getCustomerDebts, // Alias for backward compatibility
-    getDebtPayments,
     addCustomerDebt,
     payCustomerDebt,
     payCustomerDebtTotal,
