@@ -169,4 +169,7 @@ contextBridge.exposeInMainWorld('api', {
   getUpdateSettings: () => ipcRenderer.invoke('getUpdateSettings'),
   updateUpdateSettings: (settings) => ipcRenderer.invoke('updateUpdateSettings', settings),
   getAppVersion: () => ipcRenderer.invoke('getAppVersion'),
+  
+  // Production fixes
+  fixStockDiscrepancies: () => ipcRenderer.invoke('fixStockDiscrepancies'),
 });

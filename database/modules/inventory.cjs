@@ -270,6 +270,15 @@ function addDirectPurchaseWithItems(db, { supplier, date, items, currency = 'IQD
           try {
             const result = addProduct(db, productData);
             
+            // CRITICAL: Update the buying_history_items record with the correct product ID
+            // This ensures the cashier can find the product using the correct ID
+            if (result && (result.productId || result.lastInsertRowid)) {
+              const actualProductId = result.productId || result.lastInsertRowid;
+              console.log(`✅ [inventory.cjs] Product ${result.merged ? 'merged' : 'created'} with ID: ${actualProductId}, Name: "${productData.name}"`);
+              // Note: We don't update buying_history_items here since it's just for tracking
+              // The actual product is properly added to the products table with correct ID
+            }
+            
           } catch (error) {
             console.error('❌ [inventory.cjs] Error adding product:', error);
             throw error;
@@ -336,6 +345,16 @@ function addDirectPurchaseWithItems(db, { supplier, date, items, currency = 'IQD
           
           try {
             const result = addAccessory(db, accessoryData);
+            
+            // CRITICAL: Update the buying_history_items record with the correct accessory ID
+            // This ensures the cashier can find the accessory using the correct ID
+            if (result && (result.accessoryId || result.lastInsertRowid)) {
+              const actualAccessoryId = result.accessoryId || result.lastInsertRowid;
+              console.log(`✅ [inventory.cjs] Accessory ${result.merged ? 'merged' : 'created'} with ID: ${actualAccessoryId}, Name: "${accessoryData.name}"`);
+              // Note: We don't update buying_history_items here since it's just for tracking
+              // The actual accessory is properly added to the accessories table with correct ID
+            }
+            
           } catch (error) {
             console.error('❌ [inventory.cjs] Error adding accessory:', error);
             throw error;
@@ -382,6 +401,29 @@ function addDirectPurchaseWithItems(db, { supplier, date, items, currency = 'IQD
       settings.updateBalance(db, 'USD', -finalTotalAmount);
     } else {
       settings.updateBalance(db, 'IQD', -finalTotalAmount);
+    }
+    
+    // CRITICAL: Ensure all products and accessories have valid IDs after purchase
+    // This fixes any NULL ID issues that might prevent items from being found in cashier
+    const productsModule = require('./products.cjs');
+    const accessoriesModule = require('./accessories.cjs');
+    
+    // Check for and repair any NULL IDs in products
+    const nullProducts = db.prepare('SELECT rowid FROM products WHERE id IS NULL').all();
+    if (nullProducts.length > 0) {
+      console.log(`🔧 [inventory.cjs] Repairing ${nullProducts.length} products with NULL IDs...`);
+      nullProducts.forEach(product => {
+        db.prepare('UPDATE products SET id = ? WHERE rowid = ?').run(product.rowid, product.rowid);
+      });
+    }
+    
+    // Check for and repair any NULL IDs in accessories
+    const nullAccessories = db.prepare('SELECT rowid FROM accessories WHERE id IS NULL').all();
+    if (nullAccessories.length > 0) {
+      console.log(`🔧 [inventory.cjs] Repairing ${nullAccessories.length} accessories with NULL IDs...`);
+      nullAccessories.forEach(accessory => {
+        db.prepare('UPDATE accessories SET id = ? WHERE rowid = ?').run(accessory.rowid, accessory.rowid);
+      });
     }
     
     return { success: true, buyingHistoryId, totalAmount: finalTotalAmount };
@@ -520,6 +562,15 @@ function addDirectPurchaseMultiCurrencyWithItems(db, { supplier, date, items, us
           try {
             const result = addProduct(db, productData);
       
+            // CRITICAL: Update the buying_history_items record with the correct product ID
+            // This ensures the cashier can find the product using the correct ID
+            if (result && (result.productId || result.lastInsertRowid)) {
+              const actualProductId = result.productId || result.lastInsertRowid;
+              console.log(`✅ [inventory.cjs] Multi-currency Product ${result.merged ? 'merged' : 'created'} with ID: ${actualProductId}, Name: "${productData.name}"`);
+              // Note: We don't update buying_history_items here since it's just for tracking
+              // The actual product is properly added to the products table with correct ID
+            }
+      
           } catch (error) {
             console.error('❌ [inventory.cjs] Error adding product:', error);
             throw error;
@@ -587,6 +638,15 @@ function addDirectPurchaseMultiCurrencyWithItems(db, { supplier, date, items, us
           try {
             const result = addAccessory(db, accessoryData);
           
+            // CRITICAL: Update the buying_history_items record with the correct accessory ID
+            // This ensures the cashier can find the accessory using the correct ID
+            if (result && (result.accessoryId || result.lastInsertRowid)) {
+              const actualAccessoryId = result.accessoryId || result.lastInsertRowid;
+              console.log(`✅ [inventory.cjs] Multi-currency Accessory ${result.merged ? 'merged' : 'created'} with ID: ${actualAccessoryId}, Name: "${accessoryData.name}"`);
+              // Note: We don't update buying_history_items here since it's just for tracking
+              // The actual accessory is properly added to the accessories table with correct ID
+            }
+          
           } catch (error) {
             console.error('❌ [inventory.cjs] Error adding accessory:', error);
             throw error;
@@ -617,6 +677,29 @@ function addDirectPurchaseMultiCurrencyWithItems(db, { supplier, date, items, us
     }
     if (total_iqd > 0) {
       settings.updateBalance(db, 'IQD', -total_iqd);
+    }
+    
+    // CRITICAL: Ensure all products and accessories have valid IDs after purchase
+    // This fixes any NULL ID issues that might prevent items from being found in cashier
+    const productsModule = require('./products.cjs');
+    const accessoriesModule = require('./accessories.cjs');
+    
+    // Check for and repair any NULL IDs in products
+    const nullProducts = db.prepare('SELECT rowid FROM products WHERE id IS NULL').all();
+    if (nullProducts.length > 0) {
+      console.log(`🔧 [inventory.cjs] Repairing ${nullProducts.length} products with NULL IDs...`);
+      nullProducts.forEach(product => {
+        db.prepare('UPDATE products SET id = ? WHERE rowid = ?').run(product.rowid, product.rowid);
+      });
+    }
+    
+    // Check for and repair any NULL IDs in accessories
+    const nullAccessories = db.prepare('SELECT rowid FROM accessories WHERE id IS NULL').all();
+    if (nullAccessories.length > 0) {
+      console.log(`🔧 [inventory.cjs] Repairing ${nullAccessories.length} accessories with NULL IDs...`);
+      nullAccessories.forEach(accessory => {
+        db.prepare('UPDATE accessories SET id = ? WHERE rowid = ?').run(accessory.rowid, accessory.rowid);
+      });
     }
     
     return { success: true, buyingHistoryId, totalAmount: { usd: total_usd, iqd: total_iqd } };

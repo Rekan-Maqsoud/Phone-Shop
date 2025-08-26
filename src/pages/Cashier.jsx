@@ -88,35 +88,37 @@ export default function Cashier() {
   }, [allAccessories]);
   
   // Add unique identifiers to differentiate products and accessories based on specifications
+  // CRITICAL: Only include items with valid database IDs to prevent sale errors
   const allItems = useMemo(() => {
-    const productItems = products.map((p, index) => {
-      // Create a specification-based unique ID to differentiate variants
-      const safeId = p.id || `temp_product_${index}_${p.name?.replace(/\s+/g, '_').toLowerCase()}`;
-      const specKey = getProductSpecKey(p);
-      const item = {
-        ...p, 
-        itemType: 'product', 
-        category: p.category || 'phones', 
-        uniqueId: `product_${safeId}_${specKey.replace(/\|/g, '_')}`,
-        // Ensure we have an ID for the product
-        id: p.id || safeId
-      };
-      return item;
-    });
+    const productItems = products
+      .filter(p => p && p.id && !String(p.id).startsWith('temp_')) // Only valid IDs
+      .map((p, index) => {
+        // Create a specification-based unique ID to differentiate variants
+        const specKey = getProductSpecKey(p);
+        const item = {
+          ...p, 
+          itemType: 'product', 
+          category: p.category || 'phones', 
+          uniqueId: `product_${p.id}_${specKey.replace(/\|/g, '_')}`,
+          // Ensure we have a valid database ID
+          id: p.id
+        };
+        return item;
+      });
     
-    const accessoryItems = accessories.map((a, index) => {
-      // Create a robust unique ID even if a.id is missing
-      const safeId = a.id || `temp_accessory_${index}_${a.name?.replace(/\s+/g, '_').toLowerCase()}`;
-      const item = {
-        ...a, 
-        itemType: 'accessory', 
-        category: 'accessories', 
-        uniqueId: `accessory_${safeId}`,
-        // Ensure we have an ID for the accessory
-        id: a.id || safeId
-      };
-      return item;
-    });
+    const accessoryItems = accessories
+      .filter(a => a && a.id && !String(a.id).startsWith('temp_')) // Only valid IDs
+      .map((a, index) => {
+        const item = {
+          ...a, 
+          itemType: 'accessory', 
+          category: 'accessories', 
+          uniqueId: `accessory_${a.id}`,
+          // Ensure we have a valid database ID
+          id: a.id
+        };
+        return item;
+      });
     
     const result = [...productItems, ...accessoryItems];
     return result;

@@ -2468,6 +2468,17 @@ ipcMain.handle('getAppVersion', async () => {
   }
 });
 
+ipcMain.handle('fixStockDiscrepancies', async () => {
+  try {
+    console.log('[IPC] Running stock discrepancy fix...');
+    const result = db.fixStockDiscrepancies();
+    return { success: true, ...result };
+  } catch (error) {
+    console.error('[IPC] fixStockDiscrepancies error:', error);
+    return { success: false, message: error.message };
+  }
+});
+
 // Cleanup when app is closing
 app.on('before-quit', () => {
   try {

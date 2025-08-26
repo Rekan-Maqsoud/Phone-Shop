@@ -13,6 +13,7 @@ if (window.location.pathname.includes('/admin')) {
 - __resetShopBalances() - Reset all balances to 0
 - __exportData() - Export all data to console
 - __getSystemInfo() - Get system information
+- __fixStockDiscrepancies() - Fix product/accessory stock discrepancies
     `);
   };
 
@@ -100,8 +101,37 @@ if (window.location.pathname.includes('/admin')) {
       apiAvailable: !!window.api
     };
     
-    
+    console.log('🖥️ System Info:', info);
     return info;
+  };
+
+  window.__fixStockDiscrepancies = async function() {
+    try {
+      if (window.api && window.api.fixStockDiscrepancies) {
+        console.log('🔧 Running stock discrepancy fix...');
+        const result = await window.api.fixStockDiscrepancies();
+        
+        if (result.success) {
+          console.log(`✅ Stock fix completed:`);
+          console.log(`   📱 Fixed ${result.fixedProducts} products`);
+          console.log(`   🔧 Fixed ${result.fixedAccessories} accessories`);
+          
+          // Refresh the page to update UI
+          if (result.fixedProducts > 0 || result.fixedAccessories > 0) {
+            console.log('🔄 Refreshing page to update UI...');
+            setTimeout(() => window.location.reload(), 1000);
+          }
+        } else {
+          console.error('❌ Stock fix failed:', result.message);
+        }
+        
+        return result;
+      } else {
+        console.warn('⚠️ API not available');
+      }
+    } catch (error) {
+      console.error('❌ Error fixing stock discrepancies:', error);
+    }
   };
   
 }

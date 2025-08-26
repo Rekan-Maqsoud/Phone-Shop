@@ -390,12 +390,20 @@ export default function AdminModals({
                 }
               }
               
-              // Refresh data from DataContext
+              // Refresh data from DataContext - CRITICAL for cashier to see new items
+              console.log('🔄 [AdminModals] Refreshing data after purchase...');
               await refreshCompanyDebts();
               await refreshBuyingHistory();
               await refreshProducts();
               await refreshAccessories();
               await refreshTransactions();
+              
+              // Wait a bit for database writes to complete, then refresh again to be sure
+              await new Promise(resolve => setTimeout(resolve, 100));
+              await refreshProducts();
+              await refreshAccessories();
+              
+              console.log('✅ [AdminModals] Data refresh completed after purchase');
               
               // Refresh balances to show updated amounts in modal
               if (admin.loadBalances) {
