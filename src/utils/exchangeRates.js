@@ -139,15 +139,15 @@ export const formatCurrency = (amount, currency, hideZeroDecimals = true) => {
     // IQD should never show decimals
     return `د.ع${Math.round(numAmount).toLocaleString()}`;
   }
-  
-  // For USD: determine decimal places
+  // For USD: show 1 decimal if needed, hide .0 for whole numbers
   const isWholeNumber = numAmount === Math.floor(numAmount);
-  
-  if (isWholeNumber || hideZeroDecimals) {
+  if (isWholeNumber) {
     return `$${Math.floor(numAmount).toLocaleString()}`;
   } else {
-    // Show 1-2 decimal places max, remove trailing zeros
-    const formatted = numAmount.toFixed(2).replace(/\.?0+$/, '');
+    // Show 1 decimal if possible, 2 if needed
+    let formatted = numAmount.toFixed(1);
+    // Remove trailing .0 if present
+    formatted = formatted.replace(/\.0$/, '');
     return `$${formatted}`;
   }
 };

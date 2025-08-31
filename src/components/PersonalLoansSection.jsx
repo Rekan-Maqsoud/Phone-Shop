@@ -217,21 +217,21 @@ export default function PersonalLoansSection({ admin, t, showConfirm }) {
         groups[personName].paidUSD += loan.usd_amount || 0;
         groups[personName].paidIQD += loan.iqd_amount || 0;
       } else {
-        // Calculate remaining amounts after partial payments, accounting for opposite currency payments
+        // Calculate remaining amounts after partial payments, only deduct payments in their own currency
         let remainingUSD = 0;
         let remainingIQD = 0;
-        if ((loan.usd_amount || 0) > 0) {
-          // USD loan: subtract USD payments and IQD payments converted to USD
-          const paidUSD = loan.payment_usd_amount || 0;
-          const paidIQD = loan.payment_iqd_amount || 0;
-          remainingUSD = Math.max(0, (loan.usd_amount || 0) - paidUSD - (paidIQD / EXCHANGE_RATES.USD_TO_IQD));
-        }
-        if ((loan.iqd_amount || 0) > 0) {
-          // IQD loan: subtract IQD payments and USD payments converted to IQD
-          const paidUSD = loan.payment_usd_amount || 0;
-          const paidIQD = loan.payment_iqd_amount || 0;
-          remainingIQD = Math.max(0, (loan.iqd_amount || 0) - paidIQD - (paidUSD * EXCHANGE_RATES.USD_TO_IQD));
-        }
+        const paidUSD = loan.payment_usd_amount || 0;
+        const paidIQD = loan.payment_iqd_amount || 0;
+        // ...existing code...
+if ((loan.usd_amount || 0) > 0) {
+  // Only deduct USD payments from USD loans
+  remainingUSD = Math.max(0, (loan.usd_amount || 0) - paidUSD);
+}
+if ((loan.iqd_amount || 0) > 0) {
+  // Only deduct IQD payments from IQD loans
+  remainingIQD = Math.max(0, (loan.iqd_amount || 0) - paidIQD);
+}
+// ...existing code...
         groups[personName].unpaidUSD += remainingUSD;
         groups[personName].unpaidIQD += remainingIQD;
       }
@@ -634,59 +634,61 @@ export default function PersonalLoansSection({ admin, t, showConfirm }) {
                     {group.loans
                       .filter(loan => showPaidLoans ? !!loan.paid_at : !loan.paid_at)
                       .map((loan) => (
-                        <div key={loan.id} className="p-4 border-b border-gray-200 dark:border-gray-600 last:border-b-0">
-                          <div className="flex items-center justify-between">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-2">
-                                <span className="text-sm text-gray-500 dark:text-gray-400">
-                                  {new Date(loan.created_at).toLocaleDateString()}
-                                </span>
-                                {loan.description && (
-                                  <>
-                                    <span className="text-gray-300">•</span>
-                                    <span className="text-sm text-gray-600 dark:text-gray-400">
-                                      {loan.description}
-                                    </span>
-                                  </>
-                                )}
-                              </div>
-                              
-                              <div className="flex gap-4">
-                                {(() => {
-                                  // Calculate remaining amounts for display
-                                      // Calculate remaining amounts for display, accounting for opposite currency payments
-                                      let remainingUSD = 0;
-                                      let remainingIQD = 0;
-                                      if ((loan.usd_amount || 0) > 0) {
-                                        const paidUSD = loan.payment_usd_amount || 0;
-                                        const paidIQD = loan.payment_iqd_amount || 0;
-                                        remainingUSD = loan.paid_at ? (loan.usd_amount || 0) : Math.max(0, (loan.usd_amount || 0) - paidUSD - (paidIQD / EXCHANGE_RATES.USD_TO_IQD));
-                                      }
-                                      if ((loan.iqd_amount || 0) > 0) {
-                                        const paidUSD = loan.payment_usd_amount || 0;
-                                        const paidIQD = loan.payment_iqd_amount || 0;
-                                        remainingIQD = loan.paid_at ? (loan.iqd_amount || 0) : Math.max(0, (loan.iqd_amount || 0) - paidIQD - (paidUSD * EXCHANGE_RATES.USD_TO_IQD));
-                                      }
-                                      return (
-                                        <>
-                                          {remainingUSD > 0 && (
-                                            <div className={`text-lg font-bold ${
-                                              loan.paid_at ? 'text-green-600 dark:text-green-400' : 'text-blue-600 dark:text-blue-400'
-                                            }`}>
-                                              {formatCurrency(remainingUSD, 'USD')}
-                                            </div>
-                                          )}
-                                          {remainingIQD > 0 && (
-                                            <div className={`text-lg font-bold ${
-                                              loan.paid_at ? 'text-green-600 dark:text-green-400' : 'text-orange-600 dark:text-orange-400'
-                                            }`}>
-                                              {formatCurrency(remainingIQD, 'IQD')}
-                                            </div>
-                                          )}
-                                        </>
-                                      );
-                                })()}
-                              </div>
+                          <div key={loan.id} className="p-4 border-b border-gray-200 dark:border-gray-600 last:border-b-0">
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <span className="text-sm text-gray-500 dark:text-gray-400">
+                                    {new Date(loan.created_at).toLocaleDateString()}
+                                  </span>
+                                  {loan.description && (
+                                    <>
+                                      <span className="text-gray-300">•</span>
+                                      <span className="text-sm text-gray-600 dark:text-gray-400">
+                                        {loan.description}
+                                      </span>
+                                    </>
+                                  )}
+                                </div>
+
+                                <div className="flex gap-4">
+                                  {(() => {
+                                    // Calculate remaining amounts for display
+                                    let remainingUSD = 0;
+                                    let remainingIQD = 0;
+                                    const paidUSD = loan.payment_usd_amount || 0;
+                                    const paidIQD = loan.payment_iqd_amount || 0;
+                                    // Only count payments in their own currency for remaining
+                                    // ...existing code...
+if ((loan.usd_amount || 0) > 0) {
+  // Only deduct USD payments from USD loans
+  remainingUSD = Math.max(0, (loan.usd_amount || 0) - paidUSD);
+}
+if ((loan.iqd_amount || 0) > 0) {
+  // Only deduct IQD payments from IQD loans
+  remainingIQD = Math.max(0, (loan.iqd_amount || 0) - paidIQD);
+}
+// ...existing code...
+                                    return (
+                                      <>
+                                        {remainingUSD > 0 && (
+                                          <div className={`text-lg font-bold ${
+                                            loan.paid_at ? 'text-green-600 dark:text-green-400' : 'text-blue-600 dark:text-blue-400'
+                                          }`}>
+                                            {formatCurrency(remainingUSD, 'USD')}
+                                          </div>
+                                        )}
+                                        {remainingIQD > 0 && (
+                                          <div className={`text-lg font-bold ${
+                                            loan.paid_at ? 'text-green-600 dark:text-green-400' : 'text-orange-600 dark:text-orange-400'
+                                          }`}>
+                                            {formatCurrency(remainingIQD, 'IQD')}
+                                          </div>
+                                        )}
+                                      </>
+                                    );
+                                  })()}
+                                </div>
                               
                               {/* Show original amounts and payment details for partial payments */}
                               {!loan.paid_at && (loan.payment_usd_amount > 0 || loan.payment_iqd_amount > 0) && (
